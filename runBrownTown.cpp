@@ -1,0 +1,118 @@
+///////////////////////////////////////////////////////////////////////
+// Author: Jeff Comer <jcomer2@illinois.edu>
+#include <cstdio>
+#include <cuda.h>
+#include <sstream>
+
+#include "useful.h"
+#include "GrandBrownTown.h"
+#include "Configuration.h"
+#include "GPUManager.h"
+
+using namespace std;
+
+const unsigned int kIMDPort = 71992;
+
+int main(int argc, char* argv[]) {
+	if (argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
+		// --help
+		printf("Usage: %s [OPTIONS [ARGS]] CONFIGFILE OUTPUT [SEED]\n", argv[0]);
+		printf("\n");
+		printf("  -r, --replicas=    Number of replicas to run\n");
+		printf("  -i, --imd=         IMD port (defaults to %d)\n", kIMDPort);
+		printf("  -d, --debug        Debug mode: allows user to choose which forces are computed\n");
+		printf("  --safe             Do not use GPUs that may timeout (default)\n");
+		printf("  --unsafe           Use GPUs that may timeout\n");
+		printf("  -h, --help         Display this help and exit\n");
+		printf("  --info             Output CPU and GPU information and exit\n");
+		printf("  --version          Output version information and exit\n");
+		return 0;
+	} else if (argc == 2 && (strcmp(argv[1], "--version") == 0)) {
+		// --version
+		printf("%s 0.1a\n", argv[0]);
+		printf("Written by Jeff Comer, Justin Dufresne, and Terrance Howard.\n");
+		return 0;
+	} else if (argc == 2 && (strcmp(argv[1], "--info") == 0)) {
+		// --info
+		GPUManager::load_info();
+		size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
+		return 0;
+	} else if (argc < 3) {
+		printf("%s: missing arguments\n", argv[0]);
+    printf("Try '%s --help' for more information.\n", argv[0]);
+    return 1;
+  }
+  
+	bool debug = false, safe = true;
+	int replicas = 1;
+	unsigned int imd_port;
+	bool imd_on = false;
+	int num_flags = 0;
+	for (int pos = 1; pos < argc; pos++) {
+		const char *arg = argv[pos];
+		if (strcmp(arg, "--safe") == 0) {
+			safe = true;
+			num_flags++;
+		} else if (strcmp(arg, "--unsafe") == 0) {
+			safe = false;
+			num_flags++;
+		} else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--debug") == 0) {
+			debug = true;
+			num_flags++;
+		} else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--replicas") == 0) {
+			int arg_val = atoi(argv[pos + 1]);
+			if (arg_val <= 0) {
+				printf("Invalid argument given to %s\n", arg);
+				return 1;
+			}
+			replicas = arg_val;
+			num_flags += 2;
+		} else if (strcmp(arg, "-i") == 0 || strcmp(arg, "--imd") == 0) {
+			int arg_val = atoi(argv[pos + 1]);
+			if (arg_val <= 0) {
+				imd_port = kIMDPort;
+			} else {
+				imd_port = arg_val;
+				num_flags++;
+			}
+			imd_on = true;
+			num_flags++;
+		}
+		
+		if (argc - num_flags < 3) {
+			printf("%s: missing arguments\n", argv[0]);
+			printf("Try '%s --help' for more information.\n", argv[0]);
+			return 1;
+		}
+	}
+
+	long int randomSeed = 1992;
+	char* configFile = NULL;
+	char* outArg = NULL;
+	if (argc - num_flags >= 4) {
+		configFile = argv[argc - 3];
+		outArg = argv[argc - 2];
+		randomSeed = atol(argv[argc - 1]);
+	} else if (argc - num_flags >= 3) {
+		configFile = argv[argc - 2];
+		outArg = argv[argc - 1];
+	}
+	
+  printf("Everything's great when you're...BrownTown\n");
+
+	GPUManager::init();
+	GPUManager::safe(safe);
+	Configuration config(configFile, replicas, debug);
+	GPUManager::set(0);
+	config.copyToCUDA();
+
+	GrandBrownTown brown(config, outArg, randomSeed,
+			debug, imd_on, imd_port, replicas);
+	printf("Running on GPU %d...\n", GPUManager::current());
+	cudaDeviceProp prop = GPUManager::properties[GPUManager::current()];
+	if (prop.kernelExecTimeoutEnabled != 0)
+		printf("WARNING: GPU may timeout\n");
+	brown.run();
+  return 0;
+
+}
