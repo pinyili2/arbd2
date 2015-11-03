@@ -1,6 +1,8 @@
 ### Paths, libraries, includes, options
 
-CUDA_PATH ?= /Developer/NVIDIA/CUDA-6.5
+# CUDA_PATH ?= /Developer/NVIDIA/CUDA-6.5
+CUDA_PATH ?= /software/cuda-toolkit-4.1-x86_64/cuda
+
 #CUDA_PATH ?= /usr/local/encap/cuda-5.5
 
 include ./findcudalib.mk
