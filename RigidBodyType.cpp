@@ -52,8 +52,30 @@ KeyGrid RigidBodyType::createKeyGrid(String s) {
 	return g;
 }
 void RigidBodyType::addPotentialGrid(String s) {
-	potentialGrids.push_back( createKeyGrid(s) );
+	// tokenize and return
+	int numTokens = s.tokenCount();
+	if (numTokens != 2) {
+		printf("ERROR: could not add Grid.\n"); // TODO improve this message
+		exit(1);
+	}
+	String* token = new String[numTokens];
+	s.tokenize(token);
+	String key = token[0];
+	BaseGrid g(token[1]);
+	
+	potentialGrids.push_back( g );
 }
 void RigidBodyType::addDensityGrid(String s) {
-	densityGrids.push_back( createKeyGrid(s) );
+	// tokenize and return
+	int numTokens = s.tokenCount();
+	if (numTokens != 2) {
+		printf("ERROR: could not add Grid.\n"); // TODO improve this message
+		exit(1);
+	}
+	String* token = new String[numTokens];
+	s.tokenize(token);
+	String key = token[0];
+	BaseGrid g(token[1]);
+	
+	densityGrids.push_back( g );
 }

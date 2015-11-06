@@ -408,6 +408,9 @@ void Configuration::copyToCUDA() {
 	// TODO: The above line fails when there is not enough memory. If it fails, stop.
 	
 	// TODO: what's going on here?
+	// pmf_h is made as a copy of *part[i].pmf, which is then asynchronously copied to Device, and
+	// is not deleted
+	// seems like bad code, but not 100% sure
 	for (int i = 0; i < numParts; i++) {
 		BaseGrid *pmf = NULL, *diffusionGrid = NULL;
 		BrownianParticleType *b = new BrownianParticleType(part[i]);
