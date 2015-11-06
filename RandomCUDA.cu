@@ -3,7 +3,7 @@
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
 	if (code != cudaSuccess) {
-		fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), file, line);
+		fprintf(stderr,"CUDA Error: %s (%s:%d)\n", cudaGetErrorString(code), file, line);
 		if (abort) exit(code);
 	}
 }
@@ -11,7 +11,7 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
 #define cuRandchk(ans) { cuRandAssert((ans), __FILE__, __LINE__); }
 inline void cuRandAssert(curandStatus code, char *file, int line, bool abort=true) {
 	if (code != CURAND_STATUS_SUCCESS) {
-		fprintf(stderr, "CURAND Error: %d %s %d\n", code, file, line);
+		fprintf(stderr, "CURAND Error: %d (%s:%d)\n", code, file, line);
 		if (abort) exit(code);
 	}
 }

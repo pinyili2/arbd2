@@ -1,5 +1,9 @@
+*.org
+*.o
 .svn
 *~
 .backup
 TAGS
 .dir-locals.el
+BD_example*
+runBrownCUDA

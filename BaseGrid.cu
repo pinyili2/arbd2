@@ -17,6 +17,10 @@ void BaseGrid::init() {
 	size = nx*ny*nz;
 	val = new float[size];
 }
+BaseGrid::BaseGrid() {
+	BaseGrid tmp(Matrix3(1),Vector3(0,0,0),1,1,1);
+	*this = tmp;									// TODO: verify that this is OK
+}
 
 // The most obvious of constructors.
 BaseGrid::BaseGrid(Matrix3 basis0, Vector3 origin0, int nx0, int ny0, int nz0) {

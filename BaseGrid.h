@@ -40,6 +40,8 @@ private:
   void init();
 
 public:
+  BaseGrid(); // cmaffeo2 (2015) moved this out of protected, cause I wanted BaseGrid in a struct
+
   // The most obvious of constructors.
   BaseGrid(Matrix3 basis0, Vector3 origin0, int nx0, int ny0, int nz0);
 
@@ -547,7 +549,5 @@ public:
   Matrix3 basisInv;
 public:
   float* val;
-protected:
-  BaseGrid();
 };
 #endif

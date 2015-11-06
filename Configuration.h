@@ -26,6 +26,7 @@
 #include "TabulatedAngle.h"
 #include "GPUManager.h"
 #include "Dihedral.h"
+#include "RigidBodyType.h"
 
 #include <cuda.h> 
 #include <cuda_runtime.h>
@@ -40,6 +41,7 @@ class Configuration {
 	};
 
 	void setDefaults();
+	Vector3 stringToVector3(String s);
 
 
 	int readParameters(const char* config_file);
@@ -78,6 +80,7 @@ public:
 	// Device Variables
 	int *type_d;
 	BrownianParticleType **part_d;
+	RigidBodyType **rbType_d;
 	BaseGrid *sys_d, *kTGrid_d;
 	Bond* bonds_d;
 	int2* bondMap_d;
@@ -104,6 +107,9 @@ public:
 	Vector3* posLast; // used for current computation
 	float timeLast; // used with posLast
 	float minimumSep; // minimum separation allowed with placing new particles
+
+	// RigidBody variables
+	int numRB;
 
 	// System parameters
 	String outputName;
@@ -183,6 +189,12 @@ public:
 	Dihedral* dihedrals;
 	String* dihedralTableFile;
 	int numTabDihedralFiles;
+
+	// RigidBody parameters.
+	RigidBodyType* rigidBody;
+	int numRBs;
+
+
 };
 
 #endif

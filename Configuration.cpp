@@ -1,5 +1,6 @@
 #include "Configuration.h"
 
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -172,6 +173,19 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	posLast = new Vector3[num * simNum];
 	name = new String[num * simNum];
 	currSerial = 0;
+
+	// RigidBodies...
+	if (numRBs > 0) {
+		printf("\nCounting rigid bodies specified in the configuration file.\n");
+		numRB = 0;
+		for (int i = 0; i < numRBs; i++) num += rigidBody[i].num;
+
+		// // state data
+		// rbPos = new Vector3[numRB * simNum];
+		// type = new int[numRB * simNum];
+		
+	}
+	
 
 	// Create exclusions from the exclude rule, if it was specified in the config file
 	if (excludeRule != String("")) {
@@ -386,11 +400,14 @@ void Configuration::copyToCUDA() {
 	printf("Copying to GPU %d\n", GPUManager::current());
 
 	BrownianParticleType **part_addr = new BrownianParticleType*[numParts];
-	
+	RigidBodyType **rb_addr = new RigidBodyType*[numRBs];	
+
 	// Copy the BaseGrid objects and their member variables/objects
 	gpuErrchk(cudaMalloc(&part_d, sizeof(BrownianParticleType*) * numParts));
+	gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * numRBs));
 	// TODO: The above line fails when there is not enough memory. If it fails, stop.
 	
+	// TODO: what's going on here?
 	for (int i = 0; i < numParts; i++) {
 		BaseGrid *pmf = NULL, *diffusionGrid = NULL;
 		BrownianParticleType *b = new BrownianParticleType(part[i]);
@@ -430,6 +447,15 @@ void Configuration::copyToCUDA() {
 		gpuErrchk(cudaMemcpyAsync(part_d, part_addr, sizeof(BrownianParticleType*) * numParts,
 				cudaMemcpyHostToDevice));
 	}
+
+	// TODO ? utilize Thrust more extensively 
+	for (int i = 0; i < numRBs; i++) {
+		gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * numRBs));
+		rigidBody[i].potentialGrids_D = rigidBody[i].potentialGrids;
+		rigidBody[i].densityGrids_D = rigidBody[i].densityGrids;
+		
+	}
+	
 
 	// kTGrid_d
 	kTGrid_d = NULL;
@@ -545,6 +571,7 @@ int Configuration::readParameters(const char * config_file) {
 	// Get the number of particles.
 	const int numParams = config.length();
 	numParts = config.countParameter("particle");
+	numRBs = config.countParameter("rigidBody");
 
 	// Allocate the particle variables.
 	part = new BrownianParticleType[numParts];
@@ -559,6 +586,9 @@ int Configuration::readParameters(const char * config_file) {
 	partTableFile = new String[numParts*numParts];
 	partTableIndex0 = new int[numParts*numParts];
 	partTableIndex1 = new int[numParts*numParts];
+
+  // Allocate rigid body types
+	rigidBody = new RigidBodyType[numRBs];
 	
 	int btfcap = 10;
 	bondTableFile = new String[btfcap];
@@ -574,9 +604,16 @@ int Configuration::readParameters(const char * config_file) {
 	int currBond = -1;
 	int currAngle = -1;
 	int currDihedral = -1;
+	int currRB = -1;
+
+	int partClassPart =  0;
+	int partClassRB   =  1;
+	int currPartClass = -1;				// 0 => particle, 1 => rigidBody
+	
 	for (int i = 0; i < numParams; i++) {
 		String param = config.getParameter(i);
 		String value = config.getValue(i);
+		// GLOBAL
 		if (param == String("outputName"))
 			outputName = value;
 		else if (param == String("timestep"))
@@ -622,10 +659,11 @@ int Configuration::readParameters(const char * config_file) {
 			numCap = atoi(value.val());
 		else if (param == String("decompPeriod"))
 			decompPeriod = atoi(value.val());
-		else if (param == String("particle"))
+		// PARTICLES
+		else if (param == String("particle")) {
 			part[++currPart] = BrownianParticleType(value);
-		else if (param == String("num"))
-			part[currPart].num = atoi(value.val());
+			currPartClass = partClassPart;
+		}
 		else if (param == String("gridFile"))
 			partGridFile[currPart] = value;
 		else if (param == String("forceXGridFile"))
@@ -721,11 +759,54 @@ int Configuration::readParameters(const char * config_file) {
 			}
 			if (readDihedralFile(value, ++currDihedral))
 				numTabDihedralFiles++;
-		} else {
+		} 
+		// RIGID BODY
+		else if (param == String("rigidBody")) {
+			part[++currPart] = BrownianParticleType(value);
+			rigidBody[++currRB] = RigidBodyType(value);
+			currPartClass = partClassRB;
+		}
+		else if (param == String("mass"))
+			rigidBody[currRB].mass = (float) strtod(value.val(), NULL);
+		else if (param == String("inertia"))
+			rigidBody[currRB].inertia = stringToVector3( value );
+		else if (param == String("transDamping"))
+			rigidBody[currRB].transDamping = stringToVector3( value );
+		else if (param == String("rotDamping"))
+			rigidBody[currRB].rotDamping = stringToVector3( value );
+
+		else if (param == String("potentialGrid"))
+			rigidBody[currRB].addPotentialGrid(value);
+		else if (param == String("potentialGrid"))
+			rigidBody[currRB].addPotentialGrid(value);
+
+		// COMMON
+		else if (param == String("num")) {
+			if (currPartClass == partClassPart)
+				part[currPart].num = atoi(value.val());
+			else if (currPartClass == partClassRB)
+				rigidBody[currRB].num = atoi(value.val());
+		}
+		// UNKNOWN
+		else {
 			printf("WARNING: Unrecognized keyword `%s'.\n", param.val());
 		}
 	}
 	return numParams;
+}
+Vector3 Configuration::stringToVector3(String s) {
+	// tokenize and return
+	int numTokens = s.tokenCount();
+	if (numTokens != 3) {
+		printf("ERROR: could not convert input to Vector3.\n"); // TODO improve this message
+		exit(1);
+	}
+	String* token = new String[numTokens];
+	s.tokenize(token);
+	Vector3 v( (float) strtod(token[0], NULL),
+						 (float) strtod(token[1], NULL),
+						 (float) strtod(token[2], NULL) );
+	return v;
 }
 
 void Configuration::readAtoms() {

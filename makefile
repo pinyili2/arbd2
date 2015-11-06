@@ -1,7 +1,7 @@
 ### Paths, libraries, includes, options
 
 # CUDA_PATH ?= /Developer/NVIDIA/CUDA-6.5
-CUDA_PATH ?= /software/cuda-toolkit-4.1-x86_64/cuda
+CUDA_PATH ?= /software/cuda-toolkit-6.5-x86_64
 
 #CUDA_PATH ?= /usr/local/encap/cuda-5.5
 
@@ -30,8 +30,9 @@ endif
 LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -Wl,-rpath,$(LIBRARY)
 
 #CODE_10 := -gencode arch=compute_10,code=sm_10
-CODE_12 := -gencode arch=compute_12,code=sm_12
+#CODE_12 := -gencode arch=compute_12,code=sm_12
 #CODE_20 := -gencode arch=compute_20,code=sm_20
+CODE_20 := -arch=sm_20
 #CODE_30 := -gencode arch=compute_30,code=sm_30
 #CODE_35 := -gencode arch=compute_35,code=\"sm_35,compute_35\"
 
