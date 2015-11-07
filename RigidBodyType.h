@@ -36,10 +36,10 @@ RigidBodyType(const String& name = "") :
 		/* thrust::device_vector<BaseGrid> potentialGrids_D; */
 		/* thrust::device_vector<BaseGrid> densityGrids_D; */
 
-		potentialGrids = thrust::host_vector<BaseGrid>();
-		densityGrids	 = thrust::host_vector<BaseGrid>();
-		potentialGrids = thrust::host_vector<BaseGrid>();
-		densityGrids	 = thrust::host_vector<BaseGrid>();
+		/* potentialGrids = thrust::host_vector<BaseGrid>(); */
+		/* densityGrids	 = thrust::host_vector<BaseGrid>(); */
+		/* potentialGrids = thrust::host_vector<BaseGrid>(); */
+		/* densityGrids	 = thrust::host_vector<BaseGrid>(); */
 
 	}
 

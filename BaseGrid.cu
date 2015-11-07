@@ -18,7 +18,7 @@ void BaseGrid::init() {
 	val = new float[size];
 }
 BaseGrid::BaseGrid() {
-	BaseGrid tmp(Matrix3(1),Vector3(0,0,0),1,1,1);
+	BaseGrid tmp(Matrix3(),Vector3(),1,1,1);
 	*this = tmp;									// TODO: verify that this is OK
 }
 

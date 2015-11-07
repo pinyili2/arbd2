@@ -37,20 +37,20 @@ void RigidBodyType::clear() {
 // }
 
 
-KeyGrid RigidBodyType::createKeyGrid(String s) {
-	// tokenize and return
-	int numTokens = s.tokenCount();
-	if (numTokens != 2) {
-		printf("ERROR: could not add Grid.\n"); // TODO improve this message
-		exit(1);
-	}
-	String* token = new String[numTokens];
-	s.tokenize(token);
-	KeyGrid g;
-	g.key = token[0];
-	g.grid = * new BaseGrid(token[1]);
-	return g;
-}
+// KeyGrid RigidBodyType::createKeyGrid(String s) {
+// 	// tokenize and return
+// 	int numTokens = s.tokenCount();
+// 	if (numTokens != 2) {
+// 		printf("ERROR: could not add Grid.\n"); // TODO improve this message
+// 		exit(1);
+// 	}
+// 	String* token = new String[numTokens];
+// 	s.tokenize(token);
+// 	KeyGrid g;
+// 	g.key = token[0];
+// 	g.grid = * new BaseGrid(token[1]);
+// 	return g;
+// }
 void RigidBodyType::addPotentialGrid(String s) {
 	// tokenize and return
 	int numTokens = s.tokenCount();

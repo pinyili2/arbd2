@@ -269,6 +269,7 @@ public:
 		return m;
 	}
 
+	HOST DEVICE
 	Matrix3 inverse() const;
 
 	float det() const;
