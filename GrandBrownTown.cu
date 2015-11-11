@@ -9,6 +9,9 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
 	}
 }
 
+#include "RigidBodyType.h" //temporary
+
+
 bool GrandBrownTown::DEBUG;
 
 cudaEvent_t START, STOP;
@@ -27,6 +30,11 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		outCurrFiles.push_back(curr_file.str());
 		restartFiles.push_back(restart_file.str());
 		outFilePrefixes.push_back(out_prefix.str());
+		
+		printf("About to devicePrint\n");
+		devicePrint<<<1,1>>>(&(c.rigidBody[0]));
+		printf("Done with devicePrint\n");
+
 	}
 
 	GrandBrownTown::DEBUG = debug;
@@ -146,6 +154,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	} else {
 		r_seed = seed + randomSeed;
 	}
+	printf("Setting up Random Generator\n");
 	randoGen = new Random(num * numReplicas, r_seed);
 	printf("Random Generator Seed: %lu -> %lu\n", randomSeed, r_seed);
 

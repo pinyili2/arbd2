@@ -192,7 +192,7 @@ public:
 
 	// RigidBody parameters.
 	RigidBodyType* rigidBody;
-	int numRBs;
+	int numRigidTypes;
 
 
 };

@@ -9,8 +9,9 @@ include ./findcudalib.mk
 
 INCLUDE = $(CUDA_PATH)/include
 
-CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE)
-NV_FLAGS =
+DEBUG = -g
+CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
+NV_FLAGS = $(DEBUG)
 EX_FLAGS = -O3 -m$(OS_SIZE)
 
 ifneq ($(MAVERICKS),)
@@ -40,7 +41,6 @@ NV_FLAGS += $(CODE_10) $(CODE_12) $(CODE_20) $(CODE_30) $(CODE_35)
 
 
 ### Sources
-
 CC_SRC := $(wildcard *.cpp)
 CC_SRC := $(filter-out runBrownTown.cpp, $(CC_SRC))
 CU_SRC := $(wildcard *.cu)

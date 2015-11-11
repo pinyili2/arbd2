@@ -103,7 +103,9 @@ int main(int argc, char* argv[]) {
 	GPUManager::init();
 	GPUManager::safe(safe);
 	Configuration config(configFile, replicas, debug);
+	printf("Done with config\n");
 	GPUManager::set(0);
+	printf("Done with gpumanager\n");
 	config.copyToCUDA();
 
 	GrandBrownTown brown(config, outArg, randomSeed,

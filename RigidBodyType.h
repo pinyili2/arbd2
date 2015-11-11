@@ -2,12 +2,14 @@
 // Author: Chris Maffeo <cmaffeo2@illinois.edu>
 
 #pragma once
-// #include <vector>
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+#include <vector>
+/* #include <thrust/host_vector.h> */
+/* #include <thrust/device_vector.h> */
 #include "Reservoir.h"
 #include "useful.h"
 #include "BaseGrid.h"
+
+#include <cstdio>
 
 class RigidBodyType {
 private:
@@ -25,25 +27,7 @@ public:
 RigidBodyType(const String& name = "") :
 	name(name), num(0),
 		reservoir(NULL), mass(1.0f), inertia(), transDamping(),
-		rotDamping() {
-		/* potentialGrids = 	*(new thrust::host_vector<BaseGrid>()); */
-		/* densityGrids = 	*(new thrust::host_vector<BaseGrid>()); */
-		/* potentialGrids = 	*(new thrust::host_vector<BaseGrid>()); */
-		/* densityGrids = 	*(new thrust::host_vector<BaseGrid>()); */
-
-		/* thrust::host_vector<BaseGrid> potentialGrids; */
-		/* thrust::host_vector<BaseGrid> densityGrids; */
-		/* thrust::device_vector<BaseGrid> potentialGrids_D; */
-		/* thrust::device_vector<BaseGrid> densityGrids_D; */
-
-		/* potentialGrids = thrust::host_vector<BaseGrid>(); */
-		/* densityGrids	 = thrust::host_vector<BaseGrid>(); */
-		/* potentialGrids = thrust::host_vector<BaseGrid>(); */
-		/* densityGrids	 = thrust::host_vector<BaseGrid>(); */
-
-	}
-
-
+		rotDamping(), numPotGrids(0), numDenGrids(0) { }
 	
 	/* RigidBodyType(const RigidBodyType& src) { copy(src); } */
 	~RigidBodyType() { clear(); }
@@ -52,8 +36,10 @@ RigidBodyType(const String& name = "") :
 
   void addPotentialGrid(String s);
 	void addDensityGrid(String s);
-	
+	void updateRaw();
+
 public:
+
 	String name;
 	int num; // number of particles of this type
 
@@ -64,8 +50,14 @@ public:
 	Vector3 transDamping;
 	Vector3 rotDamping;
 
-	thrust::host_vector<BaseGrid> potentialGrids;
-	thrust::host_vector<BaseGrid> densityGrids;
-	thrust::device_vector<BaseGrid> potentialGrids_D;
-	thrust::device_vector<BaseGrid> densityGrids_D;
+	std::vector<BaseGrid> potentialGrids;
+	std::vector<BaseGrid> densityGrids;
+	
+	// for device
+	int numPotGrids;
+	int numDenGrids;
+	BaseGrid* rawPotentialGrids;
+	BaseGrid* rawDensityGrids;
+	
 };
+

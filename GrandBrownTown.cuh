@@ -141,3 +141,10 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 
 	return sys->getBasis().transform(l) + sys->getOrigin();
 }
+
+__global__ void devicePrint(RigidBodyType* rb) {
+	printf("RigidBodyType: numGrids = %d\n", rb->numPotGrids);
+}
+// __device__ void devicePrint(BaseGrid g) {
+// 	printf("RigidBodyType: numGrids = %d\n", numPotGrids);
+// };

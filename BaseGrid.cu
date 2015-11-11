@@ -19,7 +19,17 @@ void BaseGrid::init() {
 }
 BaseGrid::BaseGrid() {
 	BaseGrid tmp(Matrix3(),Vector3(),1,1,1);
+	val = new float[1];
 	*this = tmp;									// TODO: verify that this is OK
+	
+	// basis = Matrix3();
+	// origin = Vector3();
+	// nx = 1;
+	// ny = 1;
+	// nz = 1;
+	
+	// init();
+	// zero();
 }
 
 // The most obvious of constructors.

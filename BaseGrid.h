@@ -37,15 +37,12 @@ class BaseGrid {
 private:
   // Initialize the variables that get used a lot.
   // Also, allocate the main value array.
-	HOST DEVICE
   void init();
 
 public:
-	HOST DEVICE
 		BaseGrid(); // cmaffeo2 (2015) moved this out of protected, cause I wanted BaseGrid in a struct
 
   // The most obvious of constructors.
-	HOST DEVICE
 		BaseGrid(Matrix3 basis0, Vector3 origin0, int nx0, int ny0, int nz0);
 
   // Make an orthogonal grid given the box dimensions and resolution.
@@ -91,7 +88,6 @@ public:
   // Write the valies in a single column.
   virtual void writePotential(const char* fileName) const;
   
-	HOST DEVICE
 	virtual ~BaseGrid();
 
   void zero();

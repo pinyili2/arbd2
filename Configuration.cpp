@@ -175,16 +175,17 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	currSerial = 0;
 
 	// RigidBodies...
-	if (numRBs > 0) {
+	if (numRigidTypes > 0) {
 		printf("\nCounting rigid bodies specified in the configuration file.\n");
 		numRB = 0;
-		for (int i = 0; i < numRBs; i++) num += rigidBody[i].num;
+		for (int i = 0; i < numRigidTypes; i++) numRB += rigidBody[i].num;
 
 		// // state data
 		// rbPos = new Vector3[numRB * simNum];
 		// type = new int[numRB * simNum];
 		
 	}
+	printf("Initial RigidBodies: %d\n", numRB);
 	
 
 	// Create exclusions from the exclude rule, if it was specified in the config file
@@ -400,17 +401,13 @@ void Configuration::copyToCUDA() {
 	printf("Copying to GPU %d\n", GPUManager::current());
 
 	BrownianParticleType **part_addr = new BrownianParticleType*[numParts];
-	RigidBodyType **rb_addr = new RigidBodyType*[numRBs];	
+	RigidBodyType **rb_addr = new RigidBodyType*[numRigidTypes];	
 
 	// Copy the BaseGrid objects and their member variables/objects
 	gpuErrchk(cudaMalloc(&part_d, sizeof(BrownianParticleType*) * numParts));
-	gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * numRBs));
+	gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * numRigidTypes));
 	// TODO: The above line fails when there is not enough memory. If it fails, stop.
 	
-	// TODO: what's going on here?
-	// pmf_h is made as a copy of *part[i].pmf, which is then asynchronously copied to Device, and
-	// is not deleted
-	// seems like bad code, but not 100% sure
 	for (int i = 0; i < numParts; i++) {
 		BaseGrid *pmf = NULL, *diffusionGrid = NULL;
 		BrownianParticleType *b = new BrownianParticleType(part[i]);
@@ -451,14 +448,174 @@ void Configuration::copyToCUDA() {
 				cudaMemcpyHostToDevice));
 	}
 
-	// TODO ? utilize Thrust more extensively 
-	for (int i = 0; i < numRBs; i++) {
-		gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * numRBs));
-		rigidBody[i].potentialGrids_D = rigidBody[i].potentialGrids;
-		rigidBody[i].densityGrids_D = rigidBody[i].densityGrids;
+	printf("copying RBs\n");
+	// Copy rigidbody types 
+	// http://stackoverflow.com/questions/16024087/copy-an-object-to-device
+ 	for (int i = 0; i < numRigidTypes; i++) {
+		printf("working on RB %d\n",i);
+		RigidBodyType *rb = &(rigidBody[i]); // temporary for convenience
+		rb->updateRaw();
+
+		int ng = rb->numPotGrids;
+
+		// copy rigidbody to device
+		RigidBodyType *rb_d;
+    gpuErrchk(cudaMalloc((void **) &rb_d, sizeof(RigidBodyType)));
+		gpuErrchk(cudaMemcpy(rb_d, rb, sizeof(RigidBodyType),
+												 cudaMemcpyHostToDevice));
+
+		// copy rb->grid to device
+		BaseGrid * gtmp;
+		gtmp = new BaseGrid[ng];
+		size_t sz = sizeof(BaseGrid)*ng;
 		
-	}
-	
+		// allocate grids on device
+		// copy temporary host pointer to device pointer
+		// copy grids to device through temporary host poin
+		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
+		gpuErrchk(cudaMemcpy(&(rb_d->rawPotentialGrids), &gtmp, 
+												 sizeof(BaseGrid*) * ng, cudaMemcpyHostToDevice ));
+		gpuErrchk(cudaMemcpy(gtmp, &(rb->rawPotentialGrids),
+												 sizeof(BaseGrid)  * ng, cudaMemcpyHostToDevice ));
+		
+		// RBTODO: segfault when gtmp is deleted --> why?
+		//    delete[] gtmp;
+
+
+		// // copy grid data to device
+		// for (int gid = 0; gid < ng; gid++) { 
+		// 	BaseGrid *g = &(rb->rawPotentialGrids[gid]); // convenience
+		// 	int len = g->getSize();
+		// 	float *tmpData;
+		// 	tmpData = new float[len];
+			
+    //   // allocate grid data on device
+		// 	// copy temporary host pointer to device pointer
+		// 	// copy data to device through temporary host pointer
+		// 	sz = sizeof(float*) * len;
+		// 	gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
+		// 	gpuErrchk(cudaMemcpy( (rb_d->rawPotentialGrids[gid].val), &tmpData,
+		// 												sizeof(float*), cudaMemcpyHostToDevice));
+		// 	sz = sizeof(float) * len;
+		// 	gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
+		// 	// RBTODO: why can't this be deleted? 
+		// 	// delete[] tmpData;
+		// }
+
+
+
+
+		// // gpuErrchk(cudaMemcpy(&(rb_d->potentialGrids[i]), &gtmp, 
+		// // 											sz, cudaMemcpyHostToDevice ));
+				
+		// // size_t sz;
+		// // for (int gid = 0; gid < ng; gid++) { 
+		// // 	gpuErrchk(cudaMalloc((void**) &(gtmp[i]), sizeof(BaseGrid)));
+		// // 	gpuErrchk(cudaMemcpy(&(gtmp[i]->potentialGrids[i]), &(gtmp[i]),
+		// // 												sizeof(BaseGrid*), cudaMemcpyHostToDevice));
+		// // }
+
+		
+		// {
+		// 	BaseGrid *tmpData;
+		// 	size_t sz = sizeof(BaseGrid)*ng;
+
+		// 	gpuErrchk(cudaMalloc((void **) &tmpData, sz));
+		// 	gpuErrchk(cudaMemcpy(&(rb_d->potentialGrids[i]), &tmpData, 
+		// 											 sizeof(BaseGrid*), cudaMemcpyHostToDevice ));
+		// 	sz = sizeof(float) * ng
+		// 	gpuErrchk(cudaMemcpy(tmpData, rbg->val, sz, cudaMemcpyHostToDevice));
+		// }
+
+
+			// size_t sz = sizeof(float) * rb->potentialGrids[gid]->getSize();
+			// // gpuErrchk(cudaMalloc(&g_d, sizeof(BaseGrid)));
+
+			// gpuErrchk(cudaMalloc(&tmpData, sz));
+			// gpuErrchk(cudaMemcpyAsync(g_d, rb->potentialGrids[gid], 
+			// 													sizeof(BaseGrid), cudaMemcpyHostToDevice));
+
+		  // gpuErrchk(cudaMemcpy(val_d, rb->potentialGrids[gid], sz, cudaMemcpyHostToDevice));
+			
+			// set rb pointers appropriately
+			// rb_d->potentialGrids[gid] = g_d;
+			// g_d->val = val_d; // hopefully?
+				
+
+
+	// 		BaseGrid *g_d;
+	// 		float *val_d;
+	// 		size_t sz = sizeof(float) * rb.potentialGrids[gid]->getSize();
+	// 		gpuErrchk(cudaMalloc(&g_d, sizeof(BaseGrid)));
+	// 		gpuErrchk(cudaMalloc(&val_d, sz));
+	// 		gpuErrchk(cudaMemcpyAsync(g_d, rb->potentialGrids[gid], 
+	// 															sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	// 	  gpuErrchk(cudaMemcpy(val_d, rb->potentialGrids[gid], sz, cudaMemcpyHostToDevice));
+			
+	// 		// set rb pointers appropriately
+	// 		rb_d->potentialGrids[gid] = g_d;
+	// 		g_d->val = val_d; // hopefully?
+
+	// 	}
+
+
+	// // Copy rigidbody types 
+ 	// for (int i = 0; i < numRigidTypes; i++) {
+	// 	RigidBodyType *rb = rigidBody[i]; // temporary for convenience
+	// 	// gpuErrchk(cudaMemcpy(&rb, sizeof(RigidBodyType)));
+
+	// 	RigidBodyType *rb_d;
+
+		
+	// 	for (int gid = 0; i < rb.numPotGrids) { 
+	// 		BaseGrid *g_d;
+	// 		float *val_d;
+	// 		size_t sz = sizeof(float) * rb.potentialGrids[gid]->getSize();
+	// 		gpuErrchk(cudaMalloc(&g_d, sizeof(BaseGrid)));
+	// 		gpuErrchk(cudaMalloc(&val_d, sz));
+	// 		gpuErrchk(cudaMemcpyAsync(g_d, rb->potentialGrids[gid], 
+	// 															sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	// 	  gpuErrchk(cudaMemcpy(val_d, rb->potentialGrids[gid], sz, cudaMemcpyHostToDevice));
+			
+	// 		// set rb pointers appropriately
+	// 		rb_d->potentialGrids[gid] = g_d;
+	// 		g_d->val = val_d; // hopefully?
+
+	// 	}
+	// 	for (int gid = 0; i < rb.numDenGrids) { 
+	// 		BaseGrid *g_d;
+	// 		float *val_d;
+	// 		size_t sz = sizeof(float) * rb->densityGrids[gid]->getSize();
+	// 		gpuErrchk(cudaMalloc(&g_d, sizeof(BaseGrid)));
+	// 		gpuErrchk(cudaMalloc(&val_d, sz));
+	// 		gpuErrchk(cudaMemcpyAsync(g_d, rb->densityGrids[gid], 
+	// 															sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	// 	  gpuErrchk(cudaMemcpy(val_d, rb->densityGrids[gid], sz, cudaMemcpyHostToDevice));
+			
+	// 	}
+		
+		
+	// 	// RBTODO
+	// 	// b->pmf = pmf;
+	// 	// b->diffusionGrid = diffusionGrid;
+	// 	gpuErrchk(cudaMalloc(&rb_addr[i], sizeof(BrownianParticleType)));
+	// 	gpuErrchk(cudaMemcpyAsync( rb_addr[i], rb_d, 
+	// 														sizeof(BrownianParticleType), cudaMemcpyHostToDevice));
+		
+
+	// 	gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * numRigidTypes));
+	// 	rigidBody[i].potentialGrids_D = rigidBody[i].potentialGrids;
+	// 	rigidBody[i].densityGrids_D = rigidBody[i].densityGrids;
+		
+	// 	gpuErrchk(cudaMemcpyAsync(rb_addr[i], rb, sizeof(RigidBodyType),
+	// 														cudaMemcpyHostToDevice));
+		
+	// 	gpuErrchk(cudaMemcpyAsync(part_d, part_addr, sizeof(BrownianParticleType*) * numParts,
+	// 														cudaMemcpyHostToDevice));
+
+	// 	}
+  }	
+	printf("Done copying RBs\n");
 
 	// kTGrid_d
 	kTGrid_d = NULL;
@@ -574,7 +731,7 @@ int Configuration::readParameters(const char * config_file) {
 	// Get the number of particles.
 	const int numParams = config.length();
 	numParts = config.countParameter("particle");
-	numRBs = config.countParameter("rigidBody");
+	numRigidTypes = config.countParameter("rigidBody");
 
 	// Allocate the particle variables.
 	part = new BrownianParticleType[numParts];
@@ -591,7 +748,7 @@ int Configuration::readParameters(const char * config_file) {
 	partTableIndex1 = new int[numParts*numParts];
 
   // Allocate rigid body types
-	rigidBody = new RigidBodyType[numRBs];
+	rigidBody = new RigidBodyType[numRigidTypes];
 	
 	int btfcap = 10;
 	bondTableFile = new String[btfcap];
@@ -765,7 +922,7 @@ int Configuration::readParameters(const char * config_file) {
 		} 
 		// RIGID BODY
 		else if (param == String("rigidBody")) {
-			part[++currPart] = BrownianParticleType(value);
+			// part[++currPart] = BrownianParticleType(value);
 			rigidBody[++currRB] = RigidBodyType(value);
 			currPartClass = partClassRB;
 		}
