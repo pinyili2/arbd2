@@ -14,9 +14,8 @@
   output, so its pretty ugly.  If you are squeamish, don't look!
 */
 
-
-#ifndef DCDWRITER_H
-#define DCDWRITER_H
+#pragma once
+#include <unistd.h>
 #include <cstring>
 #include <fstream>
 #include <fcntl.h>
@@ -324,4 +323,4 @@ public:
     return(0);
   }
 };
-#endif
+

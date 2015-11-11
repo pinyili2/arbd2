@@ -1,7 +1,7 @@
 #!/bin/bash
 # Usage: source nvcc.sh
 
-module load cuda-toolkit
+# module load cuda-toolkit
 # /software/cuda-toolkit-4.1-x86_64/cuda/bin/nvcc
 
 # Add CUDA 'bin' folder to PATH
