@@ -142,9 +142,35 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 	return sys->getBasis().transform(l) + sys->getOrigin();
 }
 
-__global__ void devicePrint(RigidBodyType* rb) {
-	printf("RigidBodyType: numGrids = %d\n", rb->numPotGrids);
+__global__ void devicePrint(RigidBodyType* rb[]) {
+	// printf("Device printing\n");
+	int i = 0;
+	printf("RigidBodyType %d: numGrids = %d\n", i, rb[i]->numPotGrids);
+	printf("  RigidBodyType %d: potGrid: %p\n", i, rb[i]->rawPotentialGrids);
+	int j = 0;
+	printf("  RigidBodyType %d: potGrid[%d]: %p\n", i, j, &(rb[i]->rawPotentialGrids[j]));
+	printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, j, rb[i]->rawPotentialGrids[j].getSize());
+	// BaseGrid g = rb[i]->rawPotentialGrids[j];
+	// for (int k = 0; k < rb[i]->rawPotentialGrids[j].size(); k++)
+	for (int k = 0; k < rb[i]->rawPotentialGrids[j].getSize(); k++)
+		printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
+					 i, j, k, rb[i]->rawPotentialGrids[j].val[k]);
+	// i, j, k, rb[i]->rawPotentialGrids[j]).val[k];
+	
 }
-// __device__ void devicePrint(BaseGrid g) {
-// 	printf("RigidBodyType: numGrids = %d\n", numPotGrids);
-// };
+
+// __global__ void devicePrint(RigidBodyType* rb[]) {
+// 	// printf("Device printing\n");
+// 	int i = 0;
+// 	printf("RigidBodyType %d: numGrids = %d\n", i, rb[i]->numPotGrids);
+// 	printf("RigidBodyType %d: potGrid: %p\n", i, rb[i]->rawPotentialGrids);
+// 	int j = 0;
+// 	printf("RigidBodyType %d: potGrid[%d]: %p\n", i, &(rb[i]->rawPotentialGrids[j]));
+// 	BaseGrid g = rb[i]->rawPotentialGrids[j];
+// 	// for (int k = 0; k < rb[i]->rawPotentialGrids[j].size(); k++)
+// 	for (int k = 0; k < g->getSize(); k++)
+// 		printf("rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
+// 					 i, j, k, g.val[k]);
+// 	// i, j, k, rb[i]->rawPotentialGrids[j]).val[k];
+	
+// }

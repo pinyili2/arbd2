@@ -443,10 +443,11 @@ void Configuration::copyToCUDA() {
 		gpuErrchk(cudaMalloc(&part_addr[i], sizeof(BrownianParticleType)));
 		gpuErrchk(cudaMemcpyAsync(part_addr[i], b, sizeof(BrownianParticleType),
 				cudaMemcpyHostToDevice));
-		
-		gpuErrchk(cudaMemcpyAsync(part_d, part_addr, sizeof(BrownianParticleType*) * numParts,
-				cudaMemcpyHostToDevice));
 	}
+	// RBTODO: moved this out of preceding loop; was that correct?
+	gpuErrchk(cudaMemcpyAsync(part_d, part_addr, sizeof(BrownianParticleType*) * numParts,
+				cudaMemcpyHostToDevice));
+
 
 	printf("copying RBs\n");
 	// Copy rigidbody types 
@@ -459,49 +460,61 @@ void Configuration::copyToCUDA() {
 		int ng = rb->numPotGrids;
 
 		// copy rigidbody to device
-		RigidBodyType *rb_d;
-    gpuErrchk(cudaMalloc((void **) &rb_d, sizeof(RigidBodyType)));
-		gpuErrchk(cudaMemcpy(rb_d, rb, sizeof(RigidBodyType),
+		// RigidBodyType *rb_d;
+    gpuErrchk(cudaMalloc(&rb_addr[i], sizeof(RigidBodyType)));
+		gpuErrchk(cudaMemcpy(rb_addr[i], rb, sizeof(RigidBodyType),
 												 cudaMemcpyHostToDevice));
-
+		
 		// copy rb->grid to device
 		BaseGrid * gtmp;
-		gtmp = new BaseGrid[ng];
+		// gtmp = new BaseGrid[ng];
 		size_t sz = sizeof(BaseGrid)*ng;
 		
 		// allocate grids on device
 		// copy temporary host pointer to device pointer
 		// copy grids to device through temporary host poin
 		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
-		gpuErrchk(cudaMemcpy(&(rb_d->rawPotentialGrids), &gtmp, 
+		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawPotentialGrids), &gtmp, 
 												 sizeof(BaseGrid*) * ng, cudaMemcpyHostToDevice ));
 		gpuErrchk(cudaMemcpy(gtmp, &(rb->rawPotentialGrids),
 												 sizeof(BaseGrid)  * ng, cudaMemcpyHostToDevice ));
-		
+		for (int gid = 0; gid < ng; gid++) {
+			gpuErrchk(cudaMemcpy(&(gtmp[gid]), &(rb->rawPotentialGrids[gid]),
+													 sizeof(BaseGrid), cudaMemcpyHostToDevice ));
+		}
 		// RBTODO: segfault when gtmp is deleted --> why?
 		//    delete[] gtmp;
 
+		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);
 
-		// // copy grid data to device
-		// for (int gid = 0; gid < ng; gid++) { 
-		// 	BaseGrid *g = &(rb->rawPotentialGrids[gid]); // convenience
-		// 	int len = g->getSize();
-		// 	float *tmpData;
-		// 	tmpData = new float[len];
+		
+		// copy grid data to device
+		for (int gid = 0; gid < ng; gid++) { 
+			BaseGrid *g = &(rb->rawPotentialGrids[gid]); // convenience
+			int len = g->getSize();
+			float **tmpData;
+			tmpData = new float*[len];
+
+			printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len);
+			for (int k = 0; k < len; k++)
+				printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
+							 i, gid, k, g->val[k]);
+
 			
-    //   // allocate grid data on device
-		// 	// copy temporary host pointer to device pointer
-		// 	// copy data to device through temporary host pointer
-		// 	sz = sizeof(float*) * len;
-		// 	gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
-		// 	gpuErrchk(cudaMemcpy( (rb_d->rawPotentialGrids[gid].val), &tmpData,
-		// 												sizeof(float*), cudaMemcpyHostToDevice));
-		// 	sz = sizeof(float) * len;
-		// 	gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
-		// 	// RBTODO: why can't this be deleted? 
-		// 	// delete[] tmpData;
-		// }
-
+      // allocate grid data on device
+			// copy temporary host pointer to device pointer
+			// copy data to device through temporary host pointer
+			sz = sizeof(float*) * len;
+			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
+			// gpuErrchk(cudaMemcpy( &(rb_addr[i]->rawPotentialGrids[gid].val), &tmpData,
+			// 											sizeof(float*), cudaMemcpyHostToDevice));
+			gpuErrchk(cudaMemcpy( &(gtmp[gid].val), &tmpData,
+														sizeof(float*), cudaMemcpyHostToDevice));
+			sz = sizeof(float) * len;
+			gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
+			// RBTODO: why can't this be deleted? 
+			// delete[] tmpData;
+		}
 
 
 
@@ -614,7 +627,9 @@ void Configuration::copyToCUDA() {
 	// 														cudaMemcpyHostToDevice));
 
 	// 	}
-  }	
+  }
+	gpuErrchk(cudaMemcpy(rbType_d, rb_addr, sizeof(RigidBodyType*) * numRigidTypes,
+				cudaMemcpyHostToDevice));
 	printf("Done copying RBs\n");
 
 	// kTGrid_d

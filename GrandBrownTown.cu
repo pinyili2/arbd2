@@ -32,7 +32,9 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		outFilePrefixes.push_back(out_prefix.str());
 		
 		printf("About to devicePrint\n");
-		devicePrint<<<1,1>>>(&(c.rigidBody[0]));
+		// devicePrint<<<1,1>>>(&(c.rigidBody[0]));
+		devicePrint<<<1,1>>>(c.rbType_d);
+		cudaDeviceSynchronize();
 		printf("Done with devicePrint\n");
 
 	}

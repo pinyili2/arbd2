@@ -4,6 +4,7 @@
 *~
 .backup
 TAGS
+TAGS.sh
 .dir-locals.el
 BD_example*
 runBrownCUDA

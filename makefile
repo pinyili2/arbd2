@@ -61,7 +61,8 @@ all: $(TARGET)
 $(TARGET): $(CU_OBJ) $(CC_OBJ) runBrownTown.cpp vmdsock.c imd.c imd.h
 	$(EXEC) $(CC) $(CC_FLAGS) $(LD_FLAGS) $(EX_FLAGS) runBrownTown.cpp vmdsock.c imd.c $(CU_OBJ) $(CC_OBJ) -o $(TARGET)
 
-$(CU_OBJ): %.o: %.cu %.h 
+.SECONDEXPANSION:
+$(CU_OBJ): %.o: %.cu $$(wildcard %.h) $$(wildcard %.cuh)
 	$(EXEC) $(NVCC) $(NV_FLAGS) $(EX_FLAGS) -c $< -o $@
 
 $(CC_OBJ): %.o: %.cpp %.h 

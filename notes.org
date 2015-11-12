@@ -1,0 +1,1 @@
+* Q: vector classes in thrust look like they could simplify code; bad idea?

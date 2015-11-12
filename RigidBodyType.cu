@@ -94,5 +94,11 @@ void RigidBodyType::updateRaw() {
 		rawPotentialGrids = new BaseGrid[numPotGrids];
 	if (numDenGrids > 0)
 		rawDensityGrids = new BaseGrid[numDenGrids];
+
+	for (int i=0; i < numPotGrids; i++)
+		rawPotentialGrids[i] = potentialGrids[i];
+	for (int i=0; i < numDenGrids; i++)
+		rawDensityGrids[i] = densityGrids[i];
+	
 }
 
