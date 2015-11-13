@@ -1,1 +1,24 @@
-* Q: vector classes in thrust look like they could simplify code; bad idea?
+* grid
+** Q: overhead of dynamic parallelism?
+** Q: overhead of classes? 
+	 Member data can't be shared
+
+** TODO read up on:
+*** dynamic parallelism
+*** registers
+* TODO decide whether to write a monolithic kernel or to break problem into subkernel launches
+
+
+
+* optimize algorithms for cuda (balance floating point calculation with memory transfers)
+** parallize loops
+** subthreads
+** new algorithms may be improved through new data structures; introduce 
+*** RigidBodyGrid: methods pulled from BaseGrid, but transforms passed to functions 
+**** no wrapping
+
+* pairlists for rigid bodies 
+** maybe for grids, depending on parallel structure of code
+
+* other ideas
+** interpolate density grids?

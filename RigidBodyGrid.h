@@ -1,9 +1,8 @@
 //////////////////////////////////////////////////////////////////////
-// Grid base class that does just the basics.
-// Author: Jeff Comer <jcomer2@illinois.edu>
-#ifndef BASEGRID_H
-#define BASEGRID_H
+// Copy of BaseGrid with some modificaitons
+// 
 
+#pragma once
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -31,9 +30,7 @@ public:
   float v[3][3][3];
 };
 
-class BaseGrid {
-  friend class SparseGrid;
- 
+class RigidBodyGrid { 
 private:
   // Initialize the variables that get used a lot.
   // Also, allocate the main value array.
@@ -46,54 +43,38 @@ public:
 	\===============================*/
 	
 	// RBTODO Fix?
-	BaseGrid(); // cmaffeo2 (2015) moved this out of protected, cause I wanted BaseGrid in a struct
+	RigidBodyGrid(); // cmaffeo2 (2015) moved this out of protected, cause I wanted RigidBodyGrid in a struct
   // The most obvious of constructors.
-		BaseGrid(Matrix3 basis0, Vector3 origin0, int nx0, int ny0, int nz0);
+		RigidBodyGrid(int nx0, int ny0, int nz0);
 
   // Make an orthogonal grid given the box dimensions and resolution.
-  BaseGrid(Vector3 box, float dx);
+  RigidBodyGrid(Vector3 box, float dx);
 
   // The box gives the system geometry.
   // The grid point numbers define the resolution.
-  BaseGrid(Matrix3 box, int nx0, int ny0, int nz0);
+  RigidBodyGrid(Matrix3 box, int nx0, int ny0, int nz0);
 
   // The box gives the system geometry.
   // dx is the approx. resolution.
   // The grid spacing is always a bit larger than dx.
-  BaseGrid(Matrix3 box, Vector3 origin0, float dx);
+  RigidBodyGrid(Matrix3 box, Vector3 origin0, float dx);
 
   // The box gives the system geometry.
   // dx is the approx. resolution.
   // The grid spacing is always a bit smaller than dx.
-  BaseGrid(Matrix3 box, float dx);
+  RigidBodyGrid(Matrix3 box, float dx);
 
   // Make an exact copy of a grid.
-  BaseGrid(const BaseGrid& g);
+  RigidBodyGrid(const RigidBodyGrid& g);
 
-  BaseGrid mult(const BaseGrid& g);
+  RigidBodyGrid mult(const RigidBodyGrid& g);
 
-  BaseGrid& operator=(const BaseGrid& g);
+  RigidBodyGrid& operator=(const RigidBodyGrid& g);
 
   // Make a copy of a grid, but at a different resolution.
-  BaseGrid(const BaseGrid& g, int nx0, int ny0, int nz0);
-
-  // Read a grid from a file.
-  BaseGrid(const char* fileName);
+  RigidBodyGrid(const RigidBodyGrid& g, int nx0, int ny0, int nz0);
   
-  // Write without comments.
-  virtual void write(const char* fileName) const;
-
-  // Writes the grid as a file in the dx format.
-  virtual void write(const char* fileName, const char* comments) const;
-
-  // Writes the grid data as a single column in the order:
-  // nx ny nz ox oy oz dxx dyx dzx dxy dyy dzy dxz dyz dzz val0 val1 val2 ...
-  virtual void writeData(const char* fileName);
- 
-  // Write the valies in a single column.
-  virtual void writePotential(const char* fileName) const;
-  
-	virtual ~BaseGrid();
+	virtual ~RigidBodyGrid();
 
 	/*             \
 	| DATA METHODS |
@@ -109,19 +90,19 @@ public:
 
   virtual float getValue(int ix, int iy, int iz) const;
 
-  Vector3 getPosition(int ix, int iy, int iz) const;
-
+  // Vector3 getPosition(int ix, int iy, int iz) const;
   Vector3 getPosition(int j) const;
+	Vector3 getPosition(int j, Matrix3 basis, Vector3 origin) const {
 
-  // Does the point r fall in the grid?
-  // Obviously this is without periodic boundary conditions.
-  bool inGrid(Vector3 r) const;
+  /* // Does the point r fall in the grid? */
+  /* // Obviously this is without periodic boundary conditions. */
+  /* bool inGrid(Vector3 r) const; */
 
-  bool inGridInterp(Vector3 r) const;
+  /* bool inGridInterp(Vector3 r) const; */
 
-  Vector3 transformTo(Vector3 r) const;
+  /* Vector3 transformTo(Vector3 r) const; */
 
-  Vector3 transformFrom(Vector3 l) const;
+  /* Vector3 transformFrom(Vector3 l) const; */
 
   IndexList index(int j) const;
   int indexX(int j) const;
@@ -129,41 +110,19 @@ public:
   int indexZ(int j) const;
   int index(int ix, int iy, int iz) const;
   
-  int index(Vector3 r) const;
-
-  int nearestIndex(Vector3 r) const;
+  /* int index(Vector3 r) const; */
+  /* int nearestIndex(Vector3 r) const; */
 
   HOST DEVICE inline int length() const {
 		return size;
 	}
-  void setBasis(const Matrix3& b);
-  void setOrigin(const Vector3& o);
 
-  HOST DEVICE inline Vector3 getOrigin() const {return origin;}
-  HOST DEVICE inline Matrix3 getBasis() const {return basis;}
-  HOST DEVICE inline Matrix3 getInverseBasis() const {return basisInv;}
   HOST DEVICE inline int getNx() const {return nx;}
   HOST DEVICE inline int getNy() const {return ny;}
   HOST DEVICE inline int getNz() const {return nz;}
   HOST DEVICE inline int getSize() const {return size;}
 
   
-  // A matrix defining the basis for the entire system.
-  Matrix3 getBox() const;
-  // The longest diagonal of the system.
-  Vector3 getExtent() const;
-  // The longest diagonal of the system.
-  float getDiagonal() const;
-  // The position farthest from the origin.
-  Vector3 getDestination() const;
-  // The center of the grid.
-  Vector3 getCenter() const;
-  // The volume of a single cell.
-  float getCellVolume() const;
-  // The volume of the entire system.
-  float getVolume() const;
-  Vector3 getCellDiagonal() const;
-
   // Add a fixed value to the grid.
   void shift(float s);
 
@@ -177,21 +136,10 @@ public:
   // Get the mean of the entire grid.
   float mean() const
 	
-  // Compute the average profile along an axis.
-  // Assumes that the grid axis with index "axis" is aligned with the world axis of index "axis".
-  void averageProfile(const char* fileName, int axis);
-
   // Get the potential at the closest node.
   virtual float getPotential(Vector3 pos) const;
 
-	// crop
-	// Cuts the grid down
-	// @param		boundries to crop to (x0, y0, z0) -> (x1, y1, z1);
-	//					whether to change the origin
-	// @return	success of the function
-	bool crop(int x0, int y0, int z0, int x1, int y1, int z1, bool keep_origin);
-
-  // Added by Rogan for times when simpler calculations are required.
+	// Added by Rogan for times when simpler calculations are required.
   virtual float interpolatePotentialLinearly(Vector3 pos) const;
 
   HOST DEVICE inline float interpolateDiffX(Vector3 pos, float w[3], float g1[4][4][4]) const {
@@ -312,7 +260,7 @@ public:
 	//  skip transforms (assume identity basis)
   HOST DEVICE inline float interpolatePotential(Vector3 pos) const {
     // Find the home node.
-    Vector3 l = basisInv.transform(pos - origin);
+    Vector3 l = pos;
     int homeX = int(floor(l.x));
     int homeY = int(floor(l.y));
     int homeZ = int(floor(l.z));
@@ -412,7 +360,7 @@ public:
 	/** interpolateForce() to be used on CUDA Device **/
 	DEVICE inline Vector3 interpolateForceD(Vector3 pos) const {
 		Vector3 f;
- 		Vector3 l = basisInv.transform(pos - origin);
+ 		Vector3 l = pos;
 		int homeX = int(floor(l.x));
 		int homeY = int(floor(l.y));
 		int homeZ = int(floor(l.z));
@@ -458,13 +406,14 @@ public:
 		f.x = interpolateDiffX(pos, w, g1);
 		f.y = interpolateDiffY(pos, w, g1);
 		f.z = interpolateDiffZ(pos, w, g1);
-		Vector3 f1 = basisInv.transpose().transform(f);
-		return f1;
+		// Vector3 f1 = basisInv.transpose().transform(f);
+		// return f1;
+		return f;
 	}
 
   inline virtual Vector3 interpolateForce(Vector3 pos) const {
 		Vector3 f;
- 		Vector3 l = basisInv.transform(pos - origin);
+ 		Vector3 l = pos;
 		int homeX = int(floor(l.x));
 		int homeY = int(floor(l.y));
 		int homeZ = int(floor(l.z));
@@ -511,8 +460,9 @@ public:
 		f.x = interpolateDiffX(pos, w, g1);
 		f.y = interpolateDiffY(pos, w, g1);
 		f.z = interpolateDiffZ(pos, w, g1);
-		Vector3 f1 = basisInv.transpose().transform(f);
-		return f1;
+		// Vector3 f1 = basisInv.transpose().transform(f);
+		// return f1;
+		return f;
 	}
 
   // Wrap coordinate: 0 <= x < l
@@ -532,24 +482,22 @@ public:
   }
 
   // Wrap vector, 0 <= x < lx  &&  0 <= y < ly  &&  0 <= z < lz
-  HOST DEVICE inline virtual Vector3 wrap(Vector3 r) const {
-    Vector3 l = basisInv.transform(r - origin);
+  HOST DEVICE inline virtual Vector3 wrap(Vector3 l) const {
     l.x = wrapFloat(l.x, nx);
     l.y = wrapFloat(l.y, ny);
     l.z = wrapFloat(l.z, nz);
-    return basis.transform(l) + origin;
+    return l;
   }
 
   // Wrap vector distance, -0.5*l <= x < 0.5*l  && ...
-  HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const {
-    Vector3 l = basisInv.transform(r);
+  HOST DEVICE inline Vector3 wrapDiff(Vector3 l) const {
     l.x = wrapDiff(l.x, nx);
     l.y = wrapDiff(l.y, ny);
     l.z = wrapDiff(l.z, nz);
-    return basis.transform(l);
+		return l;
   }
 
-  Vector3 wrapDiffNearest(Vector3 r) const;
+  /* Vector3 wrapDiffNearest(Vector3 r) const; */
 
   // Includes the home node.
   // indexBuffer must have a size of at least 27.
@@ -562,13 +510,10 @@ public:
   inline void setVal(float* v) { val = v; }
 
 public:
-  Vector3 origin;
-  Matrix3 basis;
   int nx, ny, nz;
   int nynz;
   int size;
-  Matrix3 basisInv;
 public:
   float* val;
 };
-#endif
+

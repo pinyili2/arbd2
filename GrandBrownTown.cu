@@ -56,6 +56,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	type   = new     int[num * numReplicas];  // [HOST] array of particles' types.
 	serial = new     int[num * numReplicas];  // [HOST] array of particles' serial numbers.
 
+	
 	// Replicate identical initial conditions across all replicas
 	// TODO: add an option to generate random initial conditions for all replicas
 	for (int r = 0; r < numReplicas; ++r) {
@@ -403,13 +404,23 @@ void GrandBrownTown::run() {
 																							 electricField, tl, timestep, num,
 																							 sys_d, randoGen_d, numReplicas);
 		//gpuErrchk(cudaPeekAtLastError()); // Does not work on old GPUs (like mine). TODO: write a better wrapper around Peek
-
+		
+		
 		/* Time position computations.
 		rt_timer_stop(cputimer);
 		float dt2 = rt_timer_time(cputimer);
 		printf("Position Update Time: %f ms\n", dt2 * 1000);
 		// */
 
+		// calculateRigidBodyForce<<< numBlocks, NUM_THREADS >>>(rb_d, rbType_d,
+		// 																						 kT, kTGrid_d,
+		// 																						 tl, timestep,
+		// 																					 sys_d, randoGen_d, numReplicas);
+		computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d);
+		
+		// int numBlocks = (numRB ) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
+		
+		
 		Vector3 force0(0.0f);
 
 		if (imd_on && clientsock && s % outputPeriod == 0) {

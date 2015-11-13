@@ -6,11 +6,12 @@
 
 #pragma once
 
-#include <set>
-#include <vector>
+/* #include <set> */
+/* #include <vector> */
 
-#include "Vector.h"
-#include "Tensor.h"
+#include "useful.h"
+/* #include "Vector.h" */
+/* #include "Tensor.h" */
 
 
 /* #include "strlib.h" */
@@ -25,203 +26,210 @@
 /* #include "NamdTypes.h" */
 
 typedef BigReal float;					/* strip this out later */
+typedef Force Vector3;
 
-class ComputeMgr;
-class Random;
+#define DEVICE __device__
+
+/* class ComputeMgr; */
+/* class Random; */
 
 class RigidBody {
 	/*=====================================================================\
-	|   See Appendix A of: Dullweber, Leimkuhler and McLaclan. "Symplectic |
-	|   splitting methods for rigid body molecular dynamics". J Chem       |
-	|   Phys. (1997)                                                       |
-	\=====================================================================*/
+		|   See Appendix A of: Dullweber, Leimkuhler and McLaclan. "Symplectic |
+		|   splitting methods for rigid body molecular dynamics". J Chem       |
+		|   Phys. (1997)                                                       |
+		\=====================================================================*/
 public:
-	RigidBody(SimParameters *simParams, RigidBodyParams *rbParams);
-	~RigidBody();
+	DEVICE RigidBody(SimParameters *simParams, RigidBodyParams *rbParams);
+	DEVICE ~RigidBody();
 
-	void addForce(Force f); 
-	void addTorque(Force t);
-	void addLangevin(Vector w1, Vector w2);
+	DEVICE void addForce(Force f); 
+	DEVICE void addTorque(Force t);
+	DEVICE void addLangevin(Vector3 w1, Vector3 w2);
 
-	inline void clearForce() { force = Force(0); }
-	inline void clearTorque() { torque = Force(0); }
+	DEVICE inline void clearForce() { force = Force(0); }
+	DEVICE inline void clearTorque() { torque = Force(0); }
 
-	void integrate(Vector *p_trans, Tensor *p_rot, int startFinishAll);
+	DEVICE void integrate(Vector3 *p_trans, Matrix3 *p_rot, int startFinishAll);
 
-	inline char* getKey() { return key; }
-	inline Vector getPosition() { return position; }
-	inline Tensor getOrientation() { return orientation; }
-	inline BigReal getMass() { return mass; }
-	inline Vector getVelocity() { return momentum/mass; }
-	inline Vector getAngularVelocity() { 
-		return Vector( angularMomentum.x / inertia.x,
+	DEVICE inline char* getKey() { return key; }
+	DEVICE inline Vector3 getPosition() { return position; }
+	DEVICE inline Matrix3 getOrientation() { return orientation; }
+	DEVICE inline BigReal getMass() { return mass; }
+	DEVICE inline Vector3 getVelocity() { return momentum/mass; }
+	DEVICE inline Vector3 getAngularVelocity() { 
+		return Vector3( angularMomentum.x / inertia.x,
 									 angularMomentum.y / inertia.y,
 									 angularMomentum.z / inertia.z );
 	}
 	bool langevin;
     
 private:
-	char* key;
-	static const SimParameters * simParams;
+	String key;
+	/* static const SimParameters * simParams; */
 	BigReal mass;
 
-	Vector position;
-	Tensor orientation;
+	Vector3 position;
+	Matrix3 orientation;
 
-	Vector inertia; // diagonal elements of inertia tensor
-	Vector momentum;
-	Vector angularMomentum; // angular momentum along corresponding principal axes
+	Vector3 inertia; // diagonal elements of inertia tensor
+	Vector3 momentum;
+	Vector3 angularMomentum; // angular momentum along corresponding principal axes
     
 	// Langevin
-	Vector langevinTransFriction;
-	Vector langevinRotFriction;
+	Vector3 langevinTransFriction;
+	Vector3 langevinRotFriction;
 	BigReal Temp;
 
-	Vector transDampingCoeff;
-	Vector transForceCoeff;
-	Vector rotDampingCoeff;
-	Vector rotTorqueCoeff;    
+	Vector3 transDampingCoeff;
+	Vector3 transForceCoeff;
+	Vector3 rotDampingCoeff;
+	Vector3 rotTorqueCoeff;    
 
 	// integration
 	int timestep;
-	Vector force;  // lab frame
-	Vector torque; // lab frame (except in integrate())
+	Vector3 force;  // lab frame
+	Vector3 torque; // lab frame (except in integrate())
 
 	bool isFirstStep; 
 
 	// units "kcal_mol/AA * fs"  "(AA/fs) * amu"
 	const BigReal impulse_to_momentum;
 
-	inline Tensor Rx(BigReal t);
-	inline Tensor Ry(BigReal t);
-	inline Tensor Rz(BigReal t);
-	inline Tensor eulerToMatrix(const Vector e);
+	DEVICE inline Matrix3 Rx(BigReal t);
+	DEVICE inline Matrix3 Ry(BigReal t);
+	DEVICE inline Matrix3 Rz(BigReal t);
+	DEVICE inline Matrix3 eulerToMatrix(const Vector3 e);
 };
 
 class RigidBodyController {
 public:
-	RigidBodyController(const NamdState *s, int reductionTag, SimParameters *sp);
-	~RigidBodyController();
-	void integrate(int step);
-	void print(int step);
+	/* DEVICE RigidBodyController(const NamdState *s, int reductionTag, SimParameters *sp); */
+	DEVICE RigidBodyController(const NamdState *s, int reductionTag, SimParameters *sp);
+	
+	DEVICE ~RigidBodyController();
+	DEVICE void integrate(int step);
+	DEVICE void print(int step);
     
 private:
-	void printLegend(std::ofstream &file);
-	void printData(int step, std::ofstream &file);
+	/* void printLegend(std::ofstream &file); */
+	/* void printData(int step, std::ofstream &file); */
 
-	SimParameters *simParams;
-	const NamdState * state;		
-    
-	std::ofstream trajFile;
+	/* SimParameters* simParams; */
+	/* const NamdState* state;		 */    
+	/* std::ofstream trajFile; */
 
-	Random *random;
-	ComputeMgr *computeMgr;
-	RequireReduction *gridReduction;
-
-	ResizeArray<Vector> trans; // would have made these static, but
-	ResizeArray<Tensor> rot;	// there are errors on rigidBody->integrate
-	std::vector<RigidBody*> rigidBodyList;
+	Random* random;
+	/* RequireReduction *gridReduction; */
+	
+	Vector3* trans; // would have made these static, but
+	Matrix3* rot;  	// there are errors on rigidBody->integrate
+	RigidBody* rigidBodyList;
+	
 };
 
 class RigidBodyParams {
 public:
-    RigidBodyParams() {
-	rigidBodyKey = 0;
-	mass = 0;
-	inertia = Vector(0);
-	langevin = FALSE;
-	temperature = 0;
-	transDampingCoeff = Vector(0);
-	rotDampingCoeff = Vector(0);
-	gridList;
-	position = Vector(0);
-	velocity = Vector(0);
-	orientation = Tensor();
-	orientationalVelocity = Vector(0);	   
-    }    
-    char *rigidBodyKey;
-    BigReal mass;
-    zVector inertia;
-    Bool langevin;
-    BigReal temperature;
-    zVector transDampingCoeff;
-    zVector rotDampingCoeff;
-    std::vector<std::string> gridList;
+	RigidBodyParams() {
+		rigidBodyKey = 0;
+		mass = 0;
+		inertia = Vector3();
+		langevin = FALSE;
+		temperature = 0;
+		transDampingCoeff = Vector3();
+		rotDampingCoeff = Vector3();
+		gridList;
+		position = Vector3();
+		velocity = Vector3();
+		orientation = Matrix3();
+		orientationalVelocity = Vector3();	   
+	}    
+	int typeID;
+
+	String *rigidBodyKey;
+	BigReal mass;
+	Vector3 inertia;
+	Bool langevin;
+	BigReal temperature;
+	Vector3 transDampingCoeff;
+	Vector3 rotDampingCoeff;
+	String *gridList;
+	
     
-    zVector position;
-    zVector velocity;
-    Tensor orientation;
-    zVector orientationalVelocity;
+	Vector3 position;
+	Vector3 velocity;
+	Matrix3 orientation;
+	Vector3 orientationalVelocity;
 
-    RigidBodyParams *next;
+	RigidBodyParams *next;
 
-    const void print();
+	const void print();
 };
 
 
-class RigidBodyParamsList {
-public:
-  RigidBodyParamsList() {
-    clear();
-  }
+/* class RigidBodyParamsList { */
+/* public: */
+/*   RigidBodyParamsList() { */
+/*     clear(); */
+/*   } */
   
-  ~RigidBodyParamsList() 
-  {
-    RBElem* cur;
-    while (head != NULL) {
-      cur = head;
-      head = cur->nxt;
-      delete cur;
-    }
-    clear();
-  }
-  const void print(char *s);
-  const void print();
+/*   ~RigidBodyParamsList()  */
+/*   { */
+/*     RBElem* cur; */
+/*     while (head != NULL) { */
+/*       cur = head; */
+/*       head = cur->nxt; */
+/*       delete cur; */
+/*     } */
+/*     clear(); */
+/*   } */
+/*   const void print(char *s); */
+/*   const void print(); */
 
-  // The SimParameters bit copy overwrites these values with illegal pointers,
-  // So thise throws away the garbage and lets everything be reinitialized
-  // from scratch
-  void clear() {
-    head = tail = NULL;
-    n_elements = 0;
-  }
+/*   // The SimParameters bit copy overwrites these values with illegal pointers, */
+/*   // So thise throws away the garbage and lets everything be reinitialized */
+/*   // from scratch */
+/*   void clear() { */
+/*     head = tail = NULL; */
+/*     n_elements = 0; */
+/*   } */
   
-  RigidBodyParams* find_key(const char* key);  
-  int index_for_key(const char* key);
-  RigidBodyParams* add(const char* key);
+/*   RigidBodyParams* find_key(const char* key);   */
+/*   int index_for_key(const char* key); */
+/*   RigidBodyParams* add(const char* key); */
   
-  RigidBodyParams *get_first() {
-    if (head == NULL) {
-      return NULL;
-    } else return &(head->elem);
-  }
+/*   RigidBodyParams *get_first() { */
+/*     if (head == NULL) { */
+/*       return NULL; */
+/*     } else return &(head->elem); */
+/*   } */
   
-  void pack_data(MOStream *msg);  
-  void unpack_data(MIStream *msg);
+/*   void pack_data(MOStream *msg);   */
+/*   void unpack_data(MIStream *msg); */
   
-  // convert from a string to Bool; returns 1(TRUE) 0(FALSE) or -1(if unknown)
-  static int atoBool(const char *s)
-  {
-    if (!strcasecmp(s, "on")) return 1;
-    if (!strcasecmp(s, "off")) return 0;
-    if (!strcasecmp(s, "true")) return 1;
-    if (!strcasecmp(s, "false")) return 0;
-    if (!strcasecmp(s, "yes")) return 1;
-    if (!strcasecmp(s, "no")) return 0;
-    if (!strcasecmp(s, "1")) return 1;
-    if (!strcasecmp(s, "0")) return 0;
-    return -1;
-  }
+/*   // convert from a string to Bool; returns 1(TRUE) 0(FALSE) or -1(if unknown) */
+/*   static int atoBool(const char *s) */
+/*   { */
+/*     if (!strcasecmp(s, "on")) return 1; */
+/*     if (!strcasecmp(s, "off")) return 0; */
+/*     if (!strcasecmp(s, "true")) return 1; */
+/*     if (!strcasecmp(s, "false")) return 0; */
+/*     if (!strcasecmp(s, "yes")) return 1; */
+/*     if (!strcasecmp(s, "no")) return 0; */
+/*     if (!strcasecmp(s, "1")) return 1; */
+/*     if (!strcasecmp(s, "0")) return 0; */
+/*     return -1; */
+/*   } */
 
 
-private:
-  class RBElem {
-  public:
-    RigidBodyParams elem;
-    RBElem* nxt;
-  };
-  RBElem* head;
-  RBElem* tail;
-  int n_elements;
+/* private: */
+/*   class RBElem { */
+/*   public: */
+/*     RigidBodyParams elem; */
+/*     RBElem* nxt; */
+/*   }; */
+/*   RBElem* head; */
+/*   RBElem* tail; */
+/*   int n_elements; */
 
-};
+/* }; */

@@ -11,6 +11,9 @@ void RigidBodyType::clear() {
 	potentialGrids.clear();
 	densityGrids.clear();
 
+	potentialGridKeys.clear();
+	densityGridKeys.clear();
+
 	if (numPotGrids > 0) delete[] rawPotentialGrids;
 	if (numDenGrids > 0) delete[] rawDensityGrids;
 	rawPotentialGrids = NULL;
@@ -67,8 +70,7 @@ void RigidBodyType::addPotentialGrid(String s) {
 	BaseGrid g(token[1]);
 	
 	potentialGrids.push_back( g );
-	// 	[numPotGrids] = g;
-	// numPotGrids++;
+	potentialGridKeys.push_back( key );
 }
 void RigidBodyType::addDensityGrid(String s) {
 	// tokenize and return
@@ -82,7 +84,9 @@ void RigidBodyType::addDensityGrid(String s) {
 	String key = token[0];
 	BaseGrid g(token[1]);
 	
+
 	densityGrids.push_back( g );
+	densityGridKeys.push_back( key );
 }
 
 void RigidBodyType::updateRaw() {

@@ -16,6 +16,8 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 __global__
 void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 									int type[], BrownianParticleType* part[],
+									RigidBody* rb[],
+									RigidBodyType* rbType[],
 									float kT, BaseGrid* kTGrid,
 									float electricField, int tGridLength,
 									float timestep, int num, BaseGrid* sys,

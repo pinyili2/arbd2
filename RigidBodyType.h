@@ -50,6 +50,9 @@ public:
 	Vector3 transDamping;
 	Vector3 rotDamping;
 
+	std::vector<String> potentialGridKeys;
+	std::vector<String> densityGridKeys;
+
 	std::vector<BaseGrid> potentialGrids;
 	std::vector<BaseGrid> densityGrids;
 	
