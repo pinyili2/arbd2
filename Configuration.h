@@ -10,6 +10,7 @@
 #define CONFIGURATION_H
 
 #include <algorithm> // sort
+#include <vector>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -27,6 +28,7 @@
 #include "GPUManager.h"
 #include "Dihedral.h"
 #include "RigidBodyType.h"
+#include "RigidBody.h"
 
 #include <cuda.h> 
 #include <cuda_runtime.h>
@@ -109,8 +111,9 @@ public:
 	float minimumSep; // minimum separation allowed with placing new particles
 
 	// RigidBody variables
-	int numRB;
-
+	/* int numRB; */
+	/* std::vector< std::vector<RigidBody> > rbs; */
+	
 	// System parameters
 	String outputName;
 	float timestep;
@@ -193,7 +196,6 @@ public:
 	// RigidBody parameters.
 	RigidBodyType* rigidBody;
 	int numRigidTypes;
-
 
 };
 

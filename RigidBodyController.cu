@@ -1,44 +1,113 @@
-#ifndef MIN_DEBUG_LEVEL
-#define MIN_DEBUG_LEVEL 5
-#endif
-#define DEBUGM
-#include "Debug.h"
+/* #ifndef MIN_DEBUG_LEVEL */
+/* #define MIN_DEBUG_LEVEL 5 */
+/* #endif */
+/* #define DEBUGM */
+/* #include "Debug.h" */
 
-#include <iostream>
-#include <typeinfo>
-
-#include "RigidBody.h"
+/* #include "RigidBody.h" */
 #include "RigidBodyController.h"
-#include "RigidBodyMsgs.h"
-// #include "Vector.h"
-#include "Node.h"
-#include "ReductionMgr.h"
-//#include "Broadcasts.h"
-#include "ComputeMgr.h"
-#include "Random.h"
-#include "Output.h"
+#include "Configuration.h"
 
-#include "SimParameters.h"
-#include "RigidBodyParams.h"
-#include "Molecule.h"
-// #include "InfoStream.h"
-#include "common.h"
-#include <errno.h>
+#include "RigidBodyType.h"
+/* #include "Random.h" */
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, line);
+      if (abort) exit(code);
+   }
+}
 
-/*============================\
-| include "RigidBodyParams.h" |
-\============================*/
-
-#include "MStream.h"
-
-#include "DataStream.h"
-#include "InfoStream.h"
-
-#include "Debug.h"
-#include <stdio.h>
+/* #include <cuda.h> */
+/* #include <cuda_runtime.h> */
+/* #include <curand_kernel.h> */
 
 
+RigidBodyController::RigidBodyController(const Configuration& c) :
+conf(c) {
+
+	int numRB = 0;
+	// grow list of rbs
+	for (int i = 0; i < conf.numRigidTypes; i++) {			
+		numRB += conf.rigidBody[i].num;
+		std::vector<RigidBody> tmp;
+		for (int j = 0; j < conf.rigidBody[i].num; j++) {
+			RigidBody r(conf, conf.rigidBody[i]);
+			tmp.push_back( r );
+		}
+		rigidBodyByType.push_back(tmp);
+	}
+
+}
+RigidBodyController::~RigidBodyController() {
+	for (int i = 0; i < rigidBodyByType.size(); i++)
+		rigidBodyByType[i].clear();
+	rigidBodyByType.clear();
+}
+
+void RigidBodyController::updateForces() {
+	/*––{ RBTODO }–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
+	| probably coalesce kernel calls, or move this to a device kernel caller   |
+	|                                                                          |
+	| - consider removing references (unless they are optimized out!) ---      |
+	| - caclulate numthreads && numblocks                                      |
+	|                                                                          |
+	| all threads in a block should: ----------------------------------------  |
+	|   (1) apply the same transformations to get the data point position in a |
+	|   destination grid ----------------------------------------------------- |
+	|   (2) reduce forces and torques to the same location ------------------- |
+	|   (3) ???  ------------------------------------------------------------- |
+	|                                                                          |
+	| Opportunities for memory bandwidth savings:                              |
+	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
+	// int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
+	int numBlocks = 1;
+	int numThreads = 32;
+
+	
+	// Loop over all pairs of rigid body types
+	//   the references here make the code more readable, but they may incur a performance loss
+	for (int ti = 0; ti < conf.numRigidTypes; ti++) {
+		const RigidBodyType& t1 = conf.rigidBody[ti];
+		for (int tj = ti; tj < conf.numRigidTypes; tj++) {
+			const RigidBodyType& t2 = conf.rigidBody[tj];
+				
+			const std::vector<String>& keys1 = t1.densityGridKeys; 
+			const std::vector<String>& keys2 = t2.potentialGridKeys;
+
+			// Loop over all pairs of grid keys (e.g. "Elec")
+			for(int k1 = 0; k1 < keys1.size(); k1++) {
+				for(int k2 = 0; k2 < keys2.size(); k2++) {
+					if ( keys1[k1] == keys2[k2] ) {
+						// found matching keys => calculate force between all grid pairs
+						//   loop over rigid bodies of this type
+						const std::vector<RigidBody>& rbs1 = rigidBodyByType[ti];
+						const std::vector<RigidBody>& rbs2 = rigidBodyByType[tj];
+
+						for (int i = 0; i < rbs1.size(); i++) {
+							for (int j = (ti==tj ? 0 : i); j < rbs2.size(); j++) {
+								const RigidBody& rb1 = rbs1[i];
+								const RigidBody& rb2 = rbs2[j];
+									
+								computeGridGridForce<<< numBlocks, numThreads >>>
+									(t1.rawDensityGrids[k1], t2.rawPotentialGrids[k2],
+									 rb1.getBasis(), rb1.getPosition(),
+									 rb2.getBasis(), rb2.getPosition());
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+		
+	// RBTODO: see if there is a better way to sync
+	gpuErrchk(cudaDeviceSynchronize());
+
+}
+
+/*
 RigidBodyController::RigidBodyController(const NamdState *s, const int reductionTag, SimParameters *sp) : state(s), simParams(sp)
 {
     DebugM(2, "Rigid Body Controller initializing" 
@@ -515,3 +584,4 @@ void RigidBodyParamsList::unpack_data(MIStream *msg) {
     DebugM(4, "Finished unpacking rigid body parameter list\n");
     print();
 }
+*/

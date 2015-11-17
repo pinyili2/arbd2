@@ -175,7 +175,7 @@ public:
 	\=========*/
 	
   // Get the mean of the entire grid.
-  float mean() const
+  float mean() const;
 	
   // Compute the average profile along an axis.
   // Assumes that the grid axis with index "axis" is aligned with the world axis of index "axis".

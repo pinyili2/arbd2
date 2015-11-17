@@ -194,7 +194,6 @@ public:
 		return v;
 	}
 
-
 	HOST DEVICE inline Vector3 operator*(float s) const {
 		Vector3 v;
 		v.x = s*x;
@@ -220,6 +219,22 @@ public:
 		return 0.0f;
 	}
 
+	HOST DEVICE static inline Vector3 element_mult(const Vector3 v, const Vector3 w) {
+		Vector3 ret(
+			v.x*w.x,
+			v.y*w.y,
+			v.z*w.z);
+		return ret;
+	}
+	HOST DEVICE static inline Vector3 element_sqrt(const Vector3 w) {
+		Vector3 ret(
+			sqrt(w.x),
+			sqrt(w.y),
+			sqrt(w.z));
+		return ret;
+	}
+
+	
 	String toString() const;
 	float x, y, z;
 };
@@ -250,6 +265,8 @@ public:
 	Matrix3(const float* d);
 
 	const Matrix3 operator*(float s) const;
+
+	HOST DEVICE	const Vector3 operator*(const Vector3& v) const	{ return this->transform(v); }
 
 	const Matrix3 operator*(const Matrix3& m) const;
 
@@ -310,7 +327,10 @@ public:
 	float exx, exy, exz;
 	float eyx, eyy, eyz;
 	float ezx, ezy, ezz;
+
 };
+
+
 
 Matrix3 operator*(float s, Matrix3 m);
 Matrix3 operator/(Matrix3 m, float s);

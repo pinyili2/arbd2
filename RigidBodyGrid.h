@@ -1,8 +1,9 @@
 //////////////////////////////////////////////////////////////////////
 // Copy of BaseGrid with some modificaitons
 // 
-
-#pragma once
+#ifndef RBBASEGRID_H
+#define RBBASEGRID_H
+// #pragma once
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -12,6 +13,7 @@
     #define DEVICE 
 #endif
 
+#include "BaseGrid.h"
 #include "useful.h"
 #include <cmath>
 #include <cstring>
@@ -20,17 +22,14 @@
 #include <ctime>
 #include <cuda.h>
 
-
 using namespace std;
 
 #define STRLEN 512
 
-class NeighborList {
-public:
-  float v[3][3][3];
-};
+// RBTODO: integrate with existing grid code?
 
 class RigidBodyGrid { 
+	friend class SparseGrid;
 private:
   // Initialize the variables that get used a lot.
   // Also, allocate the main value array.
@@ -45,7 +44,7 @@ public:
 	// RBTODO Fix?
 	RigidBodyGrid(); // cmaffeo2 (2015) moved this out of protected, cause I wanted RigidBodyGrid in a struct
   // The most obvious of constructors.
-		RigidBodyGrid(int nx0, int ny0, int nz0);
+	RigidBodyGrid(int nx0, int ny0, int nz0);
 
   // Make an orthogonal grid given the box dimensions and resolution.
   RigidBodyGrid(Vector3 box, float dx);
@@ -63,6 +62,9 @@ public:
   // dx is the approx. resolution.
   // The grid spacing is always a bit smaller than dx.
   RigidBodyGrid(Matrix3 box, float dx);
+
+  // Make a copy of a BaseGrid grid.
+  RigidBodyGrid(const BaseGrid& g);
 
   // Make an exact copy of a grid.
   RigidBodyGrid(const RigidBodyGrid& g);
@@ -91,9 +93,9 @@ public:
   virtual float getValue(int ix, int iy, int iz) const;
 
   // Vector3 getPosition(int ix, int iy, int iz) const;
-  Vector3 getPosition(int j) const;
-	Vector3 getPosition(int j, Matrix3 basis, Vector3 origin) const {
-
+  HOST DEVICE Vector3 getPosition(int j) const;
+	HOST DEVICE Vector3 getPosition(int j, Matrix3 basis, Vector3 origin) const;
+		
   /* // Does the point r fall in the grid? */
   /* // Obviously this is without periodic boundary conditions. */
   /* bool inGrid(Vector3 r) const; */
@@ -113,9 +115,7 @@ public:
   /* int index(Vector3 r) const; */
   /* int nearestIndex(Vector3 r) const; */
 
-  HOST DEVICE inline int length() const {
-		return size;
-	}
+  HOST DEVICE inline int length() const { return size; }
 
   HOST DEVICE inline int getNx() const {return nx;}
   HOST DEVICE inline int getNy() const {return ny;}
@@ -134,18 +134,18 @@ public:
 	\=========*/
 	
   // Get the mean of the entire grid.
-  float mean() const
+  float mean() const;
 	
   // Get the potential at the closest node.
-  virtual float getPotential(Vector3 pos) const;
+  /* virtual float getPotential(Vector3 pos) const; */
 
 	// Added by Rogan for times when simpler calculations are required.
   virtual float interpolatePotentialLinearly(Vector3 pos) const;
 
-  HOST DEVICE inline float interpolateDiffX(Vector3 pos, float w[3], float g1[4][4][4]) const {
+	HOST DEVICE inline float interpolateDiffX(Vector3 pos, float w[3], float g1[4][4][4]) const {
     float a0, a1, a2, a3;
-
-		// RBTODO parallelize loops?
+		
+		// RBTODO further parallelize loops? unlikely?
 		
     // Mix along x, taking the derivative.
     float g2[4][4];
@@ -179,8 +179,7 @@ public:
     a1 = 0.5f*(-g3[0] + g3[2]);
     a0 = g3[1];
  
-    float retval = -(a3*w[2]*w[2]*w[2] + a2*w[2]*w[2] + a1*w[2] + a0);
-    return retval;
+    return -(a3*w[2]*w[2]*w[2] + a2*w[2]*w[2] + a1*w[2] + a0);
   }
 
   HOST DEVICE inline float interpolateDiffY(Vector3 pos, float w[3], float g1[4][4][4]) const {
@@ -256,8 +255,6 @@ public:
     return -(3.0f*a3*w[2]*w[2] + 2.0f*a2*w[2] + a1);
   }
 
-	// RBTODO overload with optimized algorithm
-	//  skip transforms (assume identity basis)
   HOST DEVICE inline float interpolatePotential(Vector3 pos) const {
     // Find the home node.
     Vector3 l = pos;
@@ -296,17 +293,17 @@ public:
     float g1[4][4][4];
     for (int ix = 0; ix < 4; ix++) {
 	  	int jx = ix-1 + home[0];
-	  	jx = wrap(jx, g[0]);
       for (int iy = 0; iy < 4; iy++) {
 	  		int jy = iy-1 + home[1];
-	  		jy = wrap(jy, g[1]);
 				for (int iz = 0; iz < 4; iz++) {
-	  			// Wrap around the periodic boundaries. 
 	  			int jz = iz-1 + home[2];
-	  			jz = wrap(jz, g[2]);
-	  
-	  			int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
-	  			g1[ix][iy][iz] = val[ind];
+					if (jx <  0  ||  jy < 0  ||  jz < 0  ||
+							jx >= nx || jz >= nz || jz >= nz) {
+						g1[ix][iy][iz] = 0;
+					} else {
+						int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
+						g1[ix][iy][iz] = val[ind];
+					}
 				}
       }
     }
@@ -387,19 +384,22 @@ public:
 		w[1] = l.y - homeY;
 		w[2] = l.z - homeZ;
 		// Find the values at the neighbors.
-		float g1[4][4][4];
+		float g1[4][4][4];					/* RBTODO: inefficient for my algorithm? */
 		for (int ix = 0; ix < 4; ix++) {
+			int jx = ix-1 + home[0];
 			for (int iy = 0; iy < 4; iy++) {
+				int jy = iy-1 + home[1];
 				for (int iz = 0; iz < 4; iz++) {
-	  			// Wrap around the periodic boundaries. 
-					int jx = ix-1 + home[0];
-					jx = wrap(jx, g[0]);
-					int jy = iy-1 + home[1];
-					jy = wrap(jy, g[1]);
+	  			// Assume zero value at edges
 					int jz = iz-1 + home[2];
-					jz = wrap(jz, g[2]);
-					int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
-					g1[ix][iy][iz] = val[ind];
+					// RBTODO: possible branch divergence in warp?
+					if (jx <  0  ||  jy < 0  ||  jz < 0  ||
+							jx >= nx || jz >= nz || jz >= nz) {
+						g1[ix][iy][iz] = 0;
+					} else {
+						int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
+						g1[ix][iy][iz] = val[ind];
+					}
 				}
 			}
 		}  
@@ -508,7 +508,7 @@ public:
   // since we do it here.
   void getNeighborValues(NeighborList* neigh, int homeX, int homeY, int homeZ) const;
   inline void setVal(float* v) { val = v; }
-
+	
 public:
   int nx, ny, nz;
   int nynz;
@@ -517,3 +517,4 @@ public:
   float* val;
 };
 
+#endif

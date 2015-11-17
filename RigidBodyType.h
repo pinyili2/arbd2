@@ -6,8 +6,9 @@
 /* #include <thrust/host_vector.h> */
 /* #include <thrust/device_vector.h> */
 #include "Reservoir.h"
-#include "useful.h"
 #include "BaseGrid.h"
+#include "RigidBodyGrid.h"
+#include "useful.h"
 
 #include <cstdio>
 
@@ -37,9 +38,12 @@ RigidBodyType(const String& name = "") :
   void addPotentialGrid(String s);
 	void addDensityGrid(String s);
 	void updateRaw();
-
+	void setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp_inertia,
+												 float tmp_transDamping, float tmp_rotDamping);
+	
 public:
 
+	
 	String name;
 	int num; // number of particles of this type
 
@@ -49,6 +53,8 @@ public:
 	Vector3 inertia;
 	Vector3 transDamping;
 	Vector3 rotDamping;
+	Vector3 transForceCoeff;
+	Vector3 rotTorqueCoeff;
 
 	std::vector<String> potentialGridKeys;
 	std::vector<String> densityGridKeys;
@@ -59,8 +65,11 @@ public:
 	// for device
 	int numPotGrids;
 	int numDenGrids;
-	BaseGrid* rawPotentialGrids;
-	BaseGrid* rawDensityGrids;
-	
+	RigidBodyGrid* rawPotentialGrids;
+	RigidBodyGrid* rawDensityGrids;
+	Matrix3* rawPotentialBases;
+	Matrix3* rawDensityBases;
+	Vector3* rawPotentialOrigins;
+	Vector3* rawDensityOrigins;		
 };
 

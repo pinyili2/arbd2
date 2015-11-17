@@ -1,11 +1,9 @@
-
 //////////////////////////////////////////////////////////////////////
 // Grid base class that does just the basics.
 // Author: Jeff Comer <jcomer2@illinois.edu>
 
 #include "RigidBodyGrid.h"
 #include <cuda.h>
-
 
 #define STRLEN 512
 
@@ -17,7 +15,7 @@ void RigidBodyGrid::init() {
 	val = new float[size];
 }
 RigidBodyGrid::RigidBodyGrid() {
-	RigidBodyGrid tmp(Matrix3(),Vector3(),1,1,1);
+	RigidBodyGrid tmp(1,1,1);
 	val = new float[1];
 	*this = tmp;									// TODO: verify that this is OK
 	
@@ -149,8 +147,8 @@ RigidBodyGrid::RigidBodyGrid(const RigidBodyGrid& g, int nx0, int ny0, int nz0) 
 	if (ny <= 0) ny = 1;
 	if (nz <= 0) nz = 1;
 
-	// Tile the grid into the box of the template grid.
-	Matrix3 box = g.getBox();
+	// // Tile the grid into the box of the template grid.
+	// Matrix3 box = g.getBox();
 
 	init();
 
@@ -207,6 +205,7 @@ Vector3 RigidBodyGrid::getPosition(int j) const {
 
 	return Vector3(ix,iy,iz);
 }
+
 Vector3 RigidBodyGrid::getPosition(int j, Matrix3 basis, Vector3 origin) const {
 	int iz = j%nz;
 	int iy = (j/nz)%ny;
@@ -285,7 +284,6 @@ int RigidBodyGrid::index(int ix, int iy, int iz) const { return iz + iy*nz + ix*
 // 	return iz + iy*nz + ix*ny*nz;
 // }
 
-}
 
 // Add a fixed value to the grid.
 void RigidBodyGrid::shift(float s) {
@@ -305,12 +303,12 @@ float RigidBodyGrid::mean() const {
 }
 
 // Get the potential at the closest node.
-float RigidBodyGrid::getPotential(Vector3 pos) const {
-	// Find the nearest node.
-	int j = nearestIndex(pos);
+// float RigidBodyGrid::getPotential(Vector3 pos) const {
+// 	// Find the nearest node.
+// 	int j = nearestIndex(pos);
 
-	return val[j];
-}
+// 	return val[j];
+// }
 
 
 // Added by Rogan for times when simpler calculations are required.
@@ -415,25 +413,6 @@ float RigidBodyGrid::interpolatePotentialLinearly(Vector3 pos) const {
 // 	// return basis.transform(l);
 // }
 
-
-// Includes the home node.
-// indexBuffer must have a size of at least 27.
-void RigidBodyGrid::getNeighbors(int j, int* indexBuffer) const {
-	int jx = indexX(j);
-	int jy = indexY(j);
-	int jz = indexZ(j);
-
-	int k = 0;
-	for (int ix = -1; ix <= 1; ix++) {
-		for (int iy = -1; iy <= 1; iy++) {
-			for (int iz = -1; iz <= 1; iz++) {
-				int ind = wrap(jz+iz,nz) + nz*wrap(jy+iy,ny) + nynz*wrap(jx+ix,nx);
-				indexBuffer[k] = ind;
-				k++;
-			}
-		}
-	}
-}
 
 // Includes the home node.
 // indexBuffer must have a size of at least 27.

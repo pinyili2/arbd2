@@ -57,6 +57,43 @@ void RigidBodyType::clear() {
 // 	g.grid = * new BaseGrid(token[1]);
 // 	return g;
 // }
+
+
+void RigidBodyType::setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp_inertia, float tmp_transDamping, float tmp_rotDamping) {
+	mass = tmp_mass;
+	inertia = tmp_inertia;
+	/*–––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
+	| DiffCoeff = kT / dampingCoeff mass                     |
+	|                                                          |
+	| type->DampingCoeff has units of (1/ps)                 |
+	|                                                          |
+	| f[kcal/mol AA] = - dampingCoeff * momentum[amu AA/fs]  |
+	|                                                          |
+	| units "(1/ps) * (amu AA/fs)" "kcal_mol/AA" * 2.3900574 |
+	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
+	transDamping = 2.3900574 * tmp_transDamping;
+
+	/*––––––––––––––––––––––––––––––––––––––––––––––––––––.
+	| < f(t) f(t') > = 2 kT dampingCoeff mass delta(t-t') |
+	|                                                     |
+	|  units "sqrt( k K (1/ps) amu / fs )" "kcal_mol/AA"  |
+	|    * 0.068916889                                    |
+	`––––––––––––––––––––––––––––––––––––––––––––––––––––*/
+	float Temp = 295;								/* RBTODO: Fix!!!! */
+	transForceCoeff = 0.068916889 * Vector3::element_sqrt( 2*Temp*mass*tmp_transDamping/timestep );
+
+	// setup for langevin
+	// langevin = rbParams->langevin;
+	// if (langevin) {
+	// T = - dampingCoeff * angularMomentum
+	rotDamping = 2.3900574 * tmp_rotDamping;
+
+	// < f(t) f(t') > = 2 kT dampingCoeff inertia delta(t-t')
+	rotTorqueCoeff = 0.068916889 *
+		Vector3::element_sqrt( 2*Temp* Vector3::element_mult(inertia,tmp_rotDamping) / timestep );
+	//  }
+}
+
 void RigidBodyType::addPotentialGrid(String s) {
 	// tokenize and return
 	int numTokens = s.tokenCount();
@@ -94,15 +131,27 @@ void RigidBodyType::updateRaw() {
 	if (numDenGrids > 0) delete[] rawDensityGrids;
 	numPotGrids = potentialGrids.size();
 	numDenGrids = densityGrids.size();
-	if (numPotGrids > 0)
-		rawPotentialGrids = new BaseGrid[numPotGrids];
-	if (numDenGrids > 0)
-		rawDensityGrids = new BaseGrid[numDenGrids];
+	if (numPotGrids > 0) {
+		rawPotentialGrids		= new RigidBodyGrid[numPotGrids];
+		rawPotentialBases		= new Matrix3[numPotGrids];
+		rawPotentialOrigins = new Vector3[numPotGrids];
+	}
+	if (numDenGrids > 0) {
+		rawDensityGrids			= new RigidBodyGrid[numDenGrids];
+		rawDensityBases			= new Matrix3[numDenGrids];
+		rawDensityOrigins		= new Vector3[numDenGrids];
+	}
 
-	for (int i=0; i < numPotGrids; i++)
-		rawPotentialGrids[i] = potentialGrids[i];
-	for (int i=0; i < numDenGrids; i++)
-		rawDensityGrids[i] = densityGrids[i];
+	for (int i=0; i < numPotGrids; i++) {
+		rawPotentialGrids[i]	 = potentialGrids[i];
+		rawPotentialBases[i]	 = potentialGrids[i].getBasis();
+		rawPotentialOrigins[i] = potentialGrids[i].getOrigin();
+	}
+	for (int i=0; i < numDenGrids; i++) {
+		rawDensityGrids[i]		 = densityGrids[i];
+		rawDensityBases[i]		 = densityGrids[i].getBasis();
+		rawDensityOrigins[i]	 = densityGrids[i].getOrigin();
+	}
 	
 }
 

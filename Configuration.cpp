@@ -174,18 +174,29 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	name = new String[num * simNum];
 	currSerial = 0;
 
-	// RigidBodies...
-	if (numRigidTypes > 0) {
-		printf("\nCounting rigid bodies specified in the configuration file.\n");
-		numRB = 0;
-		for (int i = 0; i < numRigidTypes; i++) numRB += rigidBody[i].num;
+// RBTODO: clean this mess up
+	/* // RigidBodies... */
+	/* if (numRigidTypes > 0) { */
+	/* 	printf("\nCounting rigid bodies specified in the configuration file.\n"); */
+	/* 	numRB = 0; */
 
+	/* 	// grow list of rbs */
+	/* 	for (int i = 0; i < numRigidTypes; i++) {			 */
+	/* 		numRB += rigidBody[i].num; */
+
+	/* 		std::vector<RigidBody> tmp; */
+	/* 		for (int j = 0; j < rigidBody[i].num; j++) { */
+	/* 			tmp.push_back( new RigidBody( this, rigidBody[i] ) ); */
+	/* 		} */
+
+	/* 		rbs.push_back(tmp); */
+	/* 	} */
 		// // state data
 		// rbPos = new Vector3[numRB * simNum];
 		// type = new int[numRB * simNum];
 		
-	}
-	printf("Initial RigidBodies: %d\n", numRB);
+	/* } */
+	/* printf("Initial RigidBodies: %d\n", numRB); */
 	
 
 	// Create exclusions from the exclude rule, if it was specified in the config file
@@ -449,11 +460,11 @@ void Configuration::copyToCUDA() {
 				cudaMemcpyHostToDevice));
 
 
-	printf("copying RBs\n");
+	printf("Copying RBs\n");
 	// Copy rigidbody types 
 	// http://stackoverflow.com/questions/16024087/copy-an-object-to-device
  	for (int i = 0; i < numRigidTypes; i++) {
-		printf("working on RB %d\n",i);
+		printf("Working on RB %d\n",i);
 		RigidBodyType *rb = &(rigidBody[i]); // temporary for convenience
 		rb->updateRaw();
 

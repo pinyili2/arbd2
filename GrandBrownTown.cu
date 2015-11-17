@@ -1,5 +1,6 @@
 #include "GrandBrownTown.h"
 #include "GrandBrownTown.cuh"
+/* #include "ComputeGridGrid.cuh" */
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
@@ -9,16 +10,13 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
 	}
 }
 
-#include "RigidBodyType.h" //temporary
-
-
 bool GrandBrownTown::DEBUG;
 
 cudaEvent_t START, STOP;
 
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		const long int randomSeed, bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
-		imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas) {
+	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas), conf(c) {
 
 	for (int i = 0; i < numReplicas; i++) {
 		std::stringstream curr_file, restart_file, out_prefix;
@@ -56,6 +54,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	type   = new     int[num * numReplicas];  // [HOST] array of particles' types.
 	serial = new     int[num * numReplicas];  // [HOST] array of particles' serial numbers.
 
+	// Allocate things for rigid body
+	// RBC = RigidBodyController(c);
 	
 	// Replicate identical initial conditions across all replicas
 	// TODO: add an option to generate random initial conditions for all replicas
@@ -410,13 +410,11 @@ void GrandBrownTown::run() {
 		rt_timer_stop(cputimer);
 		float dt2 = rt_timer_time(cputimer);
 		printf("Position Update Time: %f ms\n", dt2 * 1000);
-		// */
+		*/
 
-		// calculateRigidBodyForce<<< numBlocks, NUM_THREADS >>>(rb_d, rbType_d,
-		// 																						 kT, kTGrid_d,
-		// 																						 tl, timestep,
-		// 																					 sys_d, randoGen_d, numReplicas);
-		computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d);
+		
+		/* 	for (int j = 0; j < t->num; j++) { */
+		/* computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d); */
 		
 		// int numBlocks = (numRB ) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 		

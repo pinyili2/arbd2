@@ -1,4 +1,3 @@
-// // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // /
 // Author: Jeff Comer <jcomer2@illinois.edu>
 #ifndef GRANDBROWNTOWN_H
 #define GRANDBROWNTOWN_H
@@ -37,6 +36,10 @@
 #include "Angle.h"
 #include "Configuration.h"
 #include "Dihedral.h"
+/* #include "RigidBody.h" */
+/* #include "RigidBodyType.h" */
+/* #include "RigidBodyGrid.h" */
+#include "RigidBodyController.h"
 #include "util.h"
 
 // IMD
@@ -111,6 +114,7 @@ public:
 	Vector3 freePosition(Vector3 r0, Vector3 r1, float minDist);
 
 private:
+	const Configuration& conf;
 	int numReplicas;
 	
 	// IMD variables
@@ -146,6 +150,10 @@ private:
 	float timeLast; 	// used with posLast
 	float minimumSep; 	// minimum separation allowed with placing new particles
 
+	RigidBodyController RBC;
+	Vector3* rbPos; 		// rigid body positions
+	
+	
 	// CUDA device variables
 	Vector3 *pos_d, *forceInternal_d, *force_d;
 	int *type_d;
