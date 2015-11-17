@@ -82,7 +82,6 @@ public:
 	// Device Variables
 	int *type_d;
 	BrownianParticleType **part_d;
-	RigidBodyType **rbType_d;
 	BaseGrid *sys_d, *kTGrid_d;
 	Bond* bonds_d;
 	int2* bondMap_d;

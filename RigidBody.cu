@@ -10,8 +10,10 @@
 
 #include "Debug.h"
 
+
 RigidBody::RigidBody(const Configuration& cref, RigidBodyType& tref)
-	: c(&cref), t(&tref) {
+	: c(&cref), t(&tref), impulse_to_momentum(0.0004184) {
+
 	timestep = c->timestep;
 	// RBTODO: fix this
 	Temp = 295;

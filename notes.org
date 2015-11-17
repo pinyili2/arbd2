@@ -1,5 +1,15 @@
+* TODO active
+** make rigid body object device pointer
+
+
+
+* organization
+** RgidBodyController (RBC) holds device pointers, manages force evaluation and integration
+
+
+
 * Opportunities for memory bandwidth savings
-** each block should contain a compact set of density grid points
+** each block should (ideally) contain a compact set of density grid points
  cache (automatically!?) potential grid lookups and coefficients! 
 ** each block should have same transformation matrices applied to each grid point?!
 ** each block could have same inverse transformation matrix applied to each grid point

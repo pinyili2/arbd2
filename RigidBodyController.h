@@ -4,8 +4,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-#include "ComputeGridGrid.cuh"
-
 class Configuration;
 
 struct gridInteractionList {
@@ -23,11 +21,15 @@ public:
 	DEVICE void print(int step);
     
 private:
+	void copyGridsToDevice();
 	void updateForces();
 
 	/* void printLegend(std::ofstream &file); */
 	/* void printData(int step, std::ofstream &file); */
-
+public:
+		RigidBodyType** rbType_d;
+	
+private:
 	/* std::ofstream trajFile; */
 
 	const Configuration& conf;
@@ -37,11 +39,7 @@ private:
 	
 	Vector3* trans; // would have made these static, but
 	Matrix3* rot;  	// there are errors on rigidBody->integrate
-
 	std::vector< std::vector<RigidBody> > rigidBodyByType;
-	/* RigidBody* rigidBodyList; */
-
 	
 	
 };
-

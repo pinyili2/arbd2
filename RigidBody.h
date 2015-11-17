@@ -84,7 +84,7 @@ private:
 	/*–––––––––––––––––––––––––––––––––––––––––.
 	| units "kcal_mol/AA * fs" "(AA/fs) * amu" |
 	`–––––––––––––––––––––––––––––––––––––––––*/
-	const BigReal impulse_to_momentum = 0.0004184; /* should be static, but fails */
+	BigReal impulse_to_momentum; /* should be const, but copy constructor failed */
 
 
 	HOST DEVICE inline Matrix3 Rx(BigReal t);

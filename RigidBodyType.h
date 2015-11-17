@@ -61,8 +61,9 @@ public:
 
 	std::vector<BaseGrid> potentialGrids;
 	std::vector<BaseGrid> densityGrids;
-	
-	// for device
+
+	// RBTODO: clear std::vectors after initialization 
+	// duplicates of std::vector grids for device
 	int numPotGrids;
 	int numDenGrids;
 	RigidBodyGrid* rawPotentialGrids;
@@ -71,5 +72,10 @@ public:
 	Matrix3* rawDensityBases;
 	Vector3* rawPotentialOrigins;
 	Vector3* rawDensityOrigins;		
+
+	// device pointers
+	RigidBodyGrid** rawPotentialGrids_d;
+	RigidBodyGrid** rawDensityGrids_d;
+	
 };
 

@@ -7,8 +7,9 @@
 /* #include "RigidBody.h" */
 #include "RigidBodyController.h"
 #include "Configuration.h"
-
 #include "RigidBodyType.h"
+#include "ComputeGridGrid.cuh"
+
 /* #include "Random.h" */
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -27,6 +28,10 @@ inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) 
 RigidBodyController::RigidBodyController(const Configuration& c) :
 conf(c) {
 
+	if (conf.numRigidTypes > 0) {
+		copyGridsToDevice();
+	}
+
 	int numRB = 0;
 	// grow list of rbs
 	for (int i = 0; i < conf.numRigidTypes; i++) {			
@@ -37,8 +42,7 @@ conf(c) {
 			tmp.push_back( r );
 		}
 		rigidBodyByType.push_back(tmp);
-	}
-
+	}	
 }
 RigidBodyController::~RigidBodyController() {
 	for (int i = 0; i < rigidBodyByType.size(); i++)
@@ -62,8 +66,8 @@ void RigidBodyController::updateForces() {
 	| Opportunities for memory bandwidth savings:                              |
 	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 	// int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
-	int numBlocks = 1;
-	int numThreads = 32;
+	// int numBlocks = 1;
+	int numThreads = 256;
 
 	
 	// Loop over all pairs of rigid body types
@@ -89,7 +93,9 @@ void RigidBodyController::updateForces() {
 							for (int j = (ti==tj ? 0 : i); j < rbs2.size(); j++) {
 								const RigidBody& rb1 = rbs1[i];
 								const RigidBody& rb2 = rbs2[j];
-									
+
+								const int sz = t1.rawDensityGrids[k1].getSize();
+								const int numBlocks = sz / numThreads + ((sz % numThreads == 0) ? 0:1 );
 								computeGridGridForce<<< numBlocks, numThreads >>>
 									(t1.rawDensityGrids[k1], t2.rawPotentialGrids[k2],
 									 rb1.getBasis(), rb1.getPosition(),
@@ -104,56 +110,135 @@ void RigidBodyController::updateForces() {
 		
 	// RBTODO: see if there is a better way to sync
 	gpuErrchk(cudaDeviceSynchronize());
-
 }
+
+void RigidBodyController::copyGridsToDevice() {
+	RigidBodyType **rb_addr = new RigidBodyType*[conf.numRigidTypes];	/* temporary pointer to device pointer */
+
+	gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * conf.numRigidTypes));
+	// TODO: The above line fails when there is not enough memory. If it fails, stop.
+
+	printf("Copying RBs\n");
+	// Copy rigidbody types 
+	// http://stackoverflow.com/questions/16024087/copy-an-object-to-device
+ 	for (int i = 0; i < conf.numRigidTypes; i++) {
+		printf("Working on RB %d\n",i);
+		RigidBodyType& rb = conf.rigidBody[i]; // temporary for convenience
+		rb.updateRaw();
+
+		int ng = rb.numPotGrids;
+
+		// copy rigidbody to device
+		// RigidBodyType *rb_d;
+    gpuErrchk(cudaMalloc(&rb_addr[i], sizeof(RigidBodyType)));
+		gpuErrchk(cudaMemcpy(rb_addr[i], &rb, sizeof(RigidBodyType),
+												 cudaMemcpyHostToDevice));
+		
+		// copy rb->grid to device
+		RigidBodyGrid * gtmp;
+		// gtmp = new RigidBodyGrid[ng];
+		size_t sz = sizeof(RigidBodyGrid)*ng;
+		
+		// allocate grids on device
+		// copy temporary host pointer to device pointer
+		// copy grids to device through temporary host poin
+		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
+		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawPotentialGrids), &gtmp, 
+												 sizeof(RigidBodyGrid*) * ng, cudaMemcpyHostToDevice ));
+		gpuErrchk(cudaMemcpy(gtmp, &(rb.rawPotentialGrids),
+												 sizeof(RigidBodyGrid)  * ng, cudaMemcpyHostToDevice ));
+		for (int gid = 0; gid < ng; gid++) {
+			gpuErrchk(cudaMemcpy(&(gtmp[gid]), &(rb.rawPotentialGrids[gid]),
+													 sizeof(RigidBodyGrid), cudaMemcpyHostToDevice ));
+		}
+
+		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);		
+		// copy potential grid data to device
+		for (int gid = 0; gid < ng; gid++) { 
+			RigidBodyGrid *g = &(rb.rawPotentialGrids[gid]); // convenience
+			int len = g->getSize();
+			float **tmpData;
+			tmpData = new float*[len];
+
+			printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len);
+			for (int k = 0; k < len; k++)
+				printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
+							 i, gid, k, g->val[k]);
+			
+      // allocate grid data on device
+			// copy temporary host pointer to device pointer
+			// copy data to device through temporary host pointer
+			sz = sizeof(float*) * len;
+			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
+			// gpuErrchk(cudaMemcpy( &(rb_addr[i]->rawPotentialGrids[gid].val), &tmpData,
+			// 											sizeof(float*), cudaMemcpyHostToDevice));
+			gpuErrchk(cudaMemcpy( &(gtmp[gid].val), &tmpData,
+														sizeof(float*), cudaMemcpyHostToDevice));
+			sz = sizeof(float) * len;
+			gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
+			// RBTODO: why can't this be deleted? 
+			// delete[] tmpData;
+		}
+	}
+
+	// density grids
+ 	for (int i = 0; i < conf.numRigidTypes; i++) {
+		printf("working on RB %d\n",i);
+		RigidBodyType& rb = conf.rigidBody[i];
+
+		int ng = rb.numDenGrids;
+		RigidBodyGrid * gtmp;
+		size_t sz = sizeof(RigidBodyGrid)*ng;
+		
+		// allocate grids on device
+		// copy temporary host pointer to device pointer
+		// copy grids to device through temporary host poin
+		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
+		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawDensityGrids), &gtmp, 
+												 sizeof(RigidBodyGrid*) * ng, cudaMemcpyHostToDevice ));
+		gpuErrchk(cudaMemcpy(gtmp, &(rb.rawDensityGrids),
+												 sizeof(RigidBodyGrid)  * ng, cudaMemcpyHostToDevice ));
+		for (int gid = 0; gid < ng; gid++) {
+			gpuErrchk(cudaMemcpy(&(gtmp[gid]), &(rb.rawDensityGrids[gid]),
+													 sizeof(RigidBodyGrid), cudaMemcpyHostToDevice ));
+		}
+
+		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);		
+		// copy grid data to device
+		for (int gid = 0; gid < ng; gid++) { 
+			RigidBodyGrid& g = rb.rawDensityGrids[gid]; // convenience
+			int len = g.getSize();
+			float **tmpData;
+			tmpData = new float*[len];
+
+			printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len);
+			for (int k = 0; k < len; k++)
+				printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
+							 i, gid, k, g.val[k]);
+			
+      // allocate grid data on device
+			// copy temporary host pointer to device pointer
+			// copy data to device through temporary host pointer
+			sz = sizeof(float*) * len;
+			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
+			gpuErrchk(cudaMemcpy( &(gtmp[gid].val), &tmpData,
+														sizeof(float*), cudaMemcpyHostToDevice));
+			sz = sizeof(float) * len;
+			gpuErrchk(cudaMemcpy( tmpData, g.val, sz, cudaMemcpyHostToDevice));
+			
+			// RBTODO: why can't this be deleted? 
+			// delete[] tmpData;
+		}
+		
+  }
+	gpuErrchk(cudaMemcpy(rbType_d, rb_addr, sizeof(RigidBodyType*) * conf.numRigidTypes,
+				cudaMemcpyHostToDevice));
+	printf("Done copying RBs\n");
+}
+
+
 
 /*
-RigidBodyController::RigidBodyController(const NamdState *s, const int reductionTag, SimParameters *sp) : state(s), simParams(sp)
-{
-    DebugM(2, "Rigid Body Controller initializing" 
-    	   << "\n" << endi);
-
-    // initialize each RigidBody
-    RigidBodyParams *params =  simParams->rigidBodyList.get_first();
-    while (params != NULL) {
-    	// check validity of params?
-    	RigidBody *rb = new RigidBody(simParams, params);
-    	rigidBodyList.push_back( rb );
-    	params = params->next;
-    }
-
-    // initialize translation and rotation data
-    trans.resize( rigidBodyList.size() );
-    rot.resize( rigidBodyList.size() );
-    for (int i=0; i<rigidBodyList.size(); i++) {
-    	trans[i] = rigidBodyList[i]->getPosition();
-    	rot[i] = rigidBodyList[i]->getOrientation();
-    	// trans.insert( rigidBodyList[i]->getPosition(), i );
-    	// rot.insert( rigidBodyList[i]->getOrientation(), i ); 
-   }
-
-    random = new Random(simParams->randomSeed);
-    // random->split(0,PatchMap::Object()->numPatches()+1);
-        
-    // inbound communication
-    DebugM(3, "RBC::init: requiring reduction "<<reductionTag<<" with "<<6*rigidBodyList.size()<<" elements\n" << endi);
-    gridReduction = ReductionMgr::Object()->willRequire(reductionTag ,6*rigidBodyList.size() );
-
-    // outbound communication
-    CProxy_ComputeMgr cm(CkpvAccess(BOCclass_group).computeMgr);
-    computeMgr = cm.ckLocalBranch();
-
-    if (trans.size() != rot.size())
-	NAMD_die("failed sanity check\n");    
-    RigidBodyMsg *msg = new RigidBodyMsg;
-    msg->trans.copy(trans);	// perhaps .swap() would cause problems
-    msg->rot.copy(rot);
-    computeMgr->sendRigidBodyUpdate(msg);
-}
-RigidBodyController::~RigidBodyController() {
-    delete gridReduction;
-}
-
 void RigidBodyController::print(int step) {
     // modeled after outputExtendedData() in Controller.C
     if ( step >= 0 ) {
@@ -472,116 +557,4 @@ RigidBodyParams* RigidBodyParamsList::add(const char* key)
     return elem;
 }  
 
-const void RigidBodyParams::print() {
-    iout << iINFO
-	 << "printing RigidBodyParams("<<rigidBodyKey<<"):"
-	 <<"\n\t" << "mass: " << mass
-	 <<"\n\t" << "inertia: " << inertia
-	 <<"\n\t" << "langevin: " << langevin
-	 <<"\n\t" << "temperature: " << temperature
-	 <<"\n\t" << "transDampingCoeff: " << transDampingCoeff
-	 <<"\n\t" << "position: " << position
-	 <<"\n\t" << "orientation: " << orientation
-	 <<"\n\t" << "orientationalVelocity: " << orientationalVelocity
-	 << "\n"  << endi;
-
-}
-const void RigidBodyParamsList::print() {
-    iout << iINFO << "Printing " << n_elements << " RigidBodyParams\n" << endi;
-	
-    RigidBodyParams *elem = get_first();
-    while (elem != NULL) {
-	elem->print();
-	elem = elem->next;
-    }
-}
-const void RigidBodyParamsList::print(char *s) {
-    iout << iINFO << "("<<s<<") Printing " << n_elements << " RigidBodyParams\n" << endi;
-	
-    RigidBodyParams *elem = get_first();
-    while (elem != NULL) {
-	elem->print();
-	elem = elem->next;
-    }
-}
-
-void RigidBodyParamsList::pack_data(MOStream *msg) {
-    DebugM(4, "Packing rigid body parameter list\n");
-    print();
-
-    int i = n_elements;
-    msg->put(n_elements);
-    
-    RigidBodyParams *elem = get_first();
-    while (elem != NULL) {
-    	DebugM(4, "Packing a new element\n");
-
-    	int len;
-	Vector v;
-	
-	len = strlen(elem->rigidBodyKey) + 1;
-    	msg->put(len);
-    	msg->put(len,elem->rigidBodyKey);
-	msg->put(elem->mass);
-	
-	// v = elem->
-	msg->put(&(elem->inertia));
-	msg->put( (elem->langevin?1:0) ); 
-	msg->put(elem->temperature);
-	msg->put(&(elem->transDampingCoeff));
-	msg->put(&(elem->rotDampingCoeff));
-    	
-	// elem->gridList.clear();
-	
-	msg->put(&(elem->position));
-	msg->put(&(elem->velocity));
-	// Tensor data = elem->orientation;
-	msg->put( & elem->orientation );
-	msg->put(&(elem->orientationalVelocity)) ;
-	
-	i--;
-	elem = elem->next;
-    }
-    if (i != 0)
-      NAMD_die("MGridforceParams message packing error\n");
-}
-void RigidBodyParamsList::unpack_data(MIStream *msg) {
-    DebugM(4, "Could be unpacking rigid body parameterlist (not used & not implemented)\n");
-
-    int elements;
-    msg->get(elements);
-
-    for(int i=0; i < elements; i++) {
-    	DebugM(4, "Unpacking a new element\n");
-
-	int len;
-	msg->get(len);
-	char *key = new char[len];
-	msg->get(len,key);
-	RigidBodyParams *elem = add(key);
-	delete [] key;
-	
-	msg->get(&(elem->inertia));
-
-	int j;
-	msg->get(j);
-	elem->langevin = (j != 0); 
-	
-	msg->get(elem->temperature);
-	msg->get(&(elem->transDampingCoeff));
-	msg->get(&(elem->rotDampingCoeff));
-    	
-	// elem->gridList.clear();
-	
-	msg->get(&(elem->position));
-	msg->get(&(elem->velocity));
-	msg->get( & elem->orientation );
-	msg->get(&(elem->orientationalVelocity)) ;
-	
-	elem = elem->next;
-    }
-
-    DebugM(4, "Finished unpacking rigid body parameter list\n");
-    print();
-}
 */

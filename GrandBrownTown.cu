@@ -16,7 +16,8 @@ cudaEvent_t START, STOP;
 
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		const long int randomSeed, bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
-	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas), conf(c) {
+	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
+	conf(c), RBC(RigidBodyController(c)) {
 
 	for (int i = 0; i < numReplicas; i++) {
 		std::stringstream curr_file, restart_file, out_prefix;
@@ -28,13 +29,6 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		outCurrFiles.push_back(curr_file.str());
 		restartFiles.push_back(restart_file.str());
 		outFilePrefixes.push_back(out_prefix.str());
-		
-		printf("About to devicePrint\n");
-		// devicePrint<<<1,1>>>(&(c.rigidBody[0]));
-		devicePrint<<<1,1>>>(c.rbType_d);
-		cudaDeviceSynchronize();
-		printf("Done with devicePrint\n");
-
 	}
 
 	GrandBrownTown::DEBUG = debug;
@@ -56,6 +50,13 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	// Allocate things for rigid body
 	// RBC = RigidBodyController(c);
+	printf("About to devicePrint\n");
+	// devicePrint<<<1,1>>>(&(c.rigidBody[0]));
+	devicePrint<<<1,1>>>(RBC.rbType_d);
+	cudaDeviceSynchronize();
+	printf("Done with devicePrint\n");
+
+
 	
 	// Replicate identical initial conditions across all replicas
 	// TODO: add an option to generate random initial conditions for all replicas

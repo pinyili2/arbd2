@@ -12,7 +12,7 @@ INCLUDE = $(CUDA_PATH)/include
 
 DEBUG = -g
 CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
-NV_FLAGS = -rdc=true $(DEBUG)
+NV_FLAGS = $(DEBUG)
 EX_FLAGS = -O3 -m$(OS_SIZE)
 
 ifneq ($(MAVERICKS),)
@@ -29,7 +29,6 @@ else
     LIBRARY = $(CUDA_PATH)/lib64
 endif
 
-LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -Wl,-rpath,$(LIBRARY)
 
 #CODE_10 := -gencode arch=compute_10,code=sm_10
 #CODE_12 := -gencode arch=compute_12,code=sm_12
@@ -39,6 +38,11 @@ CODE_20 := -arch=sm_20
 #CODE_35 := -gencode arch=compute_35,code=\"sm_35,compute_35\"
 
 NV_FLAGS += $(CODE_10) $(CODE_12) $(CODE_20) $(CODE_30) $(CODE_35)
+
+NVLD_FLAGS := $(NV_FLAGS) --device-link
+NV_FLAGS += -rdc=true
+
+LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -Wl,-rpath,$(LIBRARY)
 
 
 ### Sources
@@ -59,7 +63,11 @@ all: $(TARGET)
 	@echo "Done ->" $(TARGET)
 
 $(TARGET): $(CU_OBJ) $(CC_OBJ) runBrownTown.cpp vmdsock.c imd.c imd.h
-	$(EXEC) $(CC) $(CC_FLAGS) $(LD_FLAGS) $(EX_FLAGS) runBrownTown.cpp vmdsock.c imd.c $(CU_OBJ) $(CC_OBJ) -o $(TARGET)
+	$(EXEC) $(NVCC) $(NVLD_FLAGS) $(CU_OBJ) $(CC_OBJ) -o $(TARGET)_link.o
+	$(EXEC) $(CC) $(CC_FLAGS) $(EX_FLAGS) runBrownTown.cpp vmdsock.c imd.c $(TARGET)_link.o $(CU_OBJ) $(CC_OBJ) $(LD_FLAGS)  -o $(TARGET)
+
+# $(EXEC) $(NVCC) $(NVLD_FLAGS) $(CU_OBJ) -o $(TARGET)_link.o
+# $(EXEC) $(CC) $(CC_FLAGS) $(LD_FLAGS) $(EX_FLAGS) runBrownTown.cpp vmdsock.c imd.c $(CU_OBJ) $(CC_OBJ) -o $(TARGET)
 
 .SECONDEXPANSION:
 $(CU_OBJ): %.o: %.cu $$(wildcard %.h) $$(wildcard %.cuh)

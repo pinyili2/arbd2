@@ -112,6 +112,15 @@ RigidBodyGrid::RigidBodyGrid(Matrix3 box, float dx) {
 	zero();
 }
 
+RigidBodyGrid::RigidBodyGrid(const BaseGrid& g) {
+	nx = g.nx;
+	ny = g.ny;
+	nz = g.nz;
+	
+	init();
+	for (int i = 0; i < size; i++) val[i] = g.val[i];
+}
+
 // Make an exact copy of a grid.
 RigidBodyGrid::RigidBodyGrid(const RigidBodyGrid& g) {
 	nx = g.nx;

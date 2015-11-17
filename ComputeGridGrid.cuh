@@ -1,6 +1,6 @@
 #pragma once
-#include "RigidBodyGrid.h"
-#include "useful.h"
+/* #include "RigidBodyGrid.h" */
+/* #include "useful.h" */
 
 __global__
 void computeGridGridForce(const RigidBodyGrid& rho, const RigidBodyGrid& u,
