@@ -775,8 +775,8 @@ int Configuration::readParameters(const char * config_file) {
 		else if (param == String("rotDamping"))
 			rigidBody[currRB].rotDamping = stringToVector3( value );
 
-		else if (param == String("potentialGrid"))
-			rigidBody[currRB].addPotentialGrid(value);
+		else if (param == String("densityGrid"))
+			rigidBody[currRB].addDensityGrid(value);
 		else if (param == String("potentialGrid"))
 			rigidBody[currRB].addPotentialGrid(value);
 

@@ -10,6 +10,8 @@
 #include "RigidBodyType.h"
 #include "ComputeGridGrid.cuh"
 
+// #include <vector>
+
 /* #include "Random.h" */
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -23,7 +25,6 @@ inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) 
 /* #include <cuda.h> */
 /* #include <cuda_runtime.h> */
 /* #include <curand_kernel.h> */
-
 
 RigidBodyController::RigidBodyController(const Configuration& c) :
 conf(c) {
@@ -42,7 +43,9 @@ conf(c) {
 			tmp.push_back( r );
 		}
 		rigidBodyByType.push_back(tmp);
-	}	
+	}
+
+	initializeForcePairs();
 }
 RigidBodyController::~RigidBodyController() {
 	for (int i = 0; i < rigidBodyByType.size(); i++)
@@ -50,6 +53,65 @@ RigidBodyController::~RigidBodyController() {
 	rigidBodyByType.clear();
 }
 
+void RigidBodyController::initializeForcePairs() {
+	// Loop over all pairs of rigid body types
+	//   the references here make the code more readable, but they may incur a performance loss
+	printf("Initializing force pairs\n");
+	for (int ti = 0; ti < conf.numRigidTypes; ti++) {
+		RigidBodyType& t1 = conf.rigidBody[ti];
+		for (int tj = ti; tj < conf.numRigidTypes; tj++) {
+			RigidBodyType& t2 = conf.rigidBody[tj];
+
+
+			const std::vector<String>& keys1 = t1.densityGridKeys; 
+			const std::vector<String>& keys2 = t2.potentialGridKeys;
+
+			printf("  Working on type pair ");
+			t1.name.printInline(); printf(":"); t2.name.print();
+			
+			// Loop over all pairs of grid keys (e.g. "Elec")
+			std::vector<int> gridKeyId1;
+			std::vector<int> gridKeyId2;
+			
+			printf("  Grid keys %d:%d\n",keys1.size(),keys2.size());
+
+			bool paired = false;
+			for(int k1 = 0; k1 < keys1.size(); k1++) {
+				for(int k2 = 0; k2 < keys2.size(); k2++) {
+					printf("    checking grid keys ");
+					keys1[k1].printInline(); printf(":"); keys2[k2].print();
+					
+					if ( keys1[k1] == keys2[k2] ) {
+						gridKeyId1.push_back(k1);
+						gridKeyId2.push_back(k2);
+						paired = true;
+					}
+				}
+			}
+			
+			if (paired) {
+				// found matching keys => calculate force between all grid pairs
+				std::vector<RigidBody>& rbs1 = rigidBodyByType[ti];
+				std::vector<RigidBody>& rbs2 = rigidBodyByType[tj];
+
+				// Loop over rigid bodies of these types
+				for (int i = 0; i < rbs1.size(); i++) {
+					for (int j = (ti==tj ? i+1 : 0); j < rbs2.size(); j++) {
+						RigidBody* rb1 = &(rbs1[i]);
+						RigidBody* rb2 = &(rbs2[j]);
+
+						printf("    pushing RB force pair for %d:%d\n",i,j);
+						RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t2),rb1,rb2,gridKeyId1,gridKeyId2);
+						gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
+						forcePairs.push_back( fp ); 
+						printf("    done pushing RB force pair for %d:%d\n",i,j);
+					}
+				}
+			}
+		}
+	}
+}
+	
 void RigidBodyController::updateForces() {
 	/*––{ RBTODO }–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| probably coalesce kernel calls, or move this to a device kernel caller   |
@@ -67,49 +129,74 @@ void RigidBodyController::updateForces() {
 	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 	// int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 	// int numBlocks = 1;
-	int numThreads = 256;
+	/* int numThreads = 256; */
 
-	
-	// Loop over all pairs of rigid body types
-	//   the references here make the code more readable, but they may incur a performance loss
-	for (int ti = 0; ti < conf.numRigidTypes; ti++) {
-		const RigidBodyType& t1 = conf.rigidBody[ti];
-		for (int tj = ti; tj < conf.numRigidTypes; tj++) {
-			const RigidBodyType& t2 = conf.rigidBody[tj];
-				
-			const std::vector<String>& keys1 = t1.densityGridKeys; 
-			const std::vector<String>& keys2 = t2.potentialGridKeys;
-
-			// Loop over all pairs of grid keys (e.g. "Elec")
-			for(int k1 = 0; k1 < keys1.size(); k1++) {
-				for(int k2 = 0; k2 < keys2.size(); k2++) {
-					if ( keys1[k1] == keys2[k2] ) {
-						// found matching keys => calculate force between all grid pairs
-						//   loop over rigid bodies of this type
-						const std::vector<RigidBody>& rbs1 = rigidBodyByType[ti];
-						const std::vector<RigidBody>& rbs2 = rigidBodyByType[tj];
-
-						for (int i = 0; i < rbs1.size(); i++) {
-							for (int j = (ti==tj ? 0 : i); j < rbs2.size(); j++) {
-								const RigidBody& rb1 = rbs1[i];
-								const RigidBody& rb2 = rbs2[j];
-
-								const int sz = t1.rawDensityGrids[k1].getSize();
-								const int numBlocks = sz / numThreads + ((sz % numThreads == 0) ? 0:1 );
-								computeGridGridForce<<< numBlocks, numThreads >>>
-									(t1.rawDensityGrids[k1], t2.rawPotentialGrids[k2],
-									 rb1.getBasis(), rb1.getPosition(),
-									 rb2.getBasis(), rb2.getPosition());
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	for (int i=0; i < forcePairs.size(); i++) {
+		forcePairs[i].updateForces();
+	}	
+	// get 3rd law forces and torques
 		
 	// RBTODO: see if there is a better way to sync
 	gpuErrchk(cudaDeviceSynchronize());
+
+}
+
+void RigidBodyForcePair::updateForces() {
+	// get the force/torque between a pair of rigid bodies
+	printf("  Updating rbPair forces\n");
+	const int numGrids = gridKeyId1.size();
+
+	// RBTODO: precompute certain common transformations and pass in kernel call
+	for (int i = 0; i < numGrids; i++) {
+		const int nb = numBlocks[i];
+		const int k1 = gridKeyId1[i];
+		const int k2 = gridKeyId2[i];
+
+		printf("  Calculating grid forces\n");
+
+		computeGridGridForce<<< nb, numThreads >>>
+		(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
+		 rb1->getBasis(), rb1->getPosition(), /* RBTODO: include offset from grid */
+		 rb2->getBasis(), rb2->getPosition(),
+		 forces_d[i], torques_d[i]);
+		
+		// RBTODO: ASYNCHRONOUSLY retrieve forces
+	}
+	gpuErrchk(cudaDeviceSynchronize());
+	for (int i = 0; i < numGrids; i++) {
+		const int nb = numBlocks[i];
+		gpuErrchk(cudaMemcpy(forces[i], &(forces_d[i]), sizeof(Vector3)*nb,
+												 cudaMemcpyDeviceToHost));
+		gpuErrchk(cudaMemcpy(torques[i], &(torques_d[i]), sizeof(Vector3)*nb,
+												 cudaMemcpyDeviceToHost));
+	}
+
+	gpuErrchk(cudaDeviceSynchronize());
+
+	// sum forces + torques
+	Vector3 f = Vector3(0.0f);
+	Vector3 t = Vector3(0.0f);
+
+	for (int i = 0; i < numGrids; i++) {
+		const int nb = numBlocks[i];
+		for (int j = 0; j < nb; j++) {
+			f = f + forces[i][j];
+			t = t + forces[i][j];
+		}
+	}
+
+	// transform torque from lab-frame origin to rb centers
+	Vector3 t1 = t - rb1->getPosition().cross( f );
+	Vector3 t2 = -t - rb2->getPosition().cross( -f );
+
+	// add forces to rbs
+	rb1->addForce( f);
+	rb1->addTorque(t1);
+	rb2->addForce(-f);
+	rb2->addTorque(t2);
+	
+	// integrate
+	
 }
 
 void RigidBodyController::copyGridsToDevice() {
@@ -138,7 +225,8 @@ void RigidBodyController::copyGridsToDevice() {
 		RigidBodyGrid * gtmp;
 		// gtmp = new RigidBodyGrid[ng];
 		size_t sz = sizeof(RigidBodyGrid)*ng;
-		
+
+		printf("Copying potential grids!\n");
 		// allocate grids on device
 		// copy temporary host pointer to device pointer
 		// copy grids to device through temporary host poin
@@ -160,10 +248,10 @@ void RigidBodyController::copyGridsToDevice() {
 			float **tmpData;
 			tmpData = new float*[len];
 
-			printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len);
-			for (int k = 0; k < len; k++)
-				printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
-							 i, gid, k, g->val[k]);
+			/* printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len); */
+			/* for (int k = 0; k < len; k++) */
+			/* 	printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n", */
+			/* 				 i, gid, k, g->val[k]); */
 			
       // allocate grid data on device
 			// copy temporary host pointer to device pointer
@@ -183,18 +271,27 @@ void RigidBodyController::copyGridsToDevice() {
 
 	// density grids
  	for (int i = 0; i < conf.numRigidTypes; i++) {
-		printf("working on RB %d\n",i);
+		printf("Copying density grids of RB type %d\n",i);
 		RigidBodyType& rb = conf.rigidBody[i];
 
 		int ng = rb.numDenGrids;
 		RigidBodyGrid * gtmp;
 		size_t sz = sizeof(RigidBodyGrid)*ng;
+
+		printf("  copying %d grids\n",ng);
+		for (int gid = 0; gid < ng; gid++) {
+			int gs = rb.rawDensityGrids[gid].getSize();
+			printf("    grid %d contains %d values\n",gid, gs);
+			for (int idx = 0; idx < gs; idx++) {
+				printf("      val[%d] = %g\n",idx, rb.rawDensityGrids[gid].val[idx] );
+			}
+		}
 		
 		// allocate grids on device
 		// copy temporary host pointer to device pointer
 		// copy grids to device through temporary host poin
 		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
-		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawDensityGrids), &gtmp, 
+		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawDensityGrids_d), &gtmp, 
 												 sizeof(RigidBodyGrid*) * ng, cudaMemcpyHostToDevice ));
 		gpuErrchk(cudaMemcpy(gtmp, &(rb.rawDensityGrids),
 												 sizeof(RigidBodyGrid)  * ng, cudaMemcpyHostToDevice ));
@@ -237,324 +334,94 @@ void RigidBodyController::copyGridsToDevice() {
 }
 
 
+/* RigidBodyForcePair::RigidBodyForcePair(RigidBodyType* t1, RigidBodyType* t2, */
+/* 																			 RigidBody* rb1, RigidBody* rb2, */
+/* 																			 std::vector<int> gridKeyId1, std::vector<int> gridKeyId2) : */
+/* 	type1(t1), type2(t2), rb1(rb1), rb2(rb2), gridKeyId1(gridKeyId1), gridKeyId2(gridKeyId2) { */
 
-/*
-void RigidBodyController::print(int step) {
-    // modeled after outputExtendedData() in Controller.C
-    if ( step >= 0 ) {
-	// Write RIGID BODY trajectory file
-      if ( (step % simParams->rigidBodyOutputFrequency) == 0 ) {
-	  if ( ! trajFile.rdbuf()->is_open() ) {
-	      // open file
-	      iout << "OPENING RIGID BODY TRAJECTORY FILE\n" << endi;
-	      NAMD_backup_file(simParams->rigidBodyTrajectoryFile);
-	      trajFile.open(simParams->rigidBodyTrajectoryFile);
-	      while (!trajFile) {
-		  if ( errno == EINTR ) {
-		      CkPrintf("Warning: Interrupted system call opening RIGIDBODY trajectory file, retrying.\n");
-		      trajFile.clear();
-		      trajFile.open(simParams->rigidBodyTrajectoryFile);
-		      continue;
-		  }
-		  char err_msg[257];
-		  sprintf(err_msg, "Error opening RigidBody trajectory file %s",simParams->rigidBodyTrajectoryFile);
-		  NAMD_err(err_msg);
-	      }
-	      trajFile << "# NAMD RigidBody trajectory file" << std::endl;
-	      printLegend(trajFile);
-	  }
-	  printData(step,trajFile);
-	  trajFile.flush();    
-      }
-    
-      // Write restart File
-      if ( simParams->restartFrequency &&
-	   ((step % simParams->restartFrequency) == 0) &&
-	   (step != simParams->firstTimestep) )
-      {
-	  iout << "RIGID BODY: WRITING RESTART FILE AT STEP " << step << "\n" << endi;
-	  char fname[140];
-	  strcpy(fname, simParams->restartFilename);
+/* 	printf("    Constructing RB force pair...\n"); */
+/* 	allocateMem(); */
+/* 	printf("    Done constructing RB force pair\n"); */
+
+/* } */
+void RigidBodyForcePair::initialize() {
+	printf("    Initializing (memory for) RB force pair...\n");
+
+	const int numGrids = gridKeyId1.size();
+	// RBTODO assert gridKeysIds are same size 
+
+	// allocate memory for forces/torques
+	for (int i = 0; i < numGrids; i++) {
+		const int k1 = gridKeyId1[i];
+		const int sz = type1->rawDensityGrids[k1].getSize();
+		const int nb = sz / numThreads + ((sz % numThreads == 0) ? 0:1 );
+
+		numBlocks.push_back(nb);
+		forces.push_back( new Vector3[nb] );
+		torques.push_back( new Vector3[nb] );
+
+		forces_d.push_back( new Vector3[nb] ); // RBTODO: correct?
+		torques_d.push_back( new Vector3[nb] );
+
+		// allocate device memory for numBlocks of torque, etc.
+    // printf("      Allocating device memory for forces/torques\n");
+		gpuErrchk(cudaMalloc(&(forces_d[i]), sizeof(Vector3) * nb));
+		gpuErrchk(cudaMalloc(&(torques_d[i]), sizeof(Vector3) * nb));
+	}
+	gpuErrchk(cudaDeviceSynchronize());
+	// printf("    Done initializing RB force pair\n");
+
+}
+
+/* RigidBodyForcePair::RigidBodyForcePair(const RigidBodyForcePair& orig ) : */
 	
-	  strcat(fname, ".rigid");
-	  NAMD_backup_file(fname,".old");
-	  std::ofstream restartFile(fname);
-	  while (!restartFile) {
-	      if ( errno == EINTR ) {
-		  CkPrintf("Warning: Interrupted system call opening rigid body restart file, retrying.\n");
-		  restartFile.clear();
-		  restartFile.open(fname);
-		  continue;
-	      }
-	      char err_msg[257];
-	      sprintf(err_msg, "Error opening rigid body restart file %s",fname);
-	      NAMD_err(err_msg);
-	  }
-	  restartFile << "# NAMD rigid body restart file" << std::endl;
-	  printLegend(restartFile);
-	  printData(step,restartFile);
-	  if (!restartFile) {
-	      char err_msg[257];
-	      sprintf(err_msg, "Error writing rigid body restart file %s",fname);
-	      NAMD_err(err_msg);
-	  } 
-      }
-    }
-    //  Output final coordinates
-    if (step == FILE_OUTPUT || step == END_OF_RUN) {
-	int realstep = ( step == FILE_OUTPUT ?
-			 simParams->firstTimestep : simParams->N );
-	iout << "WRITING RIGID BODY OUTPUT FILE AT STEP " << realstep << "\n" << endi;
-	static char fname[140];
-	strcpy(fname, simParams->outputFilename);
-	strcat(fname, ".rigid");
-	NAMD_backup_file(fname);
-	std::ofstream outputFile(fname);
-	while (!outputFile) {
-	    if ( errno == EINTR ) {
-		CkPrintf("Warning: Interrupted system call opening rigid body output file, retrying.\n");
-		outputFile.clear();
-		outputFile.open(fname);
-		continue;
-	    }
-	    char err_msg[257];
-	    sprintf(err_msg, "Error opening rigid body output file %s",fname);
-	    NAMD_err(err_msg);
-	} 
-	outputFile << "# NAMD rigid body output file" << std::endl;
-	printLegend(outputFile);
-	printData(realstep,outputFile);
-	if (!outputFile) {
-	    char err_msg[257];
-	    sprintf(err_msg, "Error writing rigid body output file %s",fname);
-	    NAMD_err(err_msg);
-	} 
-    }
+/* } */
 
-    //  Close trajectory file
-    if (step == END_OF_RUN) {
-	if ( trajFile.rdbuf()->is_open() ) {
-	    trajFile.close();
-	    iout << "CLOSING RIGID BODY TRAJECTORY FILE\n" << endi;
+void RigidBodyForcePair::swap(RigidBodyForcePair& a, RigidBodyForcePair& b) {
+	using std::swap;
+	swap(a.type1, b.type1);
+	swap(a.type2, b.type2);
+	swap(a.rb1, b.rb1);
+	swap(a.rb2, b.rb2);
+
+	swap(a.gridKeyId1, b.gridKeyId1);
+	swap(a.gridKeyId2, b.gridKeyId2);
+
+	swap(a.numBlocks, b.numBlocks);
+
+	swap(a.forces,    b.forces);
+	swap(a.forces_d,  b.forces_d);
+	swap(a.torques,   b.torques);
+	swap(a.torques_d, b.torques_d);
+}
+
+
+RigidBodyForcePair::~RigidBodyForcePair() {
+	printf("    Destructing RB force pair\n");
+	const int numGrids = gridKeyId1.size();
+
+	// printf("      numGrids = %d\n",numGrids);
+
+	// RBTODO assert gridKeysIds are same size 
+
+	// allocate memory for forces/torques
+	for (int i = 0; i < numGrids; i++) {
+		const int k1 = gridKeyId1[i];
+		const int nb = numBlocks[i];
+
+		// free device memory for numBlocks of torque, etc.
+		// printf("      Freeing device memory for forces/torques\n");
+		gpuErrchk(cudaFree( forces_d[i] ));	
+		gpuErrchk(cudaFree( torques_d[i] ));
 	}
-    }
-
-}
-void RigidBodyController::printLegend(std::ofstream &file) {
-        file << "#$LABELS step RigidBodyKey"
-		 << " posX  posY  posZ"
-		 << " rotXX rotXY rotXZ"
-		 << " rotYX rotYY rotYZ"
-		 << " rotZX rotZY rotZZ"
-		 << " velX  velY  velZ"
-		 << " angVelX angVelY angVelZ" << std::endl;
-}
-void RigidBodyController::printData(int step,std::ofstream &file) {
-    iout << "WRITING RIGID BODY COORDINATES AT STEP "<< step << "\n" << endi;
-    for (int i; i < rigidBodyList.size(); i++) {
-	Vector v =  rigidBodyList[i]->getPosition();
-	Tensor t =  rigidBodyList[i]->getOrientation();
-	file << step <<" "<< rigidBodyList[i]->getKey()
-		 <<" "<< v.x <<" "<< v.y <<" "<< v.z;
-	file <<" "<< t.xx <<" "<< t.xy <<" "<< t.xz
-		 <<" "<< t.yx <<" "<< t.yy <<" "<< t.yz
-		 <<" "<< t.zx <<" "<< t.zy <<" "<< t.zz;
-	v = rigidBodyList[i]->getVelocity();
-	file <<" "<< v.x <<" "<< v.y <<" "<< v.z;
-	v = rigidBodyList[i]->getAngularVelocity();
-	file <<" "<< v.x <<" "<< v.y <<" "<< v.z
-		 << std::endl;
-    }
-}
-
-void RigidBodyController::integrate(int step) {
-    DebugM(3, "RBC::integrate: step  "<< step << "\n" << endi);
-    
-    DebugM(1, "RBC::integrate: Waiting for grid reduction\n" << endi);
-    gridReduction->require();
-  
-    const Molecule * mol = Node::Object()->molecule;
-
-    // pass reduction force and torque to each grid
-    // DebugM(3, "Summing forces on rigid bodies" << "\n" << endi);
-    for (int i=0; i < mol->rbReductionIdToRigidBody.size(); i++) {
-	Force f;
-	Force t;
-	for (int k = 0; k < 3; k++) {
-	    f[k] = gridReduction->item(6*i + k);
-	    t[k] = gridReduction->item(6*i + k + 3);
-	}
-
-	if (step % 100 == 1)
-	    DebugM(4, "RBC::integrate: reduction/rb " << i <<":"
-		   << "\n\tposition: "
-		   << rigidBodyList[mol->rbReductionIdToRigidBody[i]]->getPosition()
-		   <<"\n\torientation: "
-		   << rigidBodyList[mol->rbReductionIdToRigidBody[i]]->getOrientation()
-		   << "\n" << endi);
-
-	DebugM(4, "RBC::integrate: reduction/rb " << i <<": "
-	       << "force " << f <<": "<< "torque: " << t << "\n" << endi);
-	rigidBodyList[mol->rbReductionIdToRigidBody[i]]->addForce(f);
-	rigidBodyList[mol->rbReductionIdToRigidBody[i]]->addTorque(t);
-    }
-    
-    // Langevin 
-    for (int i=0; i<rigidBodyList.size(); i++) {
-	// continue;  // debug
-	if (rigidBodyList[i]->langevin) {
-	    DebugM(1, "RBC::integrate: reduction/rb " << i
-		   <<": calling langevin" << "\n" << endi);
-	    rigidBodyList[i]->addLangevin(
-		random->gaussian_vector(), random->gaussian_vector() );
-	    // DebugM(4, "RBC::integrate: reduction/rb " << i
-	    // 	   << " after langevin: force " << rigidBodyList[i]f <<": "<< "torque: " << t << "\n" << endi);
-	    // <<": calling langevin" << "\n" << endi);
-	}
-    }
-    
-    if ( step >= 0 && simParams->rigidBodyOutputFrequency &&
-	 (step % simParams->rigidBodyOutputFrequency) == 0 ) {
-	DebugM(1, "RBC::integrate:integrating for before printing output" << "\n" << endi);
-	// PRINT
-	if ( step == simParams->firstTimestep ) {
-	    print(step);
-	    // first step so only start this cycle
-	    for (int i=0; i<rigidBodyList.size(); i++)  {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": starting integration cycle of step "
-		       << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],0);
-	    }
-	} else {
-	    // finish last cycle
-	    // DebugM(1, "RBC::integrate: reduction/rb " << i
-	    // 	   <<": firststep: calling rb->integrate" << "\n" << endi);
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": finishing integration cycle of step "
-		       << step-1 << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],1);
-	    }
-	    print(step);
-	    // start this cycle
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": starting integration cycle of step "
-		       << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],0);
-	    }
-	}
-    } else {
-	DebugM(1, "RBC::integrate: trans[0] before: " << trans[0] << "\n" << endi);
-	if ( step == simParams->firstTimestep ) {
-	    // integrate the start of this cycle
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": starting integration cycle of (first) step "
-		       << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],0);
-	    }
-	} else {
-	    // integrate end of last ts and start of this one 
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		   <<": ending / starting integration cycle of step "
-		   << step-1 << "-" << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],2);
-	    }
-	}
-	DebugM(1, "RBC::integrate: trans[0] after: " << trans[0] << "\n" << endi);
-    }
-    
-    DebugM(3, "sendRigidBodyUpdate on step: " << step << "\n" << endi);
-
-    if (trans.size() != rot.size())
-	NAMD_die("failed sanity check\n");    
-    RigidBodyMsg *msg = new RigidBodyMsg;
-    msg->trans.copy(trans);	// perhaps .swap() would cause problems
-    msg->rot.copy(rot);
-    computeMgr->sendRigidBodyUpdate(msg);
+	gpuErrchk(cudaDeviceSynchronize());
+	
+	numBlocks.clear();
+	forces.clear();
+	forces_d.clear();
+	torques.clear();
+	torques_d.clear();
 }
 
 
-RigidBodyParams* RigidBodyParamsList::find_key(const char* key)
-{
-    RBElem* cur = head;
-    RBElem* found = NULL;
-    RigidBodyParams* result = NULL;
-    
-    while (found == NULL && cur != NULL) {
-       if (!strcasecmp((cur->elem).rigidBodyKey,key)) {
-        found = cur;
-      } else {
-        cur = cur->nxt;
-      }
-    }
-    if (found != NULL) {
-      result = &(found->elem);
-    }
-    return result;
-}
-  
-int RigidBodyParamsList::index_for_key(const char* key)
-{
-    RBElem* cur = head;
-    RBElem* found = NULL;
-    int result = -1;
-    
-    int idx = 0;
-    while (found == NULL && cur != NULL) {
-       if (!strcasecmp((cur->elem).rigidBodyKey,key)) {
-        found = cur;
-      } else {
-        cur = cur->nxt;
-	idx++;
-      }
-    }
-    if (found != NULL) {
-	result = idx;
-    }
-    return result;
-}
-  
-RigidBodyParams* RigidBodyParamsList::add(const char* key) 
-{
-    // If the key is already in the list, we can't add it
-    if (find_key(key)!=NULL) {
-      return NULL;
-    }
-    
-    RBElem* new_elem = new RBElem();
-    int len = strlen(key);
-    RigidBodyParams* elem = &(new_elem->elem);
-    elem->rigidBodyKey = new char[len+1];
-    strncpy(elem->rigidBodyKey,key,len+1);
-    elem->mass = NULL;
-    elem->inertia = Vector(NULL);
-    elem->langevin = NULL;
-    elem->temperature = NULL;
-    elem->transDampingCoeff = Vector(NULL);
-    elem->rotDampingCoeff = Vector(NULL);
-    elem->gridList.clear();
-    elem->position = Vector(NULL);
-    elem->velocity = Vector(NULL);
-    elem->orientation = Tensor();
-    elem->orientationalVelocity = Vector(NULL);
-    
-    elem->next = NULL;
-    new_elem->nxt = NULL;
-    if (head == NULL) {
-      head = new_elem;
-    }
-    if (tail != NULL) {
-      tail->nxt = new_elem;
-      tail->elem.next = elem;
-    }
-    tail = new_elem;
-    n_elements++;
-    
-    return elem;
-}  
 
-*/

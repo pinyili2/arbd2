@@ -413,7 +413,7 @@ void GrandBrownTown::run() {
 		printf("Position Update Time: %f ms\n", dt2 * 1000);
 		*/
 
-		
+		RBC.updateForces();
 		/* 	for (int j = 0; j < t->num; j++) { */
 		/* computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d); */
 		

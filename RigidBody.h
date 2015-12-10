@@ -41,6 +41,7 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
 	
 	HOST DEVICE inline String getKey() { return key; }
+
 	HOST DEVICE inline Vector3 getPosition() const { return position; }
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
 	HOST DEVICE inline Matrix3 getBasis() const { return orientation; }

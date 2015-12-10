@@ -1,6 +1,6 @@
 * TODO active
 ** make rigid body object device pointer
-
+** branch rb-device: have RBType objects hold device pointers for raw RigidBodyGrids
 
 
 * organization

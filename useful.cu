@@ -35,10 +35,13 @@ int firstSpace(const char* s, int max) {
 
 // A classic growable string class.
 
-void String::print() {
+void String::print() const {
+	printInline();
+	printf("\n");
+}
+void String::printInline() const {
 	for (int i = 0; i < len; i++)
 		printf("%c", c[i]);
-	printf("\n");
 }
 
 String& String::operator=(const String& s) {

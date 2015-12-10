@@ -308,8 +308,6 @@ public:
     return -(3.0f*a3*w[2]*w[2] + 2.0f*a2*w[2] + a1);
   }
 
-	// RBTODO overload with optimized algorithm
-	//  skip transforms (assume identity basis)
   HOST DEVICE inline float interpolatePotential(Vector3 pos) const {
     // Find the home node.
     Vector3 l = basisInv.transform(pos - origin);

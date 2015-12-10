@@ -73,7 +73,8 @@ public:
 	void add(char c0);
 	void add(const char* s);
 	void add(String& s);
-	void print();
+	void printInline() const;
+	void print() const;
 	int length() const;
 
 	// Negative indices go from the end.
