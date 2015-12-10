@@ -215,56 +215,31 @@ void RigidBodyController::copyGridsToDevice() {
 
 		int ng = rb.numPotGrids;
 
-		// copy rigidbody to device
-		// RigidBodyType *rb_d;
-    gpuErrchk(cudaMalloc(&rb_addr[i], sizeof(RigidBodyType)));
-		gpuErrchk(cudaMemcpy(rb_addr[i], &rb, sizeof(RigidBodyType),
-												 cudaMemcpyHostToDevice));
-		
-		// copy rb->grid to device
-		RigidBodyGrid * gtmp;
-		// gtmp = new RigidBodyGrid[ng];
-		size_t sz = sizeof(RigidBodyGrid)*ng;
-
-		printf("Copying potential grids!\n");
-		// allocate grids on device
-		// copy temporary host pointer to device pointer
-		// copy grids to device through temporary host poin
-		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
-		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawPotentialGrids), &gtmp, 
-												 sizeof(RigidBodyGrid*) * ng, cudaMemcpyHostToDevice ));
-		gpuErrchk(cudaMemcpy(gtmp, &(rb.rawPotentialGrids),
-												 sizeof(RigidBodyGrid)  * ng, cudaMemcpyHostToDevice ));
-		for (int gid = 0; gid < ng; gid++) {
-			gpuErrchk(cudaMemcpy(&(gtmp[gid]), &(rb.rawPotentialGrids[gid]),
-													 sizeof(RigidBodyGrid), cudaMemcpyHostToDevice ));
-		}
-
 		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);		
 		// copy potential grid data to device
 		for (int gid = 0; gid < ng; gid++) { 
 			RigidBodyGrid *g = &(rb.rawPotentialGrids[gid]); // convenience
+			RigidBodyGrid *g_d = rb.rawDensityGrids_d[gid]; // convenience
 			int len = g->getSize();
-			float **tmpData;
-			tmpData = new float*[len];
+			float *tmpData;
+			// tmpData = new float*[len];
 
-			/* printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len); */
-			/* for (int k = 0; k < len; k++) */
-			/* 	printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n", */
-			/* 				 i, gid, k, g->val[k]); */
-			
-      // allocate grid data on device
+			size_t sz = sizeof(RigidBodyGrid);
+			gpuErrchk(cudaMalloc((void **) &(rawPotentialGrids_d[gid]), sz));
+			gpuErrchk(cudaMemcpy(rawPotentialGrids_d[gid], &(rawPotentialGrids[gid]),
+													 sz, cudaMemcpyHostToDevice));
+
+			// allocate grid data on device
 			// copy temporary host pointer to device pointer
 			// copy data to device through temporary host pointer
 			sz = sizeof(float*) * len;
 			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
-			// gpuErrchk(cudaMemcpy( &(rb_addr[i]->rawPotentialGrids[gid].val), &tmpData,
-			// 											sizeof(float*), cudaMemcpyHostToDevice));
-			gpuErrchk(cudaMemcpy( &(gtmp[gid].val), &tmpData,
+			gpuErrchk(cudaMemcpy( &(rawPotentialGrids_d[gid].val), &tmpData,
 														sizeof(float*), cudaMemcpyHostToDevice));
 			sz = sizeof(float) * len;
 			gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
-			// RBTODO: why can't this be deleted? 
+
+				// RBTODO: why can't tmpData be deleted? 
 			// delete[] tmpData;
 		}
 	}
@@ -287,49 +262,34 @@ void RigidBodyController::copyGridsToDevice() {
 			}
 		}
 		
-		// allocate grids on device
-		// copy temporary host pointer to device pointer
-		// copy grids to device through temporary host poin
-		gpuErrchk(cudaMalloc((void **) &gtmp, sz));
-		gpuErrchk(cudaMemcpy(&(rb_addr[i]->rawDensityGrids_d), &gtmp, 
-												 sizeof(RigidBodyGrid*) * ng, cudaMemcpyHostToDevice ));
-		gpuErrchk(cudaMemcpy(gtmp, &(rb.rawDensityGrids),
-												 sizeof(RigidBodyGrid)  * ng, cudaMemcpyHostToDevice ));
-		for (int gid = 0; gid < ng; gid++) {
-			gpuErrchk(cudaMemcpy(&(gtmp[gid]), &(rb.rawDensityGrids[gid]),
-													 sizeof(RigidBodyGrid), cudaMemcpyHostToDevice ));
-		}
-
 		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);		
 		// copy grid data to device
 		for (int gid = 0; gid < ng; gid++) { 
 			RigidBodyGrid& g = rb.rawDensityGrids[gid]; // convenience
+			RigidBodyGrid& g_d = rb.rawDensityGrids_d[gid]; // convenience
 			int len = g.getSize();
-			float **tmpData;
-			tmpData = new float*[len];
+			float *tmpData;
+			// tmpData = new float*[len];
 
-			printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, gid, len);
-			for (int k = 0; k < len; k++)
-				printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
-							 i, gid, k, g.val[k]);
-			
-      // allocate grid data on device
+			size_t sz = sizeof(RigidBodyGrid);
+			gpuErrchk(cudaMalloc((void **) &g_d, sz));
+			gpuErrchk(cudaMemcpy(&g_d, &g,
+													 sz, cudaMemcpyHostToDevice));
+
+			// allocate grid data on device
 			// copy temporary host pointer to device pointer
 			// copy data to device through temporary host pointer
 			sz = sizeof(float*) * len;
 			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
-			gpuErrchk(cudaMemcpy( &(gtmp[gid].val), &tmpData,
+			gpuErrchk(cudaMemcpy( &(rawPotentialGrids_d[gid].val), &tmpData,
 														sizeof(float*), cudaMemcpyHostToDevice));
 			sz = sizeof(float) * len;
-			gpuErrchk(cudaMemcpy( tmpData, g.val, sz, cudaMemcpyHostToDevice));
-			
+			gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
+
 			// RBTODO: why can't this be deleted? 
 			// delete[] tmpData;
 		}
-		
   }
-	gpuErrchk(cudaMemcpy(rbType_d, rb_addr, sizeof(RigidBodyType*) * conf.numRigidTypes,
-				cudaMemcpyHostToDevice));
 	printf("Done copying RBs\n");
 }
 
