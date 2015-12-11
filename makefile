@@ -13,7 +13,8 @@ INCLUDE = $(CUDA_PATH)/include
 DEBUG = -g
 CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
 NV_FLAGS = -g -G								#debug
-EX_FLAGS = -O3 -m$(OS_SIZE)
+# EX_FLAGS = -O3 -m$(OS_SIZE)
+EX_FLAGS = -m$(OS_SIZE)
 
 ifneq ($(MAVERICKS),)
     CC = $(CLANG)

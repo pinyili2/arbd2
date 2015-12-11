@@ -344,7 +344,7 @@ String Vector3::toString() const {
 // class Matrix3
 // Operations on 3D float matrices
 //
-	
+HOST DEVICE	
 Matrix3::Matrix3(float s) {
 	exx = s;
 	exy = 0.0f;

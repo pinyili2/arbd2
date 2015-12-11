@@ -22,7 +22,7 @@ RigidBody::RigidBody(const Configuration& cref, RigidBodyType& tref)
 	position = Vector3();
 
 	// Orientation matrix that brings vector from the RB frame to the lab frame
-	orientation = Matrix3();
+	orientation = Matrix3(1.0f);
 	
 	momentum = Vector3() * t->mass; // lab frame
 	/* DebugM(4, "velocity " << rbParams->velocity << "\n" << endi); */

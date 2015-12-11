@@ -50,11 +50,11 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	// Allocate things for rigid body
 	// RBC = RigidBodyController(c);
-	printf("About to devicePrint\n");
+  // printf("About to devicePrint\n");
 	// devicePrint<<<1,1>>>(&(c.rigidBody[0]));
-	devicePrint<<<1,1>>>(RBC.rbType_d);
+	// devicePrint<<<1,1>>>(RBC.rbType_d);
 	cudaDeviceSynchronize();
-	printf("Done with devicePrint\n");
+	// printf("Done with devicePrint\n");
 
 
 	

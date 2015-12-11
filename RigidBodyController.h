@@ -4,6 +4,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
+#define NUMTHREADS 256
+
 class Configuration;
 
 class RigidBodyForcePair  {
@@ -38,7 +40,7 @@ private:
 	void initialize();
 	void swap(RigidBodyForcePair& a, RigidBodyForcePair& b);
 	
-	static const int numThreads = 256;
+	static const int numThreads = NUMTHREADS;
 
 	RigidBodyType* type1;
 	RigidBodyType* type2;
