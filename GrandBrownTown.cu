@@ -17,7 +17,7 @@ cudaEvent_t START, STOP;
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		const long int randomSeed, bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
 	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
-	conf(c), RBC(RigidBodyController(c)) {
+	conf(c), RBC(RigidBodyController(c,outArg)) {
 
 	for (int i = 0; i < numReplicas; i++) {
 		std::stringstream curr_file, restart_file, out_prefix;
@@ -399,6 +399,8 @@ void GrandBrownTown::run() {
 		int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 		int tl = temperatureGrid.length();
 
+		RBC.updateForces();					/* update RB forces before update particle positions... */
+
 		// Call the kernel to update the positions of each particle
 		updateKernel<<< numBlocks, NUM_THREADS >>>(pos_d, forceInternal_d, type_d,
 																							 part_d, kT, kTGrid_d,
@@ -406,19 +408,17 @@ void GrandBrownTown::run() {
 																							 sys_d, randoGen_d, numReplicas);
 		//gpuErrchk(cudaPeekAtLastError()); // Does not work on old GPUs (like mine). TODO: write a better wrapper around Peek
 		
-		
 		/* Time position computations.
 		rt_timer_stop(cputimer);
 		float dt2 = rt_timer_time(cputimer);
 		printf("Position Update Time: %f ms\n", dt2 * 1000);
 		*/
 
-		RBC.updateForces();
+		RBC.integrate(s);
 		/* 	for (int j = 0; j < t->num; j++) { */
 		/* computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d); */
 		
 		// int numBlocks = (numRB ) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
-		
 		
 		Vector3 force0(0.0f);
 

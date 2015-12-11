@@ -51,7 +51,7 @@ void RigidBody::addTorque(Force torq) {
 }
 RigidBody::~RigidBody() {}
 
-/*===========================================================================\
+	/*===========================================================================\
 	| Following "Algorithm for rigid-body Brownian dynamics" Dan Gordon, Matthew |
 	|   Hoyles, and Shin-Ho Chung                                                |
 	|   http://langevin.anu.edu.au/publications/PhysRevE_80_066703.pdf           |
@@ -82,12 +82,13 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	addTorque(torq);
 }
 
-/*==========================================================================\
+  /*==========================================================================\
 	| from: Dullweber, Leimkuhler, Maclachlan. Symplectic splitting methods for |
 	| rigid body molecular dynamics. JCP 107. (1997)                            |
 	| http://jcp.aip.org/resource/1/jcpsa6/v107/i15/p5840_s1                    |
 	\==========================================================================*/
-void RigidBody::integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll) {
+// void RigidBody::integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll) {}
+void RigidBody::integrate(int startFinishAll) {
 	Vector3 trans; // = *p_trans;
 	Matrix3 rot = Matrix3(1); // = *p_rot;
 
@@ -169,18 +170,18 @@ void RigidBody::integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishA
 		// update actual orientation
 		Matrix3 newOrientation = orientation*rot; // not 100% sure; rot could be in rb frame
 		orientation = newOrientation;
-		rot = rot.transpose();
+		/* rot = rot.transpose(); */
 
-		DebugM(2, "trans during: " << trans
-					 << "\n" << endi);
-		DebugM(2, "rot during: " << rot
-					 << "\n" << endi);
+		/* DebugM(2, "trans during: " << trans */
+		/* 			 << "\n" << endi); */
+		/* DebugM(2, "rot during: " << rot */
+		/* 			 << "\n" << endi); */
     
-		clearForce();
-		clearTorque();
+		/* clearForce(); */
+		/* clearTorque(); */
 	
-		old_trans = trans;
-		old_rot = rot;
+		/* old_trans = trans; */
+		/* old_rot = rot; */
 	}
 	DebugM(3, "  position after: " << position << "\n" << endi);
 }    

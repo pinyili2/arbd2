@@ -1,4 +1,5 @@
 #include <vector>
+#include <fstream>
 #include "RigidBody.h"
 /* #include "RandomCUDA.h" */
 #include <cuda.h>
@@ -7,6 +8,7 @@
 #define NUMTHREADS 256
 
 class Configuration;
+class Random;
 
 class RigidBodyForcePair  {
 	friend class RigidBodyController;
@@ -64,28 +66,28 @@ public:
 	/* DEVICE RigidBodyController(const NamdState *s, int reductionTag, SimParameters *sp); */
 	RigidBodyController();
   ~RigidBodyController();
-	RigidBodyController(const Configuration& c);
+	RigidBodyController(const Configuration& c, const char* outArg);
 
 	void integrate(int step);
-	DEVICE void print(int step);
-
 	void updateForces();
     
 private:
 	void copyGridsToDevice();
 	void initializeForcePairs();
-	
-	/* void printLegend(std::ofstream &file); */
-	/* void printData(int step, std::ofstream &file); */
+
+	void print(int step);
+	void printLegend(std::ofstream &file);
+	void printData(int step, std::ofstream &file);
 public:
 		RigidBodyType** rbType_d;
 	
 private:
-	/* std::ofstream trajFile; */
-
-	const Configuration& conf;
+	std::ofstream trajFile;
 	
-	/* Random* random; */
+	const Configuration& conf;
+	const char* outArg;
+	
+	Random* random;
 	/* RequireReduction *gridReduction; */
 	
 	Vector3* trans; // would have made these static, but
@@ -93,4 +95,7 @@ private:
 	std::vector< std::vector<RigidBody> > rigidBodyByType;
 	
 	std::vector< RigidBodyForcePair > forcePairs;
+
+	
+	
 };
