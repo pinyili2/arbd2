@@ -18,6 +18,13 @@ private:
 	void clear();
 	// void copy(const RigidBodyType& src);
 
+	void addGrid(String s, std::vector<String> &keys, std::vector<BaseGrid> &grids);
+	void addScaleFactor(String s, std::vector<String> &keys, std::vector<float> &vals);
+	void applyScaleFactors();
+	void applyScaleFactor(
+		const std::vector<String> &scaleKeys, const std::vector<float> &scaleFactors,
+		const std::vector<String> &gridKeys, std::vector<BaseGrid> &grids);
+	
 public:
 /* RigidBodyType(const String& name = "") : */
 /* 	name(name), num(0), */
@@ -27,8 +34,9 @@ public:
 
 RigidBodyType(const String& name = "") :
 	name(name), num(0),
-		reservoir(NULL), mass(1.0f), inertia(), transDamping(),
-  	rotDamping(), numPotGrids(0), numDenGrids(0), numPmfs(0) { }
+	reservoir(NULL), mass(1.0f), inertia(), transDamping(),
+	rotDamping(), numPotGrids(0), numDenGrids(0), numPmfs(0),
+	initPos(), initRot(Matrix3(1.0f))  { }
 	
 	/* RigidBodyType(const RigidBodyType& src) { copy(src); } */
 	~RigidBodyType() { clear(); }
@@ -38,6 +46,10 @@ RigidBodyType(const String& name = "") :
   void addPotentialGrid(String s);
 	void addDensityGrid(String s);
 	void addPMF(String s);
+  void scalePotentialGrid(String s);
+	void scaleDensityGrid(String s);
+	void scalePMF(String s);
+
 	void updateRaw();
 	void setDampingCoeffs(float timestep);
 	
@@ -56,6 +68,9 @@ public:
 	Vector3 transForceCoeff;
 	Vector3 rotTorqueCoeff;
 
+	Vector3 initPos;	
+	Matrix3 initRot;
+	
 	std::vector<String> potentialGridKeys;
 	std::vector<String> densityGridKeys;
 	std::vector<String> pmfKeys;
@@ -64,6 +79,15 @@ public:
 	std::vector<BaseGrid> densityGrids;
 	std::vector<BaseGrid> pmfs;
 
+	std::vector<String> potentialGridScaleKeys;
+	std::vector<String> densityGridScaleKeys;
+	std::vector<String> pmfScaleKeys;
+
+	std::vector<float> potentialGridScale;
+	std::vector<float> densityGridScale;
+	std::vector<float> pmfScale;
+
+	
 	// RBTODO: clear std::vectors after initialization 
 	// duplicates of std::vector grids for device
 	int numPotGrids;

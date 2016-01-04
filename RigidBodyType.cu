@@ -94,10 +94,29 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 
 	transDamping = 2.3900574 * transDamping;
 	rotDamping = 2.3900574 * rotDamping;
-		
-}
 
-void RigidBodyType::addPotentialGrid(String s) {
+	// Also apply scale factors
+	applyScaleFactors();
+}
+void RigidBodyType::applyScaleFactors() { /* currently this is called before raw is updated */
+	applyScaleFactor(potentialGridScaleKeys, potentialGridScale, potentialGridKeys, potentialGrids);
+	applyScaleFactor(densityGridScaleKeys, densityGridScale, densityGridKeys, densityGrids);
+	applyScaleFactor(pmfScaleKeys, pmfScale, pmfKeys, pmfs);
+}
+void RigidBodyType::applyScaleFactor(
+	const std::vector<String> &scaleKeys, const std::vector<float> &scaleFactors,
+	const std::vector<String> &gridKeys, std::vector<BaseGrid> &grids) {
+	for (int i = 0; i < scaleKeys.size(); i++) {
+		const String &k1 = scaleKeys[i];
+		for (int j = 0; j < gridKeys.size(); j++) {
+			const String &k2 = gridKeys[j];
+			if ( k1 == k2 )
+				grids[j].scale( scaleFactors[i] );
+		}
+	}
+}
+	
+void RigidBodyType::addGrid(String s, std::vector<String> &keys, std::vector<BaseGrid> &grids) {
 	// tokenize and return
 	int numTokens = s.tokenCount();
 	if (numTokens != 2) {
@@ -108,27 +127,21 @@ void RigidBodyType::addPotentialGrid(String s) {
 	s.tokenize(token);
 	String key = token[0];
 	BaseGrid g(token[1]);
-	
-	potentialGrids.push_back( g );
-	potentialGridKeys.push_back( key );
+
+	keys.push_back( key );
+	grids.push_back( g );
+}
+void RigidBodyType::addPotentialGrid(String s) {
+	addGrid(s, potentialGridKeys, potentialGrids);
 }
 void RigidBodyType::addDensityGrid(String s) {
-	// tokenize and return
-	int numTokens = s.tokenCount();
-	if (numTokens != 2) {
-		printf("ERROR: could not add Grid.\n"); // TODO improve this message
-		exit(1);
-	}
-	String* token = new String[numTokens];
-	s.tokenize(token);
-	String key = token[0];
-	BaseGrid g(token[1]);
-	
-
-	densityGrids.push_back( g );
-	densityGridKeys.push_back( key );
+	addGrid(s, densityGridKeys, densityGrids);
 }
 void RigidBodyType::addPMF(String s) {
+	addGrid(s, pmfKeys, pmfs);
+}
+
+void RigidBodyType::addScaleFactor(String s, std::vector<String> &keys, std::vector<float> &vals) {
 	// tokenize and return
 	int numTokens = s.tokenCount();
 	if (numTokens != 2) {
@@ -138,10 +151,18 @@ void RigidBodyType::addPMF(String s) {
 	String* token = new String[numTokens];
 	s.tokenize(token);
 	String key = token[0];
-	BaseGrid g(token[1]);
-	
-	pmfs.push_back( g );
-	pmfKeys.push_back( key );
+	float v = (float) strtod(token[1], NULL);
+	keys.push_back( key );
+	vals.push_back( v );
+}
+void RigidBodyType::scalePotentialGrid(String s) {
+	addScaleFactor(s, potentialGridScaleKeys, potentialGridScale);
+}
+void RigidBodyType::scaleDensityGrid(String s) {
+	addScaleFactor(s, densityGridScaleKeys, densityGridScale);
+}
+void RigidBodyType::scalePMF(String s) {
+	addScaleFactor(s, pmfScaleKeys, pmfScale);
 }
 
 void RigidBodyType::updateRaw() {
@@ -176,7 +197,6 @@ void RigidBodyType::updateRaw() {
 		rawDensityOrigins[i]	 = densityGrids[i].getOrigin();
 	}
 	for (int i=0; i < numPmfs; i++)
-		rawPmfs[i] = pmfs[i];
-	
+		rawPmfs[i] = pmfs[i];	
 }
 

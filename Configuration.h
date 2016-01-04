@@ -44,7 +44,7 @@ class Configuration {
 
 	void setDefaults();
 	Vector3 stringToVector3(String s);
-
+	Matrix3 stringToMatrix3(String s);
 
 	int readParameters(const char* config_file);
 	void readAngles();
