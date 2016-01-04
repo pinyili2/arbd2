@@ -19,10 +19,10 @@ RigidBody::RigidBody(const Configuration& cref, RigidBodyType& tref)
 	Temp = 295;
 	// tempgrid = c->temperatureGrid;
 
-	position = Vector3();
+	position = t->initPos; // Vector3();
 
 	// Orientation matrix that brings vector from the RB frame to the lab frame
-	orientation = Matrix3(1.0f);
+	orientation = t->initRot; //Matrix3(1.0f);
 	
 	momentum = Vector3() * t->mass; // lab frame
 	/* DebugM(4, "velocity " << rbParams->velocity << "\n" << endi); */

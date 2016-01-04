@@ -777,7 +777,17 @@ int Configuration::readParameters(const char * config_file) {
 			rigidBody[currRB].addDensityGrid(value);
 		else if (param == String("potentialGrid"))
 			rigidBody[currRB].addPotentialGrid(value);
-
+		else if (param == String("densityGridScale"))
+			rigidBody[currRB].scaleDensityGrid(value);
+		else if (param == String("potentialGridScale"))
+			rigidBody[currRB].scalePotentialGrid(value);
+		else if (param == String("pmfScale"))
+			rigidBody[currRB].scalePMF(value);
+		else if (param == String("position"))
+			rigidBody[currRB].initPos = stringToVector3( value );
+		else if (param == String("orientation"))
+			rigidBody[currRB].initRot = stringToMatrix3( value );
+		
 		// COMMON
 		else if (param == String("num")) {
 			if (currPartClass == partClassPart)
@@ -816,6 +826,26 @@ Vector3 Configuration::stringToVector3(String s) {
 						 (float) strtod(token[1], NULL),
 						 (float) strtod(token[2], NULL) );
 	return v;
+}
+Matrix3 Configuration::stringToMatrix3(String s) {
+	// tokenize and return
+	int numTokens = s.tokenCount();
+	if (numTokens != 9) {
+		printf("ERROR: could not convert input to Matrix3.\n"); // TODO improve this message
+		exit(1);
+	}
+	String* token = new String[numTokens];
+	s.tokenize(token);
+	Matrix3 m( (float) strtod(token[0], NULL),
+						 (float) strtod(token[1], NULL),
+						 (float) strtod(token[2], NULL),
+						 (float) strtod(token[3], NULL),
+						 (float) strtod(token[4], NULL),
+						 (float) strtod(token[5], NULL),
+						 (float) strtod(token[6], NULL),
+						 (float) strtod(token[7], NULL),
+						 (float) strtod(token[8], NULL) );
+	return m;
 }
 
 void Configuration::readAtoms() {
