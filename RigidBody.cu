@@ -92,7 +92,7 @@ void RigidBody::integrate(int startFinishAll) {
 	Vector3 trans; // = *p_trans;
 	Matrix3 rot = Matrix3(1); // = *p_rot;
 
-	printf("Rigid Body force\n");
+	/* printf("Rigid Body force\n"); */
 	
 #ifdef DEBUGM
 	switch (startFinishAll) {

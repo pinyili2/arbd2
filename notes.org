@@ -3,8 +3,10 @@
 ** branch rb-device: have RBType objects hold device pointers for raw RigidBodyGrids
 
 * TODO eventually
-** read restart file
 ** multiple "PMF" grids associated with each RB type
+** read restart file
+** throw exception if an RB type uses a grid key multiple times
+** improve efficiency of force evaluation kernel
 ** each RB gets temperature from grid
 ** optionally don't eval forces every ts
 

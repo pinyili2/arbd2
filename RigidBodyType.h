@@ -28,7 +28,7 @@ public:
 RigidBodyType(const String& name = "") :
 	name(name), num(0),
 		reservoir(NULL), mass(1.0f), inertia(), transDamping(),
-		rotDamping(), numPotGrids(0), numDenGrids(0) { }
+  	rotDamping(), numPotGrids(0), numDenGrids(0), numPmfs(0) { }
 	
 	/* RigidBodyType(const RigidBodyType& src) { copy(src); } */
 	~RigidBodyType() { clear(); }
@@ -37,6 +37,7 @@ RigidBodyType(const String& name = "") :
 
   void addPotentialGrid(String s);
 	void addDensityGrid(String s);
+	void addPMF(String s);
 	void updateRaw();
 	void setDampingCoeffs(float timestep);
 	
@@ -57,16 +58,20 @@ public:
 
 	std::vector<String> potentialGridKeys;
 	std::vector<String> densityGridKeys;
+	std::vector<String> pmfKeys;
 
 	std::vector<BaseGrid> potentialGrids;
 	std::vector<BaseGrid> densityGrids;
+	std::vector<BaseGrid> pmfs;
 
 	// RBTODO: clear std::vectors after initialization 
 	// duplicates of std::vector grids for device
 	int numPotGrids;
 	int numDenGrids;
+	int numPmfs;
 	RigidBodyGrid* rawPotentialGrids;
 	RigidBodyGrid* rawDensityGrids;
+	BaseGrid* rawPmfs;
 	Matrix3* rawPotentialBases;
 	Matrix3* rawDensityBases;
 	Vector3* rawPotentialOrigins;
@@ -75,6 +80,7 @@ public:
 	// device pointers
 	RigidBodyGrid** rawPotentialGrids_d;
 	RigidBodyGrid** rawDensityGrids_d;
+	RigidBodyGrid** rawPmfs_d;
 	
 };
 

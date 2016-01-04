@@ -105,12 +105,46 @@ void RigidBodyController::initializeForcePairs() {
 						RigidBody* rb2 = &(rbs2[j]);
 
 						printf("    pushing RB force pair for %d:%d\n",i,j);
-						RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t2),rb1,rb2,gridKeyId1,gridKeyId2);
+						RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t2),rb1,rb2,gridKeyId1,gridKeyId2, false);
 						gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 						forcePairs.push_back( fp ); 
 						printf("    done pushing RB force pair for %d:%d\n",i,j);
 					}
 				}
+			}
+		}
+	}
+
+	// add Pmfs (not a true pairwise RB interaction; hacky implementation)
+	for (int ti = 0; ti < conf.numRigidTypes; ti++) {
+		RigidBodyType& t1 = conf.rigidBody[ti];
+
+		const std::vector<String>& keys1 = t1.densityGridKeys; 
+		const std::vector<String>& keys2 = t1.pmfKeys;
+		std::vector<int> gridKeyId1;
+		std::vector<int> gridKeyId2;
+		
+		// Loop over all pairs of grid keys (e.g. "Elec")
+		bool paired = false;
+		for(int k1 = 0; k1 < keys1.size(); k1++) {
+			for(int k2 = 0; k2 < keys2.size(); k2++) {
+				if ( keys1[k1] == keys2[k2] ) {
+					gridKeyId1.push_back(k1);
+					gridKeyId2.push_back(k2);
+					paired = true;
+				}
+			}
+		}	
+		if (paired) {
+			// found matching keys => calculate force between all grid pairs
+			std::vector<RigidBody>& rbs1 = rigidBodyByType[ti];
+			
+			// Loop over rigid bodies of these types
+			for (int i = 0; i < rbs1.size(); i++) {
+					RigidBody* rb1 = &(rbs1[i]);
+					RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t1),rb1,rb1,gridKeyId1,gridKeyId2, true);
+					gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
+					forcePairs.push_back( fp ); 
 			}
 		}
 	}
@@ -138,11 +172,9 @@ void RigidBodyController::updateForces() {
 	for (int i=0; i < forcePairs.size(); i++) {
 		forcePairs[i].updateForces();
 	}	
-	// get 3rd law forces and torques
-		
+
 	// RBTODO: see if there is a better way to sync
 	gpuErrchk(cudaDeviceSynchronize());
-
 }
 void RigidBodyController::integrate(int step) {
 	// tell RBs to integrate
@@ -205,7 +237,7 @@ void RigidBodyController::integrate(int step) {
 // RBTODO: bundle several rigidbodypair evaluations in single kernel call
 void RigidBodyForcePair::updateForces() {
 	// get the force/torque between a pair of rigid bodies
-	printf("  Updating rbPair forces\n");
+	/* printf("  Updating rbPair forces\n"); */
 	const int numGrids = gridKeyId1.size();
 
 	// RBTODO: precompute certain common transformations and pass in kernel call
@@ -214,16 +246,25 @@ void RigidBodyForcePair::updateForces() {
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
 
-		printf("  Calculating grid forces\n");
-
-		// RBTODO: add energy
-		computeGridGridForce<<< nb, numThreads >>>
-		(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
-		 rb1->getBasis(), rb1->getPosition(), /* RBTODO: include offset from grid */
-		 rb2->getBasis(), rb2->getPosition(),
-		 forces_d[i], torques_d[i]);
-		
+		/* printf("  Calculating grid forces\n"); */
+		if (!isPmf) {								/* pair of RBs */
+			// RBTODO: add energy
+			computeGridGridForce<<< nb, numThreads >>>
+				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
+				 rb1->getBasis(), rb1->getPosition(), /* RBTODO: include offset from grid */
+				 rb2->getBasis(), rb2->getPosition(),
+				 forces_d[i], torques_d[i]);
+		} else {										/* RB with a PMF */
+			computeGridGridForce<<< nb, numThreads >>>
+				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
+				 rb1->getBasis(), rb1->getPosition(), /* RBTODO: include offset from grid */
+				 type2->rawPmfs[i].getBasis(), type2->rawPmfs[i].getOrigin(),
+				 forces_d[i], torques_d[i]);
+		}
+			
 	}
+
+	// RBTODO better way to sync?
 	gpuErrchk(cudaDeviceSynchronize());
 	for (int i = 0; i < numGrids; i++) {
 		const int nb = numBlocks[i];
@@ -232,7 +273,6 @@ void RigidBodyForcePair::updateForces() {
 		gpuErrchk(cudaMemcpy(torques[i], torques_d[i], sizeof(Vector3)*nb,
 												 cudaMemcpyDeviceToHost));
 	}
-
 	gpuErrchk(cudaDeviceSynchronize());
 
 	// sum forces + torques
@@ -248,17 +288,19 @@ void RigidBodyForcePair::updateForces() {
 	}
 
 	// transform torque from lab-frame origin to rb centers
-	Vector3 t1 = t - rb1->getPosition().cross( f );
-	Vector3 t2 = -t - rb2->getPosition().cross( -f );
-
 	// add forces to rbs
+	Vector3 t1 = t - rb1->getPosition().cross( f );
 	rb1->addForce( f);
 	rb1->addTorque(t1);
-	rb2->addForce(-f);
-	rb2->addTorque(t2);
 
-	printf("force: (%f,%f,%f)\n",f.x,f.y,f.z);
-	printf("torque: (%f,%f,%f)\n",t1.x,t1.y,t1.z);
+	if (! isPmf) {
+		Vector3 t2 = -t - rb2->getPosition().cross( -f );
+		rb2->addForce(-f);
+		rb2->addTorque(t2);
+	}
+		
+	/* printf("force: (%f,%f,%f)\n",f.x,f.y,f.z); */
+	/* printf("torque: (%f,%f,%f)\n",t1.x,t1.y,t1.z); */
 }
 
 void RigidBodyController::copyGridsToDevice() {
@@ -350,15 +392,49 @@ void RigidBodyController::copyGridsToDevice() {
 		}
 	}
 
+	for (int i = 0; i < conf.numRigidTypes; i++) {
+		printf("Copying PMFs for RB %d\n",i);
+		RigidBodyType& rb = conf.rigidBody[i];
+
+		int ng = rb.numPmfs;
+		rb.rawPmfs_d = new RigidBodyGrid*[ng]; /* not 100% sure this is needed, possible memory leak */
+
+		printf("  RigidBodyType %d: numPmfs = %d\n", i, ng);		
+
+		// copy pmf grid data to device
+		for (int gid = 0; gid < ng; gid++) { 
+			RigidBodyGrid g = rb.rawPmfs[gid];
+			int len = g.getSize();
+			float* tmpData;
+			// tmpData = new float*[len];
+
+			size_t sz = sizeof(RigidBodyGrid);
+			gpuErrchk(cudaMalloc((void **) &(rb.rawPmfs_d[gid]), sz));
+			gpuErrchk(cudaMemcpy( rb.rawPmfs_d[gid], &g,
+													 sz, cudaMemcpyHostToDevice ));
+
+			// allocate grid data on device
+			// copy temporary host pointer to device pointer
+			// copy data to device through temporary host pointer
+			sz = sizeof(float) * len;
+			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
+			// sz = sizeof(float) * len;
+			gpuErrchk(cudaMemcpy( tmpData, rb.rawPmfs[gid].val, sz, cudaMemcpyHostToDevice));
+			gpuErrchk(cudaMemcpy( &(rb.rawPmfs_d[gid]->val), &tmpData,
+														sizeof(float*), cudaMemcpyHostToDevice));
+			
+		}
+	}
+	
 	gpuErrchk(cudaDeviceSynchronize());
 	printf("Done copying RBs\n");
 
-	// DEBUG
-	RigidBodyType& rb = conf.rigidBody[0];
-	printRigidBodyGrid<<<1,1>>>( rb.rawPotentialGrids_d[0] );
-	gpuErrchk(cudaDeviceSynchronize());
-	printRigidBodyGrid<<<1,1>>>( rb.rawDensityGrids_d[0] );
-	gpuErrchk(cudaDeviceSynchronize());
+	/* // DEBUG */
+	/* RigidBodyType& rb = conf.rigidBody[0]; */
+	/* printRigidBodyGrid<<<1,1>>>( rb.rawPotentialGrids_d[0] ); */
+	/* gpuErrchk(cudaDeviceSynchronize()); */
+	/* printRigidBodyGrid<<<1,1>>>( rb.rawDensityGrids_d[0] ); */
+	/* gpuErrchk(cudaDeviceSynchronize()); */
 }
 
 void RigidBodyController::print(int step) {

@@ -664,8 +664,6 @@ int Configuration::readParameters(const char * config_file) {
 			part[++currPart] = BrownianParticleType(value);
 			currPartClass = partClassPart;
 		}
-		else if (param == String("gridFile"))
-			partGridFile[currPart] = value;
 		else if (param == String("forceXGridFile"))
 			partForceXGridFile[currPart] = value;
 		else if (param == String("forceYGridFile"))
@@ -784,8 +782,14 @@ int Configuration::readParameters(const char * config_file) {
 		else if (param == String("num")) {
 			if (currPartClass == partClassPart)
 				part[currPart].num = atoi(value.val());
-			else if (currPartClass == partClassRB)
+			else if (currPartClass == partClassRB) 
 				rigidBody[currRB].num = atoi(value.val());
+		}
+		else if (param == String("gridFile")) {
+			if (currPartClass == partClassPart)
+				partGridFile[currPart] = value;
+			else if (currPartClass == partClassRB)
+				rigidBody[currRB].addPMF(value);
 		}
 		// UNKNOWN
 		else {

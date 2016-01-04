@@ -10,10 +10,12 @@ void RigidBodyType::clear() {
 	// TODO: make sure that this actually removes grid data
 	potentialGrids.clear();
 	densityGrids.clear();
-
+	pmfs.clear();
+	
 	potentialGridKeys.clear();
 	densityGridKeys.clear();
-
+	pmfKeys.clear();
+	
 	if (numPotGrids > 0) delete[] rawPotentialGrids;
 	if (numDenGrids > 0) delete[] rawDensityGrids;
 	rawPotentialGrids = NULL;
@@ -126,12 +128,30 @@ void RigidBodyType::addDensityGrid(String s) {
 	densityGrids.push_back( g );
 	densityGridKeys.push_back( key );
 }
+void RigidBodyType::addPMF(String s) {
+	// tokenize and return
+	int numTokens = s.tokenCount();
+	if (numTokens != 2) {
+		printf("ERROR: could not add Grid.\n"); // TODO improve this message
+		exit(1);
+	}
+	String* token = new String[numTokens];
+	s.tokenize(token);
+	String key = token[0];
+	BaseGrid g(token[1]);
+	
+	pmfs.push_back( g );
+	pmfKeys.push_back( key );
+}
 
 void RigidBodyType::updateRaw() {
 	if (numPotGrids > 0) delete[] rawPotentialGrids;
 	if (numDenGrids > 0) delete[] rawDensityGrids;
+	if (numDenGrids > 0) delete[] rawPmfs;
 	numPotGrids = potentialGrids.size();
 	numDenGrids = densityGrids.size();
+	numPmfs = pmfs.size();
+	
 	if (numPotGrids > 0) {
 		rawPotentialGrids		= new RigidBodyGrid[numPotGrids];
 		rawPotentialBases		= new Matrix3[numPotGrids];
@@ -142,6 +162,8 @@ void RigidBodyType::updateRaw() {
 		rawDensityBases			= new Matrix3[numDenGrids];
 		rawDensityOrigins		= new Vector3[numDenGrids];
 	}
+	if (numPmfs > 0)
+		rawPmfs = new BaseGrid[numPmfs];
 
 	for (int i=0; i < numPotGrids; i++) {
 		rawPotentialGrids[i]	 = potentialGrids[i];
@@ -153,6 +175,8 @@ void RigidBodyType::updateRaw() {
 		rawDensityBases[i]		 = densityGrids[i].getBasis();
 		rawDensityOrigins[i]	 = densityGrids[i].getOrigin();
 	}
+	for (int i=0; i < numPmfs; i++)
+		rawPmfs[i] = pmfs[i];
 	
 }
 

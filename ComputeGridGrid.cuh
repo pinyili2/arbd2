@@ -68,8 +68,8 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	if (tid == 0) {
 		retForce[blockIdx.x] = force[0];
 		retTorque[blockIdx.x] = torque[0];
-		printf("GPU force: (%f,%f,%f)\n", force[0].x, force[0].y, force[0].z);
-		printf("GPU force0: (%f,%f,%f)\n", f.x, f.y, f.z);
+		/* printf("GPU force: (%f,%f,%f)\n", force[0].x, force[0].y, force[0].z); */
+		/* printf("GPU force0: (%f,%f,%f)\n", f.x, f.y, f.z); */
 	}
 }
 
