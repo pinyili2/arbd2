@@ -38,8 +38,7 @@ RigidBodyType(const String& name = "") :
   void addPotentialGrid(String s);
 	void addDensityGrid(String s);
 	void updateRaw();
-	void setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp_inertia,
-												 float tmp_transDamping, float tmp_rotDamping);
+	void setDampingCoeffs(float timestep);
 	
 public:
 

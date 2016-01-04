@@ -17,15 +17,21 @@
  * to anyone/anything when using this software.
  */
 
-#ifndef RANDOM_H
-#define RANDOM_H
+/*––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
+| Redundant with Random.h but with RandomCPU class since Random class is also |
+| declared in RandomCUDA.h, and I want to use both for rigidBody code         |
+`––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
+// RBTODO: make Random.h include RandomCPU.h and "typedef" this class
+
+#ifndef RANDOM_CPU_H
+#define RANDOM_CPU_H
 
 #ifdef __CUDACC__
-    #define HOST __host__
-    #define DEVICE __device__
+#define HOST __host__
+#define DEVICE __device__
 #else
-    #define HOST 
-    #define DEVICE 
+#define HOST 
+#define DEVICE 
 #endif
 
 #include "common.h"
@@ -42,11 +48,11 @@
 #define	RAND48_ADD    INT64_LITERAL(0x000000000000000b)
 #define RAND48_MASK   INT64_LITERAL(0x0000ffffffffffff)
 
-class Random {
+class RandomCPU {
 
 private:
 
- float second_gaussian;
+	float second_gaussian;
   int64 second_gaussian_waiting;
   int64 rand48_seed;
   int64 rand48_mult;
@@ -55,13 +61,13 @@ private:
 public:
 
   // default constructor
-  Random(void) {
+  RandomCPU(void) {
     init(0);
     rand48_seed = RAND48_SEED;
   }
 
   // constructor with seed
-  Random(unsigned long seed) {
+  RandomCPU(unsigned long seed) {
     init(seed);
   }
 
@@ -78,11 +84,11 @@ public:
   }
 
   HOST DEVICE inline void print(char* string)
-  {
-	printf(string);
-	printf("RAND48_SEED = %d, RAND48_MULT = %d, RAND48_ADD = %d, RAND48_MASK = %d\n", RAND48_SEED, RAND48_MULT, RAND48_ADD, RAND48_MASK);
-	printf("rand48_seed = %d, rand48_mult = %d, rand48_add = %d\n", rand48_seed, rand48_mult, rand48_add);
-  }
+		{
+			printf(string);
+			printf("RAND48_SEED = %d, RAND48_MULT = %d, RAND48_ADD = %d, RAND48_MASK = %d\n", RAND48_SEED, RAND48_MULT, RAND48_ADD, RAND48_MASK);
+			printf("rand48_seed = %d, rand48_mult = %d, rand48_add = %d\n", rand48_seed, rand48_mult, rand48_add);
+		}
 
   // advance generator by one (seed = seed * mult + add, to 48 bits)
   HOST DEVICE inline void skip(void) {
@@ -154,7 +160,7 @@ public:
         v1 = 2.0 * uniform() - 1.0;
         v2 = 2.0 * uniform() - 1.0;
         r = v1*v1 + v2*v2;
-				// printf("r %f", r);
+				// printf("r %f\n", r);
       }
       fac = sqrt(-2.0 * log(r)/r);
       // now make the Box-Muller transformation to get two normally
@@ -190,5 +196,5 @@ public:
 
 };
 
-#endif  // RANDOM_H
+#endif  // RANDOM_CPU_H
 

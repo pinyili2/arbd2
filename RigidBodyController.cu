@@ -13,7 +13,7 @@
 // #include <vector>
 #include "Debug.h"
 
-#include "Random.h"							/* RBTODO: fix this? */
+#include "RandomCPU.h"							/* RBTODO: fix this? */
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) {
@@ -46,7 +46,7 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 		rigidBodyByType.push_back(tmp);
 	}
 
-	random = new Random(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
+	random = new RandomCPU(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
 	initializeForcePairs();
 }
@@ -151,6 +151,7 @@ void RigidBodyController::integrate(int step) {
 			RigidBody& rb = rigidBodyByType[i][j];
 			
 			// thermostat
+			// rb.addLangevin( random->gaussian_vector(), random->gaussian_vector() );
 			rb.addLangevin( random->gaussian_vector(), random->gaussian_vector() );
 		}
 	}
@@ -387,7 +388,7 @@ void RigidBodyController::print(int step) {
 					printf("Error opening RigidBody trajectory file %s",fname);
 					exit(1);
 	      }
-	      trajFile << "# NAMD RigidBody trajectory file" << std::endl;
+	      trajFile << "# RigidBody trajectory file" << std::endl;
 	      printLegend(trajFile);
 			}
 			printData(step,trajFile);
@@ -417,7 +418,7 @@ void RigidBodyController::print(int step) {
 	      printf("Error opening rigid body restart file %s",fname);
 	      exit(1); // NAMD_err(err_msg);
 			}
-			restartFile << "# NAMD rigid body restart file" << std::endl;
+			restartFile << "# RigidBody restart file" << std::endl;
 			printLegend(restartFile);
 			printData(step,restartFile);
 			if (!restartFile) {

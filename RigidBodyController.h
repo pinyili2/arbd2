@@ -8,7 +8,7 @@
 #define NUMTHREADS 256
 
 class Configuration;
-class Random;
+class RandomCPU;
 
 class RigidBodyForcePair  {
 	friend class RigidBodyController;
@@ -87,7 +87,7 @@ private:
 	const Configuration& conf;
 	const char* outArg;
 	
-	Random* random;
+	RandomCPU* random;
 	/* RequireReduction *gridReduction; */
 	
 	Vector3* trans; // would have made these static, but

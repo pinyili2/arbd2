@@ -42,7 +42,8 @@ class RigidBody { // host side representation of rigid bodies
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
 	HOST DEVICE void integrate(int startFinishAll);
 	
-	HOST DEVICE inline String getKey() const { return key; }
+	// HOST DEVICE inline String getKey() const { return key; }
+	HOST DEVICE inline String getKey() const { return t->name; }
 
 	HOST DEVICE inline Vector3 getPosition() const { return position; }
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
@@ -78,7 +79,7 @@ private:
 	// integration
 	const Configuration* c;
 	RigidBodyType* t;					/* RBTODO: const? */
-	int timestep;
+	float timestep;					
 	Vector3 force;  // lab frame
 	Vector3 torque; // lab frame (except in integrate())
 

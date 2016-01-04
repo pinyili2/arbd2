@@ -792,6 +792,11 @@ int Configuration::readParameters(const char * config_file) {
 			printf("WARNING: Unrecognized keyword `%s'.\n", param.val());
 		}
 	}
+
+	// extra configuration for RB types
+	for (int i = 0; i < numRigidTypes; i++)
+		rigidBody[i].setDampingCoeffs(timestep);
+	
 	return numParams;
 }
 Vector3 Configuration::stringToVector3(String s) {

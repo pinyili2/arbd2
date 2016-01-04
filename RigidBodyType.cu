@@ -1,7 +1,7 @@
 #include "RigidBodyType.h"
 
 void RigidBodyType::clear() {
-	num = 0;											// TODO: not 100% sure about this
+	num = 0;											// RBTODO: not 100% sure about this
 	if (reservoir != NULL) delete reservoir;
 	reservoir = NULL;
 	// pmf = NULL;
@@ -59,19 +59,17 @@ void RigidBodyType::clear() {
 // }
 
 
-void RigidBodyType::setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp_inertia, float tmp_transDamping, float tmp_rotDamping) {
-	mass = tmp_mass;
-	inertia = tmp_inertia;
-	/*–––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
+// void RigidBodyType::setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp_inertia, float tmp_transDamping, float tmp_rotDamping) {
+void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ONCE!!! */
+	/*–––––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| DiffCoeff = kT / dampingCoeff mass                     |
-	|                                                          |
+	|                                                        |
 	| type->DampingCoeff has units of (1/ps)                 |
-	|                                                          |
+	|                                                        |
 	| f[kcal/mol AA] = - dampingCoeff * momentum[amu AA/fs]  |
-	|                                                          |
+	|                                                        |
 	| units "(1/ps) * (amu AA/fs)" "kcal_mol/AA" * 2.3900574 |
-	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
-	transDamping = 2.3900574 * tmp_transDamping;
+	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 
 	/*––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| < f(t) f(t') > = 2 kT dampingCoeff mass delta(t-t') |
@@ -79,19 +77,22 @@ void RigidBodyType::setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp
 	|  units "sqrt( k K (1/ps) amu / fs )" "kcal_mol/AA"  |
 	|    * 0.068916889                                    |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––*/
-	float Temp = 295;								/* RBTODO: Fix!!!! */
-	transForceCoeff = 0.068916889 * Vector3::element_sqrt( 2*Temp*mass*tmp_transDamping/timestep );
+	float Temp = 295; /* RBTODO: temperature should be read from grid? Or set in uniformly in config file */
+	transForceCoeff = 0.068916889 * Vector3::element_sqrt( 2*Temp*mass*transDamping/timestep );
 
 	// setup for langevin
 	// langevin = rbParams->langevin;
 	// if (langevin) {
 	// T = - dampingCoeff * angularMomentum
-	rotDamping = 2.3900574 * tmp_rotDamping;
 
 	// < f(t) f(t') > = 2 kT dampingCoeff inertia delta(t-t')
 	rotTorqueCoeff = 0.068916889 *
-		Vector3::element_sqrt( 2*Temp* Vector3::element_mult(inertia,tmp_rotDamping) / timestep );
-	//  }
+		Vector3::element_sqrt( 2*Temp* Vector3::element_mult(inertia,rotDamping) / timestep );
+
+
+	transDamping = 2.3900574 * transDamping;
+	rotDamping = 2.3900574 * rotDamping;
+		
 }
 
 void RigidBodyType::addPotentialGrid(String s) {
