@@ -70,17 +70,18 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 	|                                                        |
 	| f[kcal/mol AA] = - dampingCoeff * momentum[amu AA/fs]  |
 	|                                                        |
-	| units "(1/ps) * (amu AA/fs)" "kcal_mol/AA" * 2.3900574 |
+	| units "(1/ps) * (amu AA/ns)" "kcal_mol/AA" * 2.390e-06 |
 	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 
 	/*––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| < f(t) f(t') > = 2 kT dampingCoeff mass delta(t-t') |
 	|                                                     |
-	|  units "sqrt( k K (1/ps) amu / fs )" "kcal_mol/AA"  |
-	|    * 0.068916889                                    |
+	|  units "sqrt( k K (1/ps) amu / ns )" "kcal_mol/AA"  |
+	|    * 6.8916889e-05                                  |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––*/
+	// RBTODO: make units consistent with rest of RB code 
 	float Temp = 295; /* RBTODO: temperature should be read from grid? Or set in uniformly in config file */
-	transForceCoeff = 0.068916889 * Vector3::element_sqrt( 2*Temp*mass*transDamping/timestep );
+	transForceCoeff = 6.8916889e-05 * Vector3::element_sqrt( 2*Temp*mass*transDamping/timestep );
 
 	// setup for langevin
 	// langevin = rbParams->langevin;
@@ -88,12 +89,12 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 	// T = - dampingCoeff * angularMomentum
 
 	// < f(t) f(t') > = 2 kT dampingCoeff inertia delta(t-t')
-	rotTorqueCoeff = 0.068916889 *
+	rotTorqueCoeff = 6.8916889e-05 *
 		Vector3::element_sqrt( 2*Temp* Vector3::element_mult(inertia,rotDamping) / timestep );
 
 
-	transDamping = 2.3900574 * transDamping;
-	rotDamping = 2.3900574 * rotDamping;
+	transDamping = 2.3900574e-6 * transDamping;
+	rotDamping = 2.3900574e-6 * rotDamping;
 
 	// Also apply scale factors
 	applyScaleFactors();
