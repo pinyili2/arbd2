@@ -12,8 +12,9 @@
 
 
 RigidBody::RigidBody(const Configuration& cref, RigidBodyType& tref)
-	: c(&cref), t(&tref), impulse_to_momentum(0.0004184) {
-
+	: c(&cref), t(&tref), impulse_to_momentum(4.184e8f) {
+	// units "(kcal_mol/AA) * ns" "amu AA/ns" * 4.184e+08
+	
 	timestep = c->timestep;
 	// RBTODO: fix this
 	Temp = 295;
