@@ -169,6 +169,15 @@ void RigidBodyController::updateForces() {
 	// int numBlocks = 1;
 	/* int numThreads = 256; */
 
+	// clear old forces
+	for (int i = 0; i < rigidBodyByType.size(); i++) {
+		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+			RigidBody& rb = rigidBodyByType[i][j];
+			rb.clearForce();
+			rb.clearTorque();
+		}
+	}
+			
 	for (int i=0; i < forcePairs.size(); i++) {
 		forcePairs[i].updateForces();
 	}	

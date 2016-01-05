@@ -86,7 +86,7 @@ private:
 	bool isFirstStep; 
 
 	/*–––––––––––––––––––––––––––––––––––––––––.
-	| units "kcal_mol/AA * fs" "(AA/fs) * amu" |
+	| units "kcal_mol/AA * ns" "(AA/ns) * amu" |
 	`–––––––––––––––––––––––––––––––––––––––––*/
 	BigReal impulse_to_momentum; /* should be const, but copy constructor failed */
 

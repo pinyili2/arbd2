@@ -1,15 +1,19 @@
 * TODO active
-** make rigid body object device pointer
-** branch rb-device: have RBType objects hold device pointers for raw RigidBodyGrids
+** fix ComputeGridGrid.cuh to include transformation?
+
 
 * TODO eventually
-** multiple "PMF" grids associated with each RB type
+** periodic boundaries?
 ** read restart file
 ** throw exception if an RB type uses a grid key multiple times
 ** improve efficiency of force evaluation kernel
 ** each RB gets temperature from grid
 ** optionally don't eval forces every ts
 
+* DONE
+** branch rb-device: have RBType objects hold device pointers for raw RigidBodyGrids
+** make rigid body object device pointer
+** multiple "PMF" grids associated with each RB type
 
 
 * organization

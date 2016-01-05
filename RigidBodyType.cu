@@ -68,7 +68,7 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 	|                                                        |
 	| type->DampingCoeff has units of (1/ps)                 |
 	|                                                        |
-	| f[kcal/mol AA] = - dampingCoeff * momentum[amu AA/fs]  |
+	| f[kcal/mol AA] = - dampingCoeff * momentum[amu AA/ns]  |
 	|                                                        |
 	| units "(1/ps) * (amu AA/ns)" "kcal_mol/AA" * 2.390e-06 |
 	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––*/

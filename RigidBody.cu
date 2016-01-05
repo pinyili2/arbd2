@@ -69,7 +69,6 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	// w1 and w2 should be standard normal distributions
 
 	// in RB frame     
-	Vector3 tmp = orientation.transpose()*momentum;
 	Force f = Vector3::element_mult(t->transForceCoeff,w1) -
 		Vector3::element_mult(t->transDamping, orientation.transpose()*momentum); 
     
