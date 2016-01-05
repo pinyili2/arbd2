@@ -292,7 +292,7 @@ void RigidBodyForcePair::updateForces() {
 		const int nb = numBlocks[i];
 		for (int j = 0; j < nb; j++) {
 			f = f + forces[i][j];
-			t = t + forces[i][j];
+			t = t + torques[i][j];
 		}
 	}
 
