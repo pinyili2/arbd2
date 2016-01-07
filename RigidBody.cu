@@ -77,7 +77,9 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 
 	f = orientation * f; // return to lab frame
 	torq = orientation * torq;
-    
+
+	// printf("LANGTORQUE: %f %f %f\n",torq.x,torq.y,torq.z);
+	
 	addForce(f);
 	addTorque(torq);
 }

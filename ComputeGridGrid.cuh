@@ -8,7 +8,7 @@ __global__
 void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 													Matrix3 basis_rho, Vector3 origin_rho,
 													Matrix3 basis_u,   Vector3 origin_u,
-													Vector3 * retForce, Vector3 * retTorque) {
+													Vector3 * retForce, Vector3 * retTorque, int gridNum) {
 
 	// printf("ComputeGridGridForce called\n");
 	/* extern __shared__ Vector3 force []; */
@@ -56,6 +56,11 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	torque[tid] = t;
 	__syncthreads();
 
+	// debugging
+	float cutoff = 1e-3;
+	if (gridNum >= 0 && (abs(f.x) >= cutoff || abs(f.y) >= cutoff || abs(f.z) >= cutoff))
+		printf("GRIDFORCE: %d %f %f %f %f %f %f\n", gridNum, r_pos.x,r_pos.y,r_pos.z,f.x,f.y,f.z);
+	
 	// Reduce force and torques
 	// http://www.cuvilib.com/Reduction.pdf
 	// RBTODO optimize

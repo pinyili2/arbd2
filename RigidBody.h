@@ -47,7 +47,7 @@ class RigidBody { // host side representation of rigid bodies
 
 	HOST DEVICE inline Vector3 getPosition() const { return position; }
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
-	HOST DEVICE inline Matrix3 getBasis() const { return orientation; }
+	// HOST DEVICE inline Matrix3 getBasis() const { return orientation; }
 	HOST DEVICE inline BigReal getMass() const { return t->mass; }
 	HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
 	HOST DEVICE inline Vector3 getAngularVelocity() const { 
@@ -56,12 +56,13 @@ class RigidBody { // host side representation of rigid bodies
 									 angularMomentum.z / t->inertia.z );
 	}
 	bool langevin;
+	Vector3 torque; // lab frame (except in integrate())
     
 private:
 	String key;
 	/* static const SimParameters * simParams; */
 	Vector3 position;
-	Matrix3 orientation;
+	Matrix3 orientation;					/* rotation that brings RB coordinates into the lab frame */
 
 	Vector3 momentum;
 	Vector3 angularMomentum; // angular momentum along corresponding principal axes
@@ -81,7 +82,6 @@ private:
 	RigidBodyType* t;					/* RBTODO: const? */
 	float timestep;					
 	Vector3 force;  // lab frame
-	Vector3 torque; // lab frame (except in integrate())
 
 	bool isFirstStep; 
 

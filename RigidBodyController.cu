@@ -150,7 +150,7 @@ void RigidBodyController::initializeForcePairs() {
 	}
 }
 	
-void RigidBodyController::updateForces() {
+void RigidBodyController::updateForces(int s) {
 	/*––{ RBTODO }–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| probably coalesce kernel calls, or move this to a device kernel caller   |
 	|                                                                          |
@@ -179,11 +179,25 @@ void RigidBodyController::updateForces() {
 	}
 			
 	for (int i=0; i < forcePairs.size(); i++) {
-		forcePairs[i].updateForces();
+		forcePairs[i].updateForces(i,s);
 	}	
 
 	// RBTODO: see if there is a better way to sync
 	gpuErrchk(cudaDeviceSynchronize());
+
+	// debug
+	if (s %10 == 0) {
+		int tmp = 0;
+		for (int i = 0; i < rigidBodyByType.size(); i++) {
+			for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+				RigidBody& rb = rigidBodyByType[i][j];
+				tmp++;
+				Vector3 p = rb.getPosition();
+				Vector3 t = rb.torque;
+				printf("RBTORQUE: %d %f %f %f %f %f %f\n", tmp, p.x, p.y, p.z, t.x,t.y,t.z);
+			}
+		}
+	}
 }
 void RigidBodyController::integrate(int step) {
 	// tell RBs to integrate
@@ -244,10 +258,13 @@ void RigidBodyController::integrate(int step) {
 }
 	
 // RBTODO: bundle several rigidbodypair evaluations in single kernel call
-void RigidBodyForcePair::updateForces() {
+void RigidBodyForcePair::updateForces(int pairId, int s) {
 	// get the force/torque between a pair of rigid bodies
 	/* printf("  Updating rbPair forces\n"); */
 	const int numGrids = gridKeyId1.size();
+
+	if (s%10 != 0)
+		pairId = -1000;
 
 	// RBTODO: precompute certain common transformations and pass in kernel call
 	for (int i = 0; i < numGrids; i++) {
@@ -271,22 +288,22 @@ void RigidBodyForcePair::updateForces() {
 	  	| r = B'.ijk + c'    |
 	  	`––––––––––––––––––./
 		*/
-		Matrix3 B1 = rb1->getBasis()*type1->densityGrids[k1].getBasis();
-		Vector3 c1 = rb1->getBasis()*type1->densityGrids[k1].getOrigin() + rb1->getPosition();
+		Matrix3 B1 = rb1->getOrientation()*type1->densityGrids[k1].getBasis();
+		Vector3 c1 = rb1->getOrientation()*type1->densityGrids[k1].getOrigin() + rb1->getPosition();
 		
 		Matrix3 B2;
 		Vector3 c2;
 		
 		/* printf("  Calculating grid forces\n"); */
 		if (!isPmf) {								/* pair of RBs */
-			B2 = rb2->getBasis()*type2->potentialGrids[k2].getBasis();
-			c2 = rb2->getBasis()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
+			B2 = rb2->getOrientation()*type2->potentialGrids[k2].getBasis();
+			c2 = rb2->getOrientation()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
 			
 			// RBTODO: get energy
 			computeGridGridForce<<< nb, numThreads >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
 				 B1, c1, B2, c2,
-				 forces_d[i], torques_d[i]);
+				 forces_d[i], torques_d[i], pairId+i);
 		} else {										/* RB with a PMF */
 			// B2 = type2->rawPmfs[i].getBasis(); // not 100% certain k2 should be used rather than i
 			/// c2 = type2->rawPmfs[i].getOrigin();
@@ -296,7 +313,7 @@ void RigidBodyForcePair::updateForces() {
 			computeGridGridForce<<< nb, numThreads >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
 				 B1, c1, B2, c2,
-				 forces_d[i], torques_d[i]);
+				 forces_d[i], torques_d[i], pairId+i);
 		}
 			
 	}
@@ -326,11 +343,11 @@ void RigidBodyForcePair::updateForces() {
 
 	// transform torque from lab-frame origin to rb centers
 	// add forces to rbs
-	Vector3 tmp;
-	/* tmp = rb1->position; */
-	/* printf("rb1->position: (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); */
-	tmp = rb1->getPosition();
-	printf("rb1->getPosition(): (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z);
+	/* Vector3 tmp; */
+	/* /\* tmp = rb1->position; *\/ */
+	/* /\* printf("rb1->position: (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); *\/ */
+	/* tmp = rb1->getPosition(); */
+	/* printf("rb1->getPosition(): (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); */
 	Vector3 t1 = t - rb1->getPosition().cross( f );
 	rb1->addForce( f);
 	rb1->addTorque(t1);
@@ -509,6 +526,7 @@ void RigidBodyController::print(int step) {
 	      trajFile << "# RigidBody trajectory file" << std::endl;
 	      printLegend(trajFile);
 			}
+			printf("WRITING RIGID BODY COORDINATES AT STEP %d\n",step);
 			printData(step,trajFile);
 			trajFile.flush();    
 		}
@@ -596,7 +614,6 @@ void RigidBodyController::printLegend(std::ofstream &file) {
 		 << " angVelX angVelY angVelZ" << std::endl;
 }
 void RigidBodyController::printData(int step,std::ofstream &file) {
-	printf("WRITING RIGID BODY COORDINATES AT STEP %d\n",step);
 	// tell RBs to integrate
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {

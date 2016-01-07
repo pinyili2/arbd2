@@ -60,7 +60,7 @@ private:
 	std::vector<Vector3*> torques;
 	std::vector<Vector3*> torques_d;
 	
-	void updateForces();
+	void updateForces(int pairId, int s);
 };
 
 class RigidBodyController {
@@ -71,7 +71,7 @@ public:
 	RigidBodyController(const Configuration& c, const char* outArg);
 
 	void integrate(int step);
-	void updateForces();
+	void updateForces(int s);
     
 private:
 	void copyGridsToDevice();
