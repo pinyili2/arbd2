@@ -255,19 +255,47 @@ void RigidBodyForcePair::updateForces() {
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
 
+		/*
+			ijk: index of grid value
+			r: postion of point ijk in real space
+			B: grid Basis
+			o: grid origin
+			R: rigid body orientation
+			c: rigid body center
+
+			B': R.B 
+			c': R.o + c
+
+  		/.––––––––––––––––––.
+	  	| r = R.(B.ijk+o)+c |
+	  	| r = B'.ijk + c'    |
+	  	`––––––––––––––––––./
+		*/
+		Matrix3 B1 = rb1->getBasis()*type1->densityGrids[k1].getBasis();
+		Vector3 c1 = rb1->getBasis()*type1->densityGrids[k1].getOrigin() + rb1->getPosition();
+		
+		Matrix3 B2;
+		Vector3 c2;
+		
 		/* printf("  Calculating grid forces\n"); */
 		if (!isPmf) {								/* pair of RBs */
-			// RBTODO: add energy
+			B2 = rb2->getBasis()*type2->potentialGrids[k2].getBasis();
+			c2 = rb2->getBasis()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
+			
+			// RBTODO: get energy
 			computeGridGridForce<<< nb, numThreads >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
-				 rb1->getBasis(), rb1->getPosition(), /* RBTODO: include offset from grid */
-				 rb2->getBasis(), rb2->getPosition(),
+				 B1, c1, B2, c2,
 				 forces_d[i], torques_d[i]);
 		} else {										/* RB with a PMF */
+			// B2 = type2->rawPmfs[i].getBasis(); // not 100% certain k2 should be used rather than i
+			/// c2 = type2->rawPmfs[i].getOrigin();
+			B2 = type2->rawPmfs[k2].getBasis();
+			c2 = type2->rawPmfs[k2].getOrigin();
+
 			computeGridGridForce<<< nb, numThreads >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
-				 rb1->getBasis(), rb1->getPosition(), /* RBTODO: include offset from grid */
-				 type2->rawPmfs[i].getBasis(), type2->rawPmfs[i].getOrigin(),
+				 B1, c1, B2, c2,
 				 forces_d[i], torques_d[i]);
 		}
 			
@@ -298,11 +326,16 @@ void RigidBodyForcePair::updateForces() {
 
 	// transform torque from lab-frame origin to rb centers
 	// add forces to rbs
+	Vector3 tmp;
+	/* tmp = rb1->position; */
+	/* printf("rb1->position: (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); */
+	tmp = rb1->getPosition();
+	printf("rb1->getPosition(): (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z);
 	Vector3 t1 = t - rb1->getPosition().cross( f );
 	rb1->addForce( f);
 	rb1->addTorque(t1);
 
-	if (! isPmf) {
+	if (!isPmf) {
 		Vector3 t2 = -t - rb2->getPosition().cross( -f );
 		rb2->addForce(-f);
 		rb2->addTorque(t2);

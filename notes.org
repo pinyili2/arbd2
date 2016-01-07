@@ -1,5 +1,5 @@
 * TODO active
-** fix ComputeGridGrid.cuh to include transformation?
+** fix ComputeGridGrid.cuh to include transformation of pmf/potential grids?
 
 
 * TODO eventually
