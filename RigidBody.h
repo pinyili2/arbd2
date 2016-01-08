@@ -62,6 +62,7 @@ private:
 	String key;
 	/* static const SimParameters * simParams; */
 	Vector3 position;
+	// Q = orientation.transpose(); in Dullweber et al
 	Matrix3 orientation;					/* rotation that brings RB coordinates into the lab frame */
 
 	Vector3 momentum;

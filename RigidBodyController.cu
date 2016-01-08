@@ -185,7 +185,7 @@ void RigidBodyController::updateForces(int s) {
 	// RBTODO: see if there is a better way to sync
 	gpuErrchk(cudaDeviceSynchronize());
 
-	// debug
+	/*/ debug
 	if (s %10 == 0) {
 		int tmp = 0;
 		for (int i = 0; i < rigidBodyByType.size(); i++) {
@@ -198,6 +198,7 @@ void RigidBodyController::updateForces(int s) {
 			}
 		}
 	}
+	*/
 }
 void RigidBodyController::integrate(int step) {
 	// tell RBs to integrate

@@ -56,10 +56,11 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	torque[tid] = t;
 	__syncthreads();
 
-	// debugging
+	/*/ debug forces
 	float cutoff = 1e-3;
 	if (gridNum >= 0 && (abs(f.x) >= cutoff || abs(f.y) >= cutoff || abs(f.z) >= cutoff))
 		printf("GRIDFORCE: %d %f %f %f %f %f %f\n", gridNum, r_pos.x,r_pos.y,r_pos.z,f.x,f.y,f.z);
+	*/
 	
 	// Reduce force and torques
 	// http://www.cuvilib.com/Reduction.pdf
