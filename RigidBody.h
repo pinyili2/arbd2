@@ -27,7 +27,7 @@ class RigidBody { // host side representation of rigid bodies
 	| splitting methods for rigid body molecular dynamics". J Chem Phys. (1997) |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 		public:
-	HOST DEVICE RigidBody(const Configuration& c, RigidBodyType& t);
+	HOST DEVICE RigidBody(String name, const Configuration& c, RigidBodyType& t);
 	/* HOST DEVICE RigidBody(RigidBodyType t); */
 	HOST DEVICE ~RigidBody();
 
@@ -43,8 +43,9 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE void integrate(int startFinishAll);
 	
 	// HOST DEVICE inline String getKey() const { return key; }
-	HOST DEVICE inline String getKey() const { return t->name; }
-
+	// HOST DEVICE inline String getKey() const { return t->name; }
+	HOST DEVICE inline String getKey() const { return name; }
+	
 	HOST DEVICE inline Vector3 getPosition() const { return position; }
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
 	// HOST DEVICE inline Matrix3 getBasis() const { return orientation; }
@@ -59,7 +60,8 @@ class RigidBody { // host side representation of rigid bodies
 	Vector3 torque; // lab frame (except in integrate())
     
 private:
-	String key;
+	// String key;
+	String name;
 	/* static const SimParameters * simParams; */
 	Vector3 position;
 	// Q = orientation.transpose(); in Dullweber et al

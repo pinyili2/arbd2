@@ -39,16 +39,24 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 	for (int i = 0; i < conf.numRigidTypes; i++) {			
 		numRB += conf.rigidBody[i].num;
 		std::vector<RigidBody> tmp;
-		for (int j = 0; j < conf.rigidBody[i].num; j++) {
-			RigidBody r(conf, conf.rigidBody[i]);
+		// RBTODO: change conf.rigidBody to conf.rigidBodyType
+		const int jmax = conf.rigidBody[i].num;
+		for (int j = 0; j < jmax; j++) {
+			String name = conf.rigidBody[i].name;
+			if (jmax > 1) {
+				char tmp[128];
+				snprintf(tmp, 128, "#%d", j);
+				name.add( tmp );
+			}
+			RigidBody r(name, conf, conf.rigidBody[i]);
 			tmp.push_back( r );
-		}
-		rigidBodyByType.push_back(tmp);
 	}
+		rigidBodyByType.push_back(tmp);
+}
 
 	random = new RandomCPU(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
-	initializeForcePairs();
+initializeForcePairs();
 }
 RigidBodyController::~RigidBodyController() {
 	for (int i = 0; i < rigidBodyByType.size(); i++)
@@ -60,6 +68,7 @@ RigidBodyController::~RigidBodyController() {
 void RigidBodyController::initializeForcePairs() {
 	// Loop over all pairs of rigid body types
 	//   the references here make the code more readable, but they may incur a performance loss
+	RigidBodyForcePair::createStreams();
 	printf("Initializing force pairs\n");
 	for (int ti = 0; ti < conf.numRigidTypes; ti++) {
 		RigidBodyType& t1 = conf.rigidBody[ti];
@@ -178,9 +187,11 @@ void RigidBodyController::updateForces(int s) {
 		}
 	}
 			
-	for (int i=0; i < forcePairs.size(); i++) {
-		forcePairs[i].updateForces(i,s);
-	}	
+	for (int i=0; i < forcePairs.size(); i++)
+		forcePairs[i].callGridForceKernel(i,s);
+
+	for (int i=0; i < forcePairs.size(); i++)
+		forcePairs[i].retrieveForces();
 
 	// RBTODO: see if there is a better way to sync
 	gpuErrchk(cudaDeviceSynchronize());
@@ -257,21 +268,32 @@ void RigidBodyController::integrate(int step) {
 		}
 	}
 }
-	
+
+// allocate and initialize an array of stream handles
+cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
+// new cudaStream_t[NUMSTREAMS];
+int RigidBodyForcePair::nextStreamID = 0;
+void RigidBodyForcePair::createStreams() {
+	for (int i = 0; i < NUMSTREAMS; i++)
+		gpuErrchk( cudaStreamCreate( &(stream[i]) ) );
+		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
+}
+
 // RBTODO: bundle several rigidbodypair evaluations in single kernel call
-void RigidBodyForcePair::updateForces(int pairId, int s) {
+void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 	// get the force/torque between a pair of rigid bodies
 	/* printf("  Updating rbPair forces\n"); */
 	const int numGrids = gridKeyId1.size();
 
-	if (s%10 != 0)
-		pairId = -1000;
+	/* if (s%10 != 0) */
+	/* 	pairId = -1000; */
 
 	// RBTODO: precompute certain common transformations and pass in kernel call
 	for (int i = 0; i < numGrids; i++) {
 		const int nb = numBlocks[i];
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
+		const cudaStream_t &s = stream[streamID[i]];
 
 		/*
 			ijk: index of grid value
@@ -301,7 +323,7 @@ void RigidBodyForcePair::updateForces(int pairId, int s) {
 			c2 = rb2->getOrientation()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
 			
 			// RBTODO: get energy
-			computeGridGridForce<<< nb, numThreads >>>
+			computeGridGridForce<<< nb, numThreads, 0, s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
 				 B1, c1, B2, c2,
 				 forces_d[i], torques_d[i], pairId+i);
@@ -311,37 +333,39 @@ void RigidBodyForcePair::updateForces(int pairId, int s) {
 			B2 = type2->rawPmfs[k2].getBasis();
 			c2 = type2->rawPmfs[k2].getOrigin();
 
-			computeGridGridForce<<< nb, numThreads >>>
+			computeGridGridForce<<< nb, numThreads, 0, s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
 				 B1, c1, B2, c2,
 				 forces_d[i], torques_d[i], pairId+i);
 		}
-			
-	}
 
-	// RBTODO better way to sync?
-	gpuErrchk(cudaDeviceSynchronize());
-	for (int i = 0; i < numGrids; i++) {
-		const int nb = numBlocks[i];
-		gpuErrchk(cudaMemcpy(forces[i], forces_d[i], sizeof(Vector3)*nb,
-												 cudaMemcpyDeviceToHost));
-		gpuErrchk(cudaMemcpy(torques[i], torques_d[i], sizeof(Vector3)*nb,
-												 cudaMemcpyDeviceToHost));
 	}
-	gpuErrchk(cudaDeviceSynchronize());
+}
 
+void RigidBodyForcePair::retrieveForces() {
 	// sum forces + torques
+	const int numGrids = gridKeyId1.size();
 	Vector3 f = Vector3(0.0f);
 	Vector3 t = Vector3(0.0f);
 
+	// RBTODO better way to sync?
 	for (int i = 0; i < numGrids; i++) {
+		const cudaStream_t &s = stream[streamID[i]];
 		const int nb = numBlocks[i];
+
+		gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb,
+															cudaMemcpyDeviceToHost, s));
+		gpuErrchk(cudaMemcpyAsync(torques[i], torques_d[i], sizeof(Vector3)*nb,
+															cudaMemcpyDeviceToHost, s));
+
+		gpuErrchk(cudaStreamSynchronize( s ));
+		
 		for (int j = 0; j < nb; j++) {
 			f = f + forces[i][j];
 			t = t + torques[i][j];
 		}
 	}
-
+	
 	// transform torque from lab-frame origin to rb centers
 	// add forces to rbs
 	/* Vector3 tmp; */
@@ -350,7 +374,7 @@ void RigidBodyForcePair::updateForces(int pairId, int s) {
 	/* tmp = rb1->getPosition(); */
 	/* printf("rb1->getPosition(): (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); */
 	Vector3 t1 = t - rb1->getPosition().cross( f );
-	rb1->addForce( f);
+	rb1->addForce( f );
 	rb1->addTorque(t1);
 
 	if (!isPmf) {
@@ -775,7 +799,7 @@ RigidBodyParams* RigidBodyParamsList::find_key(const char* key) {
 /* 	printf("    Done constructing RB force pair\n"); */
 
 /* } */
-void RigidBodyForcePair::initialize() {
+int RigidBodyForcePair::initialize() {
 	printf("    Initializing (memory for) RB force pair...\n");
 
 	const int numGrids = gridKeyId1.size();
@@ -786,6 +810,8 @@ void RigidBodyForcePair::initialize() {
 		const int k1 = gridKeyId1[i];
 		const int sz = type1->rawDensityGrids[k1].getSize();
 		const int nb = sz / numThreads + ((sz % numThreads == 0) ? 0:1 );
+		streamID.push_back( nextStreamID % NUMSTREAMS );
+		nextStreamID++;
 
 		numBlocks.push_back(nb);
 		forces.push_back( new Vector3[nb] );
@@ -801,7 +827,7 @@ void RigidBodyForcePair::initialize() {
 	}
 	gpuErrchk(cudaDeviceSynchronize());
 	// printf("    Done initializing RB force pair\n");
-
+	return nextStreamID;
 }
 
 /* RigidBodyForcePair::RigidBodyForcePair(const RigidBodyForcePair& orig ) : */

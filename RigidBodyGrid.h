@@ -142,9 +142,9 @@ public:
 	// Added by Rogan for times when simpler calculations are required.
   virtual float interpolatePotentialLinearly(Vector3 pos) const;
 
-	HOST DEVICE float interpolateDiffX(float w[3], float g1[4][4][4]) const;
-  HOST DEVICE float interpolateDiffY(float w[3], float g1[4][4][4]) const;
-	HOST DEVICE float interpolateDiffZ(float w[3], float g1[4][4][4]) const;
+	HOST DEVICE float interpolateDiffX(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
+  HOST DEVICE float interpolateDiffY(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
+	HOST DEVICE float interpolateDiffZ(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
 
   HOST DEVICE float interpolatePotential(Vector3 l) const;
 
@@ -180,17 +180,11 @@ public:
 		home[1] = homeY;
 		home[2] = homeZ;
 
-		// Shift the indices in the grid dimensions.
-		int g[3];
-		g[0] = nx;
-		g[1] = ny;
-		g[2] = nz;
-
 		// Get the interpolation coordinates.
-		float w[3];
-		w[0] = l.x - homeX;
-		w[1] = l.y - homeY;
-		w[2] = l.z - homeZ;
+		const float wx = l.x - homeX;
+		const float wy = l.y - homeY;
+		const float wz = l.z - homeZ;
+
 		// Find the values at the neighbors.
 		float g1[4][4][4];
 		//RBTODO parallelize?
@@ -199,19 +193,19 @@ public:
 				for (int iz = 0; iz < 4; iz++) {
 	  			// Wrap around the periodic boundaries. 
 					int jx = ix-1 + home[0];
-					jx = wrap(jx, g[0]);
+					jx = wrap(jx, nx);
 					int jy = iy-1 + home[1];
-					jy = wrap(jy, g[1]);
+					jy = wrap(jy, ny);
 					int jz = iz-1 + home[2];
-					jz = wrap(jz, g[2]);
+					jz = wrap(jz, nz);
 					int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
 					g1[ix][iy][iz] = val[ind];
 				}
 			}
 		}  
-		f.x = interpolateDiffX( w, g1);
-		f.y = interpolateDiffY( w, g1);
-		f.z = interpolateDiffZ( w, g1);
+		f.x = interpolateDiffX( wx, wy, wz, g1 );
+		f.y = interpolateDiffY( wx, wy, wz, g1 );
+		f.z = interpolateDiffZ( wx, wy, wz, g1 );
 		// Vector3 f1 = basisInv.transpose().transform(f);
 		// return f1;
 		return f;

@@ -343,32 +343,29 @@ HOST DEVICE float RigidBodyGrid::interpolatePotential(Vector3 l) const {
 	home[1] = homeY;
 	home[2] = homeZ;
 
-	// Get the grid dimensions.
-	int g[3];
-	g[0] = nx;
-	g[1] = ny;
-	g[2] = nz;
-  
 	// Get the interpolation coordinates.
-	float w[3];
-	w[0] = l.x - homeX;
-	w[1] = l.y - homeY;
-	w[2] = l.z - homeZ;
+	const float wx = l.x - homeX;
+	const float wy = l.y - homeY;
+	const float wz = l.z - homeZ;
+
+	// RBTODO: remove wrap
+	// RBTODO:
 
 	// Find the values at the neighbors.
 	float g1[4][4][4];
 	for (int ix = 0; ix < 4; ix++) {
 		int jx = ix-1 + home[0];
-		jx = wrap(jx, g[0]);
+		jx = wrap(jx, nx);
 		for (int iy = 0; iy < 4; iy++) {
 			int jy = iy-1 + home[1];
-			jy = wrap(jy, g[1]);
+			jy = wrap(jy, ny);
 			for (int iz = 0; iz < 4; iz++) {
 				// Wrap around the periodic boundaries. 
 				int jz = iz-1 + home[2];
-				jz = wrap(jz, g[2]);
-	  
+				jz = wrap(jz, nz);
+
 				int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
+				// g1[ix][iy][iz] =  jz < 0 || jz > home[2] || ... ? val[ind] : 0;
 				g1[ix][iy][iz] = val[ind];
 			}
 		}
@@ -384,7 +381,7 @@ HOST DEVICE float RigidBodyGrid::interpolatePotential(Vector3 l) const {
 			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
 			a0 = g1[1][iy][iz];
 
-			g2[iy][iz] = a3*w[0]*w[0]*w[0] + a2*w[0]*w[0] + a1*w[0] + a0;
+			g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 		}
 	}
 
@@ -396,7 +393,7 @@ HOST DEVICE float RigidBodyGrid::interpolatePotential(Vector3 l) const {
 		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
 		a0 = g2[1][iz];
    
-		g3[iz] = a3*w[1]*w[1]*w[1] + a2*w[1]*w[1] + a1*w[1] + a0;
+		g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 	}
 
 	// Mix along z.
@@ -405,11 +402,11 @@ HOST DEVICE float RigidBodyGrid::interpolatePotential(Vector3 l) const {
 	a1 = 0.5f*(-g3[0] + g3[2]);
 	a0 = g3[1];
 
-	return a3*w[2]*w[2]*w[2] + a2*w[2]*w[2] + a1*w[2] + a0;
+	return a3*wz*wz*wz + a2*wz*wz + a1*wz + a0;
 }
 
 /** interpolateForce() to be used on CUDA Device **/
-HOST DEVICE Vector3 RigidBodyGrid::interpolateForceD(Vector3 l) const {
+HOST DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	Vector3 f;
 	// Vector3 l = basisInv.transform(pos - origin);
 	int homeX = int(floor(l.x));
@@ -426,17 +423,11 @@ HOST DEVICE Vector3 RigidBodyGrid::interpolateForceD(Vector3 l) const {
 	home[1] = homeY;
 	home[2] = homeZ;
 
-	// Shift the indices in the grid dimensions.
-	int g[3];
-	g[0] = nx;
-	g[1] = ny;
-	g[2] = nz;
-
 	// Get the interpolation coordinates.
-	float w[3];
-	w[0] = l.x - homeX;
-	w[1] = l.y - homeY;
-	w[2] = l.z - homeZ;
+	const float wx = l.x - homeX;
+	const float wy = l.y - homeY;
+	const float wz = l.z - homeZ;
+
 	// Find the values at the neighbors.
 	float g1[4][4][4];						/* neighborhood */
 	for (int ix = 0; ix < 4; ix++) {
@@ -445,78 +436,25 @@ HOST DEVICE Vector3 RigidBodyGrid::interpolateForceD(Vector3 l) const {
 				// RBTODO: probably don't wrap!
 				// Wrap around the periodic boundaries. 
 				int jx = ix-1 + home[0];
-				jx = wrap(jx, g[0]);
+				jx = wrap(jx, nx);
 				int jy = iy-1 + home[1];
-				jy = wrap(jy, g[1]);
+				jy = wrap(jy, ny);
 				int jz = iz-1 + home[2];
-				jz = wrap(jz, g[2]);
+				jz = wrap(jz, nz);
 				int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
 				g1[ix][iy][iz] = val[ind];
 			}
 		}
 	}  
-	f.x = interpolateDiffX(w, g1);
-	f.y = interpolateDiffY(w, g1);
-	f.z = interpolateDiffZ(w, g1);
+	f.x = interpolateDiffX(wx,wy,wz, g1);
+	f.y = interpolateDiffY(wx,wy,wz, g1);
+	f.z = interpolateDiffZ(wx,wy,wz, g1);
 	// Vector3 f1 = basisInv.transpose().transform(f);
 	// return f1;
 	return f;
 }
 
-/* inline virtual Vector3 interpolateForce(Vector3 pos) const { */
-/* 	Vector3 f; */
-/* 	Vector3 l = basisInv.transform(pos - origin); */
-/* 	int homeX = int(floor(l.x)); */
-/* 	int homeY = int(floor(l.y)); */
-/* 	int homeZ = int(floor(l.z)); */
-/* 	// Get the array jumps with shifted indices. */
-/* 	int jump[3]; */
-/* 	jump[0] = nz*ny; */
-/* 	jump[1] = nz; */
-/* 	jump[2] = 1; */
-/* 	// Shift the indices in the home array. */
-/* 	int home[3]; */
-/* 	home[0] = homeX; */
-/* 	home[1] = homeY; */
-/* 	home[2] = homeZ; */
-
-/* 	// Shift the indices in the grid dimensions. */
-/* 	int g[3]; */
-/* 	g[0] = nx; */
-/* 	g[1] = ny; */
-/* 	g[2] = nz; */
-
-/* 	// Get the interpolation coordinates. */
-/* 	float w[3]; */
-/* 	w[0] = l.x - homeX; */
-/* 	w[1] = l.y - homeY; */
-/* 	w[2] = l.z - homeZ; */
-/* 	// Find the values at the neighbors. */
-/* 	float g1[4][4][4]; */
-/* 	//RBTODO parallelize? */
-/* 	for (int ix = 0; ix < 4; ix++) { */
-/* 		for (int iy = 0; iy < 4; iy++) { */
-/* 			for (int iz = 0; iz < 4; iz++) { */
-/* 				// Wrap around the periodic boundaries.  */
-/* 				int jx = ix-1 + home[0]; */
-/* 				jx = wrap(jx, g[0]); */
-/* 				int jy = iy-1 + home[1]; */
-/* 				jy = wrap(jy, g[1]); */
-/* 				int jz = iz-1 + home[2]; */
-/* 				jz = wrap(jz, g[2]); */
-/* 				int ind = jz*jump[2] + jy*jump[1] + jx*jump[0]; */
-/* 				g1[ix][iy][iz] = val[ind]; */
-/* 			} */
-/* 		} */
-/* 	}   */
-/* 	f.x = interpolateDiffX(pos, w, g1); */
-/* 	f.y = interpolateDiffY(pos, w, g1); */
-/* 	f.z = interpolateDiffZ(pos, w, g1); */
-/* 	Vector3 f1 = basisInv.transpose().transform(f); */
-/* 	return f1; */
-/* } */
-
-HOST DEVICE inline float RigidBodyGrid::interpolateDiffX(float w[3], float g1[4][4][4]) const {
+HOST DEVICE inline float RigidBodyGrid::interpolateDiffX(const float wx, const float wy, const float wz, float g1[4][4][4]) const {
 	float a0, a1, a2, a3;
 	// RBTODO further parallelize loops? unlikely?
 		
@@ -529,8 +467,8 @@ HOST DEVICE inline float RigidBodyGrid::interpolateDiffX(float w[3], float g1[4]
 			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
 			a0 = g1[1][iy][iz];
 
-			//g2[iy][iz] = a3*w[0]*w[0]*w[0] + a2*w[0]*w[0] + a1*w[0] + a0;
-			g2[iy][iz] = 3.0f*a3*w[0]*w[0] + 2.0f*a2*w[0] + a1;
+			//g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
+			g2[iy][iz] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1;
 		}
 	}
 
@@ -542,7 +480,7 @@ HOST DEVICE inline float RigidBodyGrid::interpolateDiffX(float w[3], float g1[4]
 		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
 		a0 = g2[1][iz];
    
-		g3[iz] = a3*w[1]*w[1]*w[1] + a2*w[1]*w[1] + a1*w[1] + a0;
+		g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 	}
 
 	// Mix along z.
@@ -551,11 +489,11 @@ HOST DEVICE inline float RigidBodyGrid::interpolateDiffX(float w[3], float g1[4]
 	a1 = 0.5f*(-g3[0] + g3[2]);
 	a0 = g3[1];
  
-	float retval = -(a3*w[2]*w[2]*w[2] + a2*w[2]*w[2] + a1*w[2] + a0);
+	float retval = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
 	return retval;
 }
 
-HOST DEVICE inline float RigidBodyGrid::interpolateDiffY(float w[3], float g1[4][4][4]) const {
+HOST DEVICE inline float RigidBodyGrid::interpolateDiffY(const float wx, const float wy, const float wz, float g1[4][4][4]) const {
 	float a0, a1, a2, a3;
   
 	// Mix along x, taking the derivative.
@@ -567,7 +505,7 @@ HOST DEVICE inline float RigidBodyGrid::interpolateDiffY(float w[3], float g1[4]
 			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
 			a0 = g1[1][iy][iz];
 
-			g2[iy][iz] = a3*w[0]*w[0]*w[0] + a2*w[0]*w[0] + a1*w[0] + a0;
+			g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 		}
 	}
 
@@ -579,8 +517,8 @@ HOST DEVICE inline float RigidBodyGrid::interpolateDiffY(float w[3], float g1[4]
 		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
 		a0 = g2[1][iz];
    
-		//g3[iz] = a3*w[1]*w[1]*w[1] + a2*w[1]*w[1] + a1*w[1] + a0;
-		g3[iz] = 3.0f*a3*w[1]*w[1] + 2.0f*a2*w[1] + a1;
+		//g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
+		g3[iz] = 3.0f*a3*wy*wy + 2.0f*a2*wy + a1;
 	}
 
 	// Mix along z.
@@ -589,10 +527,10 @@ HOST DEVICE inline float RigidBodyGrid::interpolateDiffY(float w[3], float g1[4]
 	a1 = 0.5f*(-g3[0] + g3[2]);
 	a0 = g3[1];
 
-	return -(a3*w[2]*w[2]*w[2] + a2*w[2]*w[2] + a1*w[2] + a0);
+	return -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
 }
 
-HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(float w[3], float g1[4][4][4]) const {
+HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(const float wx, const float wy, const float wz, float g1[4][4][4]) const {
 	float a0, a1, a2, a3;
   
 	// Mix along x, taking the derivative.
@@ -604,7 +542,7 @@ HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(float w[3], float g1[4
 			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
 			a0 = g1[1][iy][iz];
 
-			g2[iy][iz] = a3*w[0]*w[0]*w[0] + a2*w[0]*w[0] + a1*w[0] + a0;
+			g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 		}
 	}
 
@@ -616,7 +554,7 @@ HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(float w[3], float g1[4
 		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
 		a0 = g2[1][iz];
    
-		g3[iz] = a3*w[1]*w[1]*w[1] + a2*w[1]*w[1] + a1*w[1] + a0;
+		g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 	}
 
 	// Mix along z.
@@ -625,7 +563,7 @@ HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(float w[3], float g1[4
 	a1 = 0.5f*(-g3[0] + g3[2]);
 	a0 = g3[1];
 
-	return -(3.0f*a3*w[2]*w[2] + 2.0f*a2*w[2] + a1);
+	return -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1);
 }
 
 

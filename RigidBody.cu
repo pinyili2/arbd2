@@ -11,8 +11,8 @@
 #include "Debug.h"
 
 
-RigidBody::RigidBody(const Configuration& cref, RigidBodyType& tref)
-	: c(&cref), t(&tref), impulse_to_momentum(4.184e8f) {
+RigidBody::RigidBody(String name, const Configuration& cref, RigidBodyType& tref)
+	: name(name), c(&cref), t(&tref), impulse_to_momentum(4.184e8f) {
 	// units "(kcal_mol/AA) * ns" "amu AA/ns" * 4.184e+08
 	
 	timestep = c->timestep;

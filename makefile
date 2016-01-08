@@ -37,14 +37,16 @@ endif
 #CODE_20 := -gencode arch=compute_20,code=sm_20
 CODE_20 := -arch=sm_20
 #CODE_30 := -gencode arch=compute_30,code=sm_30
-#CODE_35 := -gencode arch=compute_35,code=\"sm_35,compute_35\"
+# CODE_35 := -gencode arch=compute_35,code=\"sm_35,compute_35\"
+# CODE_35 := -arch=compute_35
 
-NV_FLAGS += $(CODE_10) $(CODE_12) $(CODE_20) $(CODE_30) $(CODE_35)
+# NV_FLAGS += $(CODE_10) $(CODE_12) $(CODE_20) $(CODE_30) $(CODE_35)
+NV_FLAGS += -arch=sm_35
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link
-NV_FLAGS += -rdc=true
+# NV_FLAGS += -rdc=true
 
-LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -Wl,-rpath,$(LIBRARY)
+LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
 
 
 ### Sources
@@ -65,7 +67,8 @@ all: $(TARGET)
 	@echo "Done ->" $(TARGET)
 
 $(TARGET): $(CU_OBJ) $(CC_OBJ) runBrownTown.cpp vmdsock.c imd.c imd.h
-	$(EXEC) $(NVCC) $(NVLD_FLAGS) $(CU_OBJ) $(CC_OBJ) -o $(TARGET)_link.o
+#	$(EXEC) $(NVCC) $(NVLD_FLAGS) $(CU_OBJ) $(CC_OBJ) -o $(TARGET)_link.o
+	$(EXEC) $(NVCC) $(NVLD_FLAGS) $(CU_OBJ) -o $(TARGET)_link.o
 	$(EXEC) $(CC) $(CC_FLAGS) $(EX_FLAGS) runBrownTown.cpp vmdsock.c imd.c $(TARGET)_link.o $(CU_OBJ) $(CC_OBJ) $(LD_FLAGS)  -o $(TARGET)
 
 # $(EXEC) $(NVCC) $(NVLD_FLAGS) $(CU_OBJ) -o $(TARGET)_link.o
@@ -73,7 +76,7 @@ $(TARGET): $(CU_OBJ) $(CC_OBJ) runBrownTown.cpp vmdsock.c imd.c imd.h
 
 .SECONDEXPANSION:
 $(CU_OBJ): %.o: %.cu $$(wildcard %.h) $$(wildcard %.cuh)
-	$(EXEC) $(NVCC) $(NV_FLAGS) $(EX_FLAGS) -c $< -o $@
+	$(EXEC) $(NVCC) $(NV_FLAGS) $(EX_FLAGS) -dc $< -o $@
 
 $(CC_OBJ): %.o: %.cpp %.h 
 	$(EXEC) $(CC) $(CC_FLAGS) $(EX_FLAGS) -c $< -o $@

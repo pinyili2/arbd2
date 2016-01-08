@@ -5,7 +5,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-#define NUMTHREADS 256
+#define NUMTHREADS 256					/* try with 64, every 32+ */
+#define NUMSTREAMS 8
 
 class Configuration;
 class RandomCPU;
@@ -39,11 +40,11 @@ public:
 	~RigidBodyForcePair();
 
 private:
-	void initialize();
+	int initialize();
 	void swap(RigidBodyForcePair& a, RigidBodyForcePair& b);
 	
 	static const int numThreads = NUMTHREADS;
-
+	
 	bool isPmf;
 	
 	RigidBodyType* type1;
@@ -54,13 +55,18 @@ private:
 	std::vector<int> gridKeyId1;
 	std::vector<int> gridKeyId2;
 	std::vector<int> numBlocks;
-
+	
 	std::vector<Vector3*> forces;
 	std::vector<Vector3*> forces_d;
 	std::vector<Vector3*> torques;
 	std::vector<Vector3*> torques_d;
-	
-	void updateForces(int pairId, int s);
+
+	static int nextStreamID; 
+	std::vector<int> streamID;
+	static cudaStream_t* stream;
+	static void createStreams();
+	void callGridForceKernel(int pairId, int s);
+	void retrieveForces();
 };
 
 class RigidBodyController {
