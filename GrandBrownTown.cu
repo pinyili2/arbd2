@@ -399,7 +399,7 @@ void GrandBrownTown::run() {
 		int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 		int tl = temperatureGrid.length();
 
-		RBC.updateForces();					/* update RB forces before update particle positions... */
+		RBC.updateForces(s);					/* update RB forces before update particle positions... */
 
 		// Call the kernel to update the positions of each particle
 		updateKernel<<< numBlocks, NUM_THREADS >>>(pos_d, forceInternal_d, type_d,

@@ -88,7 +88,7 @@ public:
 	std::vector<float> pmfScale;
 
 	
-	// RBTODO: clear std::vectors after initialization 
+	// RBTODO: clear std::vectors after initialization, (but keep offsets)
 	// duplicates of std::vector grids for device
 	int numPotGrids;
 	int numDenGrids;

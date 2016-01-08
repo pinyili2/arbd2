@@ -69,7 +69,6 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	// w1 and w2 should be standard normal distributions
 
 	// in RB frame     
-	Vector3 tmp = orientation.transpose()*momentum;
 	Force f = Vector3::element_mult(t->transForceCoeff,w1) -
 		Vector3::element_mult(t->transDamping, orientation.transpose()*momentum); 
     
@@ -78,7 +77,9 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 
 	f = orientation * f; // return to lab frame
 	torq = orientation * torq;
-    
+
+	// printf("LANGTORQUE: %f %f %f\n",torq.x,torq.y,torq.z);
+	
 	addForce(f);
 	addTorque(torq);
 }
@@ -110,21 +111,16 @@ void RigidBody::integrate(int startFinishAll) {
 		printf("Rigid Body force was NaN!\n");
 		exit(-1);
 	}
-
-	// torque = Vector(0,0,10); // debug
-	Force tmpTorque = orientation.transpose()*torque; // bring to rigid body frame
-
-	DebugM(3, "integrate" <<": force "<<force <<": velocity "<<getVelocity() << "\n" << endi);
-	DebugM(3, "integrate" <<": torque "<<tmpTorque <<": orientationalVelocity "<<getAngularVelocity() << "\n" << endi);
+	// torque = Vector3(0,0,10); // + orientation.transpose()*Vector3(1,0,0);
 
 	if (startFinishAll == 0 || startFinishAll == 1) {
 		// propogate momenta by half step
 		momentum += 0.5 * timestep * force * impulse_to_momentum;
-		angularMomentum += 0.5 * timestep * tmpTorque * impulse_to_momentum;
+		angularMomentum += 0.5 * timestep * torque * impulse_to_momentum;
 	} else {
 		// propogate momenta by a full timestep
 		momentum += timestep * force * impulse_to_momentum;
-		angularMomentum += timestep * tmpTorque * impulse_to_momentum;
+		angularMomentum += timestep * torque * impulse_to_momentum;
 	}
 
 	DebugM(3, "  position before: " << position << "\n" << endi);
@@ -140,51 +136,33 @@ void RigidBody::integrate(int startFinishAll) {
 		Matrix3 R; // represents a rotation about a principle axis
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R1
 		angularMomentum = R * angularMomentum;
-		rot = R.transpose();
+		orientation = R * orientation;
 		DebugM(1, "R: " << R << "\n" << endi);
 		DebugM(1, "Rot 1: " << rot << "\n" << endi);
 
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R2
 		angularMomentum = R * angularMomentum;
-		rot = rot * R.transpose();
+		orientation = R * orientation;
 		DebugM(1, "R: " << R << "\n" << endi);
 		DebugM(1, "Rot 2: " << rot << "\n" << endi);
 
 		R = Rz(    timestep * angularMomentum.z / t->inertia.z ); // R3
 		angularMomentum = R * angularMomentum;
-		rot = rot * R.transpose();
+		orientation = R * orientation;
 		DebugM(1, "R: " << R << "\n" << endi);
 		DebugM(1, "Rot 3: " << rot << "\n" << endi);
 
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R4
 		angularMomentum = R * angularMomentum;
-		rot = rot * R.transpose();
+		orientation = R * orientation;
 		DebugM(1, "R: " << R << "\n" << endi);
 		DebugM(1, "Rot 4: " << rot << "\n" << endi);
 
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R5
 		angularMomentum = R * angularMomentum;
-		rot = rot * R.transpose();
+		orientation = R * orientation;
 		DebugM(1, "R: " << R << "\n" << endi);
 		DebugM(1, "Rot 5: " << rot << "\n" << endi);
-
-		// DebugM(3,"TEST: " << Ry(0.01) <<"\n" << endi); // DEBUG
- 
-		// update actual orientation
-		Matrix3 newOrientation = orientation*rot; // not 100% sure; rot could be in rb frame
-		orientation = newOrientation;
-		/* rot = rot.transpose(); */
-
-		/* DebugM(2, "trans during: " << trans */
-		/* 			 << "\n" << endi); */
-		/* DebugM(2, "rot during: " << rot */
-		/* 			 << "\n" << endi); */
-    
-		/* clearForce(); */
-		/* clearTorque(); */
-	
-		/* old_trans = trans; */
-		/* old_rot = rot; */
 	}
 	DebugM(3, "  position after: " << position << "\n" << endi);
 }    
