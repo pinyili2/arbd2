@@ -33,20 +33,24 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	/* __syncthreads; */
 	/* return; */
 
+	// RBTODO: reduce registers used; commenting out interpolatePotential / interpolateForceD still uses ~40 registers, otherwise 236!!!
+	
 	// RBTODO: maybe organize data into compact regions for grid data for better use of shared memory...
-	const Vector3 r_ijk = rho->getPosition(r_id); /* i,j,k value of voxel */
-	const Vector3 r_pos = basis_rho.transform( r_ijk ) + origin_rho;
+	Vector3 r_pos = rho->getPosition(r_id); /* i,j,k value of voxel */
+	r_pos = basis_rho.transform( r_pos ) + origin_rho; /* real space */
 	// Vector3 u_ijk_float = basis_u.transform( r_pos - origin_u );
 	const Matrix3 basis_u_inv = basis_u.inverse();
 	const Vector3 u_ijk_float = basis_u_inv.transform( r_pos - origin_u );
 	
 	const float r_val = rho->val[r_id];
-	float energy = r_val * u->interpolatePotential( u_ijk_float ); 
+	const float energy = r_val * u->interpolatePotential( u_ijk_float ); 
+	// const float energy = 0.0f;
 
 	// RBTODO What about non-unit delta?
 	// RBTODO combine interp methods and reduce repetition! 
-	const Vector3 f = r_val*u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
-	// f = basis_u.inverse().transpose().transform( f ); /* transform to lab frame */
+	// const Vector3 f = r_val*u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
+	const Vector3 f = Vector3(0.0f);
+  // f = basis_u.inverse().transpose().transform( f ); /* transform to lab frame */
 	force[tid] = basis_u_inv.transpose().transform( f ); /* transform to lab frame */
 
 	// Calculate torque about lab-frame origin 
@@ -63,9 +67,9 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	// http://www.cuvilib.com/Reduction.pdf
 	// RBTODO optimize
 	__syncthreads();
-	for (unsigned int offset = blockDim.x/2; offset > 0; offset >>= 1) {
+	for (unsigned short offset = blockDim.x/2; offset > 0; offset >>= 1) {
 		if (tid < offset) {
-			unsigned int oid = tid + offset;
+			unsigned short oid = tid + offset;
 			force[tid] = force[tid] + force[oid];
 			torque[tid] = torque[tid] + torque[oid];
 		}

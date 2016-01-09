@@ -5,7 +5,8 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 
-#define NUMTHREADS 256					/* try with 64, every 32+ */
+// #define NUMTHREADS 256					/* try with 64, every 32+ */
+#define NUMTHREADS 64
 #define NUMSTREAMS 8
 
 class Configuration;

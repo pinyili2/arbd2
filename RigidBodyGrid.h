@@ -146,7 +146,7 @@ public:
   HOST DEVICE float interpolateDiffY(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
 	HOST DEVICE float interpolateDiffZ(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
 
-  HOST DEVICE float interpolatePotential(Vector3 l) const;
+  HOST DEVICE float interpolatePotential(const Vector3& l) const;
 
   HOST DEVICE inline static int wrap(int i, int n) {
 		if (i < 0) {
