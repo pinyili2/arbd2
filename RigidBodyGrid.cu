@@ -647,71 +647,36 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) const 
 	const float wy = l.y - homeY;	
 	const float wz = l.z - homeZ;
 
+	float v[2][2][2];
 	for (int iz = 0; iz < 2; iz++) {
 		int jz = (iz + homeZ);
-		float g2[2];
 		for (int iy = 0; iy < 2; iy++) {
-			int jy = (iy + homeY);
-			float g1[2];
-			for (int ix = 0; ix < 2; ix++) {
-				int jx = (ix + homeX);
-				int ind = jz + jy*nz + jx*nz*ny;
-				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
-					0 : val[ind];
-			}
-			// Mix along x.
-			g2[iy] = (g1[1] - g1[0]);
-		}
-		// Mix along y.
-		g3[iz] = wy * (g2[1] - g2[0]) + g2[0];
-	}
-	// Mix along z.
-	f.x = -(wz * (g3[1] - g3[0]) + g3[0]);
-
-	for (int iz = 0; iz < 2; iz++) {
-		int jz = (iz + homeZ);
-		float g2[2];
-		for (int iy = 0; iy < 2; iy++) {
-			int jy = (iy + homeY);
-			float g1[2];
-			for (int ix = 0; ix < 2; ix++) {
-				int jx = (ix + homeX);
-				int ind = jz + jy*nz + jx*nz*ny;
-				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
-					0 : val[ind];
-			}
-			// Mix along x.
-			g2[iy] = wx * (g1[1] - g1[0]) + g1[0];
-		}
-		// Mix along y.
-		g3[iz] = (g2[1] - g2[0]);
-	}
-	// Mix along z.
-	f.y = -(wz * (g3[1] - g3[0]) + g3[0]);
-
-	for (int iz = 0; iz < 2; iz++) {
-		float g2[2];
-		int jz = (iz + homeZ);
-		for (int iy = 0; iy < 2; iy++) {
-			float g1[2];
 			int jy = (iy + homeY);
 			for (int ix = 0; ix < 2; ix++) {
 				int jx = (ix + homeX);
 				int ind = jz + jy*nz + jx*nz*ny;
-				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+				v[ix][iy][iz] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 					0 : val[ind];
 			}
-			// Mix along x.
-			g2[iy] = wx * (g1[1] - g1[0]) + g1[0];
+		}
+	}
+
+	float g3[3][2];
+	for (int iz = 0; iz < 2; iz++) {
+		float g2[2][2];
+		for (int iy = 0; iy < 2; iy++) {
+			g2[0][iy] = (v[1][iy][iz] - v[0][iy][iz]); /* f.x */
+			g2[1][iy] = wx * (v[1][iy][iz] - v[0][iy][iz]) + v[0][iy][iz]; /* f.y & f.z */
 		}
 		// Mix along y.
-		g3[iz] = wy * (g2[1] - g2[0]) + g2[0];
+		g3[0][iz] = wy * (g2[0][1] - g2[0][0]) + g2[0][0];
+		g3[1][iz] = (g2[1][1] - g2[1][0]) + g2[1][0];
+		g3[2][iz] = wy * (g2[1][1] - g2[1][0]) + g2[1][0];
 	}
 	// Mix along z.
-	f.z = (g3[0] - g3[1]);
-
-	
-	return f;	
+	f.x = -(wz * (g3[0][1] - g3[0][0]) + g3[0][0]);
+	f.y = -(wz * (g3[1][1] - g3[1][0]) + g3[1][0]);
+	f.z = -      (g3[2][1] - g3[2][0]);
 }
 
 
