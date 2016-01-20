@@ -370,18 +370,20 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	const int homeX = int(floor(l.x));
 	const int homeY = int(floor(l.y));
 	const int homeZ = int(floor(l.z));
-
+	const float wx = l.x - homeX;
+	const float wy = l.y - homeY;
+	const float wz = l.z - homeZ;
 	{															/* f.x */
 		float g3[4];
 		// #pragma unroll {1,4} doesn't seem to matter
-		for (int iz = 0; iz < 4; iz++) {
+		for (int iz = -1; iz < 3; iz++) {
 			float g2[4];
-			for (int iy = 0; iy < 4; iy++) {
+			for (int iy = -1; iy < 3; iy++) {
 				float g1[4];
-				for (volatile int ix = 0; ix < 4; ix++) { /* RBTODO: unsigned/short? Best practices guide says no */
-					volatile int jx = (ix-1 + homeX);
-					volatile int jy = (iy-1 + homeY);
-					volatile int jz = (iz-1 + homeZ);
+				for (volatile int ix = -1; ix < 3; ix++) { /* RBTODO: unsigned/short? Best practices guide says no */
+					volatile int jx = (ix + homeX);
+					volatile int jy = (iy + homeY);
+					volatile int jz = (iz + homeZ);
 					const int ind = jz + jy*nz + jx*nz*ny;
 					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
@@ -391,7 +393,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
 				const float a1 = 0.5f*(-g1[0] + g1[2]);
 				/* const float a0 = g1[1]; */
-				const float wx = l.x - homeX;
 				// g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 				g2[iy] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1; /* derivative */
 			}
@@ -401,7 +402,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
 			const float a1 = 0.5f*(-g2[0] + g2[2]);
 			const float a0 = g2[1];
-			const float wy = l.y - homeY;
 			
 			g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 		}
@@ -410,21 +410,20 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
 		const float a1 = 0.5f*(-g3[0] + g3[2]);
 		const float a0 = g3[1];
-		const float wz = l.z - homeZ;
  
 		f.x = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
-	}	
+	}
 	{															/* f.y */
 		float g3[4];
-		for (short iz = 0; iz < 4; iz++) {
+		for (int iz = -1; iz < 3; iz++) {
 			float g2[4];
-			for (short iy = 0; iy < 4; iy++) {
+			for (int iy = -1; iy < 3; iy++) {
 				// Fetch values from nearby
 				float g1[4];
-				for (volatile unsigned short ix = 0; ix < 4; ix++) {
-					volatile short jx = (ix-1 + homeX);
-					volatile short jy = (iy-1 + homeY);
-					volatile short jz = (iz-1 + homeZ);
+				for (volatile int ix = -1; ix < 3; ix++) {
+					volatile int jx = (ix + homeX);
+					volatile int jy = (iy + homeY);
+					volatile int jz = (iz + homeZ);
 					const int ind = jz + jy*nz + jx*nz*ny;
 					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
@@ -434,7 +433,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
 				const float a1 = 0.5f*(-g1[0] + g1[2]);
 				const float a0 = g1[1];
-				const float wx = l.x - homeX;
 				g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 			}
 
@@ -443,7 +441,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
 			const float a1 = 0.5f*(-g2[0] + g2[2]);
 			/* const float a0 = g2[1]; */
-			const float wy = l.y - homeY;
 
 			// g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 			g3[iz] = 3.0f*a3*wy*wy + 2.0f*a2*wy + a1; /* derivative */
@@ -453,21 +450,19 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
 		const float a1 = 0.5f*(-g3[0] + g3[2]);
 		const float a0 = g3[1];
-		const float wz = l.z - homeZ;
- 
 		f.y = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
 	}
 	{															/* f.z */
 		float g3[4];
-		for (short iz = 0; iz < 4; iz++) {
+		for (int iz = -1; iz < 3; iz++) {
 			float g2[4];
-			for (short iy = 0; iy < 4; iy++) {
+			for (int iy = -1; iy < 3; iy++) {
 				// Fetch values from nearby
 				float g1[4];
-				for (volatile unsigned short ix = 0; ix < 4; ix++) {
-					volatile short jx = (ix-1 + homeX);
-					volatile short jy = (iy-1 + homeY);
-					volatile short jz = (iz-1 + homeZ);
+				for (volatile int ix = -1; ix < 3; ix++) {
+					volatile int jx = (ix + homeX);
+					volatile int jy = (iy + homeY);
+					volatile int jz = (iz + homeZ);
 					const int ind = jz + jy*nz + jx*nz*ny;
 					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
@@ -477,7 +472,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
 				const float a1 = 0.5f*(-g1[0] + g1[2]);
 				const float a0 = g1[1];
-				const float wx = l.x - homeX;
 				g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 			}
 
@@ -486,17 +480,13 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
 			const float a1 = 0.5f*(-g2[0] + g2[2]);
 			const float a0 = g2[1];
-			const float wy = l.y - homeY;
-
 			g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 		}
 		// Mix along z.
 		const float a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
 		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
 		const float a1 = 0.5f*(-g3[0] + g3[2]);
-		/* const float a0 = g3[1]; */
-		const float wz = l.z - homeZ;
- 
+		/* const float a0 = g3[1]; */ 
 		f.z = -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1); /* derivative */
 	}
 	return f;
