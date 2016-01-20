@@ -161,7 +161,7 @@ public:
 	}
 
 	/** interpolateForce() to be used on CUDA Device **/
-	HOST DEVICE Vector3 interpolateForceD(Vector3 l) const;
+	DEVICE Vector3 interpolateForceD(Vector3 l) const;
 
   inline virtual Vector3 interpolateForce(Vector3 pos) const {
 		Vector3 f;
@@ -257,9 +257,7 @@ public:
 	
 public:
   int nx, ny, nz;
-  int nynz;
   int size;
-public:
   float* val;
 };
 

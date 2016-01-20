@@ -321,7 +321,8 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		if (!isPmf) {								/* pair of RBs */
 			B2 = rb2->getOrientation()*type2->potentialGrids[k2].getBasis();
 			c2 = rb2->getOrientation()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
-			
+			B2 = B2.inverse();
+
 			// RBTODO: get energy
 			computeGridGridForce<<< nb, numThreads, 0, s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
@@ -332,6 +333,7 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 			/// c2 = type2->rawPmfs[i].getOrigin();
 			B2 = type2->rawPmfs[k2].getBasis();
 			c2 = type2->rawPmfs[k2].getOrigin();
+			B2 = B2.inverse();
 
 			computeGridGridForce<<< nb, numThreads, 0, s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],

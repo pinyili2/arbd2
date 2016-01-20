@@ -6,8 +6,8 @@
 
 __global__
 void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
-													Matrix3 basis_rho, Vector3 origin_rho,
-													Matrix3 basis_u,   Vector3 origin_u,
+													const Matrix3 basis_rho, const Vector3 origin_rho,
+													const Matrix3 basis_u_inv, const Vector3 origin_u,
 													Vector3 * retForce, Vector3 * retTorque, int gridNum) {
 
 	// printf("ComputeGridGridForce called\n");
@@ -16,8 +16,8 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	__shared__ Vector3 torque [NUMTHREADS];
 	
   // RBTODO http://devblogs.nvidia.com/parallelforall/cuda-pro-tip-write-flexible-kernels-grid-stride-loops/
-	const unsigned int tid = threadIdx.x;
-	const unsigned int r_id = blockIdx.x * blockDim.x + threadIdx.x;
+	const int tid = threadIdx.x;
+	const int r_id = blockIdx.x * blockDim.x + threadIdx.x;
 
 	/* return; */
 	// RBTODO parallelize transform
@@ -39,19 +39,20 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	Vector3 r_pos = rho->getPosition(r_id); /* i,j,k value of voxel */
 	r_pos = basis_rho.transform( r_pos ) + origin_rho; /* real space */
 	// Vector3 u_ijk_float = basis_u.transform( r_pos - origin_u );
-	const Matrix3 basis_u_inv = basis_u.inverse();
+	// const Matrix3 basis_u_inv = basis_u.inverse();
 	const Vector3 u_ijk_float = basis_u_inv.transform( r_pos - origin_u );
 	
-	const float r_val = rho->val[r_id];
-	const float energy = r_val * u->interpolatePotential( u_ijk_float ); 
+	// const float r_val = rho->val[r_id];
+	/* const float energy = r_val * u->interpolatePotential( u_ijk_float );  */
 	// const float energy = 0.0f;
 
 	// RBTODO What about non-unit delta?
 	// RBTODO combine interp methods and reduce repetition! 
-	// const Vector3 f = r_val*u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
-	const Vector3 f = Vector3(0.0f);
-  // f = basis_u.inverse().transpose().transform( f ); /* transform to lab frame */
-	force[tid] = basis_u_inv.transpose().transform( f ); /* transform to lab frame */
+	Vector3 f = u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
+	const float r_val = rho->val[r_id];
+	f = r_val*f;
+	f = basis_u_inv.transpose().transform( f ); /* transform to lab frame */
+	force[tid] = f;
 
 	// Calculate torque about lab-frame origin 
 	torque[tid] = r_pos.cross(f);				// RBTODO: test if sign is correct!
@@ -67,9 +68,9 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	// http://www.cuvilib.com/Reduction.pdf
 	// RBTODO optimize
 	__syncthreads();
-	for (unsigned short offset = blockDim.x/2; offset > 0; offset >>= 1) {
+	for (int offset = blockDim.x/2; offset > 0; offset >>= 1) {
 		if (tid < offset) {
-			unsigned short oid = tid + offset;
+			int oid = tid + offset;
 			force[tid] = force[tid] + force[oid];
 			torque[tid] = torque[tid] + torque[oid];
 		}
