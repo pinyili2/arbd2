@@ -142,10 +142,6 @@ public:
 	DEVICE float interpolatePotentialLinearly(const Vector3& l) const;
 	DEVICE Vector3 interpolateForceDLinearly(const Vector3& l) const;
 
-	HOST DEVICE float interpolateDiffX(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
-  HOST DEVICE float interpolateDiffY(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
-	HOST DEVICE float interpolateDiffZ(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
-
   HOST DEVICE float interpolatePotential(const Vector3& l) const;
 
   HOST DEVICE inline static int wrap(int i, int n) {
@@ -162,54 +158,6 @@ public:
 
 	/** interpolateForce() to be used on CUDA Device **/
 	DEVICE Vector3 interpolateForceD(Vector3 l) const;
-
-  inline virtual Vector3 interpolateForce(Vector3 pos) const {
-		Vector3 f;
- 		Vector3 l = pos;
-		int homeX = int(floor(l.x));
-		int homeY = int(floor(l.y));
-		int homeZ = int(floor(l.z));
-		// Get the array jumps with shifted indices.
-		int jump[3];
-		jump[0] = nz*ny;
-		jump[1] = nz;
-		jump[2] = 1;
-		// Shift the indices in the home array.
-		int home[3];
-		home[0] = homeX;
-		home[1] = homeY;
-		home[2] = homeZ;
-
-		// Get the interpolation coordinates.
-		const float wx = l.x - homeX;
-		const float wy = l.y - homeY;
-		const float wz = l.z - homeZ;
-
-		// Find the values at the neighbors.
-		float g1[4][4][4];
-		//RBTODO parallelize?
-		for (int ix = 0; ix < 4; ix++) {
-			for (int iy = 0; iy < 4; iy++) {
-				for (int iz = 0; iz < 4; iz++) {
-	  			// Wrap around the periodic boundaries. 
-					int jx = ix-1 + home[0];
-					jx = wrap(jx, nx);
-					int jy = iy-1 + home[1];
-					jy = wrap(jy, ny);
-					int jz = iz-1 + home[2];
-					jz = wrap(jz, nz);
-					int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
-					g1[ix][iy][iz] = val[ind];
-				}
-			}
-		}  
-		f.x = interpolateDiffX( wx, wy, wz, g1 );
-		f.y = interpolateDiffY( wx, wy, wz, g1 );
-		f.z = interpolateDiffZ( wx, wy, wz, g1 );
-		// Vector3 f1 = basisInv.transpose().transform(f);
-		// return f1;
-		return f;
-	}
 
   // Wrap coordinate: 0 <= x < l
   HOST DEVICE inline float wrapFloat(float x, float l) const {

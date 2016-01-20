@@ -373,16 +373,17 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	const float wx = l.x - homeX;
 	const float wy = l.y - homeY;
 	const float wz = l.z - homeZ;
+
 	{															/* f.x */
 		float g3[4];
 		for (int ix = -1; ix < 3; ix++) {
 			float g2[4];
+			int jx = (ix + homeX);
 			for (int iy = -1; iy < 3; iy++) {
 				float g1[4];
-				for (volatile int iz = -1; iz < 3; iz++) {
-					volatile int jx = (ix + homeX);
-					volatile int jy = (iy + homeY);
-					volatile int jz = (iz + homeZ);
+				int jy = (iy + homeY);
+				for (int iz = -1; iz < 3; iz++) {
+					int jz = (iz + homeZ);
 					const int ind = jz + jy*nz + jx*nz*ny;
 					g1[iz] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
@@ -414,14 +415,13 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	{															/* f.y */
 		float g3[4];
 		for (int iz = -1; iz < 3; iz++) {
+			int jz = (iz + homeZ);
 			float g2[4];
 			for (int iy = -1; iy < 3; iy++) {
-				// Fetch values from nearby
+				int jy = (iy + homeY);
 				float g1[4];
-				for (volatile int ix = -1; ix < 3; ix++) {
-					volatile int jx = (ix + homeX);
-					volatile int jy = (iy + homeY);
-					volatile int jz = (iz + homeZ);
+				for (int ix = -1; ix < 3; ix++) {
+					int jx = (ix + homeX);
 					const int ind = jz + jy*nz + jx*nz*ny;
 					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
@@ -433,7 +433,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 				const float a0 = g1[1];
 				g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 			}
-
 			// Mix along y.
 			const float a3 = 0.5f*(-g2[0] + 3.0f*g2[1] - 3.0f*g2[2] + g2[3]);
 			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
@@ -453,14 +452,13 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	{															/* f.z */
 		float g3[4];
 		for (int iz = -1; iz < 3; iz++) {
+			int jz = (iz + homeZ);
 			float g2[4];
 			for (int iy = -1; iy < 3; iy++) {
-				// Fetch values from nearby
+				int jy = (iy + homeY);
 				float g1[4];
-				for (volatile int ix = -1; ix < 3; ix++) {
-					volatile int jx = (ix + homeX);
-					volatile int jy = (iy + homeY);
-					volatile int jz = (iz + homeZ);
+				for (int ix = -1; ix < 3; ix++) {
+					int jx = (ix + homeX);
 					const int ind = jz + jy*nz + jx*nz*ny;
 					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
@@ -488,118 +486,6 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 		f.z = -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1); /* derivative */
 	}
 	return f;
-}
-
-HOST DEVICE inline float RigidBodyGrid::interpolateDiffX(const float wx, const float wy, const float wz, float g1[4][4][4]) const {
-	float a0, a1, a2, a3;
-	// RBTODO further parallelize loops? unlikely?
-		
-	// Mix along x, taking the derivative.
-	float g2[4][4];
-	for (int iy = 0; iy < 4; iy++) {
-		for (int iz = 0; iz < 4; iz++) {
-			a3 = 0.5f*(-g1[0][iy][iz] + 3.0f*g1[1][iy][iz] - 3.0f*g1[2][iy][iz] + g1[3][iy][iz]);
-			a2 = 0.5f*(2.0f*g1[0][iy][iz] - 5.0f*g1[1][iy][iz] + 4.0f*g1[2][iy][iz] - g1[3][iy][iz]);
-			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
-			a0 = g1[1][iy][iz];
-
-			//g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
-			g2[iy][iz] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1;
-		}
-	}
-
-	// Mix along y.
-	float g3[4];
-	for (int iz = 0; iz < 4; iz++) {
-		a3 = 0.5f*(-g2[0][iz] + 3.0f*g2[1][iz] - 3.0f*g2[2][iz] + g2[3][iz]);
-		a2 = 0.5f*(2.0f*g2[0][iz] - 5.0f*g2[1][iz] + 4.0f*g2[2][iz] - g2[3][iz]);
-		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
-		a0 = g2[1][iz];
-   
-		g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
-	}
-
-	// Mix along z.
-	a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
-	a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
-	a1 = 0.5f*(-g3[0] + g3[2]);
-	a0 = g3[1];
- 
-	float retval = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
-	return retval;
-}
-
-HOST DEVICE inline float RigidBodyGrid::interpolateDiffY(const float wx, const float wy, const float wz, float g1[4][4][4]) const {
-	float a0, a1, a2, a3;
-  
-	// Mix along x, taking the derivative.
-	float g2[4][4];
-	for (int iy = 0; iy < 4; iy++) {
-		for (int iz = 0; iz < 4; iz++) {
-			a3 = 0.5f*(-g1[0][iy][iz] + 3.0f*g1[1][iy][iz] - 3.0f*g1[2][iy][iz] + g1[3][iy][iz]);
-			a2 = 0.5f*(2.0f*g1[0][iy][iz] - 5.0f*g1[1][iy][iz] + 4.0f*g1[2][iy][iz] - g1[3][iy][iz]);
-			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
-			a0 = g1[1][iy][iz];
-
-			g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
-		}
-	}
-
-	// Mix along y.
-	float g3[4];
-	for (int iz = 0; iz < 4; iz++) {
-		a3 = 0.5f*(-g2[0][iz] + 3.0f*g2[1][iz] - 3.0f*g2[2][iz] + g2[3][iz]);
-		a2 = 0.5f*(2.0f*g2[0][iz] - 5.0f*g2[1][iz] + 4.0f*g2[2][iz] - g2[3][iz]);
-		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
-		a0 = g2[1][iz];
-   
-		//g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
-		g3[iz] = 3.0f*a3*wy*wy + 2.0f*a2*wy + a1;
-	}
-
-	// Mix along z.
-	a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
-	a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
-	a1 = 0.5f*(-g3[0] + g3[2]);
-	a0 = g3[1];
-
-	return -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
-}
-
-HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(const float wx, const float wy, const float wz, float g1[4][4][4]) const {
-	float a0, a1, a2, a3;
-  
-	// Mix along x, taking the derivative.
-	float g2[4][4];
-	for (int iy = 0; iy < 4; iy++) {
-		for (int iz = 0; iz < 4; iz++) {
-			a3 = 0.5f*(-g1[0][iy][iz] + 3.0f*g1[1][iy][iz] - 3.0f*g1[2][iy][iz] + g1[3][iy][iz]);
-			a2 = 0.5f*(2.0f*g1[0][iy][iz] - 5.0f*g1[1][iy][iz] + 4.0f*g1[2][iy][iz] - g1[3][iy][iz]);
-			a1 = 0.5f*(-g1[0][iy][iz] + g1[2][iy][iz]);
-			a0 = g1[1][iy][iz];
-
-			g2[iy][iz] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
-		}
-	}
-
-	// Mix along y.
-	float g3[4];
-	for (int iz = 0; iz < 4; iz++) {
-		a3 = 0.5f*(-g2[0][iz] + 3.0f*g2[1][iz] - 3.0f*g2[2][iz] + g2[3][iz]);
-		a2 = 0.5f*(2.0f*g2[0][iz] - 5.0f*g2[1][iz] + 4.0f*g2[2][iz] - g2[3][iz]);
-		a1 = 0.5f*(-g2[0][iz] + g2[2][iz]);
-		a0 = g2[1][iz];
-   
-		g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
-	}
-
-	// Mix along z.
-	a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
-	a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
-	a1 = 0.5f*(-g3[0] + g3[2]);
-	a0 = g3[1];
-
-	return -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1);
 }
 
 
