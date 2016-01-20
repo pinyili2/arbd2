@@ -48,14 +48,15 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 
 	// RBTODO What about non-unit delta?
 	// RBTODO combine interp methods and reduce repetition! 
-	Vector3 f = u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
+	// Vector3 f = u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
+	force[tid] = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
 	const float r_val = rho->val[r_id];
-	f = r_val*f;
-	f = basis_u_inv.transpose().transform( f ); /* transform to lab frame */
-	force[tid] = f;
+  // force[tid] = r_val*force[tid];
+	force[tid] = basis_u_inv.transpose().transform( r_val*force[tid] ); /* transform to lab frame */
+	// force[tid] = f;
 
 	// Calculate torque about lab-frame origin 
-	torque[tid] = r_pos.cross(f);				// RBTODO: test if sign is correct!
+	torque[tid] = r_pos.cross(force[tid]);				// RBTODO: test if sign is correct!
 	
 
 	/*/ debug forces

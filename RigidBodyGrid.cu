@@ -325,15 +325,15 @@ HOST DEVICE float RigidBodyGrid::interpolatePotential(const Vector3& l) const {
 	const int homeZ = int(floor(l.z));
 	
 	float g3[4];
-	for (short iz = 0; iz < 4; iz++) {
+	for (int iz = 0; iz < 4; iz++) {
 		float g2[4];
-		for (short iy = 0; iy < 4; iy++) {
+		for (int iy = 0; iy < 4; iy++) {
 			// Fetch values from nearby
 			float g1[4];
-			for (volatile unsigned short ix = 0; ix < 4; ix++) { /* RBTODO: unsigned?  short? Best practices guide says no */
-				volatile short jx = (ix-1 + homeX);
-				volatile short jy = (iy-1 + homeY);
-				volatile short jz = (iz-1 + homeZ);
+			for (volatile  int ix = 0; ix < 4; ix++) {
+				volatile int jx = (ix-1 + homeX);
+				volatile int jy = (iy-1 + homeY);
+				volatile int jz = (iz-1 + homeZ);
 				const int ind = jz + jy*nz + jx*nz*ny;
 				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 					0 : val[ind];
@@ -375,25 +375,22 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	const float wz = l.z - homeZ;
 	{															/* f.x */
 		float g3[4];
-		// #pragma unroll {1,4} doesn't seem to matter
-		for (int iz = -1; iz < 3; iz++) {
+		for (int ix = -1; ix < 3; ix++) {
 			float g2[4];
 			for (int iy = -1; iy < 3; iy++) {
 				float g1[4];
-				for (volatile int ix = -1; ix < 3; ix++) { /* RBTODO: unsigned/short? Best practices guide says no */
+				for (volatile int iz = -1; iz < 3; iz++) {
 					volatile int jx = (ix + homeX);
 					volatile int jy = (iy + homeY);
 					volatile int jz = (iz + homeZ);
 					const int ind = jz + jy*nz + jx*nz*ny;
-					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					g1[iz] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 						0 : val[ind];
 				}
 				// Mix along x.
 				const float a3 = 0.5f*(-g1[0] + 3.0f*g1[1] - 3.0f*g1[2] + g1[3]);
 				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
 				const float a1 = 0.5f*(-g1[0] + g1[2]);
-				/* const float a0 = g1[1]; */
-				// g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 				g2[iy] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1; /* derivative */
 			}
 
@@ -403,14 +400,15 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 			const float a1 = 0.5f*(-g2[0] + g2[2]);
 			const float a0 = g2[1];
 			
-			g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
+			g3[ix] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 		}
 		// Mix along z.
 		const float a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
 		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
 		const float a1 = 0.5f*(-g3[0] + g3[2]);
 		const float a0 = g3[1];
- 
+		/* const float a0 = g1[1]; */
+		// g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
 		f.x = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
 	}
 	{															/* f.y */
@@ -605,79 +603,115 @@ HOST DEVICE inline float  RigidBodyGrid::interpolateDiffZ(const float wx, const 
 }
 
 
-// Added by Rogan for times when simpler calculations are required.
-float RigidBodyGrid::interpolatePotentialLinearly(Vector3 pos) const {
+DEVICE float RigidBodyGrid::interpolatePotentialLinearly(const Vector3& l) const {
 	// Find the home node.
-	Vector3 l = pos;
-	int homeX = int(floorf(l.x));
-	int homeY = int(floorf(l.y));
-	int homeZ = int(floorf(l.z));
-	
-	// Get the array jumps.
-	int jump[3];
-	jump[0] = nz*ny;
-	jump[1] = nz;
-	jump[2] = 1;
+	const int homeX = int(floor(l.x));
+	const int homeY = int(floor(l.y));
+	const int homeZ = int(floor(l.z));
 
-	// Shift the indices in the home array.
-	int home[3];
-	home[0] = homeX;
-	home[1] = homeY;
-	home[2] = homeZ;
-
-	// Get the grid dimensions.
-	int g[3];
-	g[0] = nx;
-	g[1] = ny;
-	g[2] = nz;
-
-	// Get the interpolation coordinates.
-	float w[3];
-	w[0] = l.x - homeX;
-	w[1] = l.y - homeY;
-	w[2] = l.z - homeZ;
-
-	// Find the values at the neighbors.
-	float g1[2][2][2];
-	for (int ix = 0; ix < 2; ix++) {
-		for (int iy = 0; iy < 2; iy++) {
-			for (int iz = 0; iz < 2; iz++) {
-				// Wrap around the periodic boundaries. 
-				int jx = ix + home[0];
-				jx = wrap(jx, g[0]);
-				int jy = iy + home[1];
-				jy = wrap(jy, g[1]);
-				int jz = iz + home[2];
-				jz = wrap(jz, g[2]);
-				
-				int ind = jz*jump[2] + jy*jump[1] + jx*jump[0];
-				g1[ix][iy][iz] = val[ind];
-			}
-		}
-	}
-
-	// Mix along x.
-	float g2[2][2];
-	for (int iy = 0; iy < 2; iy++) {
-		for (int iz = 0; iz < 2; iz++) {
-			// p = w[0] * g[0][iy][iz] + (1-w[0]) * g[1][iy][iz]
-			g2[iy][iz] = (1.0f-w[0])*g1[0][iy][iz] + w[0]*g1[1][iy][iz];
-		}
-	}
-
-	// Mix along y.
 	float g3[2];
 	for (int iz = 0; iz < 2; iz++) {
-		g3[iz] = (1.0f-w[1])*g2[0][iz] + w[1]*g2[1][iz];
+		float g2[2];
+		for (int iy = 0; iy < 2; iy++) {
+			// Fetch values from nearby
+			float g1[2];
+			for (volatile int ix = 0; ix < 2; ix++) {
+				volatile int jx = (ix + homeX);
+				volatile int jy = (iy + homeY);
+				volatile int jz = (iz + homeZ);
+				const int ind = jz + jy*nz + jx*nz*ny;
+				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					0 : val[ind];
+			}
+			// Mix along x.
+			const float wx = l.x - homeX;
+			g2[iy] = wx * (g1[1] - g1[0]) + g1[0];
+		}
+		// Mix along y.
+		const float wy = l.y - homeY;
+		g3[iz] = wy * (g2[1] - g2[0]) + g2[0];
 	}
+	// Mix along z.
+	const float wz = l.z - homeZ;
+	return wz * (g3[1] - g3[0]) + g3[0];
+}
+DEVICE Vector3 RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) const {
+	// Find the home node.
+	const int homeX = int(floor(l.x));
+	const int homeY = int(floor(l.y));
+	const int homeZ = int(floor(l.z));
 
-	// DEBUG
-	//printf("(0,0,0)=%.1f (0,0,1)=%.1f (0,1,0)=%.1f (0,1,1)=%.1f (1,0,0)=%.1f (1,0,1)=%.1f (1,1,0)=%.1f (1,1,1)=%.1f ",
-	//   g1[0][0][0], g1[0][0][1], g1[0][1][0], g1[0][1][1], g1[1][0][0], g1[1][0][1], g1[1][1][0], g1[1][1][1] );
-	//printf ("%.2f\n",(1.0-w[2])*g3[0] + w[2]*g3[1]);
+	Vector3 f;
 
-	// Mix along z
-	return (1.0f-w[2])*g3[0] + w[2]*g3[1];
+	const float wx = l.x - homeY;
+	const float wy = l.y - homeY;	
+	const float wz = l.z - homeZ;
+
+	for (int iz = 0; iz < 2; iz++) {
+		int jz = (iz + homeZ);
+		float g2[2];
+		for (int iy = 0; iy < 2; iy++) {
+			int jy = (iy + homeY);
+			float g1[2];
+			for (int ix = 0; ix < 2; ix++) {
+				int jx = (ix + homeX);
+				int ind = jz + jy*nz + jx*nz*ny;
+				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					0 : val[ind];
+			}
+			// Mix along x.
+			g2[iy] = (g1[1] - g1[0]);
+		}
+		// Mix along y.
+		g3[iz] = wy * (g2[1] - g2[0]) + g2[0];
+	}
+	// Mix along z.
+	f.x = -(wz * (g3[1] - g3[0]) + g3[0]);
+
+	for (int iz = 0; iz < 2; iz++) {
+		int jz = (iz + homeZ);
+		float g2[2];
+		for (int iy = 0; iy < 2; iy++) {
+			int jy = (iy + homeY);
+			float g1[2];
+			for (int ix = 0; ix < 2; ix++) {
+				int jx = (ix + homeX);
+				int ind = jz + jy*nz + jx*nz*ny;
+				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					0 : val[ind];
+			}
+			// Mix along x.
+			g2[iy] = wx * (g1[1] - g1[0]) + g1[0];
+		}
+		// Mix along y.
+		g3[iz] = (g2[1] - g2[0]);
+	}
+	// Mix along z.
+	f.y = -(wz * (g3[1] - g3[0]) + g3[0]);
+
+	for (int iz = 0; iz < 2; iz++) {
+		float g2[2];
+		int jz = (iz + homeZ);
+		for (int iy = 0; iy < 2; iy++) {
+			float g1[2];
+			int jy = (iy + homeY);
+			for (int ix = 0; ix < 2; ix++) {
+				int jx = (ix + homeX);
+				int ind = jz + jy*nz + jx*nz*ny;
+				g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					0 : val[ind];
+			}
+			// Mix along x.
+			g2[iy] = wx * (g1[1] - g1[0]) + g1[0];
+		}
+		// Mix along y.
+		g3[iz] = wy * (g2[1] - g2[0]) + g2[0];
+	}
+	// Mix along z.
+	f.z = (g3[0] - g3[1]);
+
+	
+	return f;	
 }
 
 

@@ -139,8 +139,8 @@ public:
   // Get the potential at the closest node.
   /* virtual float getPotential(Vector3 pos) const; */
 
-	// Added by Rogan for times when simpler calculations are required.
-  virtual float interpolatePotentialLinearly(Vector3 pos) const;
+	DEVICE float interpolatePotentialLinearly(const Vector3& l) const;
+	DEVICE Vector3 interpolateForceDLinearly(const Vector3& l) const;
 
 	HOST DEVICE float interpolateDiffX(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
   HOST DEVICE float interpolateDiffY(const float wx, const float wy, const float wz, float g1[4][4][4]) const;
