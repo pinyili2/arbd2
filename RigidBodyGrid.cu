@@ -373,117 +373,74 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	const float wx = l.x - homeX;
 	const float wy = l.y - homeY;
 	const float wz = l.z - homeZ;
-
-	{															/* f.x */
-		float g3[4];
-		for (int ix = -1; ix < 3; ix++) {
-			float g2[4];
-			int jx = (ix + homeX);
-			for (int iy = -1; iy < 3; iy++) {
-				float g1[4];
-				int jy = (iy + homeY);
-				for (int iz = -1; iz < 3; iz++) {
-					int jz = (iz + homeZ);
-					const int ind = jz + jy*nz + jx*nz*ny;
-					g1[iz] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
-						0 : val[ind];
-				}
-				// Mix along x.
-				const float a3 = 0.5f*(-g1[0] + 3.0f*g1[1] - 3.0f*g1[2] + g1[3]);
-				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
-				const float a1 = 0.5f*(-g1[0] + g1[2]);
-				g2[iy] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1; /* derivative */
+	
+	float v[4][4][4];
+	for (int iz = 0; iz < 4; iz++) {
+		const int jz = (iz + homeZ - 1);
+		for (int iy = 0; iy < 4; iy++) {
+			const int jy = (iy + homeY - 1);
+			for (int ix = 0; ix < 4; ix++) {
+				const int jx = (ix + homeX - 1);
+				const int ind = jz + jy*nz + jx*nz*ny;
+				v[ix][iy][iz] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					0 : val[ind];
 			}
-
-			// Mix along y.
-			const float a3 = 0.5f*(-g2[0] + 3.0f*g2[1] - 3.0f*g2[2] + g2[3]);
-			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
-			const float a1 = 0.5f*(-g2[0] + g2[2]);
-			const float a0 = g2[1];
-			
-			g3[ix] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
 		}
-		// Mix along z.
-		const float a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
-		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
-		const float a1 = 0.5f*(-g3[0] + g3[2]);
-		const float a0 = g3[1];
-		/* const float a0 = g1[1]; */
-		// g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
+	}
+
+	/* f.x */
+	float g3[3][4];
+	for (int iz = 0; iz < 4; iz++) {
+		float g2[2][4];
+		for (int iy = 0; iy < 4; iy++) {
+			// Mix along x.
+			const float a3 = 0.5f*(-v[0][iy][iz] + 3.0f*v[1][iy][iz] - 3.0f*v[2][iy][iz] + v[3][iy][iz]);
+			const float a2 = 0.5f*(2.0f*v[0][iy][iz] - 5.0f*v[1][iy][iz] + 4.0f*v[2][iy][iz] - v[3][iy][iz]);
+			const float a1 = 0.5f*(-v[0][iy][iz] + v[2][iy][iz]);
+			const float a0 = v[1][iy][iz];
+
+			g2[0][iy] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1; /* f.x (derivative) */
+			g2[1][iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0; /* f.y & f.z */
+		}
+
+		// Mix along y.
+		{
+			const float a3 = 0.5f*(-g2[0][0] + 3.0f*g2[0][1] - 3.0f*g2[0][2] + g2[0][3]);
+			const float a2 = 0.5f*(2.0f*g2[0][0] - 5.0f*g2[0][1] + 4.0f*g2[0][2] - g2[0][3]);
+			const float a1 = 0.5f*(-g2[0][0] + g2[0][2]);
+			const float a0 = g2[0][1];
+			g3[0][iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0; /* f.x */
+		}
+
+		{
+			const float a3 = 0.5f*(-g2[1][0] + 3.0f*g2[1][1] - 3.0f*g2[1][2] + g2[1][3]);
+			const float a2 = 0.5f*(2.0f*g2[1][0] - 5.0f*g2[1][1] + 4.0f*g2[1][2] - g2[1][3]);
+			const float a1 = 0.5f*(-g2[1][0] + g2[1][2]);
+			const float a0 = g2[1][1];
+			g3[1][iz] = 3.0f*a3*wy*wy + 2.0f*a2*wy + a1; /* f.y */
+			g3[2][iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;  /* f.z */
+		}
+	}
+	// Mix along z.
+	{
+		const float a3 = 0.5f*(-g3[0][0] + 3.0f*g3[0][1] - 3.0f*g3[0][2] + g3[0][3]);
+		const float a2 = 0.5f*(2.0f*g3[0][0] - 5.0f*g3[0][1] + 4.0f*g3[0][2] - g3[0][3]);
+		const float a1 = 0.5f*(-g3[0][0] + g3[0][2]);
+		const float a0 = g3[0][1];
 		f.x = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
 	}
-	{															/* f.y */
-		float g3[4];
-		for (int iz = -1; iz < 3; iz++) {
-			int jz = (iz + homeZ);
-			float g2[4];
-			for (int iy = -1; iy < 3; iy++) {
-				int jy = (iy + homeY);
-				float g1[4];
-				for (int ix = -1; ix < 3; ix++) {
-					int jx = (ix + homeX);
-					const int ind = jz + jy*nz + jx*nz*ny;
-					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
-						0 : val[ind];
-				}
-				// Mix along x.
-				const float a3 = 0.5f*(-g1[0] + 3.0f*g1[1] - 3.0f*g1[2] + g1[3]);
-				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
-				const float a1 = 0.5f*(-g1[0] + g1[2]);
-				const float a0 = g1[1];
-				g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
-			}
-			// Mix along y.
-			const float a3 = 0.5f*(-g2[0] + 3.0f*g2[1] - 3.0f*g2[2] + g2[3]);
-			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
-			const float a1 = 0.5f*(-g2[0] + g2[2]);
-			/* const float a0 = g2[1]; */
-
-			// g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
-			g3[iz] = 3.0f*a3*wy*wy + 2.0f*a2*wy + a1; /* derivative */
-		}
-		// Mix along z.
-		const float a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
-		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
-		const float a1 = 0.5f*(-g3[0] + g3[2]);
-		const float a0 = g3[1];
+	{
+		const float a3 = 0.5f*(-g3[1][0] + 3.0f*g3[1][1] - 3.0f*g3[1][2] + g3[1][3]);
+		const float a2 = 0.5f*(2.0f*g3[1][0] - 5.0f*g3[1][1] + 4.0f*g3[1][2] - g3[1][3]);
+		const float a1 = 0.5f*(-g3[1][0] + g3[1][2]);
+		const float a0 = g3[1][1];
 		f.y = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
 	}
-	{															/* f.z */
-		float g3[4];
-		for (int iz = -1; iz < 3; iz++) {
-			int jz = (iz + homeZ);
-			float g2[4];
-			for (int iy = -1; iy < 3; iy++) {
-				int jy = (iy + homeY);
-				float g1[4];
-				for (int ix = -1; ix < 3; ix++) {
-					int jx = (ix + homeX);
-					const int ind = jz + jy*nz + jx*nz*ny;
-					g1[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
-						0 : val[ind];
-				}
-				// Mix along x.
-				const float a3 = 0.5f*(-g1[0] + 3.0f*g1[1] - 3.0f*g1[2] + g1[3]);
-				const float a2 = 0.5f*(2.0f*g1[0] - 5.0f*g1[1] + 4.0f*g1[2] - g1[3]);
-				const float a1 = 0.5f*(-g1[0] + g1[2]);
-				const float a0 = g1[1];
-				g2[iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0;
-			}
-
-			// Mix along y.
-			const float a3 = 0.5f*(-g2[0] + 3.0f*g2[1] - 3.0f*g2[2] + g2[3]);
-			const float a2 = 0.5f*(2.0f*g2[0] - 5.0f*g2[1] + 4.0f*g2[2] - g2[3]);
-			const float a1 = 0.5f*(-g2[0] + g2[2]);
-			const float a0 = g2[1];
-			g3[iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;
-		}
-		// Mix along z.
-		const float a3 = 0.5f*(-g3[0] + 3.0f*g3[1] - 3.0f*g3[2] + g3[3]);
-		const float a2 = 0.5f*(2.0f*g3[0] - 5.0f*g3[1] + 4.0f*g3[2] - g3[3]);
-		const float a1 = 0.5f*(-g3[0] + g3[2]);
-		/* const float a0 = g3[1]; */ 
-		f.z = -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1); /* derivative */
+	{
+		const float a3 = 0.5f*(-g3[2][0] + 3.0f*g3[2][1] - 3.0f*g3[2][2] + g3[2][3]);
+		const float a2 = 0.5f*(2.0f*g3[2][0] - 5.0f*g3[2][1] + 4.0f*g3[2][2] - g3[2][3]);
+		const float a1 = 0.5f*(-g3[2][0] + g3[2][2]);
+		f.z = -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1);
 	}
 	return f;
 }
