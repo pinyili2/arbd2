@@ -377,26 +377,21 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	/* f.x */
 	float g3[3][4];
 	for (int iz = 0; iz < 4; iz++) {
-		
-		// get values...
-		float v[4][4];
+		float g2[2][4];
 		const int jz = (iz + homeZ - 1);
 		for (int iy = 0; iy < 4; iy++) {
+			float v[4];
 			const int jy = (iy + homeY - 1);
 			for (int ix = 0; ix < 4; ix++) {
 				const int jx = (ix + homeX - 1);
 				const int ind = jz + jy*nz + jx*nz*ny;
-				v[ix][iy] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+				v[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 					0 : val[ind];
 			}
-		}
-		
-		float g2[2][4];
-		for (int iy = 0; iy < 4; iy++) {
-			const float a3 = 0.5f*(-v[0][iy] + 3.0f*v[1][iy] - 3.0f*v[2][iy] + v[3][iy]);
-			const float a2 = 0.5f*(2.0f*v[0][iy] - 5.0f*v[1][iy] + 4.0f*v[2][iy] - v[3][iy]);
-			const float a1 = 0.5f*(-v[0][iy] + v[2][iy]);
-			const float a0 = v[1][iy];
+			const float a3 = 0.5f*(-v[0] + 3.0f*v[1] - 3.0f*v[2] + v[3]);
+			const float a2 = 0.5f*(2.0f*v[0] - 5.0f*v[1] + 4.0f*v[2] - v[3]);
+			const float a1 = 0.5f*(-v[0] + v[2]);
+			const float a0 = v[1];
 
 			g2[0][iy] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1; /* f.x (derivative) */
 			g2[1][iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0; /* f.y & f.z */
