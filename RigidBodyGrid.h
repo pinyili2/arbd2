@@ -28,6 +28,14 @@ using namespace std;
 
 // RBTODO: integrate with existing grid code?
 
+class ForceEnergy {
+public:
+	DEVICE ForceEnergy(Vector3 f, float e) :
+		f(f), e(e) {};
+	Vector3 f;
+	float e;
+};
+
 class RigidBodyGrid { 
 	friend class SparseGrid;
 private:
@@ -140,7 +148,7 @@ public:
   /* virtual float getPotential(Vector3 pos) const; */
 
 	DEVICE float interpolatePotentialLinearly(const Vector3& l) const;
-	DEVICE Vector3 interpolateForceDLinearly(const Vector3& l) const;
+	DEVICE ForceEnergy interpolateForceDLinearly(const Vector3& l) const;
 
   HOST DEVICE float interpolatePotential(const Vector3& l) const;
 
@@ -157,7 +165,7 @@ public:
 	}
 
 	/** interpolateForce() to be used on CUDA Device **/
-	DEVICE Vector3 interpolateForceD(Vector3 l) const;
+	DEVICE ForceEnergy interpolateForceD(Vector3 l) const;
 
   // Wrap coordinate: 0 <= x < l
   HOST DEVICE inline float wrapFloat(float x, float l) const {

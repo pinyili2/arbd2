@@ -364,7 +364,7 @@ HOST DEVICE float RigidBodyGrid::interpolatePotential(const Vector3& l) const {
 }
 
 /** interpolateForce() to be used on CUDA Device **/
-DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
+DEVICE ForceEnergy RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	Vector3 f;
 	// Vector3 l = basisInv.transform(pos - origin);
 	const int homeX = int(floor(l.x));
@@ -373,6 +373,10 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	const float wx = l.x - homeX;
 	const float wy = l.y - homeY;
 	const float wz = l.z - homeZ;
+	const float wx2 = wx*wx;
+
+	// RBTODO: test against cpu algorithm; also see if its the same algorithm used by NAMD
+	// RBTODO: test NAMD alg. for speed
 	
 	/* f.x */
 	float g3[3][4];
@@ -388,55 +392,54 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 				v[ix] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
 					0 : val[ind];
 			}
-			const float a3 = 0.5f*(-v[0] + 3.0f*v[1] - 3.0f*v[2] + v[3]);
-			const float a2 = 0.5f*(2.0f*v[0] - 5.0f*v[1] + 4.0f*v[2] - v[3]);
+			const float a3 = 0.5f*(-v[0] + 3.0f*v[1] - 3.0f*v[2] + v[3])*wx2;
+			const float a2 = 0.5f*(2.0f*v[0] - 5.0f*v[1] + 4.0f*v[2] - v[3])*wx;
 			const float a1 = 0.5f*(-v[0] + v[2]);
-			const float a0 = v[1];
-
-			g2[0][iy] = 3.0f*a3*wx*wx + 2.0f*a2*wx + a1; /* f.x (derivative) */
-			g2[1][iy] = a3*wx*wx*wx + a2*wx*wx + a1*wx + a0; /* f.y & f.z */
+			g2[0][iy] = 3.0f*a3 + 2.0f*a2 + a1;				/* f.x (derivative) */
+			g2[1][iy] = a3*wx + a2*wx + a1*wx + v[1]; /* f.y & f.z */
 		}
 
 		// Mix along y.
 		{
-			const float a3 = 0.5f*(-g2[0][0] + 3.0f*g2[0][1] - 3.0f*g2[0][2] + g2[0][3]);
-			const float a2 = 0.5f*(2.0f*g2[0][0] - 5.0f*g2[0][1] + 4.0f*g2[0][2] - g2[0][3]);
-			const float a1 = 0.5f*(-g2[0][0] + g2[0][2]);
-			const float a0 = g2[0][1];
-			g3[0][iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0; /* f.x */
+			g3[0][iz] = 0.5f*(-g2[0][0] + 3.0f*g2[0][1] - 3.0f*g2[0][2] + g2[0][3])*wy*wy*wy +
+				0.5f*(2.0f*g2[0][0] - 5.0f*g2[0][1] + 4.0f*g2[0][2] - g2[0][3])      *wy*wy +
+				0.5f*(-g2[0][0] + g2[0][2])                                          *wy +
+				g2[0][1];
 		}
 
 		{
-			const float a3 = 0.5f*(-g2[1][0] + 3.0f*g2[1][1] - 3.0f*g2[1][2] + g2[1][3]);
-			const float a2 = 0.5f*(2.0f*g2[1][0] - 5.0f*g2[1][1] + 4.0f*g2[1][2] - g2[1][3]);
+			const float a3 = 0.5f*(-g2[1][0] + 3.0f*g2[1][1] - 3.0f*g2[1][2] + g2[1][3])*wy*wy;
+			const float a2 = 0.5f*(2.0f*g2[1][0] - 5.0f*g2[1][1] + 4.0f*g2[1][2] - g2[1][3])*wy;
 			const float a1 = 0.5f*(-g2[1][0] + g2[1][2]);
-			const float a0 = g2[1][1];
-			g3[1][iz] = 3.0f*a3*wy*wy + 2.0f*a2*wy + a1; /* f.y */
-			g3[2][iz] = a3*wy*wy*wy + a2*wy*wy + a1*wy + a0;  /* f.z */
+			g3[1][iz] = 3.0f*a3 + 2.0f*a2 + a1;						/* f.y */
+			g3[2][iz] = a3*wy + a2*wy + a1*wy + g2[1][1]; /* f.z */
 		}
 	}
+
 	// Mix along z.
 	{
-		const float a3 = 0.5f*(-g3[0][0] + 3.0f*g3[0][1] - 3.0f*g3[0][2] + g3[0][3]);
-		const float a2 = 0.5f*(2.0f*g3[0][0] - 5.0f*g3[0][1] + 4.0f*g3[0][2] - g3[0][3]);
-		const float a1 = 0.5f*(-g3[0][0] + g3[0][2]);
-		const float a0 = g3[0][1];
-		f.x = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
+		f.x = -0.5f*(-g3[0][0] + 3.0f*g3[0][1] - 3.0f*g3[0][2] + g3[0][3])*wz*wz*wz +
+			-0.5f*(2.0f*g3[0][0] - 5.0f*g3[0][1] + 4.0f*g3[0][2] - g3[0][3])*wz*wz +
+			-0.5f*(-g3[0][0] + g3[0][2])                                    *wz -
+			g3[0][1];
 	}
 	{
-		const float a3 = 0.5f*(-g3[1][0] + 3.0f*g3[1][1] - 3.0f*g3[1][2] + g3[1][3]);
-		const float a2 = 0.5f*(2.0f*g3[1][0] - 5.0f*g3[1][1] + 4.0f*g3[1][2] - g3[1][3]);
-		const float a1 = 0.5f*(-g3[1][0] + g3[1][2]);
-		const float a0 = g3[1][1];
-		f.y = -(a3*wz*wz*wz + a2*wz*wz + a1*wz + a0);
+		f.y = -0.5f*(-g3[1][0] + 3.0f*g3[1][1] - 3.0f*g3[1][2] + g3[1][3])*wz*wz*wz +
+			-0.5f*(2.0f*g3[1][0] - 5.0f*g3[1][1] + 4.0f*g3[1][2] - g3[1][3])*wz*wz +
+			-0.5f*(-g3[1][0] + g3[1][2])                                    *wz -
+			g3[1][1];
 	}
 	{
-		const float a3 = 0.5f*(-g3[2][0] + 3.0f*g3[2][1] - 3.0f*g3[2][2] + g3[2][3]);
-		const float a2 = 0.5f*(2.0f*g3[2][0] - 5.0f*g3[2][1] + 4.0f*g3[2][2] - g3[2][3]);
-		const float a1 = 0.5f*(-g3[2][0] + g3[2][2]);
-		f.z = -(3.0f*a3*wz*wz + 2.0f*a2*wz + a1);
+		f.z = -1.5f*(-g3[2][0] + 3.0f*g3[2][1] - 3.0f*g3[2][2] + g3[2][3])*wz*wz -
+			(2.0f*g3[2][0] - 5.0f*g3[2][1] + 4.0f*g3[2][2] - g3[2][3])      *wz -
+			0.5f*(-g3[2][0] + g3[2][2]);
 	}
-	return f;
+	float e = 0.5f*(-g3[2][0] + 3.0f*g3[2][1] - 3.0f*g3[2][2] + g3[2][3])*wz*wz*wz +
+		0.5f*(2.0f*g3[2][0] - 5.0f*g3[2][1] + 4.0f*g3[2][2] - g3[2][3])    *wz*wz +
+		0.5f*(-g3[2][0] + g3[2][2])                                        *wz +
+		g3[2][1];
+	
+	return ForceEnergy(f,e);
 }
 
 
@@ -472,7 +475,7 @@ DEVICE float RigidBodyGrid::interpolatePotentialLinearly(const Vector3& l) const
 	const float wz = l.z - homeZ;
 	return wz * (g3[1] - g3[0]) + g3[0];
 }
-DEVICE Vector3 RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) const {
+DEVICE ForceEnergy RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) const {
 	// Find the home node.
 	const int homeX = int(floor(l.x));
 	const int homeY = int(floor(l.y));
@@ -514,6 +517,8 @@ DEVICE Vector3 RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) const 
 	f.x = -(wz * (g3[0][1] - g3[0][0]) + g3[0][0]);
 	f.y = -(wz * (g3[1][1] - g3[1][0]) + g3[1][0]);
 	f.z = -      (g3[2][1] - g3[2][0]);
+	float e = wz * (g3[2][1] - g3[2][0]) + g3[2][0];
+	return ForceEnergy(f,e);
 }
 
 
