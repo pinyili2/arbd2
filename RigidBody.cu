@@ -1,8 +1,3 @@
-/* #ifndef MIN_DEBUG_LEVEL */
-/* #define MIN_DEBUG_LEVEL 5 */
-/* #endif */
-/* #include "Debug.h" */
-
 #include <iostream>
 #include <typeinfo>
 #include "RigidBody.h"
@@ -20,38 +15,26 @@ RigidBody::RigidBody(String name, const Configuration& cref, RigidBodyType& tref
 	Temp = 295;
 	// tempgrid = c->temperatureGrid;
 
-	position = t->initPos; // Vector3();
+	position = t->initPos;
 
 	// Orientation matrix that brings vector from the RB frame to the lab frame
-	orientation = t->initRot; //Matrix3(1.0f);
+	orientation = t->initRot;
 	
 	momentum = Vector3() * t->mass; // lab frame
-	/* DebugM(4, "velocity " << rbParams->velocity << "\n" << endi); */
-	DebugM(4, "momentum " << momentum << "\n" << endi);
 
 	angularMomentum = Vector3(); // rigid body frame
 	angularMomentum.x *= t->inertia.x;
 	angularMomentum.y *= t->inertia.y;
 	angularMomentum.z *= t->inertia.z;
-
-	/* isFirstStep = true; // this might not work flawlessly... */
-
-	/* clearForce(); */
-	/* clearTorque(); */
-    
-	/* DebugM(4, "RigidBody initial Force: " << force << "\n" << endi); */
 }
 
 void RigidBody::addForce(Force f) { 
-	// DebugM(1, "RigidBody "<<key<<" adding f ("<<f<<") to Force " << force << "\n" << endi);    
 	force += f; 
 } 
 void RigidBody::addTorque(Force torq) {
-	// DebugM(1, "RigidBody adding t ("<<t<<") to torque " << torque << "\n" << endi);   
 	torque += torq; 
 }
 RigidBody::~RigidBody() {}
-
 	/*===========================================================================\
 	| Following "Algorithm for rigid-body Brownian dynamics" Dan Gordon, Matthew |
 	|   Hoyles, and Shin-Ho Chung                                                |
@@ -137,34 +120,23 @@ void RigidBody::integrate(int startFinishAll) {
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R1
 		angularMomentum = R * angularMomentum;
 		orientation = R * orientation;
-		DebugM(1, "R: " << R << "\n" << endi);
-		DebugM(1, "Rot 1: " << rot << "\n" << endi);
 
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R2
 		angularMomentum = R * angularMomentum;
 		orientation = R * orientation;
-		DebugM(1, "R: " << R << "\n" << endi);
-		DebugM(1, "Rot 2: " << rot << "\n" << endi);
 
 		R = Rz(    timestep * angularMomentum.z / t->inertia.z ); // R3
 		angularMomentum = R * angularMomentum;
 		orientation = R * orientation;
-		DebugM(1, "R: " << R << "\n" << endi);
-		DebugM(1, "Rot 3: " << rot << "\n" << endi);
 
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R4
 		angularMomentum = R * angularMomentum;
 		orientation = R * orientation;
-		DebugM(1, "R: " << R << "\n" << endi);
-		DebugM(1, "Rot 4: " << rot << "\n" << endi);
 
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R5
 		angularMomentum = R * angularMomentum;
 		orientation = R * orientation;
-		DebugM(1, "R: " << R << "\n" << endi);
-		DebugM(1, "Rot 5: " << rot << "\n" << endi);
 	}
-	DebugM(3, "  position after: " << position << "\n" << endi);
 }    
 
 // Rotations about axes
