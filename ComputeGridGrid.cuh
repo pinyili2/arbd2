@@ -14,7 +14,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	const int tid = threadIdx.x;
 	const int r_id = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (r_id >= rho->size) {				// skip threads with no data
+	if (r_id >= rho->getSize()) {				// skip threads with no data
 		force[tid] = Vector3(0.0f);
 		torque[tid] = Vector3(0.0f);
 		return;

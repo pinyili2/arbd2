@@ -26,8 +26,6 @@ using namespace std;
 
 #define STRLEN 512
 
-// RBTODO: integrate with existing grid code?
-
 class ForceEnergy {
 public:
 	DEVICE ForceEnergy(Vector3 f, float e) :
@@ -123,12 +121,12 @@ public:
   /* int index(Vector3 r) const; */
   /* int nearestIndex(Vector3 r) const; */
 
-  HOST DEVICE inline int length() const { return size; }
+  HOST DEVICE inline int length() const { return nx*ny*nz; }
 
   HOST DEVICE inline int getNx() const {return nx;}
   HOST DEVICE inline int getNy() const {return ny;}
   HOST DEVICE inline int getNz() const {return nz;}
-  HOST DEVICE inline int getSize() const {return size;}
+  HOST DEVICE inline int getSize() const {return nx*ny*nz;}
 
   
   // Add a fixed value to the grid.

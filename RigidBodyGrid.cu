@@ -10,21 +10,12 @@
 // Initialize the variables that get used a lot.
 // Also, allocate the main value array.
 void RigidBodyGrid::init() {
-	size = nx*ny*nz;
-	val = new float[size];
+	val = new float[nx*ny*nz];
 }
 RigidBodyGrid::RigidBodyGrid() {
 	RigidBodyGrid tmp(1,1,1);
 	val = new float[1];
 	*this = tmp;									// TODO: verify that this is OK
-	
-	// origin = Vector3();
-	// nx = 1;
-	// ny = 1;
-	// nz = 1;
-	
-	// init();
-	// zero();
 }
 
 // The most obvious of constructors.
@@ -117,7 +108,7 @@ RigidBodyGrid::RigidBodyGrid(const BaseGrid& g) {
 	nz = g.nz;
 	
 	init();
-	for (int i = 0; i < size; i++) val[i] = g.val[i];
+	for (int i = 0; i < nx*ny*nz; i++) val[i] = g.val[i];
 }
 
 // Make an exact copy of a grid.
@@ -127,11 +118,11 @@ RigidBodyGrid::RigidBodyGrid(const RigidBodyGrid& g) {
 	nz = g.nz;
 	
 	init();
-	for (int i = 0; i < size; i++) val[i] = g.val[i];
+	for (int i = 0; i < nx*ny*nz; i++) val[i] = g.val[i];
 }
 
 RigidBodyGrid RigidBodyGrid::mult(const RigidBodyGrid& g) {
-	for (int i = 0; i < size; i++) val[i] *= g.val[i];
+	for (int i = 0; i < nx*ny*nz; i++) val[i] *= g.val[i];
 	return *this;
 }
 
@@ -143,7 +134,7 @@ RigidBodyGrid& RigidBodyGrid::operator=(const RigidBodyGrid& g) {
 	nz = g.nz;
 	
 	init();
-	for (int i = 0; i < size; i++) val[i] = g.val[i];
+	for (int i = 0; i < nx*ny*nz; i++) val[i] = g.val[i];
 
 	return *this;
 }
@@ -161,7 +152,7 @@ RigidBodyGrid::RigidBodyGrid(const RigidBodyGrid& g, int nx0, int ny0, int nz0) 
 	init();
 
 	// Do an interpolation to obtain the values.
-	for (int i = 0; i < size; i++) {
+	for (int i = 0; i < nx*ny*nz; i++) {
 		Vector3 r = getPosition(i);
 		val[i] = g.interpolatePotential(r);
 	}
@@ -173,11 +164,11 @@ RigidBodyGrid::~RigidBodyGrid() {
 }
 
 void RigidBodyGrid::zero() {
-	for (int i = 0; i < size; i++) val[i] = 0.0f;
+	for (int i = 0; i < nx*ny*nz; i++) val[i] = 0.0f;
 }
 
 bool RigidBodyGrid::setValue(int j, float v) {
-	if (j < 0 || j >= size) return false;
+	if (j < 0 || j >= nx*ny*nz) return false;
 	val[j] = v;
 	return true;
 }
@@ -193,7 +184,7 @@ bool RigidBodyGrid::setValue(int ix, int iy, int iz, float v) {
 }
 
 float RigidBodyGrid::getValue(int j) const {
-	if (j < 0 || j >= size) return 0.0f;
+	if (j < 0 || j >= nx*ny*nz) return 0.0f;
 	return val[j];
 }
 
@@ -295,19 +286,19 @@ int RigidBodyGrid::index(int ix, int iy, int iz) const { return iz + iy*nz + ix*
 
 // Add a fixed value to the grid.
 void RigidBodyGrid::shift(float s) {
-	for (int i = 0; i < size; i++) val[i] += s;
+	for (int i = 0; i < nx*ny*nz; i++) val[i] += s;
 }
 
 // Multiply the grid by a fixed value.
 void RigidBodyGrid::scale(float s) {
-	for (int i = 0; i < size; i++) val[i] *= s;
+	for (int i = 0; i < nx*ny*nz; i++) val[i] *= s;
 }
 
 // Get the mean of the entire grid.
 float RigidBodyGrid::mean() const {
 	float sum = 0.0f;
-	for (int i = 0; i < size; i++) sum += val[i];
-	return sum/size;
+	for (int i = 0; i < nx*ny*nz; i++) sum += val[i];
+	return sum/nx*ny*nz;
 }
 
 // Get the potential at the closest node.
