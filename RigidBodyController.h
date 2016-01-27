@@ -68,6 +68,10 @@ private:
 	static void createStreams();
 	void callGridForceKernel(int pairId, int s);
 	void retrieveForces();
+	Matrix3 getBasis1(const int i);
+	Matrix3 getBasis2(const int i);
+	Vector3 getOrigin1(const int i);
+	Vector3 getOrigin2(const int i);
 };
 
 class RigidBodyController {

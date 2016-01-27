@@ -278,6 +278,28 @@ void RigidBodyForcePair::createStreams() {
 		gpuErrchk( cudaStreamCreate( &(stream[i]) ) );
 		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
 }
+Vector3 RigidBodyForcePair::getOrigin1(const int i) {
+	const int k1 = gridKeyId1[i];
+	return rb1->getOrientation()*type1->densityGrids[k1].getOrigin() + rb1->getPosition();
+}
+Vector3 RigidBodyForcePair::getOrigin2(const int i) {
+	const int k2 = gridKeyId2[i];
+	if (!isPmf)
+		return rb2->getOrientation()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
+	else
+		return type2->rawPmfs[k2].getOrigin();
+}		
+Matrix3 RigidBodyForcePair::getBasis1(const int i) {
+	const int k1 = gridKeyId1[i];
+	return rb1->getOrientation()*type1->densityGrids[k1].getBasis();
+}
+Matrix3 RigidBodyForcePair::getBasis2(const int i) {
+	const int k2 = gridKeyId2[i];
+	if (!isPmf)
+		return rb2->getOrientation()*type2->potentialGrids[k2].getBasis();
+	else
+		return type2->rawPmfs[k2].getBasis();
+}
 
 // RBTODO: bundle several rigidbodypair evaluations in single kernel call
 void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
@@ -294,7 +316,6 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
 		const cudaStream_t &s = stream[streamID[i]];
-
 		/*
 			ijk: index of grid value
 			r: postion of point ijk in real space
@@ -308,39 +329,26 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 
   		/.––––––––––––––––––.
 	  	| r = R.(B.ijk+o)+c |
-	  	| r = B'.ijk + c'    |
+	  	| r = B'.ijk + c'   |
 	  	`––––––––––––––––––./
 		*/
-		Matrix3 B1 = rb1->getOrientation()*type1->densityGrids[k1].getBasis();
-		Vector3 c1 = rb1->getOrientation()*type1->densityGrids[k1].getOrigin() + rb1->getPosition();
+		Matrix3 B1 = getBasis1(i);
+		Vector3 c = getOrigin1(i) - getOrigin2(i);
 		
-		Matrix3 B2;
-		Vector3 c2;
-		
-		/* printf("  Calculating grid forces\n"); */
+		Matrix3 B2 = getBasis2(i).inverse();
+
+		// RBTODO: get energy
 		if (!isPmf) {								/* pair of RBs */
-			B2 = rb2->getOrientation()*type2->potentialGrids[k2].getBasis();
-			c2 = rb2->getOrientation()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
-			B2 = B2.inverse();
-
-			// RBTODO: get energy
-			computeGridGridForce<<< nb, numThreads, 0, s >>>
+			computeGridGridForce<<< nb, numThreads, NUMTHREADS*2*sizeof(Vector3), s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
-				 B1, c1, B2, c2,
-				 forces_d[i], torques_d[i], pairId+i);
+				 B1, B2, c,
+				 forces_d[i], torques_d[i]);
 		} else {										/* RB with a PMF */
-			// B2 = type2->rawPmfs[i].getBasis(); // not 100% certain k2 should be used rather than i
-			/// c2 = type2->rawPmfs[i].getOrigin();
-			B2 = type2->rawPmfs[k2].getBasis();
-			c2 = type2->rawPmfs[k2].getOrigin();
-			B2 = B2.inverse();
-
-			computeGridGridForce<<< nb, numThreads, 0, s >>>
+			computeGridGridForce<<< nb, numThreads, NUMTHREADS*2*sizeof(Vector3), s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
-				 B1, c1, B2, c2,
-				 forces_d[i], torques_d[i], pairId+i);
+				 B1, B2, c,
+				 forces_d[i], torques_d[i]);
 		}
-
 	}
 }
 
@@ -361,11 +369,23 @@ void RigidBodyForcePair::retrieveForces() {
 															cudaMemcpyDeviceToHost, s));
 
 		gpuErrchk(cudaStreamSynchronize( s ));
-		
+
+		Vector3 tmpF = Vector3(0.0f);
+		Vector3 tmpT = Vector3(0.0f);
+			
 		for (int j = 0; j < nb; j++) {
-			f = f + forces[i][j];
-			t = t + torques[i][j];
+			tmpF = tmpF + forces[i][j];
+			tmpT = tmpT + torques[i][j];
 		}
+		
+		// tmpT is the torque calculated about the origin of grid k2 (e.g. c2)
+		//   so here we transform torque to be about rb1
+		Vector3 c2 = getOrigin2(i);
+		tmpT = tmpT - (rb1->getPosition() - c2).cross( tmpF ); 
+
+		// sum forces and torques
+		f = f + tmpF;
+		t = t + tmpT;
 	}
 	
 	// transform torque from lab-frame origin to rb centers
@@ -375,14 +395,13 @@ void RigidBodyForcePair::retrieveForces() {
 	/* /\* printf("rb1->position: (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); *\/ */
 	/* tmp = rb1->getPosition(); */
 	/* printf("rb1->getPosition(): (%f,%f,%f)\n", tmp.x, tmp.y, tmp.z); */
-	Vector3 t1 = t - rb1->getPosition().cross( f );
 	rb1->addForce( f );
-	rb1->addTorque(t1);
+	rb1->addTorque( t );
 
 	if (!isPmf) {
-		Vector3 t2 = -t - rb2->getPosition().cross( -f );
-		rb2->addForce(-f);
-		rb2->addTorque(t2);
+		const Vector3 t2 = -t + (rb2->getPosition()-rb1->getPosition()).cross( f );
+		rb2->addForce( -f );
+		rb2->addTorque( t2 );
 	}
 		
 	/* printf("force: (%f,%f,%f)\n",f.x,f.y,f.z); */
@@ -590,46 +609,6 @@ void RigidBodyController::print(int step) {
 			} 
 		}
 	}
-	/*
-	//  Output final coordinates
-	if (step == FILE_OUTPUT || step == END_OF_RUN) {
-		int realstep = ( step == FILE_OUTPUT ?
-										 simParams->firstTimestep : simParams->N );
-		iout << "WRITING RIGID BODY OUTPUT FILE AT STEP " << realstep << "\n" << endi;
-		static char fname[140];
-		strcpy(fname, simParams->outputFilename);
-		strcat(fname, ".rigid");
-		NAMD_backup_file(fname);
-		std::ofstream outputFile(fname);
-		while (!outputFile) {
-	    if ( errno == EINTR ) {
-				CkPrintf("Warning: Interrupted system call opening rigid body output file, retrying.\n");
-				outputFile.clear();
-				outputFile.open(fname);
-				continue;
-	    }
-	    char err_msg[257];
-	    sprintf(err_msg, "Error opening rigid body output file %s",fname);
-	    NAMD_err(err_msg);
-		} 
-		outputFile << "# NAMD rigid body output file" << std::endl;
-		printLegend(outputFile);
-		printData(realstep,outputFile);
-		if (!outputFile) {
-	    char err_msg[257];
-	    sprintf(err_msg, "Error writing rigid body output file %s",fname);
-	    NAMD_err(err_msg);
-		} 
-	}
-
-	//  Close trajectory file
-	if (step == END_OF_RUN) {
-		if ( trajFile.rdbuf()->is_open() ) {
-	    trajFile.close();
-	    iout << "CLOSING RIGID BODY TRAJECTORY FILE\n" << endi;
-		}
-	}
-	*/
 }
 void RigidBodyController::printLegend(std::ofstream &file) {
         file << "#$LABELS step RigidBodyKey"
@@ -661,146 +640,7 @@ void RigidBodyController::printData(int step,std::ofstream &file) {
 		}
 	}
 }
-/*
-void RigidBodyController::integrate(int step) {
-    DebugM(3, "RBC::integrate: step  "<< step << "\n" << endi);
-    
-    DebugM(1, "RBC::integrate: Waiting for grid reduction\n" << endi);
-    gridReduction->require();
-  
-    const Molecule * mol = Node::Object()->molecule;
 
-    // pass reduction force and torque to each grid
-    // DebugM(3, "Summing forces on rigid bodies" << "\n" << endi);
-    for (int i=0; i < mol->rbReductionIdToRigidBody.size(); i++) {
-	Force f;
-	Force t;
-	for (int k = 0; k < 3; k++) {
-	    f[k] = gridReduction->item(6*i + k);
-	    t[k] = gridReduction->item(6*i + k + 3);
-	}
-
-	if (step % 100 == 1)
-	    DebugM(4, "RBC::integrate: reduction/rb " << i <<":"
-		   << "\n\tposition: "
-		   << rigidBodyList[mol->rbReductionIdToRigidBody[i]]->getPosition()
-		   <<"\n\torientation: "
-		   << rigidBodyList[mol->rbReductionIdToRigidBody[i]]->getOrientation()
-		   << "\n" << endi);
-
-	DebugM(4, "RBC::integrate: reduction/rb " << i <<": "
-	       << "force " << f <<": "<< "torque: " << t << "\n" << endi);
-	rigidBodyList[mol->rbReductionIdToRigidBody[i]]->addForce(f);
-	rigidBodyList[mol->rbReductionIdToRigidBody[i]]->addTorque(t);
-    }
-    
-    // Langevin 
-    for (int i=0; i<rigidBodyList.size(); i++) {
-	// continue;  // debug
-	if (rigidBodyList[i]->langevin) {
-	    DebugM(1, "RBC::integrate: reduction/rb " << i
-		   <<": calling langevin" << "\n" << endi);
-	    rigidBodyList[i]->addLangevin(
-		random->gaussian_vector(), random->gaussian_vector() );
-	    // DebugM(4, "RBC::integrate: reduction/rb " << i
-	    // 	   << " after langevin: force " << rigidBodyList[i]f <<": "<< "torque: " << t << "\n" << endi);
-	    // <<": calling langevin" << "\n" << endi);
-	}
-    }
-    
-    if ( step >= 0 && simParams->rigidBodyOutputFrequency &&
-	 (step % simParams->rigidBodyOutputFrequency) == 0 ) {
-	DebugM(1, "RBC::integrate:integrating for before printing output" << "\n" << endi);
-	// PRINT
-	if ( step == simParams->firstTimestep ) {
-	    print(step);
-	    // first step so only start this cycle
-	    for (int i=0; i<rigidBodyList.size(); i++)  {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": starting integration cycle of step "
-		       << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],0);
-	    }
-	} else {
-	    // finish last cycle
-	    // DebugM(1, "RBC::integrate: reduction/rb " << i
-	    // 	   <<": firststep: calling rb->integrate" << "\n" << endi);
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": finishing integration cycle of step "
-		       << step-1 << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],1);
-	    }
-	    print(step);
-	    // start this cycle
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": starting integration cycle of step "
-		       << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],0);
-	    }
-	}
-    } else {
-	DebugM(1, "RBC::integrate: trans[0] before: " << trans[0] << "\n" << endi);
-	if ( step == simParams->firstTimestep ) {
-	    // integrate the start of this cycle
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		       <<": starting integration cycle of (first) step "
-		       << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],0);
-	    }
-	} else {
-	    // integrate end of last ts and start of this one 
-	    for (int i=0; i<rigidBodyList.size(); i++) {
-		DebugM(2, "RBC::integrate: reduction/rb " << i
-		   <<": ending / starting integration cycle of step "
-		   << step-1 << "-" << step << "\n" << endi);
-		rigidBodyList[i]->integrate(&trans[i],&rot[i],2);
-	    }
-	}
-	DebugM(1, "RBC::integrate: trans[0] after: " << trans[0] << "\n" << endi);
-    }
-    
-    DebugM(3, "sendRigidBodyUpdate on step: " << step << "\n" << endi);
-    if (trans.size() != rot.size())
-	NAMD_die("failed sanity check\n");    
-    RigidBodyMsg *msg = new RigidBodyMsg;
-    msg->trans.copy(trans);	// perhaps .swap() would cause problems
-    msg->rot.copy(rot);
-    computeMgr->sendRigidBodyUpdate(msg);
-}
-
-
-RigidBodyParams* RigidBodyParamsList::find_key(const char* key) {
-    RBElem* cur = head;
-    RBElem* found = NULL;
-    RigidBodyParams* result = NULL;
-    
-    while (found == NULL && cur != NULL) {
-       if (!strcasecmp((cur->elem).rigidBodyKey,key)) {
-        found = cur;
-      } else {
-        cur = cur->nxt;
-      }
-    }
-    if (found != NULL) {
-      result = &(found->elem);
-    }
-    return result;
-}
-*/
-
-/* RigidBodyForcePair::RigidBodyForcePair(RigidBodyType* t1, RigidBodyType* t2, */
-/* 																			 RigidBody* rb1, RigidBody* rb2, */
-/* 																			 std::vector<int> gridKeyId1, std::vector<int> gridKeyId2) : */
-/* 	type1(t1), type2(t2), rb1(rb1), rb2(rb2), gridKeyId1(gridKeyId1), gridKeyId2(gridKeyId2) { */
-
-/* 	printf("    Constructing RB force pair...\n"); */
-/* 	allocateMem(); */
-/* 	printf("    Done constructing RB force pair\n"); */
-
-/* } */
 int RigidBodyForcePair::initialize() {
 	printf("    Initializing (memory for) RB force pair...\n");
 
@@ -831,10 +671,6 @@ int RigidBodyForcePair::initialize() {
 	// printf("    Done initializing RB force pair\n");
 	return nextStreamID;
 }
-
-/* RigidBodyForcePair::RigidBodyForcePair(const RigidBodyForcePair& orig ) : */
-	
-/* } */
 
 void RigidBodyForcePair::swap(RigidBodyForcePair& a, RigidBodyForcePair& b) {
 	using std::swap;

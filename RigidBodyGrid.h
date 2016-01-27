@@ -28,7 +28,7 @@ using namespace std;
 
 class ForceEnergy {
 public:
-	DEVICE ForceEnergy(Vector3 f, float e) :
+	DEVICE ForceEnergy(Vector3 &f, float &e) :
 		f(f), e(e) {};
 	Vector3 f;
 	float e;
@@ -36,13 +36,8 @@ public:
 
 class RigidBodyGrid { 
 	friend class SparseGrid;
-private:
-  // Initialize the variables that get used a lot.
-  // Also, allocate the main value array.
-  void init();
-
+	
 public:
-
 	/*                               \
 	| CONSTRUCTORS, DESTRUCTORS, I/O |
 	\===============================*/
@@ -78,9 +73,6 @@ public:
   RigidBodyGrid mult(const RigidBodyGrid& g);
 
   RigidBodyGrid& operator=(const RigidBodyGrid& g);
-
-  // Make a copy of a grid, but at a different resolution.
-  RigidBodyGrid(const RigidBodyGrid& g, int nx0, int ny0, int nz0);
   
 	virtual ~RigidBodyGrid();
 
@@ -98,20 +90,9 @@ public:
 
   virtual float getValue(int ix, int iy, int iz) const;
 
-  // Vector3 getPosition(int ix, int iy, int iz) const;
   HOST DEVICE Vector3 getPosition(int j) const;
 	HOST DEVICE Vector3 getPosition(int j, Matrix3 basis, Vector3 origin) const;
 		
-  /* // Does the point r fall in the grid? */
-  /* // Obviously this is without periodic boundary conditions. */
-  /* bool inGrid(Vector3 r) const; */
-
-  /* bool inGridInterp(Vector3 r) const; */
-
-  /* Vector3 transformTo(Vector3 r) const; */
-
-  /* Vector3 transformFrom(Vector3 l) const; */
-
   IndexList index(int j) const;
   int indexX(int j) const;
   int indexY(int j) const;
@@ -134,81 +115,10 @@ public:
 
   // Multiply the grid by a fixed value.
   void scale(float s);
-
-	/*         \
-	| COMPUTED |
-	\=========*/
 	
-  // Get the mean of the entire grid.
-  float mean() const;
-	
-  // Get the potential at the closest node.
-  /* virtual float getPotential(Vector3 pos) const; */
-
-	DEVICE float interpolatePotentialLinearly(const Vector3& l) const;
 	DEVICE ForceEnergy interpolateForceDLinearly(const Vector3& l) const;
-
-  HOST DEVICE float interpolatePotential(const Vector3& l) const;
-
-  HOST DEVICE inline static int wrap(int i, int n) {
-		if (i < 0) {
-			i %= n;
-			i += n;
-		}
-		// The portion above allows i == n, so no else keyword.
-		if (i >= n) {
-			i %= n;
-		} 
-		return i;
-	}
-
-	/** interpolateForce() to be used on CUDA Device **/
 	DEVICE ForceEnergy interpolateForceD(Vector3 l) const;
-
-  // Wrap coordinate: 0 <= x < l
-  HOST DEVICE inline float wrapFloat(float x, float l) const {
-		int image = int(floor(x/l));
-		x -= image*l;
-		return x;
-  }
   
-  // Wrap distance: -0.5*l <= x < 0.5*l
-  HOST DEVICE static inline float wrapDiff(float x, float l) {
-		int image = int(floor(x/l));
-		x -= image*l;
-		if (x >= 0.5f * l)
-			x -= l;
-		return x;
-  }
-
-  // Wrap vector, 0 <= x < lx  &&  0 <= y < ly  &&  0 <= z < lz
-  HOST DEVICE inline Vector3 wrap(Vector3 l) const {
-    l.x = wrapFloat(l.x, nx);
-    l.y = wrapFloat(l.y, ny);
-    l.z = wrapFloat(l.z, nz);
-    return l;
-  }
-
-  // Wrap vector distance, -0.5*l <= x < 0.5*l  && ...
-  HOST DEVICE inline Vector3 wrapDiff(Vector3 l) const {
-    l.x = wrapDiff(l.x, nx);
-    l.y = wrapDiff(l.y, ny);
-    l.z = wrapDiff(l.z, nz);
-		return l;
-  }
-
-  /* Vector3 wrapDiffNearest(Vector3 r) const; */
-
-  // Includes the home node.
-  // indexBuffer must have a size of at least 27.
-  void getNeighbors(int j, int* indexBuffer) const;
-  
-  // Get the values at the neighbors of a node.
-  // Note that homeX, homeY, and homeZ do not need to be wrapped,
-  // since we do it here.
-  void getNeighborValues(NeighborList* neigh, int homeX, int homeY, int homeZ) const;
-  inline void setVal(float* v) { val = v; }
-	
 public:
   int nx, ny, nz;
   int size;
