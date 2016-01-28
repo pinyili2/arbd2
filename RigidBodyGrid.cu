@@ -178,11 +178,17 @@ float RigidBodyGrid::getValue(int ix, int iy, int iz) const {
 }
 
 Vector3 RigidBodyGrid::getPosition(const int j) const {
-	const int iz = j%nz;
-	const int iy = (j/nz)%ny;
-	const int ix = j/(nz*ny);
+	/* const int iz = j%nz; */
+	/* const int iy = (j/nz)%ny; */
+	/* const int ix = j/(nz*ny); */
+	const int jy = j/nz;
+	const int jx = jy/ny;
 
-	return Vector3(ix,iy,iz);
+	const int iz = j - jy*nz;
+	const int iy = jy - jx*ny;
+	// const int ix = jx;
+
+	return Vector3(jx,iy,iz);
 }
 
 Vector3 RigidBodyGrid::getPosition(int j, Matrix3 basis, Vector3 origin) const {

@@ -34,7 +34,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	/* Vector3 tmpf  = Vector3(0.0f); */
 	/* float tmpe = 0.0f; */
 	/* const ForceEnergy fe = ForceEnergy( tmpf, tmpe); */
-	const ForceEnergy fe = u->interpolateForceD( u_ijk_float ); /* in coord frame of u */
+	const ForceEnergy fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
 	force[tid] = fe.f;
 
 	const float r_val = rho->val[r_id]; /* maybe move to beginning of function?  */
