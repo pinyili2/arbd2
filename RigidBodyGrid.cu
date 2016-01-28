@@ -323,7 +323,7 @@ DEVICE ForceEnergy RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) co
 		}
 		// Mix along y.
 		g3[0][iz] = wy * (g2[0][1] - g2[0][0]) + g2[0][0];
-		g3[1][iz] = (g2[1][1] - g2[1][0]) + g2[1][0];
+		g3[1][iz] = (g2[1][1] - g2[1][0]);
 		g3[2][iz] = wy * (g2[1][1] - g2[1][0]) + g2[1][0];
 	}
 	// Mix along z.

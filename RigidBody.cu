@@ -99,11 +99,11 @@ void RigidBody::integrate(int startFinishAll) {
 	if (startFinishAll == 0 || startFinishAll == 1) {
 		// propogate momenta by half step
 		momentum += 0.5 * timestep * force * impulse_to_momentum;
-		angularMomentum += 0.5 * timestep * torque * impulse_to_momentum;
+		angularMomentum += 0.5 * timestep * orientation.transpose()*torque * impulse_to_momentum;
 	} else {
 		// propogate momenta by a full timestep
 		momentum += timestep * force * impulse_to_momentum;
-		angularMomentum += timestep * torque * impulse_to_momentum;
+		angularMomentum += timestep * orientation.transpose()*torque * impulse_to_momentum;
 	}
 
 	DebugM(3, "  position before: " << position << "\n" << endi);
