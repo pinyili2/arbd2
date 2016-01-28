@@ -6,7 +6,7 @@
 #include <cuda_runtime.h>
 
 // #define NUMTHREADS 128					/* try with 64, every 32+ */
-#define NUMTHREADS 64
+#define NUMTHREADS 96
 #define NUMSTREAMS 8
 
 class Configuration;
@@ -46,8 +46,6 @@ private:
 	
 	static const int numThreads = NUMTHREADS;
 	
-	bool isPmf;
-	
 	RigidBodyType* type1;
 	RigidBodyType* type2;
 	RigidBody* rb1;
@@ -56,6 +54,8 @@ private:
 	std::vector<int> gridKeyId1;
 	std::vector<int> gridKeyId2;
 	std::vector<int> numBlocks;
+
+	bool isPmf;
 	
 	std::vector<Vector3*> forces;
 	std::vector<Vector3*> forces_d;

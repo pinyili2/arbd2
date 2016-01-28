@@ -35,8 +35,8 @@ public:
 RigidBodyType(const String& name = "") :
 	name(name), num(0),
 	reservoir(NULL), mass(1.0f), inertia(), transDamping(),
-	rotDamping(), numPotGrids(0), numDenGrids(0), numPmfs(0),
-	initPos(), initRot(Matrix3(1.0f))  { }
+	rotDamping(), initPos(), initRot(Matrix3(1.0f)),
+	numPotGrids(0), numDenGrids(0), numPmfs(0) { }
 	
 	/* RigidBodyType(const RigidBodyType& src) { copy(src); } */
 	~RigidBodyType() { clear(); }
