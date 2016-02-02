@@ -10,6 +10,8 @@
 #include "RigidBodyType.h"
 #include "ComputeGridGrid.cuh"
 
+#include <cuda_profiler_api.h>
+
 // #include <vector>
 #include "Debug.h"
 
@@ -157,6 +159,12 @@ void RigidBodyController::initializeForcePairs() {
 			}
 		}
 	}
+
+	// Initialize device data for RB force pairs after std::vector is done growing
+	for (int i = 0; i < forcePairs.size(); i++)
+		forcePairs[i].initialize();
+		
+	
 }
 	
 void RigidBodyController::updateForces(int s) {
@@ -194,8 +202,9 @@ void RigidBodyController::updateForces(int s) {
 		forcePairs[i].retrieveForces();
 
 	// RBTODO: see if there is a better way to sync
-	gpuErrchk(cudaDeviceSynchronize());
-
+	// gpuErrchk(cudaDeviceSynchronize());
+	
+	
 	/*/ debug
 	if (s %10 == 0) {
 		int tmp = 0;
@@ -271,9 +280,11 @@ void RigidBodyController::integrate(int step) {
 
 // allocate and initialize an array of stream handles
 cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
+bool *RigidBodyForcePair::isStreamLaunched = (bool *) malloc(NUMSTREAMS * sizeof(bool));
 // new cudaStream_t[NUMSTREAMS];
 int RigidBodyForcePair::nextStreamID = 0;
 void RigidBodyForcePair::createStreams() {
+	gpuErrchk( cudaProfilerStart() );
 	for (int i = 0; i < NUMSTREAMS; i++)
 		gpuErrchk( cudaStreamCreate( &(stream[i]) ) );
 		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
@@ -315,7 +326,12 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		const int nb = numBlocks[i];
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
-		const cudaStream_t &s = stream[streamID[i]];
+		const int sid = streamID[i];
+		const cudaStream_t &s = stream[sid];
+
+		if (isStreamLaunched[sid])
+			retrieveForcesForGrid(i);
+			
 		/*
 			ijk: index of grid value
 			r: postion of point ijk in real space
@@ -337,6 +353,7 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		
 		Matrix3 B2 = getBasis2(i).inverse();
 
+		
 		// RBTODO: get energy
 		if (!isPmf) {								/* pair of RBs */
 			computeGridGridForce<<< nb, numThreads, NUMTHREADS*2*sizeof(Vector3), s >>>
@@ -349,19 +366,39 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 				 B1, B2, c,
 				 forces_d[i], torques_d[i]);
 		}
+		isStreamLaunched[sid] = true;
+
+		/* gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb, */
+		/* 													cudaMemcpyDeviceToHost, s)); */
+		/* gpuErrchk(cudaMemcpyAsync(torques[i], torques_d[i], sizeof(Vector3)*nb, */
+		/* 													cudaMemcpyDeviceToHost, s)); */
+
 	}
 }
+void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
+	// i: grid ID (less than numGrids)
+	const int sid = streamID[i];
+	const cudaStream_t &s = stream[sid];
+	const int nb = numBlocks[i];
 
+	gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb,
+														cudaMemcpyDeviceToHost, s));
+	gpuErrchk(cudaMemcpyAsync(torques[i], torques_d[i], sizeof(Vector3)*nb,
+														cudaMemcpyDeviceToHost, s));
+  //gpuErrchk(cudaStreamSynchronize( s ));
+	
+}
 void RigidBodyForcePair::retrieveForces() {
 	// sum forces + torques
 	const int numGrids = gridKeyId1.size();
 	Vector3 f = Vector3(0.0f);
 	Vector3 t = Vector3(0.0f);
 
-	// RBTODO better way to sync?
 	for (int i = 0; i < numGrids; i++) {
-		const cudaStream_t &s = stream[streamID[i]];
+		const int sid = streamID[i];
+		const cudaStream_t &s = stream[sid];
 		const int nb = numBlocks[i];
+		isStreamLaunched[sid] = false;
 
 		gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb,
 															cudaMemcpyDeviceToHost, s));
@@ -642,7 +679,7 @@ void RigidBodyController::printData(int step,std::ofstream &file) {
 }
 
 int RigidBodyForcePair::initialize() {
-	printf("    Initializing (memory for) RB force pair...\n");
+	printf("    Initializing (streams for) RB force pair...\n");
 
 	const int numGrids = gridKeyId1.size();
 	// RBTODO assert gridKeysIds are same size 
@@ -700,17 +737,19 @@ RigidBodyForcePair::~RigidBodyForcePair() {
 	// RBTODO assert gridKeysIds are same size 
 
 	// allocate memory for forces/torques
-	for (int i = 0; i < numGrids; i++) {
-		const int k1 = gridKeyId1[i];
-		const int nb = numBlocks[i];
+	if (streamID.size() > 0) {
+		for (int i = 0; i < numGrids; i++) {
+			const int k1 = gridKeyId1[i];
+			const int nb = numBlocks[i];
 
-		// free device memory for numBlocks of torque, etc.
-		// printf("      Freeing device memory for forces/torques\n");
-		gpuErrchk(cudaFree( forces_d[i] ));	
-		gpuErrchk(cudaFree( torques_d[i] ));
+			// free device memory for numBlocks of torque, etc.
+			// printf("      Freeing device memory for forces/torques\n");
+			gpuErrchk(cudaFree( forces_d[i] ));	
+			gpuErrchk(cudaFree( torques_d[i] ));
+		}
+		gpuErrchk(cudaDeviceSynchronize());
 	}
-	gpuErrchk(cudaDeviceSynchronize());
-	
+	streamID.clear();
 	numBlocks.clear();
 	forces.clear();
 	forces_d.clear();

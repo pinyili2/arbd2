@@ -23,14 +23,14 @@ public:
 		gridKeyId1(gridKeyId1), gridKeyId2(gridKeyId2), isPmf(isPmf)
 		{
 			printf("    Constructing RB force pair...\n");
-			initialize();
+			/* initialize(); */
 			// printf("    done constructing RB force pair\n");
 		}
 	RigidBodyForcePair(const RigidBodyForcePair& o) :
 		type1(o.type1), type2(o.type2), rb1(o.rb1), rb2(o.rb2),
 		gridKeyId1(o.gridKeyId1), gridKeyId2(o.gridKeyId2), isPmf(o.isPmf) {
 		printf("    Copying RB force pair...\n");
-		initialize();
+		/* initialize(); */
 	}
 	RigidBodyForcePair& operator=(RigidBodyForcePair& o) {
 		printf("    Copying assigning RB force pair...\n");
@@ -65,8 +65,11 @@ private:
 	static int nextStreamID; 
 	std::vector<int> streamID;
 	static cudaStream_t* stream;
+	static bool* isStreamLaunched;
 	static void createStreams();
+
 	void callGridForceKernel(int pairId, int s);
+	void retrieveForcesForGrid(const int i);
 	void retrieveForces();
 	Matrix3 getBasis1(const int i);
 	Matrix3 getBasis2(const int i);
