@@ -65,17 +65,15 @@ private:
 	static int nextStreamID; 
 	std::vector<int> streamID;
 	static cudaStream_t* stream;
-	static bool* isStreamLaunched;
 	static void createStreams();
 
 	static int lastStreamID;
-	static RigidBodyForcePair* lastRigidBodyForcePair;
-	static int lastRigidBodyGridID;
+	static RigidBodyForcePair* lastRbForcePair;
+	static int lastRbGridID;
 
 	void callGridForceKernel(int pairId, int s);
 	void retrieveForcesForGrid(const int i);
-	void retrieveForces();
-	void processForces();
+	void processGPUForces();
 	Matrix3 getBasis1(const int i);
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
