@@ -163,8 +163,7 @@ void RigidBodyController::initializeForcePairs() {
 	// Initialize device data for RB force pairs after std::vector is done growing
 	for (int i = 0; i < forcePairs.size(); i++)
 		forcePairs[i].initialize();
-		
-	
+			
 }
 	
 void RigidBodyController::updateForces(int s) {
@@ -198,8 +197,14 @@ void RigidBodyController::updateForces(int s) {
 	for (int i=0; i < forcePairs.size(); i++)
 		forcePairs[i].callGridForceKernel(i,s);
 
+	/* for (int i=0; i < forcePairs.size(); i++) */
+	/* 	forcePairs[i].retrieveForces(); */
+	RigidBodyForcePair::lastRigidBodyForcePair->retrieveForcesForGrid(
+		RigidBodyForcePair::lastRigidBodyGridID);
+	RigidBodyForcePair::lastRigidBodyGridID = -1;
+	
 	for (int i=0; i < forcePairs.size(); i++)
-		forcePairs[i].retrieveForces();
+		forcePairs[i].processForces();
 
 	// RBTODO: see if there is a better way to sync
 	// gpuErrchk(cudaDeviceSynchronize());
@@ -282,7 +287,9 @@ void RigidBodyController::integrate(int step) {
 cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
 bool *RigidBodyForcePair::isStreamLaunched = (bool *) malloc(NUMSTREAMS * sizeof(bool));
 // new cudaStream_t[NUMSTREAMS];
-int RigidBodyForcePair::nextStreamID = 0;
+int RigidBodyForcePair::nextStreamID = 0;	 /* used during stream init */
+int RigidBodyForcePair::lastRigidBodyGridID = -1; /* used to schedule kernel interaction */
+RigidBodyForcePair* RigidBodyForcePair::lastRigidBodyForcePair = NULL;
 void RigidBodyForcePair::createStreams() {
 	gpuErrchk( cudaProfilerStart() );
 	for (int i = 0; i < NUMSTREAMS; i++)
@@ -329,8 +336,8 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		const int sid = streamID[i];
 		const cudaStream_t &s = stream[sid];
 
-		if (isStreamLaunched[sid])
-			retrieveForcesForGrid(i);
+		/* if (isStreamLaunched[sid]) */
+		/* 	retrieveForcesForGrid(i); */
 			
 		/*
 			ijk: index of grid value
@@ -366,7 +373,13 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 				 B1, B2, c,
 				 forces_d[i], torques_d[i]);
 		}
-		isStreamLaunched[sid] = true;
+
+		if (lastRigidBodyGridID >= 0)
+			lastRigidBodyForcePair->retrieveForcesForGrid(lastRigidBodyGridID);
+		lastRigidBodyForcePair = this;
+		lastRigidBodyGridID = i;
+
+		/* isStreamLaunched[sid] = true; */
 
 		/* gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb, */
 		/* 													cudaMemcpyDeviceToHost, s)); */
@@ -394,16 +407,31 @@ void RigidBodyForcePair::retrieveForces() {
 	Vector3 f = Vector3(0.0f);
 	Vector3 t = Vector3(0.0f);
 
+	for (int i = 0; i < numGrids; i++)
+		retrieveForcesForGrid(i);
+/*  { */
+	/* 	const int sid = streamID[i]; */
+	/* 	const cudaStream_t &s = stream[sid]; */
+	/* 	const int nb = numBlocks[i]; */
+	/* 	isStreamLaunched[sid] = false; */
+
+	/* 	gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb, */
+	/* 														cudaMemcpyDeviceToHost, s)); */
+	/* 	gpuErrchk(cudaMemcpyAsync(torques[i], torques_d[i], sizeof(Vector3)*nb, */
+	/* 														cudaMemcpyDeviceToHost, s)); */
+	/* } */
+}
+void RigidBodyForcePair::processForces() {
+	
+	const int numGrids = gridKeyId1.size();
+	Vector3 f = Vector3(0.0f);
+	Vector3 t = Vector3(0.0f);
+
 	for (int i = 0; i < numGrids; i++) {
 		const int sid = streamID[i];
 		const cudaStream_t &s = stream[sid];
 		const int nb = numBlocks[i];
 		isStreamLaunched[sid] = false;
-
-		gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb,
-															cudaMemcpyDeviceToHost, s));
-		gpuErrchk(cudaMemcpyAsync(torques[i], torques_d[i], sizeof(Vector3)*nb,
-															cudaMemcpyDeviceToHost, s));
 
 		gpuErrchk(cudaStreamSynchronize( s ));
 

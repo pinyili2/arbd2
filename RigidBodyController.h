@@ -68,9 +68,14 @@ private:
 	static bool* isStreamLaunched;
 	static void createStreams();
 
+	static int lastStreamID;
+	static RigidBodyForcePair* lastRigidBodyForcePair;
+	static int lastRigidBodyGridID;
+
 	void callGridForceKernel(int pairId, int s);
 	void retrieveForcesForGrid(const int i);
 	void retrieveForces();
+	void processForces();
 	Matrix3 getBasis1(const int i);
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
