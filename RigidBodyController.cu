@@ -167,24 +167,10 @@ void RigidBodyController::initializeForcePairs() {
 }
 	
 void RigidBodyController::updateForces(int s) {
-	/*––{ RBTODO }–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
-	| probably coalesce kernel calls, or move this to a device kernel caller   |
-	|                                                                          |
-	| - consider removing references (unless they are optimized out!) ---      |
-	| - caclulate numthreads && numblocks                                      |
-	|                                                                          |
-	| all threads in a block should: ----------------------------------------  |
-	|   (1) apply the same transformations to get the data point position in a |
-	|   destination grid ----------------------------------------------------- |
-	|   (2) reduce forces and torques to the same location ------------------- |
-	|   (3) ???  ------------------------------------------------------------- |
-	|                                                                          |
-	| Opportunities for memory bandwidth savings:                              |
-	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
-	// int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
-	// int numBlocks = 1;
-	/* int numThreads = 256; */
+	if (s <= 1)
+		gpuErrchk( cudaProfilerStart() );
 
+	
 	// clear old forces
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
@@ -202,11 +188,12 @@ void RigidBodyController::updateForces(int s) {
 	fp->retrieveForcesForGrid( fp->lastRbGridID );
 	fp->lastRbGridID = -1;
 
-	// sync streams
-	for (int i = 0; i < NUMSTREAMS; i++) {
-		const cudaStream_t &s = fp->stream[i];
-		gpuErrchk(cudaStreamSynchronize( s )); 
-	}
+	// stream sync was slower than device sync
+	/* for (int i = 0; i < NUMSTREAMS; i++) { */
+	/* 	const cudaStream_t &s = RigidBodyForcePair::stream[i]; */
+	/* 	gpuErrchk(cudaStreamSynchronize( s ));  */
+	/* } */
+	gpuErrchk(cudaDeviceSynchronize());
 	
 	for (int i=0; i < forcePairs.size(); i++)
 		forcePairs[i].processGPUForces();
@@ -277,7 +264,6 @@ int RigidBodyForcePair::lastRbGridID = -1; /* used to schedule kernel interactio
 RigidBodyForcePair* RigidBodyForcePair::lastRbForcePair = NULL;
 
 void RigidBodyForcePair::createStreams() {
-	gpuErrchk( cudaProfilerStart() );
 	for (int i = 0; i < NUMSTREAMS; i++)
 		gpuErrchk( cudaStreamCreate( &(stream[i]) ) );
 		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
@@ -355,7 +341,8 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 				 B1, B2, c,
 				 forces_d[i], torques_d[i]);
 		}
-
+		// retrieveForcesForGrid(i); // this is slower than approach below, unsure why
+		
 		if (lastRbGridID >= 0)
 			lastRbForcePair->retrieveForcesForGrid(lastRbGridID);
 		lastRbForcePair = this;
