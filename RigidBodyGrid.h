@@ -26,13 +26,13 @@ using namespace std;
 
 #define STRLEN 512
 
-class ForceEnergy {
-public:
-	DEVICE ForceEnergy(Vector3 &f, float &e) :
-		f(f), e(e) {};
-	Vector3 f;
-	float e;
-};
+/* class ForceEnergy { */
+/* public: */
+/* 	DEVICE ForceEnergy(Vector3 &f, float &e) : */
+/* 		f(f), e(e) {}; */
+/* 	Vector3 f; */
+/* 	float e; */
+/* }; */
 
 class RigidBodyGrid { 
 	friend class SparseGrid;

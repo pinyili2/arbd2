@@ -8,6 +8,14 @@
 #include "BaseGrid.h"
 #include "useful.h"
 
+#ifdef __CUDACC__
+    #define HOST __host__
+    #define DEVICE __device__
+#else
+    #define HOST 
+    #define DEVICE 
+#endif
+
 class OverlordGrid : public BaseGrid {
 public:
   OverlordGrid(const BaseGrid& grid) : BaseGrid(grid) {
@@ -222,7 +230,7 @@ public:
     return subgrid[j]->getPotential(r);
   }
 
-  virtual float interpolatePotential(Vector3 pos) const {
+  DEVICE virtual float interpolatePotential(Vector3 pos) const {
     // Find the nearest node.
     int j = nearestIndex(pos);
     
@@ -235,7 +243,7 @@ public:
     return subgrid[j]->interpolatePotential(r);
   }
 
-  virtual float interpolatePotentialLinearly(Vector3 pos) const {
+  DEVICE virtual float interpolatePotentialLinearly(Vector3 pos) const {
     // Find the nearest node.
     int j = nearestIndex(pos);
     

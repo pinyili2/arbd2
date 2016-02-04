@@ -33,65 +33,21 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 		// Compute external force
 		Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
-		BaseGrid* pmf = pt.pmf;
-
-		// Find the home node.
-		Vector3 l = pmf->getInverseBasis().transform(p - pmf->getOrigin());
-		int homeX = int(floorf(l.x));
-		int homeY = int(floorf(l.y));
-		int homeZ = int(floorf(l.z));
-
-		// Shift the indices in the grid dimensions.
-		int gX = pmf->getNx();
-		int gY = pmf->getNy();
-		int gZ = pmf->getNz();
-
-		// Get the interpolation coordinates.
-		float w[3];
-		w[0] = l.x - homeX;
-		w[1] = l.y - homeY;
-		w[2] = l.z - homeZ;
-
-		// Find the values at the neighbors.
-		float g1[4][4][4];
-		for (int ix = 0; ix < 4; ix++) {
-			int jx = ix-1 + homeX;
-			jx = pmf->wrap(jx, gX);
-
-			for (int iy = 0; iy < 4; iy++) {
-				int jy = iy-1 + homeY;
-				jy = pmf->wrap(jy, gY);
-
-				for (int iz = 0; iz < 4; iz++) {
-					int jz = iz-1 + homeZ;
-					jz = pmf->wrap(jz, gZ);
-					// Wrap around the periodic boundaries.
-					int ind = jz + jy*gZ + jx*gZ*gY;
-					g1[ix][iy][iz] = pmf->val[ind];
-				}
-			}
-		}
-
-		// Interpolate this particle's change in X, Y, and Z axes
-		Vector3 f;
-		f.x = pmf->interpolateDiffX(p, w, g1);
-		f.y = pmf->interpolateDiffY(p, w, g1);
-		f.z = pmf->interpolateDiffZ(p, w, g1);
-		Vector3 forceGrid = pmf->getInverseBasis().transpose().transform(f);
-
+		// Compute PMF
+		ForceEnergy fe = pt.pmf->interpolateForceD(p);
 
 #ifndef FORCEGRIDOFF
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
-		if (pt.forceXGrid != NULL) forceGrid.x += pt.forceXGrid->interpolatePotential(p);
-		if (pt.forceYGrid != NULL) forceGrid.y += pt.forceYGrid->interpolatePotential(p);
-		if (pt.forceZGrid != NULL) forceGrid.z += pt.forceZGrid->interpolatePotential(p);
+		if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(p);
+		if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(p);
+		if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(p);		
 #endif
 
 		// Compute total force:
 		//	  Internal:  interaction between particles
 		//	  External:  electric field (now this is basically a constant vector)
 		//	  forceGrid: ADD force due to PMF or other potentials defined in 3D space
-		Vector3 force = forceInternal[idx] + forceExternal + forceGrid;
+		Vector3 force = forceInternal[idx] + forceExternal + fe.f;
 
 		if (idx == 0)
 			forceInternal[idx] = force; // write it back out for force0 in run()
@@ -104,7 +60,7 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 			p = step(p, kTlocal, force, pt.diffusion, timestep, sys, randoGen, num);
 		} else {
 			float diffusion = pt.diffusionGrid->interpolatePotential(p);
-			Vector3 diffGrad = pt.diffusionGrid->interpolateForceD(p);
+			Vector3 diffGrad = (pt.diffusionGrid->interpolateForceD(p)).f;
 			p = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
 		}
 	}
