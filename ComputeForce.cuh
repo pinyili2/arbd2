@@ -294,7 +294,7 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	if (i < num * numReplicas) {
 		const int repID = i / num;
 
-		// BONDS
+		// BONDS: RBTODO: handle through an independent kernel call
 		/* Each particle may have a varying number of bonds
 		 * bondMap is an array with one element for each particle
 		 * which keeps track of where a particle's bonds are stored
@@ -305,36 +305,37 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 
 		// Initialize bond_start and bond_end to -1
 		// If these are not changed later, then we know this particle does not have any bonds
-		int bond_start = -1;
-		int bond_end = -1;
+		/* int bond_start = -1; */
+		/* int bond_end = -1; */
 
-		// Get bond_start and bond_end from the bondMap
-		if (bondMap != NULL) {
-			bond_start = bondMap[i - repID * num].x;
-			bond_end = bondMap[i - repID * num].y;
-		}
+		/* // Get bond_start and bond_end from the bondMap */
+		/* if (bondMap != NULL) { */
+		/* 	bond_start = bondMap[i - repID * num].x; */
+		/* 	bond_end = bondMap[i - repID * num].y; */
+		/* } */
 
-		// currBond is the index in the bonds array that we should look at next
-		// currBond is initialized to bond_start because that is the first index of the
-		// bonds array where this particle's bonds are stored
-		int currBond = bond_start;
+		/* // currBond is the index in the bonds array that we should look at next */
+		/* // currBond is initialized to bond_start because that is the first index of the */
+		/* // bonds array where this particle's bonds are stored */
+		/* int currBond = bond_start; */
 
-		// nextBond is the ID number of the next particle that this particle is bonded to
-		// If this particle has at least one bond, then nextBond is initialized to be the
-	 	// first particle that this particle is bonded to
-		int nextBond = (bond_start >= 0) ? bonds[bond_start].ind2 : -1;
+		/* // nextBond is the ID number of the next particle that this particle is bonded to */
+		/* // If this particle has at least one bond, then nextBond is initialized to be the */
+	 	/* // first particle that this particle is bonded to */
+		/* int nextBond = (bond_start >= 0) ? bonds[bond_start].ind2 : -1; */
 
-
-		// Exclusions
-		// Same as for bonds, but for exclusions now
-		int ex_start = -1;
-		int ex_end = -1;
-		if (excludeMap != NULL) {
-			ex_start = excludeMap[i].x;
-			ex_end = excludeMap[i].y;
-		}
-		int currEx = ex_start;
-		int nextEx = (ex_start >= 0) ? excludes[ex_start].ind2 : -1;
+		
+		// RBTODO: handle exclusions in other kernel call
+		
+		/* // Same as for bonds, but for exclusions now */
+		/* int ex_start = -1; */
+		/* int ex_end = -1; */
+		/* if (excludeMap != NULL) { */
+		/* 	ex_start = excludeMap[i].x; */
+		/* 	ex_end = excludeMap[i].y; */
+		/* } */
+		/* int currEx = ex_start; */
+		/* int nextEx = (ex_start >= 0) ? excludes[ex_start].ind2 : -1; */
 
 		// Particle's type and position
     int typei = type[i];
@@ -375,35 +376,35 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 
 						// First, calculate the force based on the tabulatedPotential file
 						EnergyForce ft(0.0f, Vector3(0.0f));
-						bool exclude = (nextEx == j);
-						if (exclude)
-							nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
+						/* bool exclude = (nextEx == j); */
+						/* if (exclude) */
+						/* 	nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1; */
 
-						if (tablePot[ind] != NULL && !exclude && dr.length2() <= cutoff2)
+						if (tablePot[ind] != NULL && dr.length2() <= cutoff2)
 								ft = tablePot[ind]->compute(dr);
 
-						// If the next bond we want is the same as j, then there is a bond
-						// between particles i and j.
-						if (nextBond == j && tableBond != NULL) {
+						/* // If the next bond we want is the same as j, then there is a bond */
+						/* // between particles i and j. */
+						/* if (nextBond == j && tableBond != NULL) { */
 
-							// Calculate the force on the particle from the bond
-							// If the user has specified the REPLACE option for this bond,
-							// then overwrite the force we calculated from the regular
-							// tabulated potential
-							// If the user has specified the ADD option, then add the bond
-							// force to the tabulated potential value
-							EnergyForce bond_ef =
-									tableBond[ bonds[currBond].tabFileIndex ]->compute(dr);
-							switch (bonds[currBond].flag) {
-								case Bond::REPLACE: ft = bond_ef; break;
-								case Bond::ADD: ft += bond_ef; break;
-								default: break;
-							}
+						/* 	// Calculate the force on the particle from the bond */
+						/* 	// If the user has specified the REPLACE option for this bond, */
+						/* 	// then overwrite the force we calculated from the regular */
+						/* 	// tabulated potential */
+						/* 	// If the user has specified the ADD option, then add the bond */
+						/* 	// force to the tabulated potential value */
+						/* 	EnergyForce bond_ef = */
+						/* 			tableBond[ bonds[currBond].tabFileIndex ]->compute(dr); */
+						/* 	switch (bonds[currBond].flag) { */
+						/* 		case Bond::REPLACE: ft = bond_ef; break; */
+						/* 		case Bond::ADD: ft += bond_ef; break; */
+						/* 		default: break; */
+						/* 	} */
 
-							// Increment currBond, so that we can find the index of the
-							// next particle that this particle is bonded to.
-							nextBond = (currBond < bond_end - 1) ? bonds[++currBond].ind2 : -1;
-						}
+						/* 	// Increment currBond, so that we can find the index of the */
+						/* 	// next particle that this particle is bonded to. */
+						/* 	nextBond = (currBond < bond_end - 1) ? bonds[++currBond].ind2 : -1; */
+						/* } */
 						force_local += ft.f;
 						if (get_energy && j > i)
 							energy_local += ft.e;

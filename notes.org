@@ -1,73 +1,19 @@
-* TODO active
-** fix ComputeGridGrid.cuh to include transformation of pmf/potential grids?
 
+
+
+
+* TODO active
 
 * TODO eventually
-** periodic boundaries?
-** read restart file
-** throw exception if an RB type uses a grid key multiple times
-** improve efficiency of force evaluation kernel
-** each RB gets temperature from grid
-** optionally don't eval forces every ts
-
-* DONE
-** branch rb-device: have RBType objects hold device pointers for raw RigidBodyGrids
-** make rigid body object device pointer
-** multiple "PMF" grids associated with each RB type
-
+** 
+** RB periodic boundaries?
+** RB read restart file
+** RB throw exception if an RB type uses a grid key multiple times
+** RB each RB gets temperature from grid
+** RB optionally don't eval forces every ts
 
 * organization
 ** RgidBodyController (RBC) holds device pointers, manages force evaluation and integration
-
-
-
-* Opportunities for memory bandwidth savings
-** each block should (ideally) contain a compact set of density grid points
- cache (automatically!?) potential grid lookups and coefficients! 
-** each block should have same transformation matrices applied to each grid point?!
-** each block could have same inverse transformation matrix applied to each grid point
-*** how well this peforms will depend on the number 
-*** but also simplifies reductions
-
-** new data structure for grids?
- each grid contains blocks of data of a size optmized for the device 
-** Each thread can operate on multiple data points if needed (any advantage?)
-
-
-
-* questions
-** Q: overhead of dynamic parallelism?
-Where does it make sense to have a kernel call subkernels?
-			A: At least: to sychronize blocks
-
-** Q: overhead for classes?
-** Q: could algorithm use shared memory through persistent threads?
-	 
-	 
-
-* bring in rigid body integrator
-
-* optimize algorithms for cuda (balance floating point calculation with memory transfers)
-** share pieces of memory that are used repeatedly
-
-** RigidBodyGrid: methods pulled from BaseGrid, but transforms passed to functions 
-**** no wrapping
-
-** where exactly to parallelize:
-	 Easy to break calculation for density grid, but each thread needs to perform
-	 it's own lookup of potential grid; only O(10) values per thread
-	 
-	 neighboring density grid points will need to lookup similar region of potential grid
-	 						 BUT the regions could be difficult to determine a priori
-							 
-	
-		
-	 possible to move potential grid data into shared memory tiles
-	 	 e.g. blocks of 10x10x10
-     this will be more important for global memory 
-	Better to use cudaCache?
-	 
-	 
 
 
 * pairlists for rigid bodies 
