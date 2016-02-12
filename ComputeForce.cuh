@@ -197,14 +197,23 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 
 
 // RBTODO: remove global device variables for fast prototyping of pairlist kernel
-__device__ int g_numPairs = 0;
+// #define MAXPAIRS 25500*25500 // (num/numReplicas) * ((num/numReplicas)-1);
+__device__ int g_numPairs;
 __device__ int* g_pairI;
 __device__ int* g_pairJ;
 
 __global__
+void clearPairlists(Vector3 pos[], int num, int numReplicas,
+										 BaseGrid* sys, CellDecomposition* decomp) {
+	const int tid = threadIdx.x;
+	const int ai = blockIdx.x * blockDim.x + threadIdx.x;
+
+}
+
+__global__
 void createPairlists(Vector3 pos[], int num, int numReplicas,
 										 BaseGrid* sys, CellDecomposition* decomp) {
-	  // Loop over threads searching for atom pairs
+	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
   //   A sync operation periodically moves data from shared to global
 	const int NUMTHREADS = 32;		/* RBTODO: fix */
@@ -212,14 +221,18 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 	const int tid = threadIdx.x;
 	const int ai = blockIdx.x * blockDim.x + threadIdx.x;
 
-	if (tid == 0) g_numPairs = 0;	/* RBTODO: be more efficient */
-	__syncthreads(); 
-	
-	int numPairs = g_numPairs; 
-
-	const int MAXPAIRSPERTHREAD = 256; /* RBTODO Hard limit likely too low */
-	int pairI[MAXPAIRSPERTHREAD];
-	int pairJ[MAXPAIRSPERTHREAD];
+	// int numPairs = g_numPairs; 
+	if (ai == 0) {
+		g_numPairs = 0;	/* RBTODO: be more efficient */
+		// RBTODO: free later, do this elsewhere
+		// const int maxPairs = (num/numReplicas) * ((num/numReplicas)-1) / 1000;
+		const int maxPairs = 1e5;
+		g_pairI = (int*) malloc( maxPairs * sizeof(int));
+		g_pairJ = (int*) malloc( maxPairs * sizeof(int));
+		assert( g_pairI != NULL );
+		assert( g_pairJ != NULL );
+	}
+	__syncthreads();
 	int pid = 0;
 	
 	// ai - index of the particle in the original, unsorted array
@@ -237,37 +250,57 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 		for (int x = -1; x <= 1; ++x) {
 			for (int y = -1; y <= 1; ++y) {
 				for (int z = -1; z <= 1; ++z) {					
-					if (x+y+z != -3) { // SYNC THREADS
-						__syncthreads();				
-						assert(pid < MAXPAIRSPERTHREAD);
-
-						// find where each thread should put its pairs in global list
-						spid[tid] = pid;
-						exclIntCumSum(spid,NUMTHREADS); // returns cumsum with spid[0] = 0
-
-						for (int d = 0; d < pid; d++) {
-							g_pairI[g_numPairs + d + spid[tid]] = pairI[d];
-							g_pairJ[g_numPairs + d + spid[tid]] = pairJ[d];
-						}
-						// update global index
-						__syncthreads();
-						if (tid == NUMTHREADS) g_numPairs += spid[tid] + pid;
-						pid = 0;
-					} // END SYNC THREADS 
 	
+					int n = 0;
+					int last = -1;
 					const int nID = decomp->getNeighborID(celli, x, y, z);				
-					if (nID < 0) continue; // Skip if got wrong or duplicate cell.
-					const CellDecomposition::range_t range = decomp->getRange(nID, repID);
+					if (nID >= 0) { // set range for valid cells
+						const CellDecomposition::range_t range = decomp->getRange(nID, repID);
+						n = range.first;
+						last = range.last;
+					}
 					
-					for (int n = range.first; n < range.last; n++) {
-						const int aj = pairs[n].particle;
+					// go through possible pairs 32 at a time per thread
+					const int MAXPAIRSPERTHREAD = 32;
+					int pairI[MAXPAIRSPERTHREAD];
+					int pairJ[MAXPAIRSPERTHREAD];
 
-						// RBTODO: skip exclusions
-						if (aj <= ai) continue;
+					bool findingPairs = true;
+					while (findingPairs) {
+						// if (tid == 0)
+						// printf("Working to find pairlist: numPairs = %d\n", g_numPairs);
+								
+						for (int dn = 0; dn < MAXPAIRSPERTHREAD; dn++) {
+							if ( n + dn >= last ) continue;
 
-						pairI[pid] = ai;
-						pairJ[pid] = aj;
-						pid++;							/* RBTODO synchronize across threads somehow */
+							const int aj = pairs[n+dn].particle;
+							// RBTODO: skip exclusions
+							if (aj <= ai) continue;
+							
+							pairI[pid] = ai;
+							pairJ[pid] = aj;
+							pid++;
+						}
+						n += MAXPAIRSPERTHREAD;
+						findingPairs = __all( n < last );
+						
+						{ // SYNC THREADS
+							__syncthreads();				
+							assert(pid <= MAXPAIRSPERTHREAD);
+
+							// find where each thread should put its pairs in global list
+							spid[tid] = pid;
+							exclIntCumSum(spid,NUMTHREADS); // returns cumsum with spid[0] = 0
+
+							for (int d = 0; d < pid; d++) {
+								g_pairI[g_numPairs + d + spid[tid]] = pairI[d];
+								g_pairJ[g_numPairs + d + spid[tid]] = pairJ[d];
+							}
+							// update global index
+							__syncthreads();
+							if (tid == NUMTHREADS) g_numPairs += spid[tid] + pid;
+							pid = 0;
+						} // END SYNC THREADS 
 					} 	// n
 				} 		// z				
 			} 			// y
