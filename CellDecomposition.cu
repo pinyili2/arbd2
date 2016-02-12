@@ -113,6 +113,8 @@ void CellDecomposition::decompose_d(Vector3 pos_d[], size_t num) {
 																								numCells, numReplicas);
 	gpuErrchk(cudaMemcpy(ranges, ranges_d, numCellRep, cudaMemcpyDeviceToHost));
 	gpuErrchk( cudaFree(temp_ranges) );
+
+
 }
 
 // *****************************************************************************

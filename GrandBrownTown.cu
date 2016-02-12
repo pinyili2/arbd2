@@ -334,8 +334,10 @@ void GrandBrownTown::run() {
 				// 1 - do not use cutoff [ N^2 ]
 				switch (fullLongRange) {
 					case 0: // [ N*log(N) ] interactions, + cutoff | decomposition
-						if (s % decompPeriod == 0)
+						if (s % decompPeriod == 0) {
 							internal->decompose(pos_d);
+							//internal->updatePairlists(pos_d); // perhaps this way?
+						}
 						energy = internal->computeTabulated(forceInternal_d, pos_d, type_d,
 																								bonds_d, bondMap_d,
 																								excludes_d, excludeMap_d,

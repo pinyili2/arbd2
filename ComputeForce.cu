@@ -356,6 +356,15 @@ void ComputeForce::decompose(Vector3* pos) {
 		cudaFree(decomp_d);
 	decomp.decompose_d(pos, num);
 	decomp_d = decomp.copyToCUDA();
+
+	// Update pairlists using cell decomposition (not sure this is really needed or good) 
+	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);
+	const int NUMTHREADS = 32;
+	const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
+	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, sys_d, decomp_d);
+	gpuErrchk(cudaDeviceSynchronize());
+	
+	
 }
 
 IndexList ComputeForce::decompDim() const {
@@ -475,10 +484,12 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
+	
 	// Call the kernel to calculate the forces
 	computeTabulatedKernel<<< numBlocks, numThreads >>>(force, pos, type,
-			tablePot_d, tableBond_d, num, numParts, sys_d, bonds, bondMap,
-			numBonds, excludes, excludeMap, numExcludes, decomp_d,
+			tablePot_d, tableBond_d,
+			num, numParts, sys_d,
+			bonds, bondMap,	numBonds, 
 			energies_d, cutoff2, gridSize, numReplicas, get_energy);
 	gpuErrchk(cudaDeviceSynchronize());
 

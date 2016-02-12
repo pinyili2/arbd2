@@ -3,24 +3,20 @@
 // Terrance Howard <heyterrance@gmail.com>
 
 #pragma once
+#include "CudaUtil.cuh"
+#include <assert.h>
+
 
 __host__ __device__
 EnergyForce ComputeForce::coulombForce(Vector3 r, float alpha,
 																			 float start, float len) {
 	float d = r.length();
-
+	
 	if (d >= start + len)
 		return EnergyForce();
 	if (d <= start) {
 		float energy = alpha/d - alpha/start + 0.5f*alpha/(start*start)*len;
 		Vector3 force = -alpha/(d*d*d)*r;
-
-		if (isnan(force.x))
-			printf(">> DamnX.\n");
-		if (isnan(force.y))
-			printf(">> DamnY.\n");
-		if (isnan(force.z))
-			printf(">> DamnZ.\n");
 
 		return EnergyForce(energy, force);
 	}
@@ -199,6 +195,86 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 	}
 }
 
+
+// RBTODO: remove global device variables for fast prototyping of pairlist kernel
+__device__ int g_numPairs = 0;
+__device__ int* g_pairI;
+__device__ int* g_pairJ;
+
+__global__
+void createPairlists(Vector3 pos[], int num, int numReplicas,
+										 BaseGrid* sys, CellDecomposition* decomp) {
+	  // Loop over threads searching for atom pairs
+  //   Each thread has designated values in shared memory as a buffer
+  //   A sync operation periodically moves data from shared to global
+	const int NUMTHREADS = 32;		/* RBTODO: fix */
+	__shared__ int spid[NUMTHREADS];
+	const int tid = threadIdx.x;
+	const int ai = blockIdx.x * blockDim.x + threadIdx.x;
+
+	if (tid == 0) g_numPairs = 0;	/* RBTODO: be more efficient */
+	__syncthreads(); 
+	
+	int numPairs = g_numPairs; 
+
+	const int MAXPAIRSPERTHREAD = 256; /* RBTODO Hard limit likely too low */
+	int pairI[MAXPAIRSPERTHREAD];
+	int pairJ[MAXPAIRSPERTHREAD];
+	int pid = 0;
+	
+	// ai - index of the particle in the original, unsorted array
+	if (ai < (num-1) * numReplicas) {
+		const int repID = ai / (num-1);
+		// const int typei = type[i]; // maybe irrelevent
+		const Vector3 posi = pos[ai];
+		
+		// RBTODO: if this approach works well, make cell decomposition finer so limit still works
+
+		// TODO: Fix this: Find correct celli (add a new function to
+		//       CellDecomposition, binary search over cells)
+		CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
+		const CellDecomposition::cell_t* pairs = decomp->getCells();
+		for (int x = -1; x <= 1; ++x) {
+			for (int y = -1; y <= 1; ++y) {
+				for (int z = -1; z <= 1; ++z) {					
+					if (x+y+z != -3) { // SYNC THREADS
+						__syncthreads();				
+						assert(pid < MAXPAIRSPERTHREAD);
+
+						// find where each thread should put its pairs in global list
+						spid[tid] = pid;
+						exclIntCumSum(spid,NUMTHREADS); // returns cumsum with spid[0] = 0
+
+						for (int d = 0; d < pid; d++) {
+							g_pairI[g_numPairs + d + spid[tid]] = pairI[d];
+							g_pairJ[g_numPairs + d + spid[tid]] = pairJ[d];
+						}
+						// update global index
+						__syncthreads();
+						if (tid == NUMTHREADS) g_numPairs += spid[tid] + pid;
+						pid = 0;
+					} // END SYNC THREADS 
+	
+					const int nID = decomp->getNeighborID(celli, x, y, z);				
+					if (nID < 0) continue; // Skip if got wrong or duplicate cell.
+					const CellDecomposition::range_t range = decomp->getRange(nID, repID);
+					
+					for (int n = range.first; n < range.last; n++) {
+						const int aj = pairs[n].particle;
+
+						// RBTODO: skip exclusions
+						if (aj <= ai) continue;
+
+						pairI[pid] = ai;
+						pairJ[pid] = aj;
+						pid++;							/* RBTODO synchronize across threads somehow */
+					} 	// n
+				} 		// z				
+			} 			// y
+		} 				// x
+	}						/* replicas */
+}
+	
 __global__
 void computeKernel(Vector3 force[], Vector3 pos[], int type[],
 									 float tableAlpha[], float tableEps[], float tableRad6[],
@@ -272,7 +348,7 @@ void computeKernel(Vector3 force[], Vector3 pos[], int type[],
 }
 
 
-// ===================================================================================
+// ============================================================================
 // Kernel computes forces between Brownian particles (ions)
 // using cell decomposition
 //
@@ -280,142 +356,46 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 		TabulatedPotential** tablePot, TabulatedPotential** tableBond,
 		int num, int numParts, BaseGrid* sys,
 		Bond* bonds, int2* bondMap, int numBonds,
-		Exclude* excludes, int2* excludeMap, int numExcludes,
-		CellDecomposition* decomp, float* g_energies, float cutoff2, int gridSize,
+		float* g_energies, float cutoff2, int gridSize,
 		int numReplicas, bool get_energy) {
+	
+	const int NUMTHREADS = 32;		/* RBTODO: fix */
+	__shared__ EnergyForce fe[NUMTHREADS];
+	__shared__ int atomI[NUMTHREADS];
+	__shared__ int atomJ[NUMTHREADS];
 
-	// Thread's unique ID.
-	int i = blockIdx.x * blockDim.x + threadIdx.x;
+	int numPairs = g_numPairs; 
 
-	// Initialize interaction energy (per particle)
-	float energy_local = 0;
+	const int tid = threadIdx.x;
+	const int gid = blockIdx.x * blockDim.x + threadIdx.x;
 
-	// Loop over ALL particles in ALL replicas
-	if (i < num * numReplicas) {
-		const int repID = i / num;
-
+	// loop over particle pairs in pairlist
+	if (gid < numPairs) {
 		// BONDS: RBTODO: handle through an independent kernel call
-		/* Each particle may have a varying number of bonds
-		 * bondMap is an array with one element for each particle
-		 * which keeps track of where a particle's bonds are stored
-		 * in the bonds array.
-		 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
-		 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
-		 */
-
-		// Initialize bond_start and bond_end to -1
-		// If these are not changed later, then we know this particle does not have any bonds
-		/* int bond_start = -1; */
-		/* int bond_end = -1; */
-
-		/* // Get bond_start and bond_end from the bondMap */
-		/* if (bondMap != NULL) { */
-		/* 	bond_start = bondMap[i - repID * num].x; */
-		/* 	bond_end = bondMap[i - repID * num].y; */
-		/* } */
-
-		/* // currBond is the index in the bonds array that we should look at next */
-		/* // currBond is initialized to bond_start because that is the first index of the */
-		/* // bonds array where this particle's bonds are stored */
-		/* int currBond = bond_start; */
-
-		/* // nextBond is the ID number of the next particle that this particle is bonded to */
-		/* // If this particle has at least one bond, then nextBond is initialized to be the */
-	 	/* // first particle that this particle is bonded to */
-		/* int nextBond = (bond_start >= 0) ? bonds[bond_start].ind2 : -1; */
-
-		
 		// RBTODO: handle exclusions in other kernel call
+		const int ai = g_pairI[tid];
+		const int aj = g_pairJ[tid];
 		
-		/* // Same as for bonds, but for exclusions now */
-		/* int ex_start = -1; */
-		/* int ex_end = -1; */
-		/* if (excludeMap != NULL) { */
-		/* 	ex_start = excludeMap[i].x; */
-		/* 	ex_end = excludeMap[i].y; */
-		/* } */
-		/* int currEx = ex_start; */
-		/* int nextEx = (ex_start >= 0) ? excludes[ex_start].ind2 : -1; */
-
 		// Particle's type and position
-    int typei = type[i];
-		Vector3 posi = pos[i];
-		const CellDecomposition::cell_t celli = decomp->getCellForParticle(i);
+		const int ind = type[ai] + type[aj] * numParts; /* RBTODO: why is numParts here? */
 
-    // Initialize force_local - force on a particle (i)
-		Vector3 force_local(0.0f);
-		const CellDecomposition::cell_t* cells = decomp->getCells();
+		// RBTODO: implement wrapDiff2, returns dr2
+		const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
 
-		// Loop over neighboring cells
-		for (int x = -1; x <= 1; ++x) {
-			for (int y = -1; y <= 1; ++y) {
-				for (int z = -1; z <= 1; ++z) {
-          // Get ID of the neighboring cell (x, y, z)
-					const int nID = decomp->getNeighborID(celli, x, y, z);
+    // Calculate the force based on the tabulatedPotential file
+		fe[tid] = EnergyForce(0.0f, Vector3(0.0f));
+		if (tablePot[ind] != NULL && dr.length2() <= cutoff2)
+			fe[tid] = tablePot[ind]->compute(dr);
 
-					// Skip if bad neighbor.
-					if (nID == -1) continue;
+		// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
+		atomicAdd( &force[ai], fe[tid].f );
+		atomicAdd( &force[aj], -fe[tid].f );
 
-					const CellDecomposition::range_t range = decomp->getRange(nID, repID);
-
-					int typej = -1;
-					int ind = -1;
-					for (int n = range.first; n < range.last; ++n) {
-						const int j = cells[n].particle;
-						if (j == i) continue;
-
-						const int newj = type[j];
-						if (typej != newj) {
-							typej = newj;
-							ind = typei + typej * numParts;
-						}
-
-						// Find the distance between particles i and j,
-						// wrapping this value if necessary
-						const Vector3 dr = sys->wrapDiff(pos[j] - posi);
-
-						// First, calculate the force based on the tabulatedPotential file
-						EnergyForce ft(0.0f, Vector3(0.0f));
-						/* bool exclude = (nextEx == j); */
-						/* if (exclude) */
-						/* 	nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1; */
-
-						if (tablePot[ind] != NULL && dr.length2() <= cutoff2)
-								ft = tablePot[ind]->compute(dr);
-
-						/* // If the next bond we want is the same as j, then there is a bond */
-						/* // between particles i and j. */
-						/* if (nextBond == j && tableBond != NULL) { */
-
-						/* 	// Calculate the force on the particle from the bond */
-						/* 	// If the user has specified the REPLACE option for this bond, */
-						/* 	// then overwrite the force we calculated from the regular */
-						/* 	// tabulated potential */
-						/* 	// If the user has specified the ADD option, then add the bond */
-						/* 	// force to the tabulated potential value */
-						/* 	EnergyForce bond_ef = */
-						/* 			tableBond[ bonds[currBond].tabFileIndex ]->compute(dr); */
-						/* 	switch (bonds[currBond].flag) { */
-						/* 		case Bond::REPLACE: ft = bond_ef; break; */
-						/* 		case Bond::ADD: ft += bond_ef; break; */
-						/* 		default: break; */
-						/* 	} */
-
-						/* 	// Increment currBond, so that we can find the index of the */
-						/* 	// next particle that this particle is bonded to. */
-						/* 	nextBond = (currBond < bond_end - 1) ? bonds[++currBond].ind2 : -1; */
-						/* } */
-						force_local += ft.f;
-						if (get_energy && j > i)
-							energy_local += ft.e;
-					}		// n
-				}			// z
-			}				// y
-		}					// z
-		force[i] = force_local;
-		if (get_energy)
-			g_energies[i] = energy_local;
+		// RBTODO: why are energies calculated for each atom? Could be reduced
+		if (get_energy && aj > ai)
+			atomicAdd( &(g_energies[ai]), fe[tid].e );		
 	}
+	
 }
 
 
