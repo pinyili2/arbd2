@@ -361,7 +361,7 @@ void ComputeForce::decompose(Vector3* pos) {
 
 	// Update pairlists using cell decomposition (not sure this is really needed or good) 
 	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);	
-	const int NUMTHREADS = 32;
+	const int NUMTHREADS = 128;
 	const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
 
 	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d, decomp_d); */

@@ -11,13 +11,16 @@ include ./findcudalib.mk
 INCLUDE = $(CUDA_PATH)/include
 
 
-# DEBUG = -g -O0
+DEBUG = -g -O0
 CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
 # NV_FLAGS = --maxrregcount 63 -Xptxas -v # -v,-abi=no
 NV_FLAGS = -Xptxas -v # -v,-abi=no 
 EX_FLAGS = -O3 -m$(OS_SIZE)
 # EX_FLAGS = -O0 -m$(OS_SIZE)
-# NV_FLAGS += -g -G								#debug
+ifneq ($(DEBUG),)
+	NV_FLAGS += -g -G								#debug
+endif
+NV_FLAGS += -lineinfo
 
 ifneq ($(MAVERICKS),)
     CC = $(CLANG)
