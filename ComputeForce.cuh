@@ -221,6 +221,9 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 	const int tid = threadIdx.x;
 	const int ai = blockIdx.x * blockDim.x + threadIdx.x; /* atom index 0 */
 
+	const int MAXPAIRSPERTHREAD = 8; /* optimized for 32 threads on K40 */
+	const int MAXPAIRSPERBLOCK = MAXPAIRSPERTHREAD*NUMTHREADS*4;
+
 	spid[tid] = 0;
 	// int numPairs = g_numPairs; 
 	if (ai == 0) {
@@ -233,6 +236,9 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 		assert( g_pairI != NULL );
 		assert( g_pairJ != NULL );
 	}
+	__shared__ int b_numPairs;		/* block's index into global numPairs object */
+	if (tid == 0) b_NumPairs = blockIdx.x * NUMTHREADS * MAXPAIRSPERTHREAD;
+
 	__syncthreads();
 	int pid = 0;
 	
@@ -262,7 +268,6 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 					}
 					
 					// go through possible pairs 32 at a time per threa
-					const int MAXPAIRSPERTHREAD = 4;
 					__shared__ int pairI[MAXPAIRSPERTHREAD*NUMTHREADS];
 					__shared__ int pairJ[MAXPAIRSPERTHREAD*NUMTHREADS];
 					
@@ -348,7 +353,11 @@ void createPairlistsOLD(Vector3 pos[], int num, int numReplicas,
 	__shared__ int spid[NUMTHREADS];
 	const int tid = threadIdx.x;
 	const int ai = blockIdx.x * blockDim.x + threadIdx.x; /* atom index 0 */
+	__shared__ int b_numPairs;
 
+	const int MAXPAIRSPERTHREAD = 8; /* optimized for 32 threads on K40 */
+	const int MAXPAIRSPERBLOCK = MAXPAIRSPERTHREAD*NUMTHREADS*4;
+	
 	// int numPairs = g_numPairs; 
 	if (ai == 0) {
 		g_numPairs = 0;	/* RBTODO: be more efficient */
@@ -360,6 +369,8 @@ void createPairlistsOLD(Vector3 pos[], int num, int numReplicas,
 		assert( g_pairI != NULL );
 		assert( g_pairJ != NULL );
 	}
+	if (tid == 0) b_NumPairs = blockIdx.x * NUMTHREADS * MAXPAIRSPERTHREAD; /*  */
+		
 	__syncthreads();
 	int pid = 0;
 	
@@ -389,7 +400,6 @@ void createPairlistsOLD(Vector3 pos[], int num, int numReplicas,
 					}
 					
 					// go through possible pairs 32 at a time per thread
-					const int MAXPAIRSPERTHREAD = 8; /* optimized for 32 threads on K40 */
 					int pairI[MAXPAIRSPERTHREAD];
 					int pairJ[MAXPAIRSPERTHREAD];
 
@@ -413,7 +423,7 @@ void createPairlistsOLD(Vector3 pos[], int num, int numReplicas,
 						done = __all( n >= last );
 						
 						{ // SYNC THREADS
-							__syncthreads();				
+							//__syncthreads();				
 							// assert(pid <= MAXPAIRSPERTHREAD);
 
 							// find where each thread should put its pairs in global list
@@ -421,14 +431,16 @@ void createPairlistsOLD(Vector3 pos[], int num, int numReplicas,
 							exclIntCumSum(spid,NUMTHREADS); // returns cumsum with spid[0] = 0
 
 							for (int d = 0; d < pid; d++) {
-								g_pairI[g_numPairs + d + spid[tid]] = pairI[d];
-								g_pairJ[g_numPairs + d + spid[tid]] = pairJ[d];
+								g_pairI[b_numPairs + d + spid[tid]] = pairI[d];
+								g_pairJ[b_numPairs + d + spid[tid]] = pairJ[d];
 							}
 							// update global index
 							__syncthreads();
-							if (tid == NUMTHREADS) g_numPairs += spid[tid] + pid;
+							if (tid == NUMTHREADS) b_numPairs += spid[tid] + pid;
 							pid = 0;
 						} // END SYNC THREADS 
+
+
 					} 	// n
 				} 		// z				
 			} 			// y
