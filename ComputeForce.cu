@@ -95,10 +95,6 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 
 	// Create and allocate the energy arrays
 	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * num));
-
-	// initializePairlistArrays
-	initializePairlistArrays<<< 1, 32 >>>();
-	gpuErrchk(cudaDeviceSynchronize());
 	
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
@@ -358,19 +354,32 @@ bool ComputeForce::addDihedralPotential(String fileName, int ind,
 void ComputeForce::decompose(Vector3* pos) {
 	gpuErrchk( cudaProfilerStart() );
 	// Reset the cell decomposition.
+	bool newDecomp = false;
 	if (decomp_d)
 		cudaFree(decomp_d);
+	else
+		newDecomp = true;
+		
 	decomp.decompose_d(pos, num);
 	decomp_d = decomp.copyToCUDA();
 
 	// Update pairlists using cell decomposition (not sure this is really needed or good) 
 	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);	
+
+	
+		// initializePairlistArrays
+	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+	if (newDecomp) {
+		initializePairlistArrays<<< 1, 32 >>>(nCells);
+		gpuErrchk(cudaDeviceSynchronize());
+	}
 	const int NUMTHREADS = 128;
-	const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
+	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
+	const size_t nBlocks = nCells;
 
 	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d, decomp_d); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */
-	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, sys_d, decomp_d);
+	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, sys_d, decomp_d, nCells);
 	gpuErrchk(cudaDeviceSynchronize());
 	
 	
@@ -495,7 +504,8 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 
 	
 	// Call the kernel to calculate the forces
-	computeTabulatedKernel<<< numBlocks, numThreads >>>(force, pos, type,
+	int nb = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+	computeTabulatedKernel<<< nb, numThreads >>>(force, pos, type,
 			tablePot_d, tableBond_d,
 			num, numParts, sys_d,
 			bonds, bondMap,	numBonds, 

@@ -12,6 +12,7 @@ __device__ int atomicAggInc(int *ctr, int warpLane) {
 	if ( warpLane == leader )
 		res = atomicAdd(ctr, __popc(mask));
 	res = warp_bcast(res,leader);
+	
 	return res + __popc( mask & ((1 << warpLane) - 1) );
 }
 	

@@ -198,180 +198,96 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 
 // RBTODO: remove global device variables for fast prototyping of pairlist kernel
 // #define MAXPAIRS 25500*25500 // (num/numReplicas) * ((num/numReplicas)-1);
-__device__ int g_numPairs;
-__device__ int* g_pairI;
-__device__ int* g_pairJ;
+__device__ int* g_numPairs;
+__device__ int** g_pairI;
+__device__ int** g_pairJ;
 __device__ bool g_pairsSet = false;
 
 __global__
-void initializePairlistArrays() {
+void initializePairlistArrays(const int nCells) {
 	const int tid = threadIdx.x;
-	const int ai = blockIdx.x * blockDim.x + threadIdx.x;
+	const int maxPairs = 1 << 16;	/* ~60,000 per cell */
+	if (blockIdx.x > 0) return;
 
-	const int maxPairs = 1 << 20;
-	if ( ai == 0 ) {
-		// RBTODO: free later, do this elsewhere
-		g_pairI = (int*) malloc( maxPairs * sizeof(int));
-		g_pairJ = (int*) malloc( maxPairs * sizeof(int));
-		assert( g_pairI != NULL );
-		assert( g_pairJ != NULL );
-		g_numPairs = 0;
+	// RBTODO: free later
+	if (tid == 0) {
+		printf("Initializing device pairlists for %d cells\n", nCells);
+		g_numPairs = (int*) malloc( nCells * sizeof(int) );  
+		g_pairI = (int**) malloc( nCells * sizeof(int*));
+		g_pairJ = (int**) malloc( nCells * sizeof(int*));
+	}		
+	__syncthreads();	
+	assert( g_numPairs != NULL );
+	assert( g_pairI != NULL );
+	assert( g_pairJ != NULL );
+	
+	for (int i = tid; i < nCells; i += blockDim.x) {
+		g_pairI[i] = (int*) malloc( maxPairs * sizeof(int));
+		g_pairJ[i] = (int*) malloc( maxPairs * sizeof(int));
+		g_numPairs[i] = 0;
+		assert( g_pairI[i] != NULL );
+		assert( g_pairJ[i] != NULL );
 	}
 }
 
 __global__
 void createPairlists(Vector3 pos[], int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* decomp) {
+										 BaseGrid* sys, CellDecomposition* decomp, int nCells) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
   //   A sync operation periodically moves data from shared to global
 	const int NUMTHREADS = 128;		/* RBTODO: fix */
 	const int tid = threadIdx.x;
-	const int ai = blockIdx.x * blockDim.x + threadIdx.x; /* atom index 0 */
+
+	const int cID = blockIdx.x;
+	// * blockDim.x + threadIdx.x; 
+	// const int cID = blockIdx.x * blockDim.x + threadIdx.x; /* atom index 0 */
 
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
-	
-	if (ai == 0) {
-		g_numPairs = 0;	/* RBTODO: be more efficient */
-		assert( g_pairI != NULL );
-		assert( g_pairJ != NULL );
-	}
 
-	// ai - index of the particle in the original, unsorted array
-	if (ai < (num-1) * numReplicas) {
-		const int repID = ai / (num-1);
-		const Vector3 posi = pos[ai];
-		
-		CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
-		const CellDecomposition::cell_t* pairs = decomp->getCells();
-		for (int x = -1; x <= 1; ++x) {
-			for (int y = -1; y <= 1; ++y) {
-				for (int z = -1; z <= 1; ++z) {					
+	/* const int3& nCells = decomp->nCells; */
+	if (cID >= nCells) return;
+	int count = 0;								/* debug */
+	const CellDecomposition::cell_t* pairs = decomp->getCells();
+
+	for (int repID = 0; repID < numReplicas; repID++) {
+		const CellDecomposition::range_t rangeI = decomp->getRange(cID, repID);
+		if (tid == 0) printf("  Cell%d: Working on %d atoms for repID %d\n",
+												 cID, rangeI.last - rangeI.first, repID);
+
+		for (int ci = rangeI.first; ci < rangeI.last; ci++) {
+			// ai - index of the particle in the original, unsorted array
+			const int ai = pairs[ci].particle;
+			// const CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
+			const CellDecomposition::cell_t celli = pairs[ci];
+			const Vector3 posi = pos[ai];
+				
+			for (int x = -1; x <= 1; ++x) {
+				for (int y = -1; y <= 1; ++y) {
+					for (int z = -1; z <= 1; ++z) {					
 					
-					int n = 0;
-					int last = -1;
-					const int nID = decomp->getNeighborID(celli, x, y, z);				
-					if (nID >= 0) { // set range for valid cells
+						const int nID = decomp->getNeighborID(celli, x, y, z);				
+						if (nID < 0) continue; 
 						const CellDecomposition::range_t range = decomp->getRange(nID, repID);
-						n = range.first;
-						last = range.last;
-					}
-					
-					for (; n < last; n++) {
-						const int aj = pairs[n].particle;
-						if (aj <= ai) continue;
-						// RBTODO: skip exclusions
-						
-						int wid = atomicAggInc( &g_numPairs, warpLane );
-						g_pairI[wid] = ai;
-						g_pairJ[wid] = aj;
-					} 	// n
-				} 		// z				
-			} 			// y
-		} 				// x
-	}						/* replicas */
-}
-
-__global__
-void createPairlistsOLD(Vector3 pos[], int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* decomp) {
-	// Loop over threads searching for atom pairs
-  //   Each thread has designated values in shared memory as a buffer
-  //   A sync operation periodically moves data from shared to global
-	const int NUMTHREADS = 32;		/* RBTODO: fix */
-	__shared__ int spid[NUMTHREADS];
-	const int tid = threadIdx.x;
-	const int ai = blockIdx.x * blockDim.x + threadIdx.x; /* atom index 0 */
-
-	const int MAXPAIRSPERTHREAD = 8; /* optimized for 32 threads on K40 */
-	
-	// int numPairs = g_numPairs; 
-	if (ai == 0) {
-		g_numPairs = 0;	/* RBTODO: be more efficient */
-		// RBTODO: free later, do this elsewhere
-		// const int maxPairs = (num/numReplicas) * ((num/numReplicas)-1) / 1000;
-		const int maxPairs = 1e5;
-		g_pairI = (int*) malloc( maxPairs * sizeof(int));
-		g_pairJ = (int*) malloc( maxPairs * sizeof(int));
-		assert( g_pairI != NULL );
-		assert( g_pairJ != NULL );
-	}
-	
-	__syncthreads();
-	int pid = 0;
-	
-	// ai - index of the particle in the original, unsorted array
-	if (ai < (num-1) * numReplicas) {
-		const int repID = ai / (num-1);
-		// const int typei = type[i]; // maybe irrelevent
-		const Vector3 posi = pos[ai];
-		
-		// RBTODO: if this approach works well, make cell decomposition finer so limit still works
-
-		// TODO: Fix this: Find correct celli (add a new function to
-		//       CellDecomposition, binary search over cells)
-		CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
-		const CellDecomposition::cell_t* pairs = decomp->getCells();
-		for (int x = -1; x <= 1; ++x) {
-			for (int y = -1; y <= 1; ++y) {
-				for (int z = -1; z <= 1; ++z) {					
-	
-					int n = 0;
-					int last = -1;
-					const int nID = decomp->getNeighborID(celli, x, y, z);				
-					if (nID >= 0) { // set range for valid cells
-						const CellDecomposition::range_t range = decomp->getRange(nID, repID);
-						n = range.first;
-						last = range.last;
-					}
-					
-					// go through possible pairs 32 at a time per thread
-					int pairI[MAXPAIRSPERTHREAD];
-					int pairJ[MAXPAIRSPERTHREAD];
-
-					bool done = false;
-					while (!done) {
-						// if (tid == 0)
-						// printf("Working to find pairlist: numPairs = %d\n", g_numPairs);
-								
-						for (int dn = 0; dn < MAXPAIRSPERTHREAD; dn++) {
-							if ( n + dn >= last ) continue;
-
-							const int aj = pairs[n+dn].particle;
-							// RBTODO: skip exclusions
+						const int last = range.last;
+						// for (int n = 0; n < last; n++) {}
+						for (int n = range.first + tid; n < last; n+=NUMTHREADS) {
+							count++;
+							const int aj = pairs[n].particle;
 							if (aj <= ai) continue;
-							
-							pairI[pid] = ai;
-							pairJ[pid] = aj;
-							pid++;
-						}
-						n += MAXPAIRSPERTHREAD;
-						done = __all( n >= last );
+							// RBTODO: skip exclusions
 						
-						{ // SYNC THREADS
-							//__syncthreads();				
-							// assert(pid <= MAXPAIRSPERTHREAD);
-
-							// find where each thread should put its pairs in global list
-							spid[tid] = pid;
-							exclIntCumSum(spid,NUMTHREADS); // returns cumsum with spid[0] = 0
-
-							for (int d = 0; d < pid; d++) {
-								g_pairI[g_numPairs + d + spid[tid]] = pairI[d];
-								g_pairJ[g_numPairs + d + spid[tid]] = pairJ[d];
-							}
-							// update global index
-							__syncthreads();
-							if (tid == NUMTHREADS) g_numPairs += spid[tid] + pid;
-							pid = 0;
-						} // END SYNC THREADS 
-
-
-					} 	// n
-				} 		// z				
-			} 			// y
-		} 				// x
-	}						/* replicas */
+							int wid = atomicAggInc( &g_numPairs[cID], warpLane ); // fails
+							// int wid = atomicAdd( &g_numPairs[cID], 1 ); // works
+							g_pairI[cID][wid] = ai;
+							g_pairJ[cID][wid] = aj;
+						} 	// atoms J
+					} 		// z				
+				} 			// y
+			} 				// x
+		} // atoms I					
+	} // replicas
+	if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]);
 }
 	
 __global__
@@ -463,17 +379,20 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	__shared__ int atomI[NUMTHREADS];
 	__shared__ int atomJ[NUMTHREADS];
 
-	int numPairs = g_numPairs; 
+
 
 	const int tid = threadIdx.x;
-	const int gid = blockIdx.x * blockDim.x + threadIdx.x;
+	const int cID = blockIdx.x;
+	int numPairs = g_numPairs[cID]; 
+	// const int gid = blockIdx.x * blockDim.x + threadIdx.x;
 
+	
 	// loop over particle pairs in pairlist
-	if (gid < numPairs) {
+	for (int i = tid; i < numPairs; i+=NUMTHREADS) {
 		// BONDS: RBTODO: handle through an independent kernel call
 		// RBTODO: handle exclusions in other kernel call
-		const int ai = g_pairI[tid];
-		const int aj = g_pairJ[tid];
+		const int ai = g_pairI[cID][i];
+		const int aj = g_pairJ[cID][i];
 		
 		// Particle's type and position
 		const int ind = type[ai] + type[aj] * numParts; /* RBTODO: why is numParts here? */
