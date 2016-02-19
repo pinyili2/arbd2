@@ -201,16 +201,23 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 __device__ int g_numPairs;
 __device__ int* g_pairI;
 __device__ int* g_pairJ;
+__device__ bool g_pairsSet = false;
 
 __global__
-void clearPairlists(Vector3 pos[], int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* decomp) {
+void initializePairlistArrays() {
 	const int tid = threadIdx.x;
 	const int ai = blockIdx.x * blockDim.x + threadIdx.x;
 
+	const int maxPairs = 1 << 20;
+	if ( ai == 0 ) {
+		// RBTODO: free later, do this elsewhere
+		g_pairI = (int*) malloc( maxPairs * sizeof(int));
+		g_pairJ = (int*) malloc( maxPairs * sizeof(int));
+		assert( g_pairI != NULL );
+		assert( g_pairJ != NULL );
+		g_numPairs = 0;
+	}
 }
-
-__device__ int g_nextBlock;
 
 __global__
 void createPairlists(Vector3 pos[], int num, int numReplicas,
@@ -219,46 +226,17 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
   //   Each thread has designated values in shared memory as a buffer
   //   A sync operation periodically moves data from shared to global
 	const int NUMTHREADS = 128;		/* RBTODO: fix */
-	__shared__ int pairCount[NUMTHREADS];
 	const int tid = threadIdx.x;
 	const int ai = blockIdx.x * blockDim.x + threadIdx.x; /* atom index 0 */
 
-	const int MAXPAIRSPERTHREAD = 8; /* optimized for 32 threads on K40 */
-	const int MAXPAIRSPERBLOCK = MAXPAIRSPERTHREAD*NUMTHREADS*4;
-	const int WARPSIZE = 32;			
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
 	
-	pairCount[tid] = 0;
-	// int numPairs = g_numPairs; 
 	if (ai == 0) {
 		g_numPairs = 0;	/* RBTODO: be more efficient */
-		// RBTODO: free later, do this elsewhere
-		// const int maxPairs = (num/numReplicas) * ((num/numReplicas)-1) / 1000;
-		const int maxPairs = 1e5;
-		g_pairI = (int*) malloc( maxPairs * sizeof(int));
-		g_pairJ = (int*) malloc( maxPairs * sizeof(int));
 		assert( g_pairI != NULL );
 		assert( g_pairJ != NULL );
-		g_nextBlock = gridDim.x;			/* number of blocks */
 	}
-		
-	// __shared__ int currentBlock;	/* for index into g_pairX arrays */
-	/* __shared__ int b_numPairs;		/\* block's index into global numPairs object *\/ */
-	/* if (tid == 0) { */
-	/* 	currentBlock = blockIdx.x; */
-	/* 	b_numPairs = currentBlock * NUMTHREADS * MAXPAIRSPERTHREAD; */
-	/* } */
-	__shared__ int gpidOff;
-	__shared__ int gpidRem;
-	if (tid == 0) {
-		gpidOff = 0;
-		gpidRem = MAXPAIRSPERBLOCK;
-	}
-								
-	int currentBlock = blockIdx.x;
-	
-	__syncthreads();
-	int pid = 0;	
+
 	// ai - index of the particle in the original, unsorted array
 	if (ai < (num-1) * numReplicas) {
 		const int repID = ai / (num-1);
@@ -279,116 +257,18 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 						last = range.last;
 					}
 					
-					// go through possible pairs in chunks for each thread
-					/* __shared__ int pairI[NUMTHREADS]; */
-					__shared__ int pairJ[NUMTHREADS];
-					/* __shared__ sharedIntBuffer pairI( */
-					/* 	MAXPAIRSPERTHREAD*NUMTHREADS, NUMTHREADS, 1); */
-					
-					bool done = false;
-					int pidLast = 0;
-					while (!done) {
-						// if (tid == 0)
-						// printf("Working to find pairlist: numPairs = %d\n", g_numPairs);
-								
-						if ( n >= last ) break;
-						const int aj = pairs[n+dn].particle;
-						bool valid = true;
-						// RBTODO: skip exclusions
+					for (; n < last; n++) {
+						const int aj = pairs[n].particle;
 						if (aj <= ai) continue;
-						/* pairI[pid+MAXPAIRSPERTHREAD*tid] = ai; */
-						pairJ[tid] = aj;
-						n++;
-						done = __all( n >= last );
-
-						{ // SYNC THREADS
-							// find where each thread should put its pairs in global list
-
-							// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/ 
-							int validVote = __ballot(valid);
-							/* int mask      = INT_MAX >> ( WARPSIZE - warpLane - 1 ); */
-							/* int warpPairs = __popc( validVote & mask ); */
-							
-							int leader = __ffs(validVode)-1; /* select a leader */
-
-							int wid;
-							if ( warpLane == leader )
-								wid = atomicAdd( &gpid , warpPairs );
-							wid = warp_bcast( wid, leader );
-							wid = wid + __popc( validVote & ((1 << warpLane) - 1) );
-							g_pairI[wid] = ai;
-							g_pairJ[wid] = aj;
-						}
-								// inclIntCumSum(pairCount,NUMTHREADS); // returns cumsum with pairCoun[t0] = 0
-							
-							int total = pairCount[NUMTHREADS-1];		/* number of new pairs */
-
-							// loop over new pairs, with stride of threads
-							int gpid = currentBlock * MAXPAIRSPERBLOCK + gpidOff;
-							int tmpTid = 0;		/* thread id of the thread we are reading from */
-
-							if ( total <= gpidRem) { // send it all at once
-
-								for (int gTmpPid = tid; gTmpPid < total; gTmpPid += NUMTHREADS) {
-									// RBTODO: binary search for tmpTid
-									while ( tmpTid < NUMTHREADS-1 && pairCount[tmpTid] < gTmpPid )
-										tmpTid++;
-									int sTmpPid = tmpTid > 0 ? pairCount[tmpTid-1] : 0; // numPairs created by threads [0..tmpTid]
-									sTmpPid = (gTmpPid - sTmpPid) + MAXPAIRSPERTHREAD*(tmpTid);
-									g_pairI[gpid + gTmpPid] = pairI[ sTmpPid ];
-									g_pairJ[gpid + gTmpPid] = pairJ[ sTmpPid ];
-								}
-							} else { // too much data; finish block's chunk first
-
-								for (int gTmpPid = tid; gTmpPid < gpidRem; gTmpPid += NUMTHREADS) {
-									while ( tmpTid < NUMTHREADS-1 && pairCount[tmpTid] < gTmpPid )
-										tmpTid++;
-									int sTmpPid = tmpTid > 0 ? pairCount[tmpTid-1] : 0; // numPairs created by threads [0..tmpTid]
-									sTmpPid = (gTmpPid - sTmpPid) + MAXPAIRSPERTHREAD*(tmpTid);
-									g_pairI[gpid + gTmpPid] = pairI[ sTmpPid ];
-									g_pairJ[gpid + gTmpPid] = pairJ[ sTmpPid ];
-								}
-
-								// update block
-								__shared__ int tmp;
-								if ( tid == 0 ) tmp = atomicAdd( &g_nextBlock, 1 );
-								__syncthreads;
-								currentBlock = tmp;
-								
-								gpid = currentBlock * MAXPAIRSPERBLOCK;
-
-								// keep going
-								for (int gTmpPid = tid; gTmpPid < total-gpidRem; gTmpPid += NUMTHREADS) {
-									while ( tmpTid < NUMTHREADS-1 && pairCount[tmpTid] < gTmpPid )
-										tmpTid++;
-									int sTmpPid = tmpTid > 0 ? pairCount[tmpTid-1] : 0; // numPairs created by threads [0..tmpTid]
-									sTmpPid = (gTmpPid - sTmpPid) + MAXPAIRSPERTHREAD*(tmpTid);
-									g_pairI[gpid + gTmpPid] = pairI[ sTmpPid ];
-									g_pairJ[gpid + gTmpPid] = pairJ[ sTmpPid ];
-								}
-
-								if (tid == 0) {
-									gpidOff = 0;
-									gpidRem = gpidRem + MAXPAIRSPERBLOCK - total;
-								}
-													
-							}
-							pidLast = pid;
-							pid = 0;
-							/* if (tid == NUMTHREADS) { */
-							/* 	const int tmp = pairCount[tid] + pidLast; */
-							/* 	b_numPairs += tmp; */
-							/* 	atomicAdd( &g_numPairs, tmp ); */
-							/* } */
-
-						} // END SYNC THREADS
+						// RBTODO: skip exclusions
+						
+						int wid = atomicAggInc( &g_numPairs, warpLane );
+						g_pairI[wid] = ai;
+						g_pairJ[wid] = aj;
 					} 	// n
 				} 		// z				
 			} 			// y
 		} 				// x
-
-			// RBTODO: extra processing for jagged elements of g_pairI
-			
 	}						/* replicas */
 }
 
@@ -578,7 +458,7 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 		float* g_energies, float cutoff2, int gridSize,
 		int numReplicas, bool get_energy) {
 	
-	const int NUMTHREADS = 32;		/* RBTODO: fix */
+	const int NUMTHREADS = 256;		/* RBTODO: fix */
 	__shared__ EnergyForce fe[NUMTHREADS];
 	__shared__ int atomI[NUMTHREADS];
 	__shared__ int atomJ[NUMTHREADS];

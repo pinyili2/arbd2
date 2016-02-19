@@ -96,6 +96,10 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 	// Create and allocate the energy arrays
 	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * num));
 
+	// initializePairlistArrays
+	initializePairlistArrays<<< 1, 32 >>>();
+	gpuErrchk(cudaDeviceSynchronize());
+	
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
