@@ -225,6 +225,8 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 
 	const int MAXPAIRSPERTHREAD = 8; /* optimized for 32 threads on K40 */
 	const int MAXPAIRSPERBLOCK = MAXPAIRSPERTHREAD*NUMTHREADS*4;
+	const int WARPSIZE = 32;			
+	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
 	
 	pairCount[tid] = 0;
 	// int numPairs = g_numPairs; 
@@ -278,8 +280,10 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 					}
 					
 					// go through possible pairs in chunks for each thread
-					__shared__ int pairI[MAXPAIRSPERTHREAD*NUMTHREADS];
-					__shared__ int pairJ[MAXPAIRSPERTHREAD*NUMTHREADS];
+					/* __shared__ int pairI[NUMTHREADS]; */
+					__shared__ int pairJ[NUMTHREADS];
+					/* __shared__ sharedIntBuffer pairI( */
+					/* 	MAXPAIRSPERTHREAD*NUMTHREADS, NUMTHREADS, 1); */
 					
 					bool done = false;
 					int pidLast = 0;
@@ -287,24 +291,36 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 						// if (tid == 0)
 						// printf("Working to find pairlist: numPairs = %d\n", g_numPairs);
 								
-						for (int dn = 0; dn < MAXPAIRSPERTHREAD; dn++) {
-							if ( n + dn >= last ) break;
-
-							const int aj = pairs[n+dn].particle;
-							// RBTODO: skip exclusions
-							if (aj <= ai) continue;
-							
-							pairI[pid+MAXPAIRSPERTHREAD*tid] = ai;
-							pairJ[pid+MAXPAIRSPERTHREAD*tid] = aj;
-							pid++;
-						}
-						n += MAXPAIRSPERTHREAD;
+						if ( n >= last ) break;
+						const int aj = pairs[n+dn].particle;
+						bool valid = true;
+						// RBTODO: skip exclusions
+						if (aj <= ai) continue;
+						/* pairI[pid+MAXPAIRSPERTHREAD*tid] = ai; */
+						pairJ[tid] = aj;
+						n++;
 						done = __all( n >= last );
 
 						{ // SYNC THREADS
 							// find where each thread should put its pairs in global list
-							pairCount[tid] = pid;
-							inclIntCumSum(pairCount,NUMTHREADS); // returns cumsum with pairCoun[t0] = 0
+
+							// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/ 
+							int validVote = __ballot(valid);
+							/* int mask      = INT_MAX >> ( WARPSIZE - warpLane - 1 ); */
+							/* int warpPairs = __popc( validVote & mask ); */
+							
+							int leader = __ffs(validVode)-1; /* select a leader */
+
+							int wid;
+							if ( warpLane == leader )
+								wid = atomicAdd( &gpid , warpPairs );
+							wid = warp_bcast( wid, leader );
+							wid = wid + __popc( validVote & ((1 << warpLane) - 1) );
+							g_pairI[wid] = ai;
+							g_pairJ[wid] = aj;
+						}
+								// inclIntCumSum(pairCount,NUMTHREADS); // returns cumsum with pairCoun[t0] = 0
+							
 							int total = pairCount[NUMTHREADS-1];		/* number of new pairs */
 
 							// loop over new pairs, with stride of threads
