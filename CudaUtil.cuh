@@ -15,7 +15,7 @@ __device__ int atomicAggInc(int *ctr, int warpLane) {
 	
 	return res + __popc( mask & ((1 << warpLane) - 1) );
 }
-	
+
 	
 __device__ inline void exclIntCumSum(int* in, const int n) {
 	// 1) int* in must point to shared memory

@@ -369,17 +369,18 @@ void ComputeForce::decompose(Vector3* pos) {
 	
 		// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+	int blocksPerCell = 10;
 	if (newDecomp) {
-		initializePairlistArrays<<< 1, 32 >>>(nCells);
+		initializePairlistArrays<<< 1, 32 >>>(nCells*blocksPerCell);
 		gpuErrchk(cudaDeviceSynchronize());
 	}
 	const int NUMTHREADS = 128;
 	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
-	const size_t nBlocks = nCells;
+	const size_t nBlocks = nCells*blocksPerCell;
 
 	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d, decomp_d); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */
-	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, sys_d, decomp_d, nCells);
+	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, sys_d, decomp_d, nCells, blocksPerCell);
 	gpuErrchk(cudaDeviceSynchronize());
 	
 	
