@@ -195,79 +195,26 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 }
 
 
-// RBTODO: remove global device variables for fast prototyping of pairlist kernel
-#define MAXPAIRS 25500*25500 // (num/numReplicas) * ((num/numReplicas)-1);
-__device__ int* g_numPairs;
-__device__ int** g_pairI;
-__device__ int** g_pairJ;
-__device__ int g_nextPairlist;
-__device__ int g_numPairlistArrays;
 const __device__ int maxPairs = 1 << 14;
 
 __global__
-void initializePairlistArrays(const int nLists) {
-	const int tid = threadIdx.x;
-//	const int maxPairs = 1 << 12;	/* ~120,000 per cell */
-	if (blockIdx.x > 0) return;
-	
-	// RBTODO: free later
-	if (tid == 0) {
-		printf("Initializing %d device pairlists.\n", nLists);
-		g_numPairs = (int*) malloc( nLists * sizeof(int) );
-		g_pairI = (int**) malloc( nLists * sizeof(int*));
-		g_pairJ = (int**) malloc( nLists * sizeof(int*));
-		g_nextPairlist = 0;
-		g_numPairlistArrays = nLists;
-
-		assert( g_numPairs != NULL );
-		assert( g_pairI != NULL );
-		assert( g_pairJ != NULL );
-	
-		for (int i = 0; i < nLists; i++) {
-			g_pairI[i] = (int*) malloc( maxPairs * sizeof(int));
-			g_pairJ[i] = (int*) malloc( maxPairs * sizeof(int));
-			g_numPairs[i] = 0;
-			assert( g_pairI[i] != NULL );
-			assert( g_pairJ[i] != NULL );
-		}
+void pairlistTest(Vector3 pos[], int num, int numReplicas,
+										 BaseGrid* sys, CellDecomposition* decomp,
+										 const int nCells, const int blocksPerCell,
+										 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
+	const int gtid = threadIdx.x + blockIdx.x*blockDim.x;
+	for (int i = gtid; i < gridDim.x*100; i+=blockDim.x) {
+		assert( g_numPairs[i] == 0 );
+		assert( g_pairI[i] != NULL );
+		assert( g_pairJ[i] != NULL );
 	}
 }
-/* __global__ */
-/* void initializePairlistArrays(const int nLists) { */
-/* 	const int tid = threadIdx.x; */
-/* //	const int maxPairs = 1 << 12;	/\* ~120,000 per cell *\/ */
-/* 	if (blockIdx.x > 0) return; */
-	
-/* 	// RBTODO: free later */
-/* 	if (tid == 0) { */
-/* 		printf("Initializing %d device pairlists.\n", nLists); */
-/* 		g_numPairs = (int*) malloc( nLists * sizeof(int) ); */
-/* 		g_pairI = (int**) malloc( nLists * sizeof(int*)); */
-/* 		g_pairJ = (int**) malloc( nLists * sizeof(int*)); */
-/* 		g_nextPairlist = 0; */
-/* 		g_numPairlistArrays = nLists; */
-/* 	} */
-/* 	__syncthreads(); */
-/* 	assert( g_numPairs != NULL ); */
-/* 	assert( g_pairI != NULL ); */
-/* 	assert( g_pairJ != NULL ); */
-	
-/* 	for (int i = tid; i < nLists; i += blockDim.x) { */
-/* 		g_pairI[i] = (int*) malloc( maxPairs * sizeof(int)); */
-/* 		g_pairJ[i] = (int*) malloc( maxPairs * sizeof(int)); */
-/* 		g_numPairs[i] = 0; */
-/* 	} */
-
-/* 	__syncthreads(); */
-/* 	for (int i = tid; i < nLists; i += blockDim.x) { */
-/* 		assert( g_pairI[i] != NULL ); */
-/* 		assert( g_pairJ[i] != NULL ); */
-/* 	} */
-/* } */
 
 __global__
 void createPairlists(Vector3 pos[], int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* decomp, const int nCells, const int blocksPerCell) {
+										 BaseGrid* sys, CellDecomposition* decomp,
+										 const int nCells, const int blocksPerCell,
+										 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
   //   A sync operation periodically moves data from shared to global
@@ -282,7 +229,7 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 	const int blockLane = bid % blocksPerCell;
 
 	volatile __shared__ int pid[NUMTHREADS/WARPSIZE];
-	if (warpLane == 0) pid[wid] = bid;
+	if (warpLane == 0) pid[wid] = bid; /* RBTODO: not sure this is good; used to be 0 */
 
 	if (cID >= nCells) return;
 	int count = 0;								/* debug */
@@ -321,13 +268,16 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 									g_pairI[pid[wid]][gid] = -1;
 									g_pairJ[pid[wid]][gid] = -1;
 								}
-
 								// Have 'leader' thread in warp increment counter
-								if ( warpLane + 1 == __ffs(__ballot(1)) )	pid[wid]++;
+								if ( warpLane + 1 == __ffs(__ballot(1)) )	pid[wid]++; /* pid must be volatile */
+								// alternative to pid being volatile:
+								__threadfence_block();
 								
-								// we assume arrays at pid are nearly empty (no while loop)  
+								// assume arrays at pid are nearly empty (no while loop)  
 								gid = atomicAggInc( pid[wid], &g_numPairs[pid[wid]], warpLane ); /* assume this hasn't filled */
 							}
+							/* assert( ai >= 0 ); */
+							/* assert( aj >= 0 ); */
 							
 							// int wid = atomicAdd( &g_numPairs[pid], 1 ); // works
 							g_pairI[pid[wid]][gid] = ai;
@@ -338,7 +288,7 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 			} 				// x
 		} // atoms I					
 	} // replicas
-	if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]);
+	/* if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]); */
 }
 	
 __global__
@@ -423,27 +373,29 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 		int num, int numParts, BaseGrid* sys,
 		Bond* bonds, int2* bondMap, int numBonds,
 		float* g_energies, float cutoff2, int gridSize,
-		int numReplicas, bool get_energy) {
+																			 int numReplicas, bool get_energy,
+																			 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
 	
 	const int NUMTHREADS = 256;		/* RBTODO: fix */
 	__shared__ EnergyForce fe[NUMTHREADS];
 	__shared__ int atomI[NUMTHREADS];
 	__shared__ int atomJ[NUMTHREADS];
 
-
-
 	const int tid = threadIdx.x;
 	const int cID = blockIdx.x;
-	int numPairs = g_numPairs[cID]; 
+
+	int numPairs = min( g_numPairs[cID], maxPairs );
 	// const int gid = blockIdx.x * blockDim.x + threadIdx.x;
 
 	
 	// loop over particle pairs in pairlist
 	for (int i = tid; i < numPairs; i+=NUMTHREADS) {
+	 
 		// BONDS: RBTODO: handle through an independent kernel call
 		// RBTODO: handle exclusions in other kernel call
 		const int ai = g_pairI[cID][i];
 		const int aj = g_pairJ[cID][i];
+		if (ai < 0) continue;
 		
 		// Particle's type and position
 		const int ind = type[ai] + type[aj] * numParts; /* RBTODO: why is numParts here? */

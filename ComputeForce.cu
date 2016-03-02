@@ -376,21 +376,38 @@ void ComputeForce::decompose(Vector3* pos) {
 	if (newDecomp) {
 		// initializePairlistArrays<<< 1, 32 >>>(10*nCells*blocksPerCell);
 
+		// RBTODO: free memory elsewhere
+		// allocate device data
 		const int nLists = blocksPerCell*nCells*100;
 		const size_t s = sizeof(int*) * nLists;
-		gpuErrchk(cudaMalloc(&pairListList_d, s));
+		gpuErrchk(cudaMalloc(&pairListListI_d, sizeof(int*)*nLists));
+		gpuErrchk(cudaMalloc(&pairListListJ_d, sizeof(int*)*nLists));
+		gpuErrchk(cudaMalloc(&numPairs_d, sizeof(int)*nLists));
 
-		int *tmpPairLists[nLists];
+		int *tmpPairListsI[nLists];
+		int *tmpPairListsJ[nLists];
+		int tmp[nLists];
 		for (int i = 0; i < nLists; i++) {
-			gpuErrchk(cudaMalloc(&tmpPairLists[i], sizeof(int)*(1<<14)));
+			gpuErrchk(cudaMalloc(&tmpPairListsI[i], sizeof(int)*(1<<14)));
+			gpuErrchk(cudaMalloc(&tmpPairListsJ[i], sizeof(int)*(1<<14)));
+			tmp[i] = 0;
 		}
-		gpuErrchk(cudaMemcpyAsync(pairListList_d, tmpPairLists,
-															sizeof(int*)*nLists, cudaMemcpyHostToDevice));
+
+		gpuErrchk(cudaMemcpyAsync(
+								pairListListI_d, tmpPairListsI,
+								sizeof(int*)*nLists, cudaMemcpyHostToDevice));
+		gpuErrchk(cudaMemcpyAsync(
+								pairListListJ_d, tmpPairListsJ,
+								sizeof(int*)*nLists, cudaMemcpyHostToDevice));
+		gpuErrchk(cudaMemcpyAsync(
+								numPairs_d, tmp,
+								sizeof(int)*nLists, cudaMemcpyHostToDevice));
+		
 		gpuErrchk(cudaDeviceSynchronize());
 	}
 
 	
-	cuMemGetInfo(&free,&total);
+		cuMemGetInfo(&free,&total);
 	printf("Free memory: %zu / %zu\n", free, total);
 	
 	const int NUMTHREADS = 128;
@@ -399,7 +416,13 @@ void ComputeForce::decompose(Vector3* pos) {
 
 	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d, decomp_d); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */
-	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, sys_d, decomp_d, nCells, blocksPerCell);
+	/* pairlistTest<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, */
+	/* 																					 sys_d, decomp_d, nCells, blocksPerCell, */
+	/* 																					 numPairs_d, pairListListI_d, pairListListJ_d); */
+	/* gpuErrchk(cudaDeviceSynchronize());	 */
+	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas,
+																						 sys_d, decomp_d, nCells, blocksPerCell,
+																						 numPairs_d, pairListListI_d, pairListListJ_d);
 	gpuErrchk(cudaDeviceSynchronize());
 	
 	
@@ -524,12 +547,15 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 
 	
 	// Call the kernel to calculate the forces
-	int nb = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+	// int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z);
+	int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z) * 1000; /* RBTODO: number of pairLists */
 	computeTabulatedKernel<<< nb, numThreads >>>(force, pos, type,
 			tablePot_d, tableBond_d,
 			num, numParts, sys_d,
 			bonds, bondMap,	numBonds, 
-			energies_d, cutoff2, gridSize, numReplicas, get_energy);
+			energies_d, cutoff2, gridSize, numReplicas, get_energy,
+																							 numPairs_d, pairListListI_d, pairListListJ_d);
+
 	gpuErrchk(cudaDeviceSynchronize());
 
 	computeAngles<<<numBlocks, numThreads>>>(force, pos, angles,
