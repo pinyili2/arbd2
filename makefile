@@ -49,10 +49,11 @@ CODE_20 := -arch=sm_20
 # NV_FLAGS += $(CODE_10) $(CODE_12) $(CODE_20) $(CODE_30) $(CODE_35)
 NV_FLAGS += -arch=sm_35
 
-NVLD_FLAGS := $(NV_FLAGS) --device-link
+NVLD_FLAGS := $(NV_FLAGS) --device-link 
 # NV_FLAGS += -rdc=true
 
 LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
+LD_FLAGS += -lcuda 
 
 
 ### Sources

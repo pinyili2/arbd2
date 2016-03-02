@@ -112,9 +112,10 @@ private:
 	TabulatedDihedralPotential **tableDihedral_d, **tableDihedral_addr;
 
 	// Pairlists
-	int *pairIds_d;
-	int numPairs;
-	int numPairs_d;	
+	int **pairListList_d;
+	int **pairLists_d;
+
+	int *numPairs_d;	
 };
 
 #endif

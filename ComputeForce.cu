@@ -366,14 +366,33 @@ void ComputeForce::decompose(Vector3* pos) {
 	// Update pairlists using cell decomposition (not sure this is really needed or good) 
 	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);	
 
-	
-		// initializePairlistArrays
+
+	size_t free, total;
+	cuMemGetInfo(&free,&total);
+	printf("Free memory: %zu / %zu\n", free, total);
+	// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
 	int blocksPerCell = 10;
 	if (newDecomp) {
-		initializePairlistArrays<<< 1, 32 >>>(nCells*blocksPerCell);
+		// initializePairlistArrays<<< 1, 32 >>>(10*nCells*blocksPerCell);
+
+		const int nLists = blocksPerCell*nCells*100;
+		const size_t s = sizeof(int*) * nLists;
+		gpuErrchk(cudaMalloc(&pairListList_d, s));
+
+		int *tmpPairLists[nLists];
+		for (int i = 0; i < nLists; i++) {
+			gpuErrchk(cudaMalloc(&tmpPairLists[i], sizeof(int)*(1<<14)));
+		}
+		gpuErrchk(cudaMemcpyAsync(pairListList_d, tmpPairLists,
+															sizeof(int*)*nLists, cudaMemcpyHostToDevice));
 		gpuErrchk(cudaDeviceSynchronize());
 	}
+
+	
+	cuMemGetInfo(&free,&total);
+	printf("Free memory: %zu / %zu\n", free, total);
+	
 	const int NUMTHREADS = 128;
 	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
 	const size_t nBlocks = nCells*blocksPerCell;

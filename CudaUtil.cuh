@@ -3,16 +3,21 @@
 #define WARPSIZE 32
 
 __device__ int warp_bcast(int v, int leader) { return __shfl(v, leader); }
-__device__ int atomicAggInc(int *ctr, int warpLane) {
+__device__ int atomicAggInc(int tmpidx, int *ctr, int warpLane) {
 	// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
 	int mask = __ballot(1);
 	int leader = __ffs(mask)-1;
 
+	int tmp4 = tmpidx;
 	int res;
 	if ( warpLane == leader )
 		res = atomicAdd(ctr, __popc(mask));
 	res = warp_bcast(res,leader);
+
 	
+	int tmp2 = warpLane;					/* diddo */
+	int* tmp = ctr;								/* avoid optimizing */
+	int tmp3 = tmpidx;
 	return res + __popc( mask & ((1 << warpLane) - 1) );
 }
 

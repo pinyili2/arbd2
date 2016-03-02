@@ -196,12 +196,13 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 
 
 // RBTODO: remove global device variables for fast prototyping of pairlist kernel
-// #define MAXPAIRS 25500*25500 // (num/numReplicas) * ((num/numReplicas)-1);
+#define MAXPAIRS 25500*25500 // (num/numReplicas) * ((num/numReplicas)-1);
 __device__ int* g_numPairs;
 __device__ int** g_pairI;
 __device__ int** g_pairJ;
 __device__ int g_nextPairlist;
-const __device__ int maxPairs = 1 << 12;
+__device__ int g_numPairlistArrays;
+const __device__ int maxPairs = 1 << 14;
 
 __global__
 void initializePairlistArrays(const int nLists) {
@@ -211,25 +212,58 @@ void initializePairlistArrays(const int nLists) {
 	
 	// RBTODO: free later
 	if (tid == 0) {
-		printf("Initializing device pairlists for %d cells\n", nLists);
-		g_numPairs = (int*) malloc( nLists * sizeof(int) );  
+		printf("Initializing %d device pairlists.\n", nLists);
+		g_numPairs = (int*) malloc( nLists * sizeof(int) );
 		g_pairI = (int**) malloc( nLists * sizeof(int*));
 		g_pairJ = (int**) malloc( nLists * sizeof(int*));
 		g_nextPairlist = 0;
-	}		
-	__syncthreads();	
-	assert( g_numPairs != NULL );
-	assert( g_pairI != NULL );
-	assert( g_pairJ != NULL );
+		g_numPairlistArrays = nLists;
+
+		assert( g_numPairs != NULL );
+		assert( g_pairI != NULL );
+		assert( g_pairJ != NULL );
 	
-	for (int i = tid; i < nLists; i += blockDim.x) {
-		g_pairI[i] = (int*) malloc( maxPairs * sizeof(int));
-		g_pairJ[i] = (int*) malloc( maxPairs * sizeof(int));
-		g_numPairs[i] = 0;
-		assert( g_pairI[i] != NULL );
-		assert( g_pairJ[i] != NULL );
+		for (int i = 0; i < nLists; i++) {
+			g_pairI[i] = (int*) malloc( maxPairs * sizeof(int));
+			g_pairJ[i] = (int*) malloc( maxPairs * sizeof(int));
+			g_numPairs[i] = 0;
+			assert( g_pairI[i] != NULL );
+			assert( g_pairJ[i] != NULL );
+		}
 	}
 }
+/* __global__ */
+/* void initializePairlistArrays(const int nLists) { */
+/* 	const int tid = threadIdx.x; */
+/* //	const int maxPairs = 1 << 12;	/\* ~120,000 per cell *\/ */
+/* 	if (blockIdx.x > 0) return; */
+	
+/* 	// RBTODO: free later */
+/* 	if (tid == 0) { */
+/* 		printf("Initializing %d device pairlists.\n", nLists); */
+/* 		g_numPairs = (int*) malloc( nLists * sizeof(int) ); */
+/* 		g_pairI = (int**) malloc( nLists * sizeof(int*)); */
+/* 		g_pairJ = (int**) malloc( nLists * sizeof(int*)); */
+/* 		g_nextPairlist = 0; */
+/* 		g_numPairlistArrays = nLists; */
+/* 	} */
+/* 	__syncthreads(); */
+/* 	assert( g_numPairs != NULL ); */
+/* 	assert( g_pairI != NULL ); */
+/* 	assert( g_pairJ != NULL ); */
+	
+/* 	for (int i = tid; i < nLists; i += blockDim.x) { */
+/* 		g_pairI[i] = (int*) malloc( maxPairs * sizeof(int)); */
+/* 		g_pairJ[i] = (int*) malloc( maxPairs * sizeof(int)); */
+/* 		g_numPairs[i] = 0; */
+/* 	} */
+
+/* 	__syncthreads(); */
+/* 	for (int i = tid; i < nLists; i += blockDim.x) { */
+/* 		assert( g_pairI[i] != NULL ); */
+/* 		assert( g_pairJ[i] != NULL ); */
+/* 	} */
+/* } */
 
 __global__
 void createPairlists(Vector3 pos[], int num, int numReplicas,
@@ -247,12 +281,8 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 	const int wid = tid/WARPSIZE;
 	const int blockLane = bid % blocksPerCell;
 
-	__shared__ int pid[NUMTHREADS/WARPSIZE];
-	if (warpLane == 0) pid[wid] = 0;
-
-	/* if (warpLane == 0) */
-	/* 	pid = atomicAdd( &g_nextPairlist, 1 ); */
-	/* res = warp_bcast(res,leader); */
+	volatile __shared__ int pid[NUMTHREADS/WARPSIZE];
+	if (warpLane == 0) pid[wid] = bid;
 
 	if (cID >= nCells) return;
 	int count = 0;								/* debug */
@@ -285,40 +315,23 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 							if (aj <= ai) continue;
 							// RBTODO: skip exclusions
 
-							/* int gid; */
-							/* { // per-warp atomic add to get global inices */
-							/* 	int t_active = __ballot(1); */
-							/* 	int leader = __ffs(t_active)-1; */
-							/* 	int res; */
+ 							int gid = atomicAggInc( pid[wid], &g_numPairs[pid[wid]], warpLane ); // fails
+							while (__any(gid >= maxPairs)) { // does any thread in the warp have too large and index?
+								if (gid < maxPairs) {
+									g_pairI[pid[wid]][gid] = -1;
+									g_pairJ[pid[wid]][gid] = -1;
+								}
 
-							/* 	// RBTODO: see if performance improves with __any(gid >= maxPairs  */
-							/* 	if ( warpLane == leader ) { */
-							/* 		const int t_count = __popc(t_active); */
-							/* 		res = atomicAdd( &g_numPairs[pid], t_count ); */
-							/* 		if ( res + t_count >= maxPairs ) { // went too far; mark invalid and go again */
-							/* 			int tmp = atomicSub( &g_numPairs[pid], t_count ); */
-							/* 			assert( tmp == res + t_count ); */
-							/* 			pid++; */
-							/* 			res = atomicAdd( &g_numPairs[pid], t_count ); */
-							/* 		} */
-							/* 	} */
-							/* 	pid = warp_bcast(pid,leader); */
-							/* 	res = warp_bcast(res,leader); */
-							/* 	gid = res + __popc( t_active & ((1 << warpLane) - 1) ); */
-							/* } */
-							int gid = atomicAggInc( &g_numPairs[pid], warpLane ); // fails
-							if (__any(gid >= maxPairs)) { // a little inefficient, but important
-								g_pairI[pid][gid] = -1;
-								g_pairJ[pid][gid] = -1;
-								pid++;					/* needs to apply to ALL warp threads */
+								// Have 'leader' thread in warp increment counter
+								if ( warpLane + 1 == __ffs(__ballot(1)) )	pid[wid]++;
+								
 								// we assume arrays at pid are nearly empty (no while loop)  
-								gid = atomicAggInc( &g_numPairs[pid], warpLane ); /* assume this hasn't filled */
+								gid = atomicAggInc( pid[wid], &g_numPairs[pid[wid]], warpLane ); /* assume this hasn't filled */
 							}
 							
-							
 							// int wid = atomicAdd( &g_numPairs[pid], 1 ); // works
-							g_pairI[pid][gid] = ai;
-							g_pairJ[pid][gid] = aj;
+							g_pairI[pid[wid]][gid] = ai;
+							g_pairJ[pid[wid]][gid] = aj;
 						} 	// atoms J
 					} 		// z				
 				} 			// y
