@@ -377,9 +377,9 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 																			 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
 	
 	const int NUMTHREADS = 256;		/* RBTODO: fix */
-	__shared__ EnergyForce fe[NUMTHREADS];
-	__shared__ int atomI[NUMTHREADS];
-	__shared__ int atomJ[NUMTHREADS];
+	// __shared__ EnergyForce fe[NUMTHREADS];
+	/* __shared__ int atomI[NUMTHREADS]; */
+	/* __shared__ int atomJ[NUMTHREADS]; */
 
 	const int tid = threadIdx.x;
 	const int cID = blockIdx.x;
@@ -390,7 +390,7 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	
 	// loop over particle pairs in pairlist
 	for (int i = tid; i < numPairs; i+=NUMTHREADS) {
-	 
+
 		// BONDS: RBTODO: handle through an independent kernel call
 		// RBTODO: handle exclusions in other kernel call
 		const int ai = g_pairI[cID][i];
@@ -402,19 +402,19 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 
 		// RBTODO: implement wrapDiff2, returns dr2
 		const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
-
+		
     // Calculate the force based on the tabulatedPotential file
-		fe[tid] = EnergyForce(0.0f, Vector3(0.0f));
-		if (tablePot[ind] != NULL && dr.length2() <= cutoff2)
-			fe[tid] = tablePot[ind]->compute(dr);
+		if (tablePot[ind] != NULL && dr.length2() <= cutoff2) {
+			EnergyForce fe = tablePot[ind]->compute(dr);
+			
+			// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
+			atomicAdd( &force[ai], fe.f );
+			atomicAdd( &force[aj], -fe.f );
 
-		// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
-		atomicAdd( &force[ai], fe[tid].f );
-		atomicAdd( &force[aj], -fe[tid].f );
-
-		// RBTODO: why are energies calculated for each atom? Could be reduced
-		if (get_energy && aj > ai)
-			atomicAdd( &(g_energies[ai]), fe[tid].e );		
+			// RBTODO: why are energies calculated for each atom? Could be reduced
+			if (get_energy && aj > ai)
+				atomicAdd( &(g_energies[ai]), fe.e );
+		}
 	}
 }
 
