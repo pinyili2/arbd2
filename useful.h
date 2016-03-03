@@ -284,6 +284,7 @@ public:
 		m.ezx = exz;
 		m.ezy = eyz;
 		m.ezz = ezz;
+		m.isDiag = isDiag;
 		return m;
 	}
 
@@ -294,9 +295,15 @@ public:
 
 	HOST DEVICE inline Vector3 transform(const Vector3& v) const {
 		Vector3 w;
-		w.x = exx*v.x + exy*v.y + exz*v.z;
-		w.y = eyx*v.x + eyy*v.y + eyz*v.z;
-		w.z = ezx*v.x + ezy*v.y + ezz*v.z;
+		if (isDiag) {
+			w.x = exx*v.x;
+			w.y = eyy*v.y;
+			w.z = ezz*v.z;
+		} else {
+			w.x = exx*v.x + exy*v.y + exz*v.z;
+			w.y = eyx*v.x + eyy*v.y + eyz*v.z;
+			w.z = ezx*v.x + ezy*v.y + ezz*v.z;
+		}
 		return w;
 	}
 
@@ -314,9 +321,18 @@ public:
 		ret.exz = exx*m.exz + exy*m.eyz + exz*m.ezz;
 		ret.eyz = eyx*m.exz + eyy*m.eyz + eyz*m.ezz;
 		ret.ezz = ezx*m.exz + ezy*m.eyz + ezz*m.ezz;
+		ret.setIsDiag();
 		return ret;
 	}
 
+	HOST DEVICE void setIsDiag() {
+		isDiag = (exy == 0 && exz == 0 &&
+							eyx == 0 && eyz == 0 &&
+							ezx == 0 && ezy == 0) ? true : false;
+	}
+	
+
+	
 	Vector3 ex() const;
 	Vector3 ey() const;
 	Vector3 ez() const;
@@ -328,10 +344,9 @@ public:
 	float exx, exy, exz;
 	float eyx, eyy, eyz;
 	float ezx, ezy, ezz;
+	bool isDiag;
 
 };
-
-
 
 Matrix3 operator*(float s, Matrix3 m);
 Matrix3 operator/(Matrix3 m, float s);

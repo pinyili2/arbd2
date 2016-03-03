@@ -46,7 +46,7 @@ public:
 
   Vector3 computeForce(Vector3 r);
 
-  HOST DEVICE inline EnergyForce compute(Vector3 r) {
+  HOST DEVICE inline EnergyForce computeOLD(Vector3 r) {
 		float d = r.length();
 		Vector3 rUnit = -r/d;
 		int home = int(floorf((d - r0)/dr));
@@ -54,12 +54,28 @@ public:
 		if (home >= n) return EnergyForce(e0, Vector3(0.0f));
 		float homeR = home*dr + r0;
 		float w = (d - homeR)/dr;
-
+		
 		// Interpolate.
 		float energy = v3[home]*w*w*w + v2[home]*w*w + v1[home]*w + v0[home];
 		Vector3 force = -(3.0f*v3[home] * w * w
 										+ 2.0f*v2[home] * w
 										+ v1[home]) * rUnit/dr;
+		return EnergyForce(energy,force);
+	}
+
+  HOST DEVICE inline EnergyForce compute(Vector3 r) {
+		float d = r.length();
+		float w = (d - r0)/dr;
+		int home = int( floorf(w) );
+		w = w - home;
+		if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
+		if (home >= n) return EnergyForce(e0, Vector3(0.0f));
+		
+		// Interpolate.
+		float energy = v3[home]*w*w*w + v2[home]*w*w + v1[home]*w + v0[home];
+		Vector3 force = (-(3.0f*v3[home] *w*w +
+											 2.0f*v2[home] *w   +
+											 + v1[home])/(d*dr)) * r;
 		return EnergyForce(energy,force);
 	}
 

@@ -355,6 +355,7 @@ Matrix3::Matrix3(float s) {
 	ezx = 0.0f;
 	ezy = 0.0f;
 	ezz = s;
+	isDiag = true;
 }
 
 Matrix3::Matrix3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz) {
@@ -367,6 +368,7 @@ Matrix3::Matrix3(float xx, float xy, float xz, float yx, float yy, float yz, flo
 	ezx = zx;
 	ezy = zy;
 	ezz = zz;
+	setIsDiag();
 }
 
 Matrix3::Matrix3(float x, float y, float z) {
@@ -379,6 +381,7 @@ Matrix3::Matrix3(float x, float y, float z) {
 	ezx = 0.0f;
 	ezy = 0.0f;
 	ezz = z;
+	isDiag = true;
 }
 
 Matrix3::Matrix3(const Vector3& ex, const Vector3& ey, const Vector3& ez) {
@@ -391,7 +394,7 @@ Matrix3::Matrix3(const Vector3& ex, const Vector3& ey, const Vector3& ez) {
 	exz = ez.x;
 	eyz = ez.y;
 	ezz = ez.z;
-
+	setIsDiag();
 }
 
 Matrix3::Matrix3(const float* d) {
@@ -403,8 +406,9 @@ Matrix3::Matrix3(const float* d) {
 	eyz = d[5];
 	ezx = d[6];
 	ezy = d[7];
-	ezz = d[8];
-}
+	ezz = d[8];	
+	setIsDiag();
+}	
 
 const Matrix3 Matrix3::operator*(float s) const {
 	Matrix3 m;
@@ -417,7 +421,7 @@ const Matrix3 Matrix3::operator*(float s) const {
 	m.ezx = s*ezx;
 	m.ezy = s*ezy;
 	m.ezz = s*ezz;
-
+	m.isDiag = isDiag;
 	return m;
 }
 
@@ -435,6 +439,7 @@ const Matrix3 Matrix3::operator*(const Matrix3& m) const {
 	ret.exz = exx*m.exz + exy*m.eyz + exz*m.ezz;
 	ret.eyz = eyx*m.exz + eyy*m.eyz + eyz*m.ezz;
 	ret.ezz = ezx*m.exz + ezy*m.eyz + ezz*m.ezz;
+	ret.setIsDiag();
 	return ret;
 }
 
@@ -449,29 +454,33 @@ const Matrix3 Matrix3::operator-() const {
 	m.ezx = -ezx;
 	m.ezy = -ezy;
 	m.ezz = -ezz;
-
+	m.isDiag = isDiag;
 	return m;
 }
 
 Matrix3 Matrix3::inverse() const {
 	Matrix3 m;
-	float det = exx*(eyy*ezz-eyz*ezy) - exy*(eyx*ezz-eyz*ezx) + exz*(eyx*ezy-eyy*ezx);
-
-	m.exx = (eyy*ezz - eyz*ezy)/det;
-	m.exy = -(exy*ezz - exz*ezy)/det;
-	m.exz = (exy*eyz - exz*eyy)/det;
-	m.eyx = -(eyx*ezz - eyz*ezx)/det;
-	m.eyy = (exx*ezz - exz*ezx)/det;
-	m.eyz = -(exx*eyz - exz*eyx)/det;
-	m.ezx = (eyx*ezy - eyy*ezx)/det;
-	m.ezy = -(exx*ezy - exy*ezx)/det;
-	m.ezz = (exx*eyy - exy*eyx)/det;
-
+	if (isDiag) {
+		m = Matrix3(1.0f/exx,1.0f/eyy,1.0f/ezz);
+	} else {
+		float det = exx*(eyy*ezz-eyz*ezy) - exy*(eyx*ezz-eyz*ezx) + exz*(eyx*ezy-eyy*ezx);
+		m.exx = (eyy*ezz - eyz*ezy)/det;
+		m.exy = -(exy*ezz - exz*ezy)/det;
+		m.exz = (exy*eyz - exz*eyy)/det;
+		m.eyx = -(eyx*ezz - eyz*ezx)/det;
+		m.eyy = (exx*ezz - exz*ezx)/det;
+		m.eyz = -(exx*eyz - exz*eyx)/det;
+		m.ezx = (eyx*ezy - eyy*ezx)/det;
+		m.ezy = -(exx*ezy - exy*ezx)/det;
+		m.ezz = (exx*eyy - exy*eyx)/det;
+		m.isDiag = isDiag;
+	}
 	return m;
 }
 
 float Matrix3::det() const {
-	return exx*(eyy*ezz-eyz*ezy) - exy*(eyx*ezz-eyz*ezx) + exz*(eyx*ezy-eyy*ezx);
+	return isDiag ? exx*eyy*ezz :
+		exx*(eyy*ezz-eyz*ezy) - exy*(eyx*ezz-eyz*ezx) + exz*(eyx*ezy-eyy*ezx);
 }
 
 

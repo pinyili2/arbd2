@@ -416,7 +416,6 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 		if (get_energy && aj > ai)
 			atomicAdd( &(g_energies[ai]), fe[tid].e );		
 	}
-	
 }
 
 

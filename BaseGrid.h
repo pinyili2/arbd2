@@ -617,6 +617,13 @@ public:
   }
 
   // Wrap vector distance, -0.5*l <= x < 0.5*l  && ...
+  /* HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const { */
+  /*   Vector3 l = basisInv.transform(r); */
+  /*   l.x = wrapDiff(l.x, nx); */
+  /*   l.y = wrapDiff(l.y, ny); */
+  /*   l.z = wrapDiff(l.z, nz); */
+  /*   return basis.transform(l); */
+  /* } */
   HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const {
     Vector3 l = basisInv.transform(r);
     l.x = wrapDiff(l.x, nx);
