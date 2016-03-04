@@ -38,7 +38,7 @@ public:
 			int numDihedrals, int numTabDihedralFiles, int numReplicas = 1);
 	~ComputeForce();
 
-	void updateNumber(Vector3* pos, int newNum);
+	void updateNumber(Vector3* pos, int type[], int newNum);
 	void makeTables(const BrownianParticleType* part);
 
 	bool addTabulatedPotential(String fileName, int type0, int type1);
@@ -46,7 +46,7 @@ public:
 	bool addAnglePotential(String fileName, int ind, Angle* angles, Angle* angles_d);
 	bool addDihedralPotential(String fileName, int ind, Dihedral* dihedrals, Dihedral* dihedrals_d);
 
-	void decompose(Vector3* pos);
+	void decompose(Vector3* pos, int type[]);
 	
 	CellDecomposition getDecomp();
 	IndexList decompDim() const;
@@ -112,10 +112,9 @@ private:
 	TabulatedDihedralPotential **tableDihedral_d, **tableDihedral_addr;
 
 	// Pairlists
-	int **pairListListI_d;
 	int *pairListsI_d;
-	int **pairListListJ_d;
 	int *pairListsJ_d;
+	int *pairTabPotType_d;
 
 	int *numPairs_d;	
 };

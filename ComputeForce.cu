@@ -131,7 +131,7 @@ ComputeForce::~ComputeForce() {
 	gpuErrchk(cudaFree(sys_d));
 }
 
-void ComputeForce::updateNumber(Vector3* pos, int newNum) {
+void ComputeForce::updateNumber(Vector3* pos, int type[], int newNum) {
 	if (newNum == num or newNum < 0) return;
 
 	// Set the new number.
@@ -140,7 +140,7 @@ void ComputeForce::updateNumber(Vector3* pos, int newNum) {
 	// Reallocate the neighbor list.
 	//delete[] neigh;
 	//neigh = new IndexList[num];
-	decompose(pos);
+	decompose(pos, type);
 
 	printf("updateNumber() called\n");
 	// Reallocate CUDA arrays
@@ -351,7 +351,7 @@ bool ComputeForce::addDihedralPotential(String fileName, int ind,
 	return true;
 }
 
-void ComputeForce::decompose(Vector3* pos) {
+void ComputeForce::decompose(Vector3* pos, int type[]) {
 	gpuErrchk( cudaProfilerStart() );
 	// Reset the cell decomposition.
 	bool newDecomp = false;
@@ -374,40 +374,23 @@ void ComputeForce::decompose(Vector3* pos) {
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
 	int blocksPerCell = 10;
 	if (newDecomp) {
-		// initializePairlistArrays<<< 1, 32 >>>(10*nCells*blocksPerCell);
-
 		// RBTODO: free memory elsewhere
 		// allocate device data
-		const int nLists = blocksPerCell*nCells*100;
-		const size_t s = sizeof(int*) * nLists;
-		gpuErrchk(cudaMalloc(&pairListListI_d, sizeof(int*)*nLists));
-		gpuErrchk(cudaMalloc(&pairListListJ_d, sizeof(int*)*nLists));
-		gpuErrchk(cudaMalloc(&numPairs_d, sizeof(int)*nLists));
-
-		int *tmpPairListsI[nLists];
-		int *tmpPairListsJ[nLists];
-		int tmp[nLists];
-		for (int i = 0; i < nLists; i++) {
-			gpuErrchk(cudaMalloc(&tmpPairListsI[i], sizeof(int)*(1<<14)));
-			gpuErrchk(cudaMalloc(&tmpPairListsJ[i], sizeof(int)*(1<<14)));
-			tmp[i] = 0;
-		}
-
-		gpuErrchk(cudaMemcpyAsync(
-								pairListListI_d, tmpPairListsI,
-								sizeof(int*)*nLists, cudaMemcpyHostToDevice));
-		gpuErrchk(cudaMemcpyAsync(
-								pairListListJ_d, tmpPairListsJ,
-								sizeof(int*)*nLists, cudaMemcpyHostToDevice));
-		gpuErrchk(cudaMemcpyAsync(
-								numPairs_d, tmp,
-								sizeof(int)*nLists, cudaMemcpyHostToDevice));
+		// initializePairlistArrays<<< 1, 32 >>>(10*nCells*blocksPerCell);
+		const int maxPairs = 1<<29;
+		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)*maxPairs));
+		gpuErrchk(cudaMalloc(&pairListsI_d,     sizeof(int)*maxPairs));
+		gpuErrchk(cudaMalloc(&pairListsJ_d,     sizeof(int)*maxPairs));
+		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
+		int tmp = 0;
+		gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,
+															sizeof(int), cudaMemcpyHostToDevice));
 		
 		gpuErrchk(cudaDeviceSynchronize());
 	}
 
 	
-		cuMemGetInfo(&free,&total);
+	cuMemGetInfo(&free,&total);
 	printf("Free memory: %zu / %zu\n", free, total);
 	
 	const int NUMTHREADS = 128;
@@ -422,7 +405,9 @@ void ComputeForce::decompose(Vector3* pos) {
 	/* gpuErrchk(cudaDeviceSynchronize());	 */
 	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas,
 																						 sys_d, decomp_d, nCells, blocksPerCell,
-																						 numPairs_d, pairListListI_d, pairListListJ_d);
+																						 numPairs_d, pairListsI_d, pairListsJ_d,
+																						 numParts, type, pairTabPotType_d);
+
 	gpuErrchk(cudaDeviceSynchronize());
 	
 	
@@ -544,7 +529,6 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 	gridSize = (num * numReplicas) / NUM_THREADS + 1;
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
-
 	
 	// Call the kernel to calculate the forces
 	// int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z);
@@ -554,9 +538,12 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 			num, numParts, sys_d,
 			bonds, bondMap,	numBonds, 
 			energies_d, cutoff2, gridSize, numReplicas, get_energy,
-																							 numPairs_d, pairListListI_d, pairListListJ_d);
+																							 numPairs_d, pairListsI_d, pairListsJ_d,
+																							 pairTabPotType_d);
 
 	gpuErrchk(cudaDeviceSynchronize());
+	/* printPairForceCounter<<<1,32>>>(); */
+	/* gpuErrchk(cudaDeviceSynchronize()); */
 
 	computeAngles<<<numBlocks, numThreads>>>(force, pos, angles,
 			tableAngle_d, numAngles, num, sys_d, energies_d, get_energy);

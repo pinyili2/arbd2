@@ -307,7 +307,7 @@ void GrandBrownTown::run() {
 	// We haven't done any steps yet.
 	// Do decomposition if we have to
 	if (fullLongRange == 0)
-		internal->decompose(pos_d);
+		internal->decompose(pos_d, type_d);
 
 	float t; // simulation time
 
@@ -335,7 +335,7 @@ void GrandBrownTown::run() {
 				switch (fullLongRange) {
 					case 0: // [ N*log(N) ] interactions, + cutoff | decomposition
 						if (s % decompPeriod == 0) {
-							internal->decompose(pos_d);
+							internal->decompose(pos_d, type_d);
 							//internal->updatePairlists(pos_d); // perhaps this way?
 						}
 						energy = internal->computeTabulated(forceInternal_d, pos_d, type_d,
@@ -361,7 +361,7 @@ void GrandBrownTown::run() {
 
 					case 0: // Use cutoff | cell decomposition.
 						if (s % decompPeriod == 0)
-							internal->decompose(pos_d);
+							internal->decompose(pos_d, type_d);
 						energy =
 								internal->compute(forceInternal_d, pos_d, type_d, get_energy);
 						break;
@@ -881,7 +881,7 @@ void GrandBrownTown::addParticles(int n, int typ, Vector3 r0, Vector3 r1, float 
 		type[i] = typ;
 		num++;
 		// Update the cell decomposition
-		internal->updateNumber(pos, num);
+		internal->updateNumber(pos, type, num); /* RBTODO: unsure if type arg is ok */
 	}
 }
 
@@ -933,7 +933,7 @@ void GrandBrownTown::updateReservoirs() {
 	} // end particle loop
 
 	if (numberChange)
-		internal->updateNumber(pos, num);
+		internal->updateNumber(pos, type, num);
 }
 
 // -----------------------------------------------------------------------------

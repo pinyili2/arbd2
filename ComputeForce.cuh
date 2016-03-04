@@ -197,39 +197,36 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 
 const __device__ int maxPairs = 1 << 14;
 
-__global__
-void pairlistTest(Vector3 pos[], int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* decomp,
-										 const int nCells, const int blocksPerCell,
-										 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
-	const int gtid = threadIdx.x + blockIdx.x*blockDim.x;
-	for (int i = gtid; i < gridDim.x*100; i+=blockDim.x) {
-		assert( g_numPairs[i] == 0 );
-		assert( g_pairI[i] != NULL );
-		assert( g_pairJ[i] != NULL );
-	}
-}
+/* __global__ */
+/* void pairlistTest(Vector3 pos[], int num, int numReplicas, */
+/* 									BaseGrid* sys, CellDecomposition* decomp, */
+/* 									const int nCells, const int blocksPerCell, */
+/* 									int* g_numPairs, int* g_pairI, int* g_pairJ ) { */
+/* 	const int gtid = threadIdx.x + blockIdx.x*blockDim.x; */
+/* 	for (int i = gtid; i < gridDim.x*100; i+=blockDim.x) { */
+/* 		assert( g_numPairs[i] == 0 ); */
+/* 		assert( g_pairI[i] != NULL ); */
+/* 		assert( g_pairJ[i] != NULL ); */
+/* 	} */
+/* } */
 
 __global__
 void createPairlists(Vector3 pos[], int num, int numReplicas,
 										 BaseGrid* sys, CellDecomposition* decomp,
 										 const int nCells, const int blocksPerCell,
-										 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
+										 int* g_numPairs, int* g_pairI, int* g_pairJ,
+										 int numParts, int type[], int* g_pairTabPotType) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
   //   A sync operation periodically moves data from shared to global
-	const int NUMTHREADS = 128;		/* RBTODO: fix */
 	const int tid = threadIdx.x;
 	const int bid = blockIdx.x;
 
-	const int cID = bid / blocksPerCell;
+	const int cID = bid / blocksPerCell; /* cellID */
 
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
 	const int wid = tid/WARPSIZE;
 	const int blockLane = bid % blocksPerCell;
-
-	volatile __shared__ int pid[NUMTHREADS/WARPSIZE];
-	if (warpLane == 0) pid[wid] = bid; /* RBTODO: not sure this is good; used to be 0 */
 
 	if (cID >= nCells) return;
 	int count = 0;								/* debug */
@@ -237,8 +234,8 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 
 	for (int repID = 0; repID < numReplicas; repID++) {
 		const CellDecomposition::range_t rangeI = decomp->getRange(cID, repID);
-		if (tid == 0) printf("  Cell%d: Working on %d atoms for repID %d\n",
-												 cID, rangeI.last - rangeI.first, repID);
+		/* if (tid == 0) printf("  Cell%d: Working on %d atoms for repID %d\n", */
+		/* 										 cID, rangeI.last - rangeI.first, repID); */
 
 		for (int ci = rangeI.first + blockLane; ci < rangeI.last; ci+=blocksPerCell) {
 			// ai - index of the particle in the original, unsorted array
@@ -256,32 +253,20 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 						const CellDecomposition::range_t range = decomp->getRange(nID, repID);
 						const int last = range.last;
 						// for (int n = 0; n < last; n++) {}
-						for (int n = range.first + tid; n < last; n+=NUMTHREADS) {
+						for (int n = range.first + tid; n < last; n+=blockDim.x) {
 							count++;
 							const int aj = pairs[n].particle;
 							if (aj <= ai) continue;
-							// RBTODO: skip exclusions
-
- 							int gid = atomicAggInc( pid[wid], &g_numPairs[pid[wid]], warpLane ); // fails
-							while (__any(gid >= maxPairs)) { // does any thread in the warp have too large and index?
-								if (gid < maxPairs) {
-									g_pairI[pid[wid]][gid] = -1;
-									g_pairJ[pid[wid]][gid] = -1;
-								}
-								// Have 'leader' thread in warp increment counter
-								if ( warpLane + 1 == __ffs(__ballot(1)) )	pid[wid]++; /* pid must be volatile */
-								// alternative to pid being volatile:
-								__threadfence_block();
-								
-								// assume arrays at pid are nearly empty (no while loop)  
-								gid = atomicAggInc( pid[wid], &g_numPairs[pid[wid]], warpLane ); /* assume this hasn't filled */
-							}
+							// RBTODO: skip exclusions, non-interacting types
+							int pairType = type[ai] + type[aj] * numParts;
+ 							int gid = atomicAggInc( g_numPairs, warpLane );
 							/* assert( ai >= 0 ); */
 							/* assert( aj >= 0 ); */
 							
-							// int wid = atomicAdd( &g_numPairs[pid], 1 ); // works
-							g_pairI[pid[wid]][gid] = ai;
-							g_pairJ[pid[wid]][gid] = aj;
+							g_pairI[gid] = ai;
+							g_pairJ[gid] = aj;
+							g_pairTabPotType[gid] = pairType;
+
 						} 	// atoms J
 					} 		// z				
 				} 			// y
@@ -363,6 +348,11 @@ void computeKernel(Vector3 force[], Vector3 pos[], int type[],
 	}
 }
 
+__device__ int pairForceCounter = 0;
+__global__ void printPairForceCounter() {
+	if (threadIdx.x + blockIdx.x == 0)
+		printf("Computed the force for %d pairs\n", pairForceCounter);
+}
 
 // ============================================================================
 // Kernel computes forces between Brownian particles (ions)
@@ -374,43 +364,51 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 		Bond* bonds, int2* bondMap, int numBonds,
 		float* g_energies, float cutoff2, int gridSize,
 																			 int numReplicas, bool get_energy,
-																			 int* g_numPairs, int** g_pairI, int** g_pairJ ) {
+																			 int* g_numPairs, int* g_pairI, int* g_pairJ,
+																			 int* g_pairTabPotType) {
 	
-	const int NUMTHREADS = 256;		/* RBTODO: fix */
+	// const int NUMTHREADS = 256;		/* RBTODO: fix */
 	// __shared__ EnergyForce fe[NUMTHREADS];
 	/* __shared__ int atomI[NUMTHREADS]; */
 	/* __shared__ int atomJ[NUMTHREADS]; */
 
-	const int tid = threadIdx.x;
-	const int cID = blockIdx.x;
-
-	int numPairs = min( g_numPairs[cID], maxPairs );
-	// const int gid = blockIdx.x * blockDim.x + threadIdx.x;
-
+	// const int& tid = threadIdx.x;
+	const int blockStride = (*g_numPairs) / gridDim.x; /* RBTODO: fix this */
+		
+	/* if (threadIdx.x == 0) { */
+	/* 	printf( "block %d running from pair %d to %d\n", blockIdx.x, blockIdx.x*blockStride, blockIdx.x*blockStride + blockStride -1 );\ */
+	/* } */
+		
 	
+	// RBTODO: fix this
 	// loop over particle pairs in pairlist
-	for (int i = tid; i < numPairs; i+=NUMTHREADS) {
+	for (int i = threadIdx.x + blockIdx.x*blockStride; i < (blockIdx.x+1)*blockStride; i+=blockDim.x) {
 
 		// BONDS: RBTODO: handle through an independent kernel call
 		// RBTODO: handle exclusions in other kernel call
-		const int ai = g_pairI[cID][i];
-		const int aj = g_pairJ[cID][i];
+		const int ai = g_pairI[i];
+		const int aj = g_pairJ[i];
 		if (ai < 0) continue;
-		
+			
 		// Particle's type and position
-		const int ind = type[ai] + type[aj] * numParts; /* RBTODO: why is numParts here? */
-
+		// const int ind = type[ai] + type[aj] * numParts; /* RBTODO: why is numParts here? */
+		const int ind = g_pairTabPotType[i];
+		// if (tablePot[ind] == NULL) continue;
+		
 		// RBTODO: implement wrapDiff2, returns dr2
 		const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
 		
     // Calculate the force based on the tabulatedPotential file
+		// if (dr.length2() > cutoff2) continue;
 		if (tablePot[ind] != NULL && dr.length2() <= cutoff2) {
-			EnergyForce fe = tablePot[ind]->compute(dr);
+		EnergyForce fe = tablePot[ind]->compute(dr);
 			
 			// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
 			atomicAdd( &force[ai], fe.f );
 			atomicAdd( &force[aj], -fe.f );
 
+			// atomicAdd( &pairForceCounter, 1 ); /* DEBUG */
+			
 			// RBTODO: why are energies calculated for each atom? Could be reduced
 			if (get_energy && aj > ai)
 				atomicAdd( &(g_energies[ai]), fe.e );
