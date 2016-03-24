@@ -1,11 +1,16 @@
 
 
-
-
 * TODO active
+** fix segfaults
+** move to efficient linear interpolation everywhere
+** update pairlists
+** statistical tests of results
 
 * TODO eventually
-** 
+** increase cells/cutoff
+
+** improve pairlist algorithm
+http://arxiv.org/pdf/1306.1737.pdf
 ** RB periodic boundaries?
 ** RB read restart file
 ** RB throw exception if an RB type uses a grid key multiple times

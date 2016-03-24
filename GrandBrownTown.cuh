@@ -34,13 +34,13 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 		Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
 		// Compute PMF
-		ForceEnergy fe = pt.pmf->interpolateForceD(p);
+		ForceEnergy fe = pt.pmf->interpolateForceDLinearly(p);
 
 #ifndef FORCEGRIDOFF
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
-		if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(p);
-		if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(p);
-		if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(p);		
+		if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(p);
+		if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(p);
+		if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(p);		
 #endif
 
 		// Compute total force:
@@ -53,14 +53,15 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 			forceInternal[idx] = force; // write it back out for force0 in run()
 
 		// Get local kT value
-		float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotential(p);
+		float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(p);
 
 		// Update the particle's position using the calculated values for time, force, etc.
 		if (pt.diffusionGrid == NULL) {
 			p = step(p, kTlocal, force, pt.diffusion, timestep, sys, randoGen, num);
 		} else {
-			float diffusion = pt.diffusionGrid->interpolatePotential(p);
-			Vector3 diffGrad = (pt.diffusionGrid->interpolateForceD(p)).f;
+			ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearly(p);
+			float& diffusion = diff.e;
+			Vector3& diffGrad = diff.f;
 			p = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
 		}
 	}
