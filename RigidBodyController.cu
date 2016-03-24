@@ -179,25 +179,28 @@ void RigidBodyController::updateForces(int s) {
 			rb.clearTorque();
 		}
 	}
-			
-	for (int i=0; i < forcePairs.size(); i++)
-		forcePairs[i].callGridForceKernel(i,s);
 
-	// each kernel call is followed by async memcpy for previous; now get last
-	RigidBodyForcePair* fp = RigidBodyForcePair::lastRbForcePair;
-	fp->retrieveForcesForGrid( fp->lastRbGridID );
-	fp->lastRbGridID = -1;
+	if (forcePairs.size() > 0) {
+		
+		for (int i=0; i < forcePairs.size(); i++)
+			forcePairs[i].callGridForceKernel(i,s);
 
-	// stream sync was slower than device sync
-	/* for (int i = 0; i < NUMSTREAMS; i++) { */
-	/* 	const cudaStream_t &s = RigidBodyForcePair::stream[i]; */
-	/* 	gpuErrchk(cudaStreamSynchronize( s ));  */
-	/* } */
-	gpuErrchk(cudaDeviceSynchronize());
+		// each kernel call is followed by async memcpy for previous; now get last
+		RigidBodyForcePair* fp = RigidBodyForcePair::lastRbForcePair;
+		fp->retrieveForcesForGrid( fp->lastRbGridID );
+		fp->lastRbGridID = -1;
+
+		// stream sync was slower than device sync
+		/* for (int i = 0; i < NUMSTREAMS; i++) { */
+		/* 	const cudaStream_t &s = RigidBodyForcePair::stream[i]; */
+		/* 	gpuErrchk(cudaStreamSynchronize( s ));  */
+		/* } */
+		gpuErrchk(cudaDeviceSynchronize());
 	
-	for (int i=0; i < forcePairs.size(); i++)
-		forcePairs[i].processGPUForces();
+		for (int i=0; i < forcePairs.size(); i++)
+			forcePairs[i].processGPUForces();
 
+	}
 }
 void RigidBodyController::integrate(int step) {
 	// tell RBs to integrate
