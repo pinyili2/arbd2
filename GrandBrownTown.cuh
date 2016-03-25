@@ -56,28 +56,16 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 		float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(p);
 
 		// Update the particle's position using the calculated values for time, force, etc.
-		if (pt.diffusionGrid == NULL) {
-			p = step(p, kTlocal, force, pt.diffusion, timestep, sys, randoGen, num);
-		} else {
+		float diffusion = pt.diffusion;
+		Vector3 diffGrad = Vector3(0.0f);
+		
+		if (pt.diffusionGrid != NULL) {
 			ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearly(p);
-			float& diffusion = diff.e;
-			Vector3& diffGrad = diff.f;
-			p = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
+			diffusion = diff.e;
+			diffGrad = diff.f;
 		}
+		p = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
 	}
-}
-
-__device__
-Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
-						 float timestep, BaseGrid *sys, Random *randoGen, int num) {
-	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	Vector3 rando = randoGen->gaussian_vector(idx, num);
-	Vector3 r = r0 + (force * diffusion * timestep / kTlocal) + (sqrtf(2.0f * diffusion * timestep) * rando);
-	Vector3 l = sys->getInverseBasis().transform(r - sys->getOrigin());
-	l.x = sys->wrapFloat(l.x, sys->getNx());
-	l.y = sys->wrapFloat(l.y, sys->getNy());
-	l.z = sys->wrapFloat(l.z, sys->getNz());
-	return sys->getBasis().transform(l) + sys->getOrigin();
 }
 
 __device__
@@ -87,15 +75,15 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	Vector3 rando = randoGen->gaussian_vector(idx, num);
 
-	Vector3 r = r0 + (diffusion * timestep / kTlocal) * force
+	diffusion *= timestep;
+	
+	Vector3 r = r0 + (diffusion / kTlocal) * force
 							+ timestep * diffGrad
-							+ sqrtf(2.0f * diffusion * timestep) * rando;
-
+							+ sqrtf(2.0f * diffusion) * rando;
 	Vector3 l = sys->getInverseBasis().transform(r - sys->getOrigin());
 	l.x = sys->wrapFloat(l.x, sys->getNx());
  	l.y = sys->wrapFloat(l.y, sys->getNy());
  	l.z = sys->wrapFloat(l.z, sys->getNz());
-
 	return sys->getBasis().transform(l) + sys->getOrigin();
 }
 
