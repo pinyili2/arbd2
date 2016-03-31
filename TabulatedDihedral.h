@@ -28,6 +28,7 @@ public:
 	int size;					// number of data points in the file
 	String fileName;
 
+	// RBTODO: deprecate
 	HOST DEVICE inline EnergyForce compute(Dihedral* d, Vector3* pos, BaseGrid* sys, int index) { 
 		const Vector3 posa = d->ind1;
 		const Vector3 posb = d->ind2;

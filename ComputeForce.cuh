@@ -6,6 +6,8 @@
 #include "CudaUtil.cuh"
 #include <assert.h>
 
+#define BD_PI 3.1415927f
+
 __host__ __device__
 EnergyForce ComputeForce::coulombForce(Vector3 r, float alpha,
 																			 float start, float len) {
@@ -410,8 +412,10 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 			// atomicAdd( &pairForceCounter, 1 ); /* DEBUG */
 			
 			// RBTODO: why are energies calculated for each atom? Could be reduced
-			if (get_energy && aj > ai)
+			if (get_energy) {
 				atomicAdd( &(g_energies[ai]), fe.e );
+				atomicAdd( &(g_energies[aj]), fe.e );
+			}
 		}
 	}
 }
@@ -560,22 +564,77 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
 											TabulatedDihedralPotential* tableDihedral[],
 											int numDihedrals, int num, BaseGrid* sys, float g_energies[],
 											bool get_energy) {
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int i = blockIdx.x * blockDim.x + threadIdx.x;
 	float energy_local = 0.0f;
 	Vector3 force_local(0.0f);
-	if (idx < num) {
-		for (int i = 0; i < numDihedrals; ++i) {
-			Dihedral& d = dihedrals[i];
-			int ind = d.getIndex(idx);
-			if (ind >= 0) {
-				EnergyForce ef = tableDihedral[d.tabFileIndex]->compute(&d, pos, sys, ind);
-				force_local += ef.f;
-				if (ind == 1 and get_energy)
-					energy_local += ef.e;
-			}
+
+	if (i < numDihedrals) {
+		// RBTODO: optimize
+		Dihedral& d = dihedrals[i];
+
+		const Vector3 ab = sys->wrapDiff( pos[d.ind1] - pos[d.ind2] );
+		const Vector3 bc = sys->wrapDiff( pos[d.ind2] - pos[d.ind3] );
+		const Vector3 cd = sys->wrapDiff( pos[d.ind3] - pos[d.ind4] );
+		
+		//const float distab = ab.length();
+		const float distbc = bc.length();
+		//const float distcd = cd.length();
+	
+		Vector3 crossABC = ab.cross(bc);
+		Vector3 crossBCD = bc.cross(cd);
+		Vector3 crossX = bc.cross(crossABC);
+
+		const float cos_phi = crossABC.dot(crossBCD) / (crossABC.length() * crossBCD.length());
+		const float sin_phi = crossX.dot(crossBCD) / (crossX.length() * crossBCD.length());
+		
+		const float angle = -atan2(sin_phi, cos_phi);
+
+	
+		Vector3 f1, f2, f3; // forces
+		f1 = -distbc * crossABC.rLength2() * crossABC;
+		f3 = -distbc * crossBCD.rLength2() * crossBCD;
+		f2 = -(ab.dot(bc) * bc.rLength2()) * f1 - (bc.dot(cd) * bc.rLength2()) * f3;
+	
+		// Shift "angle" by "PI" since    -PI < dihedral < PI
+		// And our tabulated potential data: 0 < angle < 2 PI
+		float dangle = tableDihedral[d.tabFileIndex]->angle_step;
+		float t = (angle + BD_PI) / dangle;
+		int home = (int) floorf(t);
+		t = t - home;
+
+		int size = tableDihedral[d.tabFileIndex]->size;
+		home = home % size;
+		int home1 = (home + 1) % size;
+
+		//================================================
+		// Linear interpolation
+		float * pot = tableDihedral[d.tabFileIndex]->pot;
+		float U0 = pot[home];       // Potential
+		float dU = pot[home1] - U0; // Change in potential
+		
+		float energy = dU * t + U0;
+		float f = -dU / dangle;
+		//================================================
+		// TODO: add an option for cubic interpolation [Probably not]
+
+		if (crossABC.rLength() > 1.0f || crossBCD.rLength() > 1.0f)
+			// avoid singularity when one angle is straight 
+			f = 0.0f;
+
+		f1 *= f;
+		f2 *= f;
+		f3 *= f;
+
+		atomicAdd( &force[d.ind1], f1 );
+		atomicAdd( &force[d.ind2], f2-f1 );
+		atomicAdd( &force[d.ind3], f3-f2 );
+		atomicAdd( &force[d.ind4], -f3 );
+
+		if (get_energy) {
+			atomicAdd( &g_energies[d.ind1], energy );
+			atomicAdd( &g_energies[d.ind2], energy );
+			atomicAdd( &g_energies[d.ind3], energy );
+			atomicAdd( &g_energies[d.ind4], energy );
 		}
-		force[idx] += force_local;
-		if (get_energy)
-			g_energies[idx] += energy_local;
 	}
 }

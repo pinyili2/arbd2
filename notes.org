@@ -1,12 +1,11 @@
 
-
 * TODO active
-** fix segfaults
 ** move to efficient linear interpolation everywhere
 ** update pairlists
 ** statistical tests of results
 
 * TODO eventually
+** organize code a bit better
 ** increase cells/cutoff
 
 ** improve pairlist algorithm
