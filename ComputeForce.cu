@@ -403,6 +403,14 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 	/* 																					 sys_d, decomp_d, nCells, blocksPerCell, */
 	/* 																					 numPairs_d, pairListListI_d, pairListListJ_d); */
 	/* gpuErrchk(cudaDeviceSynchronize());	 */
+
+	{
+		int tmp = 0;
+		gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,
+															sizeof(int), cudaMemcpyHostToDevice));
+		gpuErrchk(cudaDeviceSynchronize()); /* RBTOOD: maybe unnecessary */
+	}
+	
 	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas,
 																						 sys_d, decomp_d, nCells, blocksPerCell,
 																						 numPairs_d, pairListsI_d, pairListsJ_d,
@@ -533,6 +541,7 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 	// Call the kernel to calculate the forces
 	// int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z);
 	int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z) * 1000; /* RBTODO: number of pairLists */
+	printf("ComputeTabulated\n");
 	computeTabulatedKernel<<< nb, numThreads >>>(force, pos, type,
 			tablePot_d, tableBond_d,
 			num, numParts, sys_d,
