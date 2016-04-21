@@ -945,7 +945,7 @@ void GrandBrownTown::copyToCUDA() {
 														cudaMemcpyHostToDevice));
 
 	gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
-	gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3),
+	gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3) * tot_num,
 														cudaMemcpyHostToDevice));
 
 	gpuErrchk(cudaMalloc(&randoGen_d, sizeof(Random)));
