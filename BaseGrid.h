@@ -383,7 +383,7 @@ public:
 		const int homeY = int(floor(l.y));
 		const int homeZ = int(floor(l.z));
 
-		const float wx = l.x - homeY;
+		const float wx = l.x - homeX;
 		const float wy = l.y - homeY;	
 		const float wz = l.z - homeZ;
 
@@ -490,7 +490,6 @@ public:
 	}
 
 	DEVICE inline ForceEnergy interpolateForceDLinearly(const Vector3& pos) const {
-		Vector3 f;
  		const Vector3 l = basisInv.transform(pos - origin);
 
 		// Find the home node.
@@ -498,7 +497,7 @@ public:
 		const int homeY = int(floor(l.y));
 		const int homeZ = int(floor(l.z));
 
-		const float wx = l.x - homeY;
+		const float wx = l.x - homeX;
 		const float wy = l.y - homeY;	
 		const float wz = l.z - homeZ;
 
@@ -529,6 +528,7 @@ public:
 			g3[2][iz] = wy * (g2[1][1] - g2[1][0]) + g2[1][0];
 		}
 		// Mix along z.
+		Vector3 f;
 		f.x = -(wz * (g3[0][1] - g3[0][0]) + g3[0][0]);
 		f.y = -(wz * (g3[1][1] - g3[1][0]) + g3[1][0]);
 		f.z = -      (g3[2][1] - g3[2][0]);
@@ -608,14 +608,14 @@ public:
   }
 
   // Wrap vector, 0 <= x < lx  &&  0 <= y < ly  &&  0 <= z < lz
-  HOST DEVICE inline virtual Vector3 wrap(Vector3 r) const {
+  HOST DEVICE inline Vector3 wrap(Vector3 r) const {
     Vector3 l = basisInv.transform(r - origin);
     l.x = wrapFloat(l.x, nx);
     l.y = wrapFloat(l.y, ny);
     l.z = wrapFloat(l.z, nz);
     return basis.transform(l) + origin;
   }
-
+	
   // Wrap vector distance, -0.5*l <= x < 0.5*l  && ...
   /* HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const { */
   /*   Vector3 l = basisInv.transform(r); */
