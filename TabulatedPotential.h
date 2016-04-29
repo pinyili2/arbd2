@@ -68,14 +68,16 @@ public:
 		float w = (d - r0)/dr;
 		int home = int( floorf(w) );
 		w = w - home;
-		if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
+		// if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
+		home = home < 0 ? 0 : home;
 		if (home >= n) return EnergyForce(e0, Vector3(0.0f));
 		
+		float u0 = v0[home];
+		float du = home+1 < n ? v0[home+1]-u0 : 0;
+				
 		// Interpolate.
-		float energy = v3[home]*w*w*w + v2[home]*w*w + v1[home]*w + v0[home];
-		Vector3 force = (-(3.0f*v3[home] *w*w +
-											 2.0f*v2[home] *w   +
-											 + v1[home])/(d*dr)) * r;
+		float energy = du*w+u0;
+		Vector3 force = (-du/(d*dr))*r;
 		return EnergyForce(energy,force);
 	}
 
