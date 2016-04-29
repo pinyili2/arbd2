@@ -375,8 +375,11 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	/* __shared__ int atomJ[NUMTHREADS]; */
 
 	// const int& tid = threadIdx.x;
-	const int blockStride = (*g_numPairs) / gridDim.x; /* RBTODO: fix this */
-		
+	// const int blockStride = (*g_numPairs) / gridDim.x > 0 ? (*g_numPairs) / gridDim.x : 1 ; /* RBTODO: fix this */
+	const int numPairs = *g_numPairs;
+	const int blockStride = ceil(((float)(numPairs)) / gridDim.x);
+	
+	
 	/* if (threadIdx.x == 0) { */
 	/* 	printf( "block %d running from pair %d to %d\n", blockIdx.x, blockIdx.x*blockStride, blockIdx.x*blockStride + blockStride -1 );\ */
 	/* } */
@@ -384,10 +387,22 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	
 	// RBTODO: fix this
 	// loop over particle pairs in pairlist
-	for (int i = threadIdx.x + blockIdx.x*blockStride; i < (blockIdx.x+1)*blockStride; i+=blockDim.x) {
+	/* if (threadIdx.x == 0 && blockIdx.x == 0) { */
+	/* 	printf("%d %d %d\n", *g_numPairs, gridDim.x, blockStride); */
+	/* 	printf("%d %d\n", blockDim.x, gridDim.x); */
+	/* } */
 
+	/* if (threadIdx.x == 0 && blockIdx.x == 0) { */
+	/* 	printf("blockStride: %d\n",blockStride); */
+	/* for (int i = 1; i < 1; i++) */
+	/* 	printf("TEST FAILED\n"); */
+
+	/* printf("g_numPairs: %d\n", numPairs); */
+ 
+	
+	for (int i = threadIdx.x + blockIdx.x*blockStride; i < (blockIdx.x+1)*blockStride && i < numPairs; i+=blockDim.x) {
+	
 		// BONDS: RBTODO: handle through an independent kernel call
-		// RBTODO: handle exclusions in other kernel call
 		const int ai = g_pairI[i];
 		const int aj = g_pairJ[i];
 		if (ai < 0) continue;
@@ -398,16 +413,20 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 		// if (tablePot[ind] == NULL) continue;
 		
 		// RBTODO: implement wrapDiff2, returns dr2
+	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); */
+	 	/* printf("pos[ai(%d)]: %f %f %f\n", ai, pos[ai].x, pos[ai].y, pos[ai].z); */
+		/* printf("pos[aj(%d)]: %f %f %f\n", aj, pos[aj].x, pos[aj].y, pos[aj].z); */
 		const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
 		
     // Calculate the force based on the tabulatedPotential file
 		// if (dr.length2() > cutoff2) continue;
 		if (tablePot[ind] != NULL && dr.length2() <= cutoff2) {
 		EnergyForce fe = tablePot[ind]->compute(dr);
-			
+		
 			// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
-			atomicAdd( &force[ai], fe.f );
-			atomicAdd( &force[aj], -fe.f );
+			atomicAdd( &force[ai], -fe.f );
+			atomicAdd( &force[aj],  fe.f );
+			/* printf("force[ai(%d)]: %0.2f %0.2f %0.2f\n", ai, fe.f.x, fe.f.y, fe.f.z);  */
 
 			// atomicAdd( &pairForceCounter, 1 ); /* DEBUG */
 			

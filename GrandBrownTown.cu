@@ -501,7 +501,7 @@ void GrandBrownTown::run() {
 
 			// Copy back forces to display (internal only)
 			gpuErrchk(cudaMemcpy(&force0, forceInternal_d, sizeof(Vector3), cudaMemcpyDeviceToHost));
-
+			
 			// Nanoseconds computed
 			t = s * timestep;
 
@@ -531,6 +531,12 @@ void GrandBrownTown::run() {
 			// restart the timer
 			rt_timer_start(timerS);
 		} // s % outputEnergyPeriod
+
+		{
+			int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
+			clearInternalForces<<< numBlocks, NUM_THREADS >>>(forceInternal_d, num, numReplicas);
+		}
+		
 	} // done with all Brownian dynamics steps
 
 	// If IMD is on & our socket is still open.

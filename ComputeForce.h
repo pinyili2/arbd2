@@ -23,6 +23,7 @@
 #include "TabulatedAngle.h"
 #include "TabulatedDihedral.h"
 
+#include <cstdio>
 #include <cuda.h>
 #include <thrust/transform_reduce.h>	// thrust::reduce
 #include <thrust/functional.h>				// thrust::plus

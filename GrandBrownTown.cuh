@@ -14,6 +14,12 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 						 Random *randoGen, int num);
 
 __global__
+void clearInternalForces(Vector3 forceInternal[], int num, int numReplicas) {
+	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < num * numReplicas)
+		forceInternal[idx] = Vector3(0.0f);
+}
+__global__
 void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 									int type[], BrownianParticleType* part[],
 									float kT, BaseGrid* kTGrid,
@@ -29,6 +35,8 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 		Vector3& p = pos[idx];
 
 		const BrownianParticleType& pt = *part[t];
+
+	 	/* printf("atom %d: forceInternal: %f %f %f\n", idx, forceInternal[idx].x, forceInternal[idx].y, forceInternal[idx].z);  */
 
 		// Compute external force
 		Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
@@ -53,18 +61,37 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 			forceInternal[idx] = force; // write it back out for force0 in run()
 
 		// Get local kT value
-		float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(p);
+		float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(p); /* periodic */
 
 		// Update the particle's position using the calculated values for time, force, etc.
 		float diffusion = pt.diffusion;
 		Vector3 diffGrad = Vector3(0.0f);
-		
+
 		if (pt.diffusionGrid != NULL) {
-			ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearly(p);
+			// printf("atom %d: pos: %f %f %f\n", idx, p.x, p.y, p.z);
+			// p = pt.diffusionGrid->wrap(p); // illegal mem access; no origin/basis?
+
+		Vector3 gridCenter = pt.diffusionGrid->origin +
+			pt.diffusionGrid->basis.transform( Vector3(0.5*pt.diffusionGrid->nx,
+																								 0.5*pt.diffusionGrid->ny,
+																								 0.5*pt.diffusionGrid->nz)); 
+		Vector3 p2 = p - gridCenter;
+		p2 = sys->wrapDiff( p2 ) + gridCenter;
+		/* p2 = sys->wrap( p2 ); */
+		/* p2 = p2 - gridCenter; */
+		/* printf("atom %d: ps2: %f %f %f\n", idx, p2.x, p2.y, p2.z); */
+		
+		ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
 			diffusion = diff.e;
 			diffGrad = diff.f;
 		}
-		p = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
+		
+		/* printf("atom %d: pos: %f %f %f\n", idx, p.x, p.y, p.z); */
+		/* printf("atom %d: force: %f %f %f\n", idx, force.x, force.y, force.z); */
+		/* printf("atom %d: kTlocal, diffusion, timestep: %f, %f, %f\n", */
+		/* 			 idx, kTlocal, diffusion, timestep); */
+		
+		pos[idx] = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
 	}
 }
 
