@@ -368,8 +368,11 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 
 
 	size_t free, total;
-	cuMemGetInfo(&free,&total);
-	printf("Free memory: %zu / %zu\n", free, total);
+	/* { */
+	/* 	cuMemGetInfo(&free,&total); */
+	/* 	printf("Free memory: %zu / %zu\n", free, total); */
+	/* } */
+	
 	// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
 	int blocksPerCell = 10;
@@ -390,8 +393,8 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 	}
 
 	
-	cuMemGetInfo(&free,&total);
-	printf("Free memory: %zu / %zu\n", free, total);
+	/* cuMemGetInfo(&free,&total); */
+	/* printf("Free memory: %zu / %zu\n", free, total); */
 	
 	const int NUMTHREADS = 128;
 	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
@@ -410,11 +413,15 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 															sizeof(int), cudaMemcpyHostToDevice));
 		gpuErrchk(cudaDeviceSynchronize()); /* RBTOOD: maybe unnecessary */
 	}
+
+	
+	float pairlistdist2 = (sqrt(cutoff2) + 2.0f);
+	pairlistdist2 = pairlistdist2*pairlistdist2;
 	
 	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas,
 																						 sys_d, decomp_d, nCells, blocksPerCell,
 																						 numPairs_d, pairListsI_d, pairListsJ_d,
-																						 numParts, type, pairTabPotType_d);
+																						 numParts, type, pairTabPotType_d,pairlistdist2);
 
 	gpuErrchk(cudaDeviceSynchronize());
 	
@@ -540,8 +547,9 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 	
 	// Call the kernel to calculate the forces
 	// int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z);
-	int nb = (decomp.nCells.x * decomp.nCells.y * decomp.nCells.z) * 1000; /* RBTODO: number of pairLists */
-	printf("ComputeTabulated\n");
+	// int nb = (1+(decomp.nCells.x * decomp.nCells.y * decomp.nCells.z)) * 75; /* RBTODO: number of pairLists */
+	const int nb = 200;
+	// printf("ComputeTabulated\n");
 	computeTabulatedKernel<<< nb, numThreads >>>(force, pos, type,
 			tablePot_d, tableBond_d,
 			num, numParts, sys_d,

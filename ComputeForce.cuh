@@ -217,7 +217,8 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 										 BaseGrid* sys, CellDecomposition* decomp,
 										 const int nCells, const int blocksPerCell,
 										 int* g_numPairs, int* g_pairI, int* g_pairJ,
-										 int numParts, int type[], int* g_pairTabPotType) {
+										 int numParts, int type[], int* g_pairTabPotType,
+	float pairlistdist2) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
   //   A sync operation periodically moves data from shared to global
@@ -259,6 +260,11 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 							count++;
 							const int aj = pairs[n].particle;
 							if (aj <= ai) continue;
+
+							// skip ones that are too far away
+							const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
+							if (dr.length2() > pairlistdist2) continue;
+							
 							// RBTODO: skip exclusions, non-interacting types
 							int pairType = type[ai] + type[aj] * numParts;
  							int gid = atomicAggInc( g_numPairs, warpLane );
@@ -398,7 +404,6 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	/* 	printf("TEST FAILED\n"); */
 
 	/* printf("g_numPairs: %d\n", numPairs); */
- 
 	
 	for (int i = threadIdx.x + blockIdx.x*blockStride; i < (blockIdx.x+1)*blockStride && i < numPairs; i+=blockDim.x) {
 	
@@ -416,16 +421,19 @@ __global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
 	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); */
 	 	/* printf("pos[ai(%d)]: %f %f %f\n", ai, pos[ai].x, pos[ai].y, pos[ai].z); */
 		/* printf("pos[aj(%d)]: %f %f %f\n", aj, pos[aj].x, pos[aj].y, pos[aj].z); */
+
 		const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
+		// const Vector3 dr = pos[aj] - pos[ai];
 		
     // Calculate the force based on the tabulatedPotential file
 		// if (dr.length2() > cutoff2) continue;
 		if (tablePot[ind] != NULL && dr.length2() <= cutoff2) {
-		EnergyForce fe = tablePot[ind]->compute(dr);
-		
+			EnergyForce fe = tablePot[ind]->compute(dr);
+			
 			// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
 			atomicAdd( &force[ai], -fe.f );
 			atomicAdd( &force[aj],  fe.f );
+
 			/* printf("force[ai(%d)]: %0.2f %0.2f %0.2f\n", ai, fe.f.x, fe.f.y, fe.f.z);  */
 
 			// atomicAdd( &pairForceCounter, 1 ); /* DEBUG */
