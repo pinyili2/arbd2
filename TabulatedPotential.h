@@ -80,6 +80,40 @@ public:
 		Vector3 force = (-du/(d*dr))*r;
 		return EnergyForce(energy,force);
 	}
+  HOST DEVICE inline EnergyForce compute(Vector3 r, float d) {
+		d = sqrt(d);
+		// float d = r.length();
+		float w = (d - r0)/dr;
+		int home = int( floorf(w) );
+		w = w - home;
+		// if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
+		home = home < 0 ? 0 : home;
+		if (home >= n) return EnergyForce(e0, Vector3(0.0f));
+		
+		float u0 = v0[home];
+		float du = home+1 < n ? v0[home+1]-u0 : 0;
+				
+		// Interpolate.
+		float energy = du*w+u0;
+		Vector3 force = (-du/(d*dr))*r;
+		return EnergyForce(energy,force);
+	}
+  HOST DEVICE inline Vector3 computef(Vector3 r, float d) {
+		d = sqrt(d);
+		// float d = r.length();
+		// RBTODO: precompute so that initial blocks are zero; reduce computation here
+		float w = (d - r0)/dr;
+		int home = int( floorf(w) );
+		w = w - home;
+		// if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
+		home = home < 0 ? 0 : home;
+		if (home >= n) return Vector3(0.0f);
+		
+		if (home+1 < n) 
+			return (-(v0[home+1]-v0[home])/(d*dr))*r;
+		else
+			return Vector3(0.0f);
+	}
 
 // private:
 public:

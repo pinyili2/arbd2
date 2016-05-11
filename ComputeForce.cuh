@@ -213,11 +213,11 @@ const __device__ int maxPairs = 1 << 14;
 /* } */
 
 __global__
-void createPairlists(Vector3 pos[], int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* decomp,
+void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
+										 BaseGrid* sys, CellDecomposition* __restrict__ decomp,
 										 const int nCells, const int blocksPerCell,
-										 int* g_numPairs, int* g_pairI, int* g_pairJ,
-										 int numParts, int type[], int* g_pairTabPotType,
+										 int* g_numPairs, int2* g_pair,
+										 int numParts, int type[], int* __restrict__ g_pairTabPotType,
 	float pairlistdist2) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
@@ -267,12 +267,11 @@ void createPairlists(Vector3 pos[], int num, int numReplicas,
 							
 							// RBTODO: skip exclusions, non-interacting types
 							int pairType = type[ai] + type[aj] * numParts;
- 							int gid = atomicAggInc( g_numPairs, warpLane );
+							int gid = atomicAggInc( g_numPairs, warpLane );
 							/* assert( ai >= 0 ); */
 							/* assert( aj >= 0 ); */
 							
-							g_pairI[gid] = ai;
-							g_pairJ[gid] = aj;
+							g_pair[gid] = make_int2(ai,aj);
 							g_pairTabPotType[gid] = pairType;
 
 						} 	// atoms J
@@ -366,83 +365,75 @@ __global__ void printPairForceCounter() {
 // Kernel computes forces between Brownian particles (ions)
 // using cell decomposition
 //
-__global__ void computeTabulatedKernel(Vector3* force, Vector3* pos, int* type,
-		TabulatedPotential** tablePot, TabulatedPotential** tableBond,
-		int num, int numParts, BaseGrid* sys,
-		Bond* bonds, int2* bondMap, int numBonds,
-		float* g_energies, float cutoff2, int gridSize,
-																			 int numReplicas, bool get_energy,
-																			 int* g_numPairs, int* g_pairI, int* g_pairJ,
-																			 int* g_pairTabPotType) {
+__global__ void computeTabulatedKernel(Vector3* force, const Vector3* __restrict__ pos, int* type,
+		TabulatedPotential** __restrict__ tablePot, TabulatedPotential** __restrict__ tableBond,
+		int num, const BaseGrid* __restrict__ sys,
+		const Bond* __restrict__ bonds, const int2* __restrict__ bondMap, int numBonds,
+																			 float cutoff2,
+																			 const int* __restrict__ g_numPairs,
+																			 const int2* __restrict__ g_pair,
+																			 const int* __restrict__ g_pairTabPotType) {
 	
-	// const int NUMTHREADS = 256;		/* RBTODO: fix */
-	// __shared__ EnergyForce fe[NUMTHREADS];
-	/* __shared__ int atomI[NUMTHREADS]; */
-	/* __shared__ int atomJ[NUMTHREADS]; */
 
-	// const int& tid = threadIdx.x;
-	// const int blockStride = (*g_numPairs) / gridDim.x > 0 ? (*g_numPairs) / gridDim.x : 1 ; /* RBTODO: fix this */
 	const int numPairs = *g_numPairs;
-	const int blockStride = ceil(((float)(numPairs)) / gridDim.x);
-	
-	
-	/* if (threadIdx.x == 0) { */
-	/* 	printf( "block %d running from pair %d to %d\n", blockIdx.x, blockIdx.x*blockStride, blockIdx.x*blockStride + blockStride -1 );\ */
-	/* } */
-		
-	
-	// RBTODO: fix this
-	// loop over particle pairs in pairlist
-	/* if (threadIdx.x == 0 && blockIdx.x == 0) { */
-	/* 	printf("%d %d %d\n", *g_numPairs, gridDim.x, blockStride); */
-	/* 	printf("%d %d\n", blockDim.x, gridDim.x); */
-	/* } */
-
-	/* if (threadIdx.x == 0 && blockIdx.x == 0) { */
-	/* 	printf("blockStride: %d\n",blockStride); */
-	/* for (int i = 1; i < 1; i++) */
-	/* 	printf("TEST FAILED\n"); */
-
-	/* printf("g_numPairs: %d\n", numPairs); */
-	
-	for (int i = threadIdx.x + blockIdx.x*blockStride; i < (blockIdx.x+1)*blockStride && i < numPairs; i+=blockDim.x) {
-	
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numPairs; i+=blockDim.x*gridDim.x) {
+		const int2 pair = g_pair[i];
+		const int ai = pair.x;
+		const int aj = pair.y;
 		// BONDS: RBTODO: handle through an independent kernel call
-		const int ai = g_pairI[i];
-		const int aj = g_pairJ[i];
-		if (ai < 0) continue;
 			
 		// Particle's type and position
-		// const int ind = type[ai] + type[aj] * numParts; /* RBTODO: why is numParts here? */
 		const int ind = g_pairTabPotType[i];
-		// if (tablePot[ind] == NULL) continue;
-		
-		// RBTODO: implement wrapDiff2, returns dr2
-	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); */
-	 	/* printf("pos[ai(%d)]: %f %f %f\n", ai, pos[ai].x, pos[ai].y, pos[ai].z); */
-		/* printf("pos[aj(%d)]: %f %f %f\n", aj, pos[aj].x, pos[aj].y, pos[aj].z); */
 
-		const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
-		// const Vector3 dr = pos[aj] - pos[ai];
-		
+	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); */
+
+		Vector3 dr = pos[aj] - pos[ai];
+		dr = sys->d_wrapDiff(dr);
+	
     // Calculate the force based on the tabulatedPotential file
-		// if (dr.length2() > cutoff2) continue;
-		if (tablePot[ind] != NULL && dr.length2() <= cutoff2) {
-			EnergyForce fe = tablePot[ind]->compute(dr);
-			
-			// RBTODO: think of a better approach; e.g. shared atomicAdds that are later reduced in global memory
+		float d2 = dr.length2();
+		if (tablePot[ind] != NULL && d2 <= cutoff2) {
+			Vector3 f = tablePot[ind]->computef(dr,d2);
+			atomicAdd( &force[ai], -f );
+			atomicAdd( &force[aj],  f );
+		}
+	}
+}
+
+
+__global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict__ pos, int* type,
+		TabulatedPotential** __restrict__ tablePot, TabulatedPotential** __restrict__ tableBond,
+		int num, BaseGrid* __restrict__ sys,
+		Bond* __restrict__ bonds, int2* __restrict__ bondMap, int numBonds,
+		float* g_energies, float cutoff2,
+																			 int* __restrict__ g_numPairs,
+																			 int2* __restrict__ g_pair,
+																			 int* __restrict__ g_pairTabPotType) {
+	
+	const int numPairs = *g_numPairs;
+	// RBTODO: BONDS (handle through an independent kernel call?)
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numPairs; i+=blockDim.x*gridDim.x) {
+		const int2 pair = g_pair[i];
+		const int ai = pair.x;
+		const int aj = pair.y;
+		const int ind = g_pairTabPotType[i];
+
+		// RBTODO: implement wrapDiff2, returns dr2 (???)
+		Vector3 dr = pos[aj] - pos[ai];
+		dr = sys->d_wrapDiff(dr);
+    // Calculate the force based on the tabulatedPotential file
+		float d2 = dr.length2();
+		/* RBTODO: filter tabpot particles ahead of time */
+		// RBTODO: order pairs according to distance to reduce divergence
+		
+		if (tablePot[ind] != NULL && d2 <= cutoff2) { 
+			EnergyForce fe = tablePot[ind]->compute(dr,d2);
+			// RBTODO: is this the best approach?
 			atomicAdd( &force[ai], -fe.f );
 			atomicAdd( &force[aj],  fe.f );
-
-			/* printf("force[ai(%d)]: %0.2f %0.2f %0.2f\n", ai, fe.f.x, fe.f.y, fe.f.z);  */
-
-			// atomicAdd( &pairForceCounter, 1 ); /* DEBUG */
-			
 			// RBTODO: why are energies calculated for each atom? Could be reduced
-			if (get_energy) {
-				atomicAdd( &(g_energies[ai]), fe.e );
-				atomicAdd( &(g_energies[aj]), fe.e );
-			}
+			atomicAdd( &(g_energies[ai]), fe.e );
+			atomicAdd( &(g_energies[aj]), fe.e );
 		}
 	}
 }

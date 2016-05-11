@@ -19,6 +19,7 @@ int main(int argc, char* argv[]) {
 		printf("Usage: %s [OPTIONS [ARGS]] CONFIGFILE OUTPUT [SEED]\n", argv[0]);
 		printf("\n");
 		printf("  -r, --replicas=    Number of replicas to run\n");
+		printf("  -g, --gpu=         Index of gpu to use (defaults to 0)\n");
 		printf("  -i, --imd=         IMD port (defaults to %d)\n", kIMDPort);
 		printf("  -d, --debug        Debug mode: allows user to choose which forces are computed\n");
 		printf("  --safe             Do not use GPUs that may timeout (default)\n");
@@ -42,7 +43,10 @@ int main(int argc, char* argv[]) {
     printf("Try '%s --help' for more information.\n", argv[0]);
     return 1;
   }
-  
+	size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
+
+	int gpuID = 0;
+	
 	bool debug = false, safe = true;
 	int replicas = 1;
 	unsigned int imd_port;
@@ -59,6 +63,16 @@ int main(int argc, char* argv[]) {
 		} else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--debug") == 0) {
 			debug = true;
 			num_flags++;
+
+		} else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gpu") == 0) {
+			int arg_val = atoi(argv[pos + 1]);
+			gpuID = arg_val;
+			num_flags += 2;
+			if (arg_val < 0 || arg_val > n_gpus) {
+				printf("Invalid argument given to %s\n", arg);
+				return 1;
+			}
+			
 		} else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--replicas") == 0) {
 			int arg_val = atoi(argv[pos + 1]);
 			if (arg_val <= 0) {
@@ -104,7 +118,7 @@ int main(int argc, char* argv[]) {
 	GPUManager::safe(safe);
 	Configuration config(configFile, replicas, debug);
 	// GPUManager::set(0);
-	GPUManager::set(1);
+	GPUManager::set(gpuID);
 	config.copyToCUDA();
 
 	GrandBrownTown brown(config, outArg, randomSeed,

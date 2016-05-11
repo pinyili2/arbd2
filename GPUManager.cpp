@@ -86,6 +86,7 @@ void GPUManager::init_devices() {
 void GPUManager::set(int gpu_id) {
 	gpu_id = gpu_id % (int) gpus.size();
 	cudaSetDevice(gpus[gpu_id]);
+	cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
 }
 
 int GPUManager::current() {

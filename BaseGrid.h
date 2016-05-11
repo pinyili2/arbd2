@@ -26,6 +26,8 @@ using namespace std;
 
 #define STRLEN 512
 
+DEVICE float __fdividef(float x, float y);
+
 class NeighborList {
 public:
   float v[3][3][3];
@@ -649,7 +651,14 @@ public:
   }
   
   // Wrap distance: -0.5*l <= x < 0.5*l
-  HOST DEVICE static inline float wrapDiff(float x, float l) {
+	DEVICE static inline float d_wrapDiff(float x, float l) {
+		// int image = int(floor(x/l));
+		int image = int(floorf( __fdividef(x,l) ));
+		x -= image*l;
+		x = (x >= 0.5f * l) ? x-l : x;
+		return x;
+  }
+	HOST DEVICE static inline float wrapDiff(float x, float l) {
 		int image = int(floor(x/l));
 		x -= image*l;
 		if (x >= 0.5f * l)
@@ -679,6 +688,13 @@ public:
     l.x = wrapDiff(l.x, nx);
     l.y = wrapDiff(l.y, ny);
     l.z = wrapDiff(l.z, nz);
+    return basis.transform(l);
+  }
+  DEVICE inline Vector3 d_wrapDiff(Vector3 r) const {
+		Vector3 l = basisInv.transform(r);
+    l.x = d_wrapDiff(l.x, nx);
+    l.y = d_wrapDiff(l.y, ny);
+    l.z = d_wrapDiff(l.z, nz);
     return basis.transform(l);
   }
 

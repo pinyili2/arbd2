@@ -1,7 +1,7 @@
 // Included in RigidBodyController.cu
 #pragma once
 
-
+//RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
 __global__
 void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 													const Matrix3 basis_rho, const Matrix3 basis_u_inv,
