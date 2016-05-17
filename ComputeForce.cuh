@@ -286,10 +286,10 @@ void createPairlistsOld(Vector3* __restrict__ pos, int num, int numReplicas,
 
 __global__
 void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
-				BaseGrid* sys, CellDecomposition* __restrict__ decomp,
+				const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
 				const int nCells,
 				int* g_numPairs, int2* g_pair,
-				int numParts, int type[], int* __restrict__ g_pairTabPotType,
+				int numParts, const int* __restrict__ type, int* __restrict__ g_pairTabPotType,
 				float pairlistdist2) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
@@ -299,7 +299,7 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 	const int split = 32;					/* numblocks should be divisible by split */
 	/* const int blocksPerCell = gridDim.x/split;  */
 	
-	const CellDecomposition::cell_t* pairs = decomp->getCells();
+	const CellDecomposition::cell_t* __restrict__ pairs = decomp->getCells();
 	for (int cID = 0 + (blockIdx.x % split); cID < nCells; cID += split) {
 	// for (int cID = blockIdx.x/blocksPerCell; cID < nCells; cID += split ) {
 		for (int repID = 0; repID < numReplicas; repID++) {
@@ -314,8 +314,8 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 				const int ai = pairs[ci].particle;
 				// const CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
 				const CellDecomposition::cell_t celli = pairs[ci];
-				const Vector3 posi = pos[ai];
-				
+				// Vector3 posi = pos[ai];
+
 				for (int x = -1; x <= 1; ++x) {
 					for (int y = -1; y <= 1; ++y) {
 						for (int z = -1; z <= 1; ++z) {					
@@ -329,7 +329,8 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 								if (aj <= ai) continue;
 								
 								// skip ones that are too far away
-								float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
+								const float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
+								// const float dr = (sys->wrapDiff(pos[aj] - posi)).length2();
 								if (dr > pairlistdist2) continue;
 								
 								int gid = atomicAggInc( g_numPairs, warpLane );

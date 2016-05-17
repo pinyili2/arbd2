@@ -413,7 +413,7 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 		int tmp = 0;
 		gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,
 															sizeof(int), cudaMemcpyHostToDevice));
-		gpuErrchk(cudaDeviceSynchronize()); /* RBTOOD: maybe unnecessary */
+		gpuErrchk(cudaDeviceSynchronize());
 	}
 
 	
