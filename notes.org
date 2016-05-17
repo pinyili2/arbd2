@@ -1,8 +1,12 @@
 
 * TODO active
-** move to efficient linear interpolation everywhere
-** update pairlists
-** statistical tests of results
+** split computation into multiple regions
+*** simulate regions, also in overlap
+**** atoms at edge of overlap can have DoF frozen
+*** periodically synchronize positions
+*** optimize to minimize communication & error
+**** monitor energy jumps associated with this process
+
 
 * TODO eventually
 ** organize code a bit better

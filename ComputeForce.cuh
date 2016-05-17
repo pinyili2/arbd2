@@ -197,7 +197,7 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 }
 
 
-const __device__ int maxPairs = 1 << 14;
+/* const __device__ int maxPairs = 1 << 14; */
 
 /* __global__ */
 /* void pairlistTest(Vector3 pos[], int num, int numReplicas, */
@@ -213,7 +213,7 @@ const __device__ int maxPairs = 1 << 14;
 /* } */
 
 __global__
-void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
+void createPairlistsOld(Vector3* __restrict__ pos, int num, int numReplicas,
 										 BaseGrid* sys, CellDecomposition* __restrict__ decomp,
 										 const int nCells, const int blocksPerCell,
 										 int* g_numPairs, int2* g_pair,
@@ -262,18 +262,19 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 							if (aj <= ai) continue;
 
 							// skip ones that are too far away
-							const Vector3 dr = sys->wrapDiff(pos[aj] - pos[ai]);
-							if (dr.length2() > pairlistdist2) continue;
-							
+							float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
+							if (dr > pairlistdist2) continue;
+
+							int gid = atomicAggInc( g_numPairs, warpLane );
+
 							// RBTODO: skip exclusions, non-interacting types
 							int pairType = type[ai] + type[aj] * numParts;
-							int gid = atomicAggInc( g_numPairs, warpLane );
 							/* assert( ai >= 0 ); */
 							/* assert( aj >= 0 ); */
 							
 							g_pair[gid] = make_int2(ai,aj);
 							g_pairTabPotType[gid] = pairType;
-
+							// g_pairDists[gid] = dr; 
 						} 	// atoms J
 					} 		// z				
 				} 			// y
@@ -282,8 +283,75 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 	} // replicas
 	/* if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]); */
 }
-	
+
 __global__
+void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
+				BaseGrid* sys, CellDecomposition* __restrict__ decomp,
+				const int nCells,
+				int* g_numPairs, int2* g_pair,
+				int numParts, int type[], int* __restrict__ g_pairTabPotType,
+				float pairlistdist2) {
+	// Loop over threads searching for atom pairs
+  //   Each thread has designated values in shared memory as a buffer
+  //   A sync operation periodically moves data from shared to global
+	const int tid = threadIdx.x;
+	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
+	const int split = 32;					/* numblocks should be divisible by split */
+	/* const int blocksPerCell = gridDim.x/split;  */
+	
+	const CellDecomposition::cell_t* pairs = decomp->getCells();
+	for (int cID = 0 + (blockIdx.x % split); cID < nCells; cID += split) {
+	// for (int cID = blockIdx.x/blocksPerCell; cID < nCells; cID += split ) {
+		for (int repID = 0; repID < numReplicas; repID++) {
+			const CellDecomposition::range_t rangeI = decomp->getRange(cID, repID);
+
+			for (int ci = rangeI.first + blockIdx.x/split; ci < rangeI.last; ci += gridDim.x/split) {
+			/* for (int ci = rangeI.first + (blockIdx.x % blocksPerCell); */
+			/* 		 ci < rangeI.last; */
+			/* 		 ci += blocksPerCell) { */
+
+			// ai - index of the particle in the original, unsorted array
+				const int ai = pairs[ci].particle;
+				// const CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
+				const CellDecomposition::cell_t celli = pairs[ci];
+				const Vector3 posi = pos[ai];
+				
+				for (int x = -1; x <= 1; ++x) {
+					for (int y = -1; y <= 1; ++y) {
+						for (int z = -1; z <= 1; ++z) {					
+							
+							const int nID = decomp->getNeighborID(celli, x, y, z);				
+							if (nID < 0) continue; 
+							const CellDecomposition::range_t range = decomp->getRange(nID, repID);
+							
+							for (int n = range.first + tid; n < range.last; n+=blockDim.x) {
+								const int aj = pairs[n].particle;
+								if (aj <= ai) continue;
+								
+								// skip ones that are too far away
+								float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
+								if (dr > pairlistdist2) continue;
+								
+								int gid = atomicAggInc( g_numPairs, warpLane );
+								
+								// RBTODO: skip exclusions, non-interacting types
+								int pairType = type[ai] + type[aj] * numParts;
+								/* assert( ai >= 0 ); */
+								/* assert( aj >= 0 ); */
+								
+								g_pair[gid] = make_int2(ai,aj);
+								g_pairTabPotType[gid] = pairType;
+								// g_pairDists[gid] = dr; 
+							} 	// atoms J
+						} 		// z				
+					} 			// y
+				} 				// x
+			} // atoms I					
+		} // replicas
+		/* if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]); */
+	}
+}
+	__global__
 void computeKernel(Vector3 force[], Vector3 pos[], int type[],
 									 float tableAlpha[], float tableEps[], float tableRad6[],
 									 int num, int numParts, BaseGrid* sys,
@@ -365,14 +433,13 @@ __global__ void printPairForceCounter() {
 // Kernel computes forces between Brownian particles (ions)
 // using cell decomposition
 //
-__global__ void computeTabulatedKernel(Vector3* force, const Vector3* __restrict__ pos, int* type,
-		TabulatedPotential** __restrict__ tablePot, TabulatedPotential** __restrict__ tableBond,
-		int num, const BaseGrid* __restrict__ sys,
-		const Bond* __restrict__ bonds, const int2* __restrict__ bondMap, int numBonds,
-																			 float cutoff2,
-																			 const int* __restrict__ g_numPairs,
-																			 const int2* __restrict__ g_pair,
-																			 const int* __restrict__ g_pairTabPotType) {
+__global__ void computeTabulatedKernel(
+	Vector3* force, const Vector3* __restrict__ pos, int* type,
+	TabulatedPotential** __restrict__ tablePot, TabulatedPotential** __restrict__ tableBond,
+	const BaseGrid* __restrict__ sys,
+	const Bond* __restrict__ bonds, const int2* __restrict__ bondMap, int numBonds,
+	float cutoff2, const int* __restrict__ g_numPairs,
+	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType) {
 	
 
 	const int numPairs = *g_numPairs;
@@ -401,14 +468,18 @@ __global__ void computeTabulatedKernel(Vector3* force, const Vector3* __restrict
 }
 
 
-__global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict__ pos, int* type,
-		TabulatedPotential** __restrict__ tablePot, TabulatedPotential** __restrict__ tableBond,
-		int num, BaseGrid* __restrict__ sys,
-		Bond* __restrict__ bonds, int2* __restrict__ bondMap, int numBonds,
-		float* g_energies, float cutoff2,
-																			 int* __restrict__ g_numPairs,
-																			 int2* __restrict__ g_pair,
-																			 int* __restrict__ g_pairTabPotType) {
+__global__ void clearEnergies(float* g_energies, int num) {
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < num; i+=blockDim.x*gridDim.x) {
+		g_energies[i] = 0.0f;
+	}
+}
+__global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict__ pos,
+				int* type, TabulatedPotential** __restrict__ tablePot,
+				TabulatedPotential** __restrict__ tableBond,
+				BaseGrid* __restrict__ sys, Bond* __restrict__ bonds,
+				int2* __restrict__ bondMap, int numBonds, float* g_energies, float cutoff2,
+				int* __restrict__ g_numPairs,	int2* __restrict__ g_pair,
+				int* __restrict__ g_pairTabPotType) {
 	
 	const int numPairs = *g_numPairs;
 	// RBTODO: BONDS (handle through an independent kernel call?)

@@ -2,7 +2,8 @@
 
 # CUDA_PATH ?= /Developer/NVIDIA/CUDA-6.5
 # CUDA_PATH ?= /software/cuda-toolkit-6.5-x86_64
-CUDA_PATH ?= /usr/local/cuda-7.0
+# CUDA_PATH ?= /usr/local/cuda-7.0
+CUDA_PATH ?= /usr/local/cuda-7.5
 
 #CUDA_PATH ?= /usr/local/encap/cuda-5.5
 
@@ -11,7 +12,7 @@ include ./findcudalib.mk
 INCLUDE = $(CUDA_PATH)/include
 
 
-DEBUG = -g -O0
+# DEBUG = -g -O0
 CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
 # NV_FLAGS = --maxrregcount 63 -Xptxas -v # -v,-abi=no
 NV_FLAGS = -Xptxas -v # -v,-abi=no 
@@ -47,7 +48,10 @@ CODE_20 := -arch=sm_20
 # CODE_35 := -arch=compute_35
 
 # NV_FLAGS += $(CODE_10) $(CODE_12) $(CODE_20) $(CODE_30) $(CODE_35)
-NV_FLAGS += -arch=sm_35
+# NV_FLAGS += -arch=sm_35
+SM=52
+NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)
+
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
 # NV_FLAGS += -rdc=true

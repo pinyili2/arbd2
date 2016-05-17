@@ -6,6 +6,7 @@
 #include "ComputeForce.cuh"
 #include <cuda_profiler_api.h>
 
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -15,6 +16,10 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
 }
 
 cudaEvent_t start, stop;
+
+void runSort(int2 *d1, int *d2, float *key,
+				int2 *scratch1, int  *scratch2, float *scratchKey,
+				unsigned int count);
 
 ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 													 int numParts, const BaseGrid* g, float switchStart,
@@ -367,7 +372,7 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);	
 
 
-	size_t free, total;
+	/* size_t free, total; */
 	/* { */
 	/* 	cuMemGetInfo(&free,&total); */
 	/* 	printf("Free memory: %zu / %zu\n", free, total); */
@@ -380,14 +385,12 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 		// RBTODO: free memory elsewhere
 		// allocate device data
 		// initializePairlistArrays<<< 1, 32 >>>(10*nCells*blocksPerCell);
-		const int maxPairs = 1<<26;
-		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)*maxPairs));
-		gpuErrchk(cudaMalloc(&pairLists_d,     sizeof(int2)*maxPairs));
+		const int maxPairs = 1<<25;
+		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
+
+		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
 		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
-		int tmp = 0;
-		gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,
-															sizeof(int), cudaMemcpyHostToDevice));
-		
+
 		gpuErrchk(cudaDeviceSynchronize());
 	}
 
@@ -417,14 +420,32 @@ void ComputeForce::decompose(Vector3* pos, int type[]) {
 	float pairlistdist2 = (sqrt(cutoff2) + 2.0f);
 	pairlistdist2 = pairlistdist2*pairlistdist2;
 	
-	createPairlists<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas,
-																						 sys_d, decomp_d, nCells, blocksPerCell,
-																						 numPairs_d, pairLists_d,
-																						 numParts, type, pairTabPotType_d,pairlistdist2);
+	createPairlists<<< 2048, 64 >>>(pos, num, numReplicas,
+					sys_d, decomp_d, nCells,
+					numPairs_d, pairLists_d,
+					numParts, type, pairTabPotType_d, pairlistdist2);
+	/* createPairlistsOld<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, */
+	/* 																					 sys_d, decomp_d, nCells, blocksPerCell, */
+	/* 																					 numPairs_d, pairLists_d, */
+	/* 																					 numParts, type, pairTabPotType_d, pairlistdist2); */
 
-	gpuErrchk(cudaDeviceSynchronize());
-	
-	
+	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+	// if (false)
+	{ // sort pairlist
+		int numPairs;
+		gpuErrchk(cudaMemcpyAsync( &numPairs, numPairs_d, sizeof(int), cudaMemcpyDeviceToHost));
+		gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+		printf("here, %d pairs\n", numPairs);
+		/* runSort(pairLists_d, pairTabPotType_d, pairDists_d, */
+		/* 				pairLists_s, pairTabPotType_s, pairDists_s, */
+		/* 				numPairs); */
+		/* printf("done\n"); */
+		
+		/* // RBTODO: sort pairListInd as well!!! (i.e. roll your own sort!) */
+		/* // thrust::sort_by_key( pairDists_d, pairDists_d+numPairs_d, pairLists_d ); */
+		/* // thrust::sort_by_key( pairDists_d, pairDists_d+numPairs_d, pairLists_d ); */
+		/* gpuErrchk(cudaDeviceSynchronize()); /\* RBTODO: sync needed here? *\/ */
+	}
 }
 
 IndexList ComputeForce::decompDim() const {
@@ -549,21 +570,25 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 	// int nb = (1+(decomp.nCells.x * decomp.nCells.y * decomp.nCells.z)) * 75; /* RBTODO: number of pairLists */
 	const int nb = 800;
 	// printf("ComputeTabulated\n");
-	computeTabulatedKernel<<< nb, numThreads >>>(force, pos, type,
-			tablePot_d, tableBond_d,
-			num, sys_d,
-			bonds, bondMap,	numBonds,
-																							 cutoff2,
-																							 numPairs_d, pairLists_d,
-																							 pairTabPotType_d);
-
-	gpuErrchk(cudaDeviceSynchronize());
+	
+	if (get_energy) {
+		clearEnergies<<< nb, numThreads >>>(energies_d,num);
+		gpuErrchk(cudaDeviceSynchronize());
+		computeTabulatedEnergyKernel<<< nb, numThreads >>>(force, pos, type,
+						tablePot_d, tableBond_d, sys_d,
+						bonds, bondMap,	numBonds,	energies_d,	cutoff2,
+						numPairs_d, pairLists_d, pairTabPotType_d);
+	} else {
+		computeTabulatedKernel<<< nb, numThreads >>>(force, pos, type,
+						tablePot_d, tableBond_d, sys_d,
+						bonds, bondMap,	numBonds, cutoff2,
+						numPairs_d, pairLists_d, pairTabPotType_d);
+	}
 	/* printPairForceCounter<<<1,32>>>(); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */
 
 	computeAngles<<<numBlocks, numThreads>>>(force, pos, angles,
 			tableAngle_d, numAngles, num, sys_d, energies_d, get_energy);
-	gpuErrchk(cudaDeviceSynchronize());
 
 	computeDihedrals<<<numBlocks, numThreads>>>(force, pos, dihedrals,
 			tableDihedral_d, numDihedrals, num, sys_d, energies_d, get_energy);
@@ -611,4 +636,3 @@ float ComputeForce::computeTabulatedFull(Vector3* force, Vector3* pos, int* type
 
 	return energy;
 }
-
