@@ -299,21 +299,17 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 	const int split = 32;					/* numblocks should be divisible by split */
 	/* const int blocksPerCell = gridDim.x/split;  */
 	
-	const CellDecomposition::cell_t* __restrict__ pairs = decomp->getCells();
+	const CellDecomposition::cell_t* __restrict__ cellInfo = decomp->getCells();
 	for (int cID = 0 + (blockIdx.x % split); cID < nCells; cID += split) {
 	// for (int cID = blockIdx.x/blocksPerCell; cID < nCells; cID += split ) {
 		for (int repID = 0; repID < numReplicas; repID++) {
 			const CellDecomposition::range_t rangeI = decomp->getRange(cID, repID);
 
 			for (int ci = rangeI.first + blockIdx.x/split; ci < rangeI.last; ci += gridDim.x/split) {
-			/* for (int ci = rangeI.first + (blockIdx.x % blocksPerCell); */
-			/* 		 ci < rangeI.last; */
-			/* 		 ci += blocksPerCell) { */
-
 			// ai - index of the particle in the original, unsorted array
-				const int ai = pairs[ci].particle;
+				const int ai = cellInfo[ci].particle;
 				// const CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
-				const CellDecomposition::cell_t celli = pairs[ci];
+				const CellDecomposition::cell_t celli = cellInfo[ci];
 				// Vector3 posi = pos[ai];
 
 				for (int x = -1; x <= 1; ++x) {
@@ -325,7 +321,7 @@ void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
 							const CellDecomposition::range_t range = decomp->getRange(nID, repID);
 							
 							for (int n = range.first + tid; n < range.last; n+=blockDim.x) {
-								const int aj = pairs[n].particle;
+								const int aj = cellInfo[n].particle;
 								if (aj <= ai) continue;
 								
 								// skip ones that are too far away
@@ -441,7 +437,7 @@ __global__ void computeTabulatedKernel(
 	const Bond* __restrict__ bonds, const int2* __restrict__ bondMap, int numBonds,
 	float cutoff2, const int* __restrict__ g_numPairs,
 	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType) {
-	
+//remove int* type. remove bond references	
 
 	const int numPairs = *g_numPairs;
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numPairs; i+=blockDim.x*gridDim.x) {
@@ -647,6 +643,76 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 			g_energies[idx] += energy_local;
 	}
 }
+
+/***************************************** computeBonds *****************************************/
+__global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
+									   int numParts,		BaseGrid* sys,		Bond* bonds,
+									   int2* bondMap,		int numBonds,		int numReplicas,
+									   float* g_energies,	bool get_energy,	TabulatedPotential** tableBond)
+{
+	// Thread's unique ID.
+	int i = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
+
+	// Loop over ALL bonds in ALL replicas
+	if(i < num * numReplicas)
+	{
+		// Initialize interaction energy (per particle)
+		float energy_local = 0.0f;
+
+		const int repID = i / num;
+
+		// BONDS
+		/* Each particle may have a varying number of bonds
+		 * bondMap is an array with one element for each particle
+		 * which keeps track of where a particle's bonds are stored
+		 * in the bonds array.
+		 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
+		 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
+		 */
+
+		// Get bond_start and bond_end from the bondMap
+		const int bond_start = bondMap[i - repID * num].x;
+		const int bond_end = bondMap[i - repID * num].y;
+		
+		// Initialize force_local - force on a particle (i)
+		Vector3 force_local(0.0f);
+		
+		for (int currBond = bond_start; currBond < bond_end; ++currBond)
+		{
+			// currBond is the index in the bonds array that we should look at next
+			// currBond is initialized to bond_start because that is the first index of the
+			// bonds array where this particle's bonds are stored
+
+			int j = bonds[currBond].ind2; // other particle ID
+
+			// Particle's type and position
+			Vector3 posi = pos[i];
+		
+			// Find the distance between particles i and j,
+			// wrapping this value if necessary
+			const Vector3 dr = sys->wrapDiff(pos[j] - posi);
+
+			// Calculate the force on the particle from the bond
+			// If the user has specified the REPLACE option for this bond,
+			// then overwrite the force we calculated from the regular
+			// tabulated potential
+			// If the user has specified the ADD option, then add the bond
+			// force to the tabulated potential value
+			EnergyForce ft = tableBond[ bonds[currBond].tabFileIndex ]->compute(dr);
+		
+			force_local += ft.f;
+			
+			if (get_energy && j > i)
+				energy_local += ft.e;
+		}
+		
+		force[i] = force_local;
+		
+		if (get_energy)
+			g_energies[i] = energy_local;
+	}
+}
+/***************************************** end *****************************************/
 
 __global__
 void computeDihedrals(Vector3 force[], Vector3 pos[],

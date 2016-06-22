@@ -432,7 +432,6 @@ void RigidBodyController::copyGridsToDevice() {
 			// RigidBodyGrid* g_d = rb.rawDensityGrids_d[gid]; // convenience
 			int len = g->getSize();
 			float* tmpData;
-			// tmpData = new float[len];
 
 			size_t sz = sizeof(RigidBodyGrid);
 			gpuErrchk(cudaMalloc((void **) &(rb.rawDensityGrids_d[gid]), sz));
@@ -450,9 +449,6 @@ void RigidBodyController::copyGridsToDevice() {
 			gpuErrchk(cudaMemcpy( tmpData, rb.rawDensityGrids[gid].val, sz, cudaMemcpyHostToDevice));
 			gpuErrchk(cudaMemcpy( &(rb.rawDensityGrids_d[gid]->val), &tmpData,
 														sizeof(float*), cudaMemcpyHostToDevice));
-
-			// RBTODO: why can't this be deleted? 
-			// delete[] tmpData;
 		}
   }
 

@@ -1030,6 +1030,11 @@ void Configuration::readBonds() {
 		int ind1 = atoi(tokenList[2].val());
 		int ind2 = atoi(tokenList[3].val());
 		String file_name = tokenList[4];
+
+		if (ind1 == ind2) {
+			printf("WARNING: Invalid bond file line: %s\n", line);
+			continue;
+		}
 		
 		// If we don't have enough room in our bond array, we need to expand it.
 		if (numBonds >= capacity) {
@@ -1051,6 +1056,15 @@ void Configuration::readBonds() {
 		}
 		// Add the bond to the bond array
 		// We must add it twice: Once for (ind1, ind2) and once for (ind2, ind1)
+		
+		// RBTODO: add ind1/2 to exclusion list here iff op == REPLACE
+		/*if (op == Bond::REPLACE)
+		if( (int)(op) == 1)
+		{
+			printf("WARNING: Bond exclusions not implemented\n");
+			continue;
+		}*/
+
 		Bond* b = new Bond(op, ind1, ind2, file_name);
 		bonds[numBonds++] = *b;
 		b = new Bond(op, ind2, ind1, file_name);
