@@ -1,7 +1,5 @@
 #include "GrandBrownTown.h"
 #include "GrandBrownTown.cuh"
-#include "nvtxEvents.h"
-
 /* #include "ComputeGridGrid.cuh" */
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -315,14 +313,7 @@ void GrandBrownTown::run() {
 
 	printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
 
-	
-#pragma omp parallel sections
-	{
-		
-/* # pragma omp single nowait */
-		{
-			
-// Main loop over Brownian dynamics steps
+	// Main loop over Brownian dynamics steps
 	for (long int s = 1; s < steps; s++) {
 		// Compute the internal forces. Only calculate the energy when we are about to output.
 		bool get_energy = ((s % outputEnergyPeriod) == 0);
@@ -331,10 +322,6 @@ void GrandBrownTown::run() {
 		// Set the timer
 		rt_timer_start(cputimer);
 
-
-		// compute forces
-		nvtxRangeId_t rid0 = nvtxStart("Compute 'atom' forces", 1); 
-		
 		// 'interparticleForce' - determines whether particles interact with each other
 		if (interparticleForce) {
 
@@ -358,7 +345,8 @@ void GrandBrownTown::run() {
 																								get_energy);
 						break;
 					default: // [ N^2 ] interactions, no cutoff | decompositions
-						energy = internal->computeTabulatedFull(forceInternal_d, pos_d, type_d,
+						energy =
+								internal->computeTabulatedFull(forceInternal_d, pos_d, type_d,
 																							 bonds_d, bondMap_d,
 																							 excludes_d, excludeMap_d,
 																							 angles_d, dihedrals_d,
@@ -413,8 +401,6 @@ void GrandBrownTown::run() {
 		int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 		int tl = temperatureGrid.length();
 
-		nvtxRangeEnd(rid0);
-		rid0 = nvtxStart("RigidBody and update", 1); 
 		RBC.updateForces(s);					/* update RB forces before update particle positions... */
 
 		// Call the kernel to update the positions of each particle
@@ -435,11 +421,7 @@ void GrandBrownTown::run() {
 		/* computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d); */
 		
 		// int numBlocks = (numRB ) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
-
-
-		nvtxRangeEnd(rid0);
-		rid0 = nvtxStart("I/O", 1); 
-
+		
 		Vector3 force0(0.0f);
 
 		if (imd_on && clientsock && s % outputPeriod == 0) {
@@ -478,48 +460,37 @@ void GrandBrownTown::run() {
 			}
 		}
 
-		bool posFetched = false;
 		// Output trajectories (to files)
 		if (s % outputPeriod == 0) {
-
-			// wait for previous writes before copying new data 
-#pragma omp taskwait
 			// Copy particle positions back to CPU
-			posFetched=true;
-#pragma omp task untied
-			{
-				nvtxRangeId_t rid = nvtxStart("Write output", 1); 
+			gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas,
+					cudaMemcpyDeviceToHost));
 
-				gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas,
-												cudaMemcpyDeviceToHost));
-				// Nanoseconds computed
-				t = s*timestep;
+			// Nanoseconds computed
+			t = s*timestep;
 
-				// Loop over all replicas
-				for (int repID = 0; repID < numReplicas; ++repID) {
+			// Loop over all replicas
+			for (int repID = 0; repID < numReplicas; ++repID) {
 
-					// *Analysis*: ionic current
-					if (currentSegmentZ <= 0.0f) writeCurrent(repID, t);
-					else writeCurrentSegment(repID, t, currentSegmentZ);
+				// *Analysis*: ionic current
+				if (currentSegmentZ <= 0.0f) writeCurrent(repID, t);
+				else writeCurrentSegment(repID, t, currentSegmentZ);
 
-					// 
-					if (numberFluct == 1) updateNameList(); // no need for it here if particles stay the same
-					// TODO: doublecheck
+				// 
+				if (numberFluct == 1) updateNameList(); // no need for it here if particles stay the same
+														// TODO: doublecheck
 
-					// Write the trajectory.
-					writers[repID]->append(pos + (repID*num), name, serial, t, num);
-				}
-
-				// Handle particle fluctuations.
-				// TODO: Currently, not compatible with replicas. Needs a fix.
-				if (numberFluct == 1) updateReservoirs();
-
-				// Store the current positions.
-				// We must do this after particles have been added.
-				remember(t);
-				nvtxRangeEnd(rid);
+				// Write the trajectory.
+				writers[repID]->append(pos + (repID*num), name, serial, t, num);
 			}
-			
+
+			// Handle particle fluctuations.
+			// TODO: Currently, not compatible with replicas. Needs a fix.
+			if (numberFluct == 1) updateReservoirs();
+
+			// Store the current positions.
+			// We must do this after particles have been added.
+			remember(t);
 		} // s % outputPeriod == 0
 
 
@@ -529,7 +500,7 @@ void GrandBrownTown::run() {
 			rt_timer_stop(timerS);
 
 			// Copy back forces to display (internal only)
-			// gpuErrchk(cudaMemcpy(&force0, forceInternal_d, sizeof(Vector3), cudaMemcpyDeviceToHost));	
+			gpuErrchk(cudaMemcpy(&force0, forceInternal_d, sizeof(Vector3), cudaMemcpyDeviceToHost));
 			
 			// Nanoseconds computed
 			t = s * timestep;
@@ -549,31 +520,25 @@ void GrandBrownTown::run() {
 						 t, energy, force0.x, force0.y, force0.z);
 		*/
 
+			// Copy positions from GPU to CPU.
+			gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas,
+													 cudaMemcpyDeviceToHost));
 
-				// Copy positions from GPU to CPU.
-				#pragma omp taskwait
-			if (!posFetched) {
-				gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas,
-												cudaMemcpyDeviceToHost));
-			}
+			// Write restart files for each replica.
+			for (int repID = 0; repID < numReplicas; ++repID)
+				writeRestart(repID);
 
-      #pragma omp task untied
-			{ // Write restart files for each replica.
-				nvtxRangeId_t rid = nvtxStart("Write Restart", 1); 
-				for (int repID = 0; repID < numReplicas; ++repID)
-					writeRestart(repID);
-				nvtxRangeEnd(rid);
-			}
-			
 			// restart the timer
 			rt_timer_start(timerS);
+		} // s % outputEnergyPeriod
+
+		{
+			int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
+			clearInternalForces<<< numBlocks, NUM_THREADS >>>(forceInternal_d, num, numReplicas);
 		}
-
-		nvtxRangeEnd(rid0);
-
+		
 	} // done with all Brownian dynamics steps
 
-		}
 	// If IMD is on & our socket is still open.
 	if (imd_on and clientsock) {
 		if (vmdsock_selread(clientsock, 0) == 1) {
@@ -597,7 +562,6 @@ void GrandBrownTown::run() {
 			}
 		}
 	}
-		}
 
 	// Stop the main timer.
 	rt_timer_stop(timer0);
@@ -648,9 +612,10 @@ void GrandBrownTown::populate() {
 void GrandBrownTown::writeRestart(int repID) const {
 	FILE* out = fopen(restartFiles[repID].c_str(), "w");
 	const int offset = repID * num;
-	for (int i = offset; i < offset+num; ++i) {
-		const Vector3& p = pos[i];
-		fprintf(out, "%d %.10g %.10g %.10g\n", type[i], p.x, p.y, p.z);
+	for (int i = 0; i < num; ++i) {
+		const int ind = i + offset;
+		const Vector3& p = pos[ind];
+		fprintf(out, "%d %.10g %.10g %.10g\n", type[ind], p.x, p.y, p.z);
 	}
 	fclose(out);
 }

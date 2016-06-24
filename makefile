@@ -13,11 +13,9 @@ INCLUDE = $(CUDA_PATH)/include
 
 
 DEBUG = -g -O0
-CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic -fopenmp	
+CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
 # NV_FLAGS = --maxrregcount 63 -Xptxas -v # -v,-abi=no
-NV_FLAGS = -Xptxas -v # -v,-abi=no
-NV_FLAGS += -Xcompiler -fopenmp
-
+NV_FLAGS = -Xptxas -v # -v,-abi=no 
 ifneq ($(DEBUG),)
 	NV_FLAGS += -g -G								#debug
 	EX_FLAGS = -O0 -m$(OS_SIZE)
@@ -59,7 +57,7 @@ NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
 # NV_FLAGS += -rdc=true
 
-LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -lnvToolsExt -Wl,-rpath,$(LIBRARY)
+LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
 LD_FLAGS += -lcuda 
 
 
