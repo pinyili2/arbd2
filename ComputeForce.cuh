@@ -449,7 +449,7 @@ __global__ void computeTabulatedKernel(
 		// Particle's type and position
 		const int ind = g_pairTabPotType[i];
 
-	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); */
+	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); //*/
 
 		Vector3 dr = pos[aj] - pos[ai];
 		dr = sys->d_wrapDiff(dr);
@@ -458,8 +458,8 @@ __global__ void computeTabulatedKernel(
 		float d2 = dr.length2();
 		if (tablePot[ind] != NULL && d2 <= cutoff2) {
 			Vector3 f = tablePot[ind]->computef(dr,d2);
-			atomicAdd( &force[ai], -f );
-			atomicAdd( &force[aj],  f );
+			atomicAdd( &force[ai],  f );
+			atomicAdd( &force[aj], -f );
 		}
 	}
 }
@@ -646,7 +646,7 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 
 /***************************************** computeBonds *****************************************/
 __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
-									   int numParts,		BaseGrid* sys,		Bond* bonds,
+									   int numParts,		BaseGrid* sys,		Bond bonds[],
 									   int2* bondMap,		int numBonds,		int numReplicas,
 									   float* g_energies,	bool get_energy,	TabulatedPotential** tableBond)
 {
@@ -659,7 +659,7 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
 		// Initialize interaction energy (per particle)
 		float energy_local = 0.0f;
 
-		const int repID = i / num;
+		const int repID = i / num; //TODO: ask why repID is even here, it's unnecessary in this kernel
 
 		// BONDS
 		/* Each particle may have a varying number of bonds
@@ -698,18 +698,28 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
 			// tabulated potential
 			// If the user has specified the ADD option, then add the bond
 			// force to the tabulated potential value
-			EnergyForce ft = tableBond[ bonds[currBond].tabFileIndex ]->compute(dr);
-		
+
+			/* start testing */
+			//cout << "tableBond points to " << tableBond << ".\n"
+			//<< "tableBond has a size of " << sizeof(tableBond)<< ".\n";
+			//Bond test_bond = bonds[currBond];
+			//int test_num = test_bond.tabFileIndex;
+			//TabulatedPotential *test_pot = tableBond[test_num];
+			//EnergyForce test_energy = test_pot -> compute(dr);
+			/* end testing */
+
+			force_local += tableBond[ bonds[currBond].tabFileIndex ]->computef(dr,dr.length2());
+			
+			/*EnergyForce ft = tableBond[ bonds[currBond].tabFileIndex ]->compute(dr);
 			force_local += ft.f;
 			
 			if (get_energy && j > i)
-				energy_local += ft.e;
+				energy_local += ft.e;*/
 		}
-		
-		force[i] = force_local;
+		atomicAdd( &force[i], force_local );
 		
 		if (get_energy)
-			g_energies[i] = energy_local;
+			atomicAdd( &g_energies[i], energy_local);
 	}
 }
 /***************************************** end *****************************************/

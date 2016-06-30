@@ -109,6 +109,7 @@ public:
 	float timeLast; // used with posLast
 	float minimumSep; // minimum separation allowed with placing new particles
 
+
 	// RigidBody variables
 	/* int numRB; */
 	/* std::vector< std::vector<RigidBody> > rbs; */
@@ -178,7 +179,7 @@ public:
 	String* bondTableFile;
 	int numTabBondFiles;
 	int2* bondMap;
-
+	
 	Exclude* excludes;
 	int2* excludeMap;
 	String excludeRule;

@@ -77,7 +77,7 @@ public:
 				
 		// Interpolate.
 		float energy = du*w+u0;
-		Vector3 force = (-du/(d*dr))*r;
+		Vector3 force = (du/(d*dr))*r;
 		return EnergyForce(energy,force);
 	}
   HOST DEVICE inline EnergyForce compute(Vector3 r, float d) {
@@ -95,7 +95,7 @@ public:
 				
 		// Interpolate.
 		float energy = du*w+u0;
-		Vector3 force = (-du/(d*dr))*r;
+		Vector3 force = (du/(d*dr))*r;
 		return EnergyForce(energy,force);
 	}
   HOST DEVICE inline Vector3 computef(Vector3 r, float d) {
@@ -110,7 +110,7 @@ public:
 		if (home >= n) return Vector3(0.0f);
 		
 		if (home+1 < n) 
-			return (-(v0[home+1]-v0[home])/(d*dr))*r;
+			return ((v0[home+1]-v0[home])/(d*dr))*r;
 		else
 			return Vector3(0.0f);
 	}

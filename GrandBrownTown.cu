@@ -124,6 +124,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	numTabBondFiles = c.numTabBondFiles;
 	bondMap = c.bondMap;
+	// TODO: bondList = c.bondList;
 
 	excludes = c.excludes;
 	excludeMap = c.excludeMap;
@@ -179,6 +180,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
 			numDihedrals, numTabDihedralFiles, numReplicas);
 
+	// TODO: check for duplicate potentials 
 	if (c.tabulatedPotential) {
 		printf("Loading the tabulated potentials...\n");
 		for (int p = 0; p < numParts*numParts; p++) {
@@ -216,6 +218,30 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals, dihedrals_d);
 	}
 
+/***************************************** init. bondList *****************************************/
+	bondList = new int3[numBonds/2];
+	int j = 0;
+	
+	for(int i = 0; i < numBonds; ++i)
+	{
+		if(bonds[i].ind1 < bonds[i].ind2)
+		{
+			bondList[j] = make_int3( bonds[i].ind1, bonds[i].ind2, bonds[i].tabFileIndex );
+			cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
+			<< "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
+			<< "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
+			j++;
+		}
+	}
+
+	//TODO: memCopy bondList here to device, pass in list to decompose and change the function signitures. Afterwards edit the function to make use of the list.
+	createBondList();
+
+	// TODO: copy data to device (not here)
+	// TODO: use bondList in computeTabulatedBonds kernel
+
+/***************************************** end *****************************************/
+
 	forceInternal = new Vector3[num * numReplicas];
 
 	if (fullLongRange != 0)
@@ -237,7 +263,7 @@ GrandBrownTown::~GrandBrownTown() {
 	delete[] pos;
 	delete[] type;
 	delete[] serial;
-
+	delete[] bondList;
 	delete randoGen;
 
 	// Auxillary objects
@@ -248,6 +274,7 @@ GrandBrownTown::~GrandBrownTown() {
 	gpuErrchk(cudaFree(pos_d));
 	gpuErrchk(cudaFree(forceInternal_d));
 	gpuErrchk(cudaFree(randoGen_d));
+	gpuErrchk( cudaFree(bondList_d) );
 }
 
 // Run the Brownian Dynamics steps.
@@ -302,7 +329,6 @@ void GrandBrownTown::run() {
 	// Start timers
 	rt_timer_start(timer0);
 	rt_timer_start(timerS);
-
 
 	// We haven't done any steps yet.
 	// Do decomposition if we have to
@@ -958,4 +984,19 @@ void GrandBrownTown::copyToCUDA() {
 	gpuErrchk(cudaMemcpyAsync(randoGen_d, randoGen, sizeof(Random),
 														cudaMemcpyHostToDevice));
 	gpuErrchk(cudaDeviceSynchronize());
+}
+
+void GrandBrownTown::createBondList()
+{
+	size_t size = (numBonds/2) * sizeof(int3);
+	gpuErrchk( cudaMalloc( &bondList_d, sizeof(size) ) );
+	gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, sizeof(size), cudaMemcpyHostToDevice) );
+
+	for(int i = 0 ; i < numBonds/2 ; i++)
+	{
+		cout << "Displaying: bondList_d["<< i <<"].x = " << bondList[i].x << ".\n"
+			<< "Displaying: bondList_d["<< i <<"].y = " << bondList[i].y << ".\n"
+			<< "Displaying: bondList_d["<< i <<"].z = " << bondList[i].z << ".\n";
+
+	}
 }

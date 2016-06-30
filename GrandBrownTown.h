@@ -98,6 +98,7 @@ private:
 	void getDebugForce();
 	
 	void copyToCUDA();
+	void createBondList();
 
 public:
 	// Compute the current in nanoamperes.
@@ -153,7 +154,6 @@ private:
 	RigidBodyController RBC;
 	Vector3* rbPos; 		// rigid body positions
 	
-	
 	// CUDA device variables
 	Vector3 *pos_d, *forceInternal_d, *force_d;
 	int *type_d;
@@ -166,6 +166,7 @@ private:
 	int2* excludeMap_d;
 	Angle* angles_d;
 	Dihedral* dihedrals_d;
+	int3 *bondList_d;
 
 	// System parameters
 	String outputName;
@@ -232,6 +233,7 @@ private:
 	String* bondTableFile;
 	int numTabBondFiles;
 	int2* bondMap;
+	int3 *bondList;
 
 	Exclude* excludes;
 	int2* excludeMap;

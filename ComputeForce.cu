@@ -591,10 +591,10 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 			tableAngle_d, numAngles, num, sys_d, energies_d, get_energy);
 
 /***************************************** call computeTabulatedBonds *****************************************/
+	//if(bondMap != NULL && tableBond_d != NULL)
 	if(bondMap != NULL && tableBond_d != NULL)
 	{
-		computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap, numBonds, numReplicas, energies_d, get_energy, tableBond);
-
+		computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
 	}
 /***************************************** end *****************************************/
 	computeDihedrals<<<numBlocks, numThreads>>>(force, pos, dihedrals,
