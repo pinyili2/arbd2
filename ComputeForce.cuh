@@ -644,9 +644,9 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 	}
 }
 
-/***************************************** computeBonds *****************************************/
-__global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
-									   int numParts,		BaseGrid* sys,		Bond bonds[],
+//Mlog: the commented function doesn't use bondList, uncomment for testing.
+/*__global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
+									   int numParts,		BaseGrid* sys,		Bond* bonds,
 									   int2* bondMap,		int numBonds,		int numReplicas,
 									   float* g_energies,	bool get_energy,	TabulatedPotential** tableBond)
 {
@@ -660,7 +660,7 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
 		float energy_local = 0.0f;
 
 		const int repID = i / num; //TODO: ask why repID is even here, it's unnecessary in this kernel
-
+		*/
 		// BONDS
 		/* Each particle may have a varying number of bonds
 		 * bondMap is an array with one element for each particle
@@ -671,7 +671,7 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
 		 */
 
 		// Get bond_start and bond_end from the bondMap
-		const int bond_start = bondMap[i - repID * num].x;
+		/*const int bond_start = bondMap[i - repID * num].x;
 		const int bond_end = bondMap[i - repID * num].y;
 		
 		// Initialize force_local - force on a particle (i)
@@ -699,30 +699,52 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
 			// If the user has specified the ADD option, then add the bond
 			// force to the tabulated potential value
 
-			/* start testing */
-			//cout << "tableBond points to " << tableBond << ".\n"
-			//<< "tableBond has a size of " << sizeof(tableBond)<< ".\n";
-			//Bond test_bond = bonds[currBond];
-			//int test_num = test_bond.tabFileIndex;
-			//TabulatedPotential *test_pot = tableBond[test_num];
-			//EnergyForce test_energy = test_pot -> compute(dr);
-			/* end testing */
-
 			force_local += tableBond[ bonds[currBond].tabFileIndex ]->computef(dr,dr.length2());
-			
-			/*EnergyForce ft = tableBond[ bonds[currBond].tabFileIndex ]->compute(dr);
-			force_local += ft.f;
-			
-			if (get_energy && j > i)
-				energy_local += ft.e;*/
 		}
 		atomicAdd( &force[i], force_local );
 		
 		if (get_energy)
 			atomicAdd( &g_energies[i], energy_local);
 	}
+}*/
+
+__global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,					int num,
+									   int numParts,		BaseGrid* sys,					int3* bondList_d,
+									   int numBonds,		int numReplicas,				float* g_energies,
+									   bool get_energy,		TabulatedPotential** tableBond)
+{
+	// Thread's unique ID.
+	int currBond = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
+
+	// Loop over ALL bonds in ALL replicas
+	if( currBond < (numBonds * numReplicas) ) //numBonds should be divided by 2 in the kernel call
+	{
+		// Initialize interaction energy (per particle)
+		float energy_local = 0.0f;
+		
+		int i = bondList_d[currBond].x;
+		int j = bondList_d[currBond].y;
+
+		// Particle's type and position
+		//Vector3 posi = pos[i];
+		
+		// Find the distance between particles i and j,
+		// wrapping this value if necessary
+		const Vector3 dr = sys->wrapDiff(pos[j] - pos[i]);
+
+		Vector3 force_local = tableBond[ bondList_d[currBond].z ]->computef(dr,dr.length2());
+			
+		atomicAdd( &force[i], force_local );
+		atomicAdd( &force[j], -force_local );
+
+		if (get_energy)
+		{
+			//TODO: clarification on energy computation needed, consider changing.
+			atomicAdd( &g_energies[i], energy_local);
+			//atomicAdd( &g_energies[j], energy_local);
+		}
+	}
 }
-/***************************************** end *****************************************/
 
 __global__
 void computeDihedrals(Vector3 force[], Vector3 pos[],

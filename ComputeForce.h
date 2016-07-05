@@ -63,9 +63,13 @@ public:
 	float compute(Vector3* force, Vector3* pos, int* type, bool get_energy);
 	float computeFull(Vector3* force, Vector3* pos, int* type, bool get_energy);
 	
+	//MLog: the commented function doesn't use bondList, uncomment for testing.
+	/*float computeTabulated(Vector3* force, Vector3* pos, int* type,
+			Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
+			Angle* angles, Dihedral* dihedrals, bool get_energy);*/
 	float computeTabulated(Vector3* force, Vector3* pos, int* type,
 			Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
-			Angle* angles, Dihedral* dihedrals, bool get_energy);
+			Angle* angles, Dihedral* dihedrals, bool get_energy, int3* bondList_d);
 	float computeTabulatedFull(Vector3* force, Vector3* pos, int* type,
 			Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
 			Angle* angles, Dihedral* dihedrals, bool get_energy);

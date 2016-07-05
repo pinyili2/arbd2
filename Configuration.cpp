@@ -375,6 +375,8 @@ Configuration::~Configuration() {
 	delete[] partForceZGridFile;
 	delete[] partDiffusionGridFile;
 	delete[] partReservoirFile;
+	
+	// TODO: plug memory leaks
 	if (partsFromFile != NULL) delete[] partsFromFile;
 	if (bonds != NULL) delete[] bonds;
 	if (bondMap != NULL) delete[] bondMap;

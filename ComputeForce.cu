@@ -556,9 +556,13 @@ float ComputeForce::compute(Vector3 force[], Vector3 pos[], int type[], bool get
 	return energy;
 }
 
+//MLog: added Bond* bondList to the list of passed in variables.
+/*float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
+		Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
+		Angle* angles, Dihedral* dihedrals, bool get_energy, Bond* bondList) {*/
 float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 		Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
-		Angle* angles, Dihedral* dihedrals, bool get_energy) {
+		Angle* angles, Dihedral* dihedrals, bool get_energy, int3* bondList_d) {
 	float energy = 0.0f;
 
 	gridSize = (num * numReplicas) / NUM_THREADS + 1;
@@ -590,13 +594,12 @@ float ComputeForce::computeTabulated(Vector3* force, Vector3* pos, int* type,
 	computeAngles<<<numBlocks, numThreads>>>(force, pos, angles,
 			tableAngle_d, numAngles, num, sys_d, energies_d, get_energy);
 
-/***************************************** call computeTabulatedBonds *****************************************/
-	//if(bondMap != NULL && tableBond_d != NULL)
+	//Mlog: the commented function doesn't use bondList, uncomment for testing.
 	if(bondMap != NULL && tableBond_d != NULL)
 	{
-		computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
+		//computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
+		computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bondList_d, (numBonds/2), numReplicas, energies_d, get_energy, tableBond_d);
 	}
-/***************************************** end *****************************************/
 	computeDihedrals<<<numBlocks, numThreads>>>(force, pos, dihedrals,
 			tableDihedral_d, numDihedrals, num, sys_d, energies_d, get_energy);
 

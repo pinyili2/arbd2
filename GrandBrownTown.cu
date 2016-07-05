@@ -218,29 +218,29 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals, dihedrals_d);
 	}
 
-/***************************************** init. bondList *****************************************/
-	bondList = new int3[numBonds/2];
+	//Mlog: this is where we create the bondList.
+	bondList = new int3[ (numBonds / 2) * numReplicas ];
 	int j = 0;
-	
-	for(int i = 0; i < numBonds; ++i)
+
+	for(int k = 0 ; k < numReplicas; k++)
 	{
-		if(bonds[i].ind1 < bonds[i].ind2)
+		for(int i = 0; i < numBonds; ++i)
 		{
-			bondList[j] = make_int3( bonds[i].ind1, bonds[i].ind2, bonds[i].tabFileIndex );
-			cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
-			<< "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
-			<< "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
-			j++;
+			if(bonds[i].ind1 < bonds[i].ind2)
+			{
+				bondList[j] = make_int3( (bonds[i].ind1 + k * num), (bonds[i].ind2 + k * num), bonds[i].tabFileIndex );
+				cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
+				<< "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
+				<< "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
+				j++;
+			}
 		}
 	}
 
-	//TODO: memCopy bondList here to device, pass in list to decompose and change the function signitures. Afterwards edit the function to make use of the list.
 	createBondList();
 
 	// TODO: copy data to device (not here)
 	// TODO: use bondList in computeTabulatedBonds kernel
-
-/***************************************** end *****************************************/
 
 	forceInternal = new Vector3[num * numReplicas];
 
@@ -364,11 +364,10 @@ void GrandBrownTown::run() {
 							internal->decompose(pos_d, type_d);
 							//internal->updatePairlists(pos_d); // perhaps this way?
 						}
-						energy = internal->computeTabulated(forceInternal_d, pos_d, type_d,
-																								bonds_d, bondMap_d,
-																								excludes_d, excludeMap_d,
-																								angles_d, dihedrals_d,
-																								get_energy);
+						
+						//MLog: added Bond* bondList to the list of passed in variables.
+						/*energy = internal->computeTabulated(forceInternal_d, pos_d, type_d, bonds_d, bondMap_d, excludes_d, excludeMap_d,	angles_d, dihedrals_d, get_energy);*/
+						energy = internal -> computeTabulated(forceInternal_d, pos_d, type_d, bonds_d, bondMap_d, excludes_d, excludeMap_d,	angles_d, dihedrals_d, get_energy, bondList_d);
 						break;
 					default: // [ N^2 ] interactions, no cutoff | decompositions
 						energy =
@@ -988,11 +987,11 @@ void GrandBrownTown::copyToCUDA() {
 
 void GrandBrownTown::createBondList()
 {
-	size_t size = (numBonds/2) * sizeof(int3);
-	gpuErrchk( cudaMalloc( &bondList_d, sizeof(size) ) );
-	gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, sizeof(size), cudaMemcpyHostToDevice) );
+	size_t size = (numBonds / 2) * numReplicas * sizeof(int3);
+	gpuErrchk( cudaMalloc( &bondList_d, size ) );
+	gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, size, cudaMemcpyHostToDevice) );
 
-	for(int i = 0 ; i < numBonds/2 ; i++)
+	for(int i = 0 ; i < (numBonds / 2) * numReplicas ; i++)
 	{
 		cout << "Displaying: bondList_d["<< i <<"].x = " << bondList[i].x << ".\n"
 			<< "Displaying: bondList_d["<< i <<"].y = " << bondList[i].y << ".\n"
