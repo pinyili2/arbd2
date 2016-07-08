@@ -23,6 +23,34 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	setDefaults();
 	readParameters(config_file);
 	if (readPartsFromFile) readAtoms();
+
+		// Get the initial number of particles.
+	//
+	printf("\nCounting particles specified in the ");
+	if (restartCoordinates.length() > 0) {
+        // Read them from the restart file.
+		printf("restart file.\n");
+		num = countRestart(restartCoordinates.val());
+	} else if (numPartsFromFile == 0) {
+        // Sum up all particles in config file
+		printf("configuration file.\n");
+		//int num0 = 0;
+        num = 0;
+		for (int i = 0; i < numParts; i++) num += part[i].num;
+		//num = num0;	
+	} else {
+        // Determine number of particles from input file (PDB-style) 
+        printf("input file.\n");
+		num = numPartsFromFile;
+	}
+
+	// Set the number capacity.    
+	printf("\n");
+	printf("Initial particles: %d\n", num);
+	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
+	if (numCap <= 0) numCap = 20;
+
+
 	if (readBondsFromFile) readBonds();
 	if (readExcludesFromFile) readExcludes();
 	if (readAnglesFromFile) readAngles();
@@ -138,33 +166,6 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
     // from the dimensions of supplied 3D potential maps
 	sys = part[0].pmf;
 	sysDim = part[0].pmf->getExtent();
-
-
-	// Get the initial number of particles.
-    //
-    printf("\nCounting particles specified in the ");
-	if (restartCoordinates.length() > 0) {
-        // Read them from the restart file.
-		printf("restart file.\n");
-		num = countRestart(restartCoordinates.val());
-	} else if (numPartsFromFile == 0) {
-        // Sum up all particles in config file
-		printf("configuration file.\n");
-		//int num0 = 0;
-        num = 0;
-		for (int i = 0; i < numParts; i++) num += part[i].num;
-		//num = num0;	
-	} else {
-        // Determine number of particles from input file (PDB-style) 
-        printf("input file.\n");
-		num = numPartsFromFile;
-	}
-
-	// Set the number capacity.    
-	printf("\n");
-	printf("Initial particles: %d\n", num);
-	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
-	if (numCap <= 0) numCap = 20;
 
 	// Allocate particle variables.
 	pos = new Vector3[num * simNum];
@@ -1083,8 +1084,8 @@ void Configuration::readBonds() {
 	 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
 	 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
 	 */
-	bondMap = new int2[numPartsFromFile];
-	for (int i = 0; i < numPartsFromFile; i++) {	
+	bondMap = new int2[num];
+	for (int i = 0; i < num; i++) {	
 		bondMap[i].x = -1;
 		bondMap[i].y = -1;
 	}
@@ -1142,7 +1143,7 @@ void Configuration::readExcludes()
 		}
 		int ind1 = atoi(tokenList[1].val());
 		int ind2 = atoi(tokenList[2].val());
-		if (ind1 >= numPartsFromFile || ind2 >= numPartsFromFile) 
+		if (ind1 >= num || ind2 >= num) 
 			continue;
 		
 		// If we don't have enough room in our bond array, we need to expand it.
@@ -1181,8 +1182,8 @@ void Configuration::readExcludes()
 	 * excludeMap[i].x is the index in the excludes array where the ith particle's excludes begin
 	 * excludeMap[i].y is the index in the excludes array where the ith particle's excludes end
 	 */
-	excludeMap = new int2[numPartsFromFile];
-	for (int i = 0; i < numPartsFromFile; i++) {	
+	excludeMap = new int2[num];
+	for (int i = 0; i < num; i++) {	
 		excludeMap[i].x = -1;
 		excludeMap[i].y = -1;
 	}
@@ -1191,7 +1192,7 @@ void Configuration::readExcludes()
 	for (int i = 0; i < numExcludes; i++) {
 		if (excludes[i].ind1 != currPart) {
 			currPart = excludes[i].ind1;
-			if (currPart < numPartsFromFile) {
+			if (currPart < num) {
 				excludeMap[currPart].x = i;
 				if (lastPart >= 0)
 					excludeMap[lastPart].y = i;
@@ -1239,7 +1240,7 @@ void Configuration::readAngles() {
 		int ind3 = atoi(tokenList[3].val());
 		String file_name = tokenList[4];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= numPartsFromFile or ind2 >= numPartsFromFile or ind3 >= numPartsFromFile)
+		if (ind1 >= num or ind2 >= num or ind3 >= num)
 			continue;
 
 		if (numAngles >= capacity) {
@@ -1300,8 +1301,8 @@ void Configuration::readDihedrals() {
 		int ind4 = atoi(tokenList[4].val());
 		String file_name = tokenList[5];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= numPartsFromFile or ind2 >= numPartsFromFile
-				or ind3 >= numPartsFromFile or ind4 >= numPartsFromFile)
+		if (ind1 >= num or ind2 >= num
+				or ind3 >= num or ind4 >= num)
 			continue;
 
 		if (numDihedrals >= capacity) {
