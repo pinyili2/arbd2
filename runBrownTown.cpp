@@ -119,7 +119,9 @@ int main(int argc, char* argv[]) {
 	Configuration config(configFile, replicas, debug);
 	// GPUManager::set(0);
 	GPUManager::set(gpuID);
+	//MLog: this copyToCUDA function (along with the one in GrandBrownTown.cpp) was split into pieces to allocate memory into the ComputeForce, due to the location of this call we may get some memory error as a ComputeForce class isn't allocated until later on.
 	config.copyToCUDA();
+	
 
 	GrandBrownTown brown(config, outArg, randomSeed,
 			debug, imd_on, imd_port, replicas);

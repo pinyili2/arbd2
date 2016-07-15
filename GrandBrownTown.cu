@@ -138,16 +138,16 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	numTabDihedralFiles = c.numTabDihedralFiles;
 
 	// Device parameters
-	type_d = c.type_d;
+	//type_d = c.type_d;
 	part_d = c.part_d;
 	sys_d = c.sys_d;
 	kTGrid_d = c.kTGrid_d;
-	bonds_d = c.bonds_d;
-	bondMap_d = c.bondMap_d;
-	excludes_d = c.excludes_d;
-	excludeMap_d = c.excludeMap_d;
-	angles_d = c.angles_d;
-	dihedrals_d = c.dihedrals_d;
+	//bonds_d = c.bonds_d;
+	//bondMap_d = c.bondMap_d;
+	//excludes_d = c.excludes_d;
+	//excludeMap_d = c.excludeMap_d;
+	//angles_d = c.angles_d;
+	//dihedrals_d = c.dihedrals_d;
 
 	// Seed random number generator
 	long unsigned int r_seed;
@@ -179,6 +179,9 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	internal = new ComputeForce(num, part, numParts, sys, switchStart, switchLen, coulombConst,
 			fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
 			numDihedrals, numTabDihedralFiles, numReplicas);
+	
+	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
+	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals);
 
 	// TODO: check for duplicate potentials 
 	if (c.tabulatedPotential) {
@@ -199,7 +202,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		printf("Loading the tabulated bond potentials...\n");
 		for (int p = 0; p < numTabBondFiles; p++)
 			if (bondTableFile[p].length() > 0) {
-				internal->addBondPotential(bondTableFile[p].val(), p, bonds, bonds_d);
+				//MLog: make sure to add to all GPUs
+				internal->addBondPotential(bondTableFile[p].val(), p, bonds);
 				printf("%s\n",bondTableFile[p].val());
 			}
 	}
@@ -208,14 +212,17 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		printf("Loading the tabulated angle potentials...\n");
 		for (int p = 0; p < numTabAngleFiles; p++)
 			if (angleTableFile[p].length() > 0)
-				internal->addAnglePotential(angleTableFile[p].val(), p, angles, angles_d);
+			{
+				//MLog: make sure to do this for every GPU
+				internal->addAnglePotential(angleTableFile[p].val(), p, angles);
+			}
 	}
 
 	if (c.readDihedralsFromFile) {
 		printf("Loading the tabulated dihedral potentials...\n");
 		for (int p = 0; p < numTabDihedralFiles; p++)
 			if (dihedralTableFile[p].length() > 0)
-				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals, dihedrals_d);
+				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals);
 	}
 
 	//Mlog: this is where we create the bondList.
@@ -237,7 +244,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		}
 	}
 
-	createBondList();
+	internal -> createBondList(bondList);
 
 	// TODO: copy data to device (not here)
 	// TODO: use bondList in computeTabulatedBonds kernel
@@ -271,10 +278,10 @@ GrandBrownTown::~GrandBrownTown() {
 	for (int i = 0; i < numReplicas; ++i)
 		delete writers[i];
 
-	gpuErrchk(cudaFree(pos_d));
-	gpuErrchk(cudaFree(forceInternal_d));
+	//gpuErrchk(cudaFree(pos_d));
+	//gpuErrchk(cudaFree(forceInternal_d));
 	gpuErrchk(cudaFree(randoGen_d));
-	gpuErrchk( cudaFree(bondList_d) );
+	//gpuErrchk( cudaFree(bondList_d) );
 }
 
 // Run the Brownian Dynamics steps.
@@ -298,6 +305,7 @@ void GrandBrownTown::run() {
 	timerS = rt_timer_create();
 
 	copyToCUDA();
+	internal -> copyToCUDA(forceInternal, pos);
 
 	// IMD Stuff
 	void* sock = NULL;
@@ -333,7 +341,10 @@ void GrandBrownTown::run() {
 	// We haven't done any steps yet.
 	// Do decomposition if we have to
 	if (fullLongRange == 0)
-		internal->decompose(pos_d, type_d);
+	{
+		cudaSetDevice(0);
+		internal->decompose();
+	}
 
 	float t; // simulation time
 
@@ -360,22 +371,18 @@ void GrandBrownTown::run() {
 				// 1 - do not use cutoff [ N^2 ]
 				switch (fullLongRange) {
 					case 0: // [ N*log(N) ] interactions, + cutoff | decomposition
-						if (s % decompPeriod == 0) {
-							internal->decompose(pos_d, type_d);
-							//internal->updatePairlists(pos_d); // perhaps this way?
+						if (s % decompPeriod == 0)
+						{
+							cudaSetDevice(0);
+							internal -> decompose();
 						}
 						
 						//MLog: added Bond* bondList to the list of passed in variables.
 						/*energy = internal->computeTabulated(forceInternal_d, pos_d, type_d, bonds_d, bondMap_d, excludes_d, excludeMap_d,	angles_d, dihedrals_d, get_energy);*/
-						energy = internal -> computeTabulated(forceInternal_d, pos_d, type_d, bonds_d, bondMap_d, excludes_d, excludeMap_d,	angles_d, dihedrals_d, get_energy, bondList_d);
+						energy = internal -> computeTabulated(get_energy);
 						break;
 					default: // [ N^2 ] interactions, no cutoff | decompositions
-						energy =
-								internal->computeTabulatedFull(forceInternal_d, pos_d, type_d,
-																							 bonds_d, bondMap_d,
-																							 excludes_d, excludeMap_d,
-																							 angles_d, dihedrals_d,
-																							 get_energy);
+						energy = internal->computeTabulatedFull(get_energy);
 						break;
 				}
 			
@@ -386,24 +393,23 @@ void GrandBrownTown::run() {
 
 					case 0: // Use cutoff | cell decomposition.
 						if (s % decompPeriod == 0)
-							internal->decompose(pos_d, type_d);
-						energy =
-								internal->compute(forceInternal_d, pos_d, type_d, get_energy);
+						{
+							cudaSetDevice(0);
+							internal->decompose();
+						}
+						energy = internal->compute(get_energy);
 						break;
 
 					case 1: // Do not use cutoff
-						energy = internal->computeFull(forceInternal_d,
-																					 pos_d, type_d, get_energy);
+						energy = internal->computeFull(get_energy);
 						break;
 
 					case 2: // Compute only softcore forces.
-						energy = internal->computeSoftcoreFull(forceInternal_d,
-																									 pos_d, type_d, get_energy);
+						energy = internal->computeSoftcoreFull(get_energy);
 						break;
 
 					case 3: // Compute only electrostatic forces.
-						energy = internal->computeElecFull(forceInternal_d,
-																							 pos_d, type_d, get_energy);
+						energy = internal->computeElecFull(get_energy);
 						break;
 				}
 			}
@@ -428,11 +434,9 @@ void GrandBrownTown::run() {
 
 		RBC.updateForces(s);					/* update RB forces before update particle positions... */
 
-		// Call the kernel to update the positions of each particle
-		updateKernel<<< numBlocks, NUM_THREADS >>>(pos_d, forceInternal_d, type_d,
-																							 part_d, kT, kTGrid_d,
-																							 electricField, tl, timestep, num,
-																							 sys_d, randoGen_d, numReplicas);
+		//MLog: Call the kernel to update the positions of each particle
+		cudaSetDevice(0);
+		updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
 		//gpuErrchk(cudaPeekAtLastError()); // Does not work on old GPUs (like mine). TODO: write a better wrapper around Peek
 		
 		/* Time position computations.
@@ -472,7 +476,8 @@ void GrandBrownTown::run() {
 				}
 			}
 			if (clientsock) {
-				gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num, cudaMemcpyDeviceToHost));
+				cudaSetDevice(0);
+				gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num, cudaMemcpyDeviceToHost));
 				float* coords = new float[num * 3];
 				for (size_t i = 0; i < num; i++) {
 					Vector3 p = pos[i];
@@ -488,7 +493,8 @@ void GrandBrownTown::run() {
 		// Output trajectories (to files)
 		if (s % outputPeriod == 0) {
 			// Copy particle positions back to CPU
-			gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas,
+			cudaSetDevice(0);
+			gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas,
 					cudaMemcpyDeviceToHost));
 
 			// Nanoseconds computed
@@ -522,10 +528,11 @@ void GrandBrownTown::run() {
 		// Output energy.
 		if (get_energy) {
 			// Stop the timer.
+			cudaSetDevice(0);
 			rt_timer_stop(timerS);
 
 			// Copy back forces to display (internal only)
-			gpuErrchk(cudaMemcpy(&force0, forceInternal_d, sizeof(Vector3), cudaMemcpyDeviceToHost));
+			gpuErrchk(cudaMemcpy(&force0, internal -> getForceInternal_d(), sizeof(Vector3), cudaMemcpyDeviceToHost));
 			
 			// Nanoseconds computed
 			t = s * timestep;
@@ -546,7 +553,7 @@ void GrandBrownTown::run() {
 		*/
 
 			// Copy positions from GPU to CPU.
-			gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas,
+			gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num * numReplicas,
 													 cudaMemcpyDeviceToHost));
 
 			// Write restart files for each replica.
@@ -559,7 +566,8 @@ void GrandBrownTown::run() {
 
 		{
 			int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
-			clearInternalForces<<< numBlocks, NUM_THREADS >>>(forceInternal_d, num, numReplicas);
+			//MLog: along with calls to internal (ComputeForce class) this function should execute once per GPU.
+			clearInternalForces<<< numBlocks, NUM_THREADS >>>(internal -> getForceInternal_d(), num, numReplicas);
 		}
 		
 	} // done with all Brownian dynamics steps
@@ -604,7 +612,8 @@ void GrandBrownTown::run() {
 	else if (tot_min > 0) printf("%dm%.1fs\n", tot_min, tot_sec);
 	else printf("%.2fs\n", tot_sec);
 
-	gpuErrchk(cudaMemcpy(pos, pos_d, sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+	cudaSetDevice(0);
+	gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
 
 	// Write the restart file (once again)
 	for (int repID = 0; repID < numReplicas; ++repID)
@@ -912,7 +921,7 @@ void GrandBrownTown::addParticles(int n, int typ, Vector3 r0, Vector3 r1, float 
 		type[i] = typ;
 		num++;
 		// Update the cell decomposition
-		internal->updateNumber(pos, type, num); /* RBTODO: unsure if type arg is ok */
+		internal->updateNumber(num); /* RBTODO: unsure if type arg is ok */
 	}
 }
 
@@ -964,20 +973,20 @@ void GrandBrownTown::updateReservoirs() {
 	} // end particle loop
 
 	if (numberChange)
-		internal->updateNumber(pos, type, num);
+		internal->updateNumber(num);
 }
 
 // -----------------------------------------------------------------------------
 // Allocate memory on GPU(s) and copy to device
 void GrandBrownTown::copyToCUDA() {
 	const size_t tot_num = num * numReplicas;
-	gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
+	/*gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
 	gpuErrchk(cudaMemcpyAsync(pos_d, pos, sizeof(Vector3) * tot_num,
 														cudaMemcpyHostToDevice));
 
 	gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
 	gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3) * tot_num,
-														cudaMemcpyHostToDevice));
+														cudaMemcpyHostToDevice));*/
 
 	gpuErrchk(cudaMalloc(&randoGen_d, sizeof(Random)));
 	gpuErrchk(cudaMemcpyAsync(randoGen_d, randoGen, sizeof(Random),
@@ -985,7 +994,7 @@ void GrandBrownTown::copyToCUDA() {
 	gpuErrchk(cudaDeviceSynchronize());
 }
 
-void GrandBrownTown::createBondList()
+/*void GrandBrownTown::createBondList()
 {
 	size_t size = (numBonds / 2) * numReplicas * sizeof(int3);
 	gpuErrchk( cudaMalloc( &bondList_d, size ) );
@@ -998,4 +1007,4 @@ void GrandBrownTown::createBondList()
 			<< "Displaying: bondList_d["<< i <<"].z = " << bondList[i].z << ".\n";
 
 	}
-}
+}*/

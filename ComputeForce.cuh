@@ -470,13 +470,7 @@ __global__ void clearEnergies(float* g_energies, int num) {
 		g_energies[i] = 0.0f;
 	}
 }
-__global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict__ pos,
-				int* type, TabulatedPotential** __restrict__ tablePot,
-				TabulatedPotential** __restrict__ tableBond,
-				BaseGrid* __restrict__ sys, Bond* __restrict__ bonds,
-				int2* __restrict__ bondMap, int numBonds, float* g_energies, float cutoff2,
-				int* __restrict__ g_numPairs,	int2* __restrict__ g_pair,
-				int* __restrict__ g_pairTabPotType) {
+__global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict__ pos,	int* type, TabulatedPotential** __restrict__ tablePot, BaseGrid* __restrict__ sys,  float* g_energies, float cutoff2, int* __restrict__ g_numPairs,	int2* __restrict__ g_pair, int* __restrict__ g_pairTabPotType) {
 	
 	const int numPairs = *g_numPairs;
 	// RBTODO: BONDS (handle through an independent kernel call?)
@@ -512,15 +506,8 @@ __global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict
 // NOT using cell decomposition
 //
 __global__
-void computeTabulatedFullKernel(Vector3 force[], Vector3 pos[], int type[],
-																TabulatedPotential* tablePot[],
-																TabulatedPotential* tableBond[],
-																int num, int numParts, BaseGrid *sys,
-																Bond bonds[], int2 bondMap[], int numBonds,
-																Exclude excludes[], int2 excludeMap[],
-																int numExcludes, float g_energies[],
-																int gridSize, int numReplicas, bool get_energy,
-																Angle angles[]) {
+void computeTabulatedFullKernel(Vector3 force[], Vector3 pos[], int type[], TabulatedPotential* tablePot[], TabulatedPotential* tableBond[], int num, int numParts, BaseGrid *sys, Bond bonds[], int2 bondMap[], int numBonds, Exclude excludes[], int2 excludeMap[], int numExcludes, float g_energies[], int gridSize, int numReplicas, bool get_energy, Angle angles[]) 
+{
 	// Thread's unique ID.
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 

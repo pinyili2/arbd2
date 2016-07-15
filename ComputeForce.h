@@ -39,15 +39,15 @@ public:
 			int numDihedrals, int numTabDihedralFiles, int numReplicas = 1);
 	~ComputeForce();
 
-	void updateNumber(Vector3* pos, int type[], int newNum);
+	void updateNumber(int newNum);
 	void makeTables(const BrownianParticleType* part);
 
 	bool addTabulatedPotential(String fileName, int type0, int type1);
-	bool addBondPotential(String fileName, int ind, Bond* bonds, Bond* bonds_d);
-	bool addAnglePotential(String fileName, int ind, Angle* angles, Angle* angles_d);
-	bool addDihedralPotential(String fileName, int ind, Dihedral* dihedrals, Dihedral* dihedrals_d);
+	bool addBondPotential(String fileName, int ind, Bond* bonds);
+	bool addAnglePotential(String fileName, int ind, Angle* angles);
+	bool addDihedralPotential(String fileName, int ind, Dihedral* dihedrals);
 
-	void decompose(Vector3* pos, int type[]);
+	void decompose();
 	
 	CellDecomposition getDecomp();
 	IndexList decompDim() const;
@@ -57,22 +57,76 @@ public:
 	// Does nothing
 	int* neighborhood(Vector3 r);
 
-	float computeSoftcoreFull(Vector3* force, Vector3* pos, int* type, bool get_energy);
-	float computeElecFull(Vector3* force, Vector3* pos, int* type, bool get_energy);
+	float computeSoftcoreFull(bool get_energy);
+	float computeElecFull(bool get_energy);
 	
-	float compute(Vector3* force, Vector3* pos, int* type, bool get_energy);
-	float computeFull(Vector3* force, Vector3* pos, int* type, bool get_energy);
+	float compute(bool get_energy);
+	float computeFull(bool get_energy);
 	
 	//MLog: the commented function doesn't use bondList, uncomment for testing.
 	/*float computeTabulated(Vector3* force, Vector3* pos, int* type,
 			Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
 			Angle* angles, Dihedral* dihedrals, bool get_energy);*/
-	float computeTabulated(Vector3* force, Vector3* pos, int* type,
-			Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
-			Angle* angles, Dihedral* dihedrals, bool get_energy, int3* bondList_d);
-	float computeTabulatedFull(Vector3* force, Vector3* pos, int* type,
-			Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap,
-			Angle* angles, Dihedral* dihedrals, bool get_energy);
+	float computeTabulated(bool get_energy);
+	float computeTabulatedFull(bool get_energy);
+	
+	//MLog: new copy function to allocate memory required by ComputeForce class.
+	void copyToCUDA(Vector3* forceInternal, Vector3* pos);
+	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals);
+	
+	void createBondList(int3 *bondList);
+
+	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
+	Vector3* getPos_d()
+	{
+		return pos_d;
+	}
+
+	Vector3* getForceInternal_d()
+	{
+		return forceInternal_d;
+	}
+
+	int* getType_d()
+	{
+		return type_d;
+	}
+
+	Bond* getBonds_d()
+	{
+		return bonds_d;
+	}
+
+	int2* getBondMap_d()
+	{
+		return bondMap_d;
+	}
+
+	Exclude* getExcludes_d()
+	{
+		return excludes_d;
+	}
+
+	int2* getExcludeMap_d()
+	{
+		return excludeMap_d;
+	}
+
+	Angle* getAngles_d()
+	{
+		return angles_d;
+	}
+
+	Dihedral* getDihedrals_d()
+	{
+		return dihedrals_d;
+	}
+
+	int3* getBondList_d()
+	{
+		return bondList_d;
+	}
+	
 
 	HOST DEVICE
 	static EnergyForce coulombForce(Vector3 r, float alpha,float start, float len);
@@ -120,7 +174,22 @@ private:
 	int2 *pairLists_d;
 	int *pairTabPotType_d;
 
-	int *numPairs_d;	
+	int *numPairs_d;
+	
+	//MLog: List of variables that need to be moved over to ComputeForce class. Members of this list will be set to static to avoid large alterations in working code, thereby allowing us to access these variables easily.
+	//BrownianParticleType* part;
+	//float electricConst;
+	//int fullLongRange;
+	Vector3* pos_d;
+	Vector3* forceInternal_d;
+	int* type_d; 
+	Bond* bonds_d; 
+	int2* bondMap_d; 
+	Exclude* excludes_d; 
+	int2* excludeMap_d; 
+	Angle* angles_d;
+	Dihedral* dihedrals_d;
+	int3* bondList_d;
 };
 
 #endif

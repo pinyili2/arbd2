@@ -12,14 +12,14 @@ inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
 Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		simNum(simNum) {
 	// Read the parameters.
-	type_d = NULL;
+	//type_d = NULL;
 	kTGrid_d = NULL;
-	bonds_d = NULL;
-	bondMap_d = NULL;
-	excludes_d = NULL;
-	excludeMap_d = NULL;
-	angles_d = NULL;
-	dihedrals_d = NULL;
+	//bonds_d = NULL;
+	//bondMap_d = NULL;
+	//excludes_d = NULL;
+	//excludeMap_d = NULL;
+	//angles_d = NULL;
+	//dihedrals_d = NULL;
 	setDefaults();
 	readParameters(config_file);
 	if (readPartsFromFile) readAtoms();
@@ -397,18 +397,18 @@ Configuration::~Configuration() {
 
 	delete[] dihedralTableFile;
 
-	if (type_d != NULL) {
-		gpuErrchk(cudaFree(type_d));
+	//if (type_d != NULL) {
+		//gpuErrchk(cudaFree(type_d));
 		gpuErrchk(cudaFree(sys_d));
 		gpuErrchk(cudaFree(kTGrid_d));
 		gpuErrchk(cudaFree(part_d));
-		gpuErrchk(cudaFree(bonds_d));
-		gpuErrchk(cudaFree(bondMap_d));
-		gpuErrchk(cudaFree(excludes_d));
-		gpuErrchk(cudaFree(excludeMap_d));
-		gpuErrchk(cudaFree(angles_d));
-		gpuErrchk(cudaFree(dihedrals_d));
-	}
+		//gpuErrchk(cudaFree(bonds_d));
+		//gpuErrchk(cudaFree(bondMap_d));
+		//gpuErrchk(cudaFree(excludes_d));
+		//gpuErrchk(cudaFree(excludeMap_d));
+		//gpuErrchk(cudaFree(angles_d));
+		//gpuErrchk(cudaFree(dihedrals_d));
+	//}
 }
 
 void Configuration::copyToCUDA() {
@@ -468,11 +468,10 @@ void Configuration::copyToCUDA() {
 	}
 
 	// type_d and sys_d
-	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * num * simNum));
-	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * num * simNum, cudaMemcpyHostToDevice));
 	gpuErrchk(cudaMalloc(&sys_d, sizeof(BaseGrid)));
 	gpuErrchk(cudaMemcpyAsync(sys_d, sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
-
+	/*gpuErrchk(cudaMalloc(&type_d, sizeof(int) * num * simNum));
+	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * num * simNum, cudaMemcpyHostToDevice));
 	
 	if (numBonds > 0) {
 		// bonds_d
@@ -509,7 +508,7 @@ void Configuration::copyToCUDA() {
 		gpuErrchk(cudaMemcpyAsync(dihedrals_d, dihedrals,
 												 		  sizeof(Dihedral) * numDihedrals,
 														 	cudaMemcpyHostToDevice));
-	}
+	}*/
 	gpuErrchk(cudaDeviceSynchronize());
 }
 

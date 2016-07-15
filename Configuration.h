@@ -80,15 +80,15 @@ public:
 	bool loadedCoordinates;
 
 	// Device Variables
-	int *type_d;
+	//int *type_d;
 	BrownianParticleType **part_d;
 	BaseGrid *sys_d, *kTGrid_d;
-	Bond* bonds_d;
-	int2* bondMap_d;
-	Exclude* excludes_d;
-	int2* excludeMap_d;
-	Angle* angles_d;
-	Dihedral* dihedrals_d;
+	//Bond* bonds_d;
+	//int2* bondMap_d;
+	//Exclude* excludes_d;
+	//int2* excludeMap_d;
+	//Angle* angles_d;
+	//Dihedral* dihedrals_d;
 
 	// number of simulations
 	int simNum;

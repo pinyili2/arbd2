@@ -98,7 +98,6 @@ private:
 	void getDebugForce();
 	
 	void copyToCUDA();
-	void createBondList();
 
 public:
 	// Compute the current in nanoamperes.
@@ -155,18 +154,17 @@ private:
 	Vector3* rbPos; 		// rigid body positions
 	
 	// CUDA device variables
-	Vector3 *pos_d, *forceInternal_d, *force_d;
-	int *type_d;
+	//Vector3 *pos_d, *forceInternal_d, *force_d;
+	//int *type_d;
 	BrownianParticleType **part_d;
 	BaseGrid *sys_d, *kTGrid_d;
 	Random *randoGen_d;
-	Bond* bonds_d;
-	int2* bondMap_d;
-	Exclude* excludes_d;
-	int2* excludeMap_d;
-	Angle* angles_d;
-	Dihedral* dihedrals_d;
-	int3 *bondList_d;
+	//Bond* bonds_d;
+	//int2* bondMap_d;
+	//Exclude* excludes_d;
+	//int2* excludeMap_d;
+	//Angle* angles_d;
+	//Dihedral* dihedrals_d;
 
 	// System parameters
 	String outputName;
