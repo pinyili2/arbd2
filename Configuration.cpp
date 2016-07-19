@@ -22,33 +22,91 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	//dihedrals_d = NULL;
 	setDefaults();
 	readParameters(config_file);
-	if (readPartsFromFile) readAtoms();
 
-		// Get the initial number of particles.
-	//
+	// Get the number of particles
 	printf("\nCounting particles specified in the ");
 	if (restartCoordinates.length() > 0) {
-        // Read them from the restart file.
+    // Read them from the restart file.
 		printf("restart file.\n");
 		num = countRestart(restartCoordinates.val());
-	} else if (numPartsFromFile == 0) {
-        // Sum up all particles in config file
-		printf("configuration file.\n");
-		//int num0 = 0;
-        num = 0;
-		for (int i = 0; i < numParts; i++) num += part[i].num;
-		//num = num0;	
-	} else {
-        // Determine number of particles from input file (PDB-style) 
-        printf("input file.\n");
-		num = numPartsFromFile;
-	}
+  } else {
+    if (readPartsFromFile) readAtoms();
+    if (numPartsFromFile > 0) {
+      // Determine number of particles from input file (PDB-style)
+      printf("input file.\n");
+      num = numPartsFromFile;
+    } else {
+      // Sum up all particles in config file
+      printf("configuration file.\n");
+      //int num0 = 0;
+      num = 0;
+      for (int i = 0; i < numParts; i++) num += part[i].num;
+      //num = num0;
+    }
+  } // end result: variable "num" is set
 
-	// Set the number capacity.    
-	printf("\n");
-	printf("Initial particles: %d\n", num);
+
+	// Set the number capacity
+	printf("\nInitial particles: %d\n", num);
 	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
 	if (numCap <= 0) numCap = 20;
+
+	// Allocate particle variables.
+	pos = new Vector3[num * simNum];
+	type = new int[num * simNum];
+	serial = new int[num * simNum];
+	posLast = new Vector3[num * simNum];
+	name = new String[num * simNum];
+	currSerial = 0;
+
+
+  // Now, load the coordinates
+	loadedCoordinates = false;
+
+ // If we have a restart file - use it
+	if (restartCoordinates.length() > 0) {
+		loadRestart(restartCoordinates.val());
+		printf("Loaded %d restart coordinates from `%s'.\n", num, restartCoordinates.val());
+		printf("Particle numbers specified in the configuration file will be ignored.\n");
+		loadedCoordinates = true;
+	} else {
+		// Load coordinates from a file?
+		if (numPartsFromFile > 0) {
+			loadedCoordinates = true;
+			for (int i = 0; i < num; i++) {
+				int numTokens = partsFromFile[i].tokenCount();
+
+				// Break the line down into pieces (tokens) so we can process them individually
+				String* tokenList = new String[numTokens];
+				partsFromFile[i].tokenize(tokenList);
+
+				int currType = 0;
+				for (int j = 0; j < numParts; j++)
+					if (tokenList[2] == part[j].name)
+						currType = j;
+
+				for (int s = 0; s < simNum; ++s)
+					type[i + s*num] = currType;
+
+				serial[i] = currSerial++;
+
+				pos[i] = Vector3(atof(tokenList[3].val()),
+												 atof(tokenList[4].val()),
+												 atof(tokenList[5].val()));
+			}
+			delete[] partsFromFile;
+			partsFromFile = NULL;
+		} else {
+			// Not loading coordinates from a file
+			populate();
+			if (inputCoordinates.length() > 0) {
+				printf("Loading coordinates from %s ... ", inputCoordinates.val());
+				loadedCoordinates = loadCoordinates(inputCoordinates.val());
+				if (loadedCoordinates)
+					printf("done!\n");
+			}
+		}
+	}
 
 
 	if (readBondsFromFile) readBonds();
@@ -69,7 +127,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		printf("Loaded `%s'.\n", temperatureGrid.val());
 		printf("System size %s.\n", tGrid->getExtent().toString().val());
 
-		float ToSo = 1.0f / (295.0f * 4.634248239f); // 1 / (To * sigma(To)) 
+		float ToSo = 1.0f / (295.0f * 4.634248239f); // 1 / (To * sigma(To))
 		sigmaT = new BaseGrid(temperatureGrid.val());
 		sigmaT->shift(-122.8305f);
 		sigmaT->scale(0.0269167f);
@@ -123,7 +181,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 			part[i].forceYGrid = new BaseGrid(partForceYGridFile[i].val());
 			printf("Loaded `%s'.\n", partForceYGridFile[i].val());
 			printf("System size %s.\n", part[i].forceYGrid->getExtent().toString().val());
-		} 
+		}
 
 		if (partForceZGridFile[i].length() != 0) {
 			part[i].forceZGrid = new BaseGrid(partForceZGridFile[i].val());
@@ -167,14 +225,6 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	sys = part[0].pmf;
 	sysDim = part[0].pmf->getExtent();
 
-	// Allocate particle variables.
-	pos = new Vector3[num * simNum];
-	type = new int[num * simNum];
-	serial = new int[num * simNum];
-	posLast = new Vector3[num * simNum];
-	name = new String[num * simNum];
-	currSerial = 0;
-
 // RBTODO: clean this mess up
 	/* // RigidBodies... */
 	/* if (numRigidTypes > 0) { */
@@ -195,24 +245,24 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		// // state data
 		// rbPos = new Vector3[numRB * simNum];
 		// type = new int[numRB * simNum];
-		
+
 	/* } */
 	/* printf("Initial RigidBodies: %d\n", numRB); */
-	
+
 
 	// Create exclusions from the exclude rule, if it was specified in the config file
 	if (excludeRule != String("")) {
 		int oldNumExcludes = numExcludes;
 		Exclude* newExcludes = makeExcludes(bonds, bondMap, num, numBonds, excludeRule, numExcludes);
 		if (excludes == NULL) {
-			excludes = new Exclude[numExcludes];		
-		} else if (numExcludes >= excludeCapacity) {	
+			excludes = new Exclude[numExcludes];
+		} else if (numExcludes >= excludeCapacity) {
 			Exclude* tempExcludes = excludes;
 			excludes = new Exclude[numExcludes];
 			for (int i = 0; i < oldNumExcludes; i++)
 				excludes[i] = tempExcludes[i];
 			delete tempExcludes;
-		}	
+		}
 		for (int i = oldNumExcludes; i < numExcludes; i++)
 			excludes[i] = newExcludes[i - oldNumExcludes];
 		printf("Built %d exclusions.\n",numExcludes);
@@ -228,7 +278,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		 * excludeMap[i].y is the index in the excludes array where the ith particle's excludes end
 		 */
 		excludeMap = new int2[numPartsFromFile];
-		for (int i = 0; i < numPartsFromFile; i++) {	
+		for (int i = 0; i < numPartsFromFile; i++) {
 			excludeMap[i].x = -1;
 			excludeMap[i].y = -1;
 		}
@@ -254,7 +304,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	// inputCoordinates are ignored if restartCoordinates exist.
 	/*
 	if (restartCoordinates.length() > 0) {
-		loadRestart(restartCoordinates.val());      
+		loadRestart(restartCoordinates.val());
 		printf("Loaded %d restart coordinates from `%s'.\n", num, restartCoordinates.val());
 		printf("Particle numbers specified in the configuration file will be ignored.\n");
 	} else {
@@ -262,9 +312,9 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 
 		// Load coordinates from a file?
 		if (numPartsFromFile > 0) {
-			for (int i = 0; i < num; i++) {			
+			for (int i = 0; i < num; i++) {
 				int numTokens = partsFromFile[i].tokenCount();
-		      
+
 				// Break the line down into pieces (tokens) so we can process them individually
 				String* tokenList = new String[numTokens];
 				partsFromFile[i].tokenize(tokenList);
@@ -292,52 +342,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	}
 	*/
 	
-	loadedCoordinates = false;
 
-  // If we have a restart file - use it
-	if (restartCoordinates.length() > 0) {
-		loadRestart(restartCoordinates.val());      
-		printf("Loaded %d restart coordinates from `%s'.\n", num, restartCoordinates.val());
-		printf("Particle numbers specified in the configuration file will be ignored.\n");
-		loadedCoordinates = true;
-	} else {
-		// Load coordinates from a file?
-		if (numPartsFromFile > 0) {
-			loadedCoordinates = true;
-			for (int i = 0; i < num; i++) {			
-				int numTokens = partsFromFile[i].tokenCount();
-		      
-				// Break the line down into pieces (tokens) so we can process them individually
-				String* tokenList = new String[numTokens];
-				partsFromFile[i].tokenize(tokenList);
-
-				int currType = 0;
-				for (int j = 0; j < numParts; j++)
-					if (tokenList[2] == part[j].name)
-						currType = j;
-
-				for (int s = 0; s < simNum; ++s)
-					type[i + s*num] = currType;
-
-				serial[i] = currSerial++;
-
-				pos[i] = Vector3(atof(tokenList[3].val()),
-												 atof(tokenList[4].val()),
-												 atof(tokenList[5].val()));
-			}
-			delete[] partsFromFile;
-			partsFromFile = NULL;
-		} else {
-			// Not loading coordinates from a file
-			populate();
-			if (inputCoordinates.length() > 0) {
-				printf("Loading coordinates from %s ... ", inputCoordinates.val());
-				loadedCoordinates = loadCoordinates(inputCoordinates.val());
-				if (loadedCoordinates)
-					printf("done!\n");
-			}
-		}
-	}
 	// Get the maximum particle radius.
 	minimumSep = 0.0f;
 	for (int i = 0; i < numParts; ++i)
