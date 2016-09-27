@@ -7,7 +7,9 @@
 #include "Angle.h"
 #include "TabulatedPotential.h"
 #include "BaseGrid.h"
-#include <cuda.h>
+
+__device__ void atomicAdd( Vector3* address, Vector3 val);
+
 
 class TabulatedAnglePotential
 {
@@ -20,7 +22,8 @@ public:
 	float angle_step;	// 'step' angle in potential file. potential file might not go 1, 2, 3,...,360, it could be in steps of .5 or something smaller 
 	int size;			// The number of data points in the file
 	String fileName;
-	HOST DEVICE inline EnergyForce compute(Angle* a, Vector3* pos, BaseGrid* sys, int index) {
+
+	HOST DEVICE inline EnergyForce computeOLD(Angle* a, Vector3* pos, BaseGrid* sys, int index) {
 		// First, we must find the actual angle we're working with. 
 		// Grab the positions of each particle in the angle
 		const Vector3 posa = pos[a->ind1];

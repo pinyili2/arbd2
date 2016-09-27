@@ -241,10 +241,13 @@ private:
 	Angle* angles;
 	String* angleTableFile;
 	int numTabAngleFiles;
+	int4 *angleList;
 
 	Dihedral* dihedrals;
 	String* dihedralTableFile;
 	int numTabDihedralFiles;
+	int4 *dihedralList;
+	int  *dihedralPotList;
 
 	void updateNameList();
 

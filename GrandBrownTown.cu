@@ -3,7 +3,7 @@
 /* #include "ComputeGridGrid.cuh" */
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
 	if (code != cudaSuccess) {
 		fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), file, line);
 	if (abort) exit(code);
@@ -243,16 +243,28 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			}
 		}
 	}
+	// internal->createBondList(bondList);
 
-	internal -> createBondList(bondList);
-
-	// TODO: copy data to device (not here)
-	// TODO: use bondList in computeTabulatedBonds kernel
-
+	angleList = new int4[ (numAngles) * numReplicas ];
+	for(int k = 0 ; k < numReplicas; k++) {
+	    for(int i = 0; i < numAngles; ++i) {
+		angleList[i] = make_int4( angles[i].ind1+k*num, angles[i].ind2+k*num, angles[i].ind3+k*num, angles[i].tabFileIndex );
+	    }
+	}
+	
+	dihedralList = new int4[ (numDihedrals) * numReplicas ];
+	dihedralPotList = new  int[ (numDihedrals) * numReplicas ];
+	for(int k = 0 ; k < numReplicas; k++) {
+	    for(int i = 0; i < numDihedrals; ++i) {
+		dihedralList[i] = make_int4( dihedrals[i].ind1+k*num, dihedrals[i].ind2+k*num, dihedrals[i].ind3+k*num, dihedrals[i].ind4+k*num);
+		dihedralPotList[i] = dihedrals[i].tabFileIndex;
+	    }
+	}
+	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList);
+	
 	forceInternal = new Vector3[num * numReplicas];
-
 	if (fullLongRange != 0)
-		printf("No cell decomposition created.\n");
+	    printf("No cell decomposition created.\n");
 
 	// Prepare the trajectory output writer.
 	for (int repID = 0; repID < numReplicas; ++repID) {

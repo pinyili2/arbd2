@@ -3,8 +3,9 @@
 // Terrance Howard <heyterrance@gmail.com>
 
 #pragma once
-#include "CudaUtil.cuh"
 #include <assert.h>
+#include "CudaUtil.cuh"
+#include "TabulatedMethods.cuh"
 
 #define BD_PI 3.1415927f
 
@@ -228,7 +229,7 @@ void createPairlistsOld(Vector3* __restrict__ pos, int num, int numReplicas,
 	const int cID = bid / blocksPerCell; /* cellID */
 
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
-	const int wid = tid/WARPSIZE;
+	// const int wid = tid/WARPSIZE;
 	const int blockLane = bid % blocksPerCell;
 
 	if (cID >= nCells) return;
@@ -444,7 +445,6 @@ __global__ void computeTabulatedKernel(
 		const int2 pair = g_pair[i];
 		const int ai = pair.x;
 		const int aj = pair.y;
-		// BONDS: RBTODO: handle through an independent kernel call
 			
 		// Particle's type and position
 		const int ind = g_pairTabPotType[i];
@@ -619,7 +619,7 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 			Angle& a = angles[i];
 			const int ind = a.getIndex(idx);
 			if (ind >= 0) {
-				EnergyForce ef = tableAngle[a.tabFileIndex]->compute(&a, pos, sys, ind);
+				EnergyForce ef = tableAngle[a.tabFileIndex]->computeOLD(&a, pos, sys, ind);
 				force_local += ef.f;
 				if (ind == 1 and get_energy)
 					energy_local += ef.e;
@@ -733,6 +733,30 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,					int nu
 	}
 }
 
+// TODO: add kernel for energy calculation 
+__global__
+void computeTabulatedAngles(Vector3* __restrict__ force, Vector3* __restrict__ pos,
+			    BaseGrid* __restrict__ sys, int numReplicas,
+			    int numAngles, int4* angleList_d, TabulatedAnglePotential** tableAngle) {
+				
+    int currAngle = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
+
+    // Loop over ALL angles in ALL replicas
+    if( currAngle < (numAngles * numReplicas) ) {
+
+	int4& ids = angleList_d[currAngle];
+	computeAngle(tableAngle[ ids.w ], sys, force, pos, ids.x, ids.y, ids.z);
+
+	// if (get_energy)
+	// {
+	//     //TODO: clarification on energy computation needed, consider changing.
+	//     atomicAdd( &g_energies[i], energy_local);
+	//     //atomicAdd( &g_energies[j], energy_local);
+	// }
+    }
+}
+
+
 __global__
 void computeDihedrals(Vector3 force[], Vector3 pos[],
 											Dihedral dihedrals[],
@@ -740,7 +764,7 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
 											int numDihedrals, int num, BaseGrid* sys, float g_energies[],
 											bool get_energy) {
 	int i = blockIdx.x * blockDim.x + threadIdx.x;
-	float energy_local = 0.0f;
+	// float energy_local = 0.0f;
 	Vector3 force_local(0.0f);
 
 	if (i < numDihedrals) {
@@ -813,3 +837,36 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
 		}
 	}
 }
+
+
+    // void computeTabulatedDihedrals(Vector3* __restrict__ force, Vector3* __restrict__ pos, int num,
+    // 			    int numParts, BaseGrid* __restrict__ sys, int4* __restrict__ dihedralList_d,
+    // 			    int* __restrict__ dihedralPotList_d,
+    // 			    int numDihedrals, int numReplicas, float* __restrict g_energies,
+    // 			    bool get_energy, TabulatedDihedralPotential** __restrict__ tableDihedral) {
+
+__global__
+void computeTabulatedDihedrals(Vector3* __restrict__ force, const Vector3* __restrict__ pos,
+			       const BaseGrid* __restrict__ sys, int numReplicas,
+			       int numDihedrals, const int4* __restrict__ dihedralList_d,
+			       const int* __restrict__ dihedralPotList_d, TabulatedDihedralPotential** tableDihedral) {
+
+    int currDihedral = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
+
+    // Loop over ALL dihedrals in ALL replicas
+    // TODO make grid stride loop
+    if( currDihedral < (numDihedrals * numReplicas) ) {
+	const int4& ids = dihedralList_d[currDihedral];
+	const int& id = dihedralPotList_d[currDihedral];
+
+	computeDihedral(tableDihedral[ id ], sys, force, pos, ids.x, ids.y, ids.z, ids.w);
+
+	// if (get_energy)
+	// {
+	//     //TODO: clarification on energy computation needed, consider changing.
+	//     atomicAdd( &g_energies[i], energy_local);
+	//     //atomicAdd( &g_energies[j], energy_local);
+	// }
+    }
+}
+

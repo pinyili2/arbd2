@@ -4,9 +4,8 @@
 #ifndef TABULATEDDIHEDRAL_H
 #define TABULATEDDIHEDRAL_H
 
-#include <cuda.h>
-
 #include "useful.h"
+
 #include "Dihedral.h"
 #include "TabulatedPotential.h"
 #include "BaseGrid.h"
@@ -29,7 +28,7 @@ public:
 	String fileName;
 
 	// RBTODO: deprecate
-	HOST DEVICE inline EnergyForce compute(Dihedral* d, Vector3* pos, BaseGrid* sys, int index) { 
+	HOST DEVICE inline EnergyForce computeOLD(Dihedral* d, Vector3* pos, BaseGrid* sys, int index) { 
 		const Vector3 posa = d->ind1;
 		const Vector3 posb = d->ind2;
 		const Vector3 posc = d->ind3;

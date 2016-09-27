@@ -7,7 +7,7 @@
 // *****************************************************************************
 // Error Check
 
-inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
 	if (code != cudaSuccess) {
 		fprintf(stderr,"CUDA Error: %s %s %d\n",
 						cudaGetErrorString(code), file, line);

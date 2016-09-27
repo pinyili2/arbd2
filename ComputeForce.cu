@@ -8,7 +8,7 @@
 
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, char *file, int line, bool abort=true) {
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
       fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), file, line);
       if (abort) exit(code);
@@ -596,19 +596,22 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	/* printPairForceCounter<<<1,32>>>(); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */
 
-	computeAngles<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, angles_d,
-			tableAngle_d, numAngles, num, sys_d, energies_d, get_energy);
-
 	//Mlog: the commented function doesn't use bondList, uncomment for testing.
 	//if(bondMap_d != NULL && tableBond_d != NULL)
 	if(bondList_d != NULL && tableBond_d != NULL)
 
 	{
-		//computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap_d, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
-		computeTabulatedBonds <<<numBlocks, numThreads>>> ( forceInternal_d, pos_d, num, numParts, sys_d, bondList_d, (numBonds/2), numReplicas, energies_d, get_energy, tableBond_d);
+	    //computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap_d, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
+	    computeTabulatedBonds <<<numBlocks, numThreads>>> ( forceInternal_d, pos_d, num, numParts, sys_d, bondList_d, (numBonds/2), numReplicas, energies_d, get_energy, tableBond_d);
 	}
-	computeDihedrals<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, dihedrals_d,
-			tableDihedral_d, numDihedrals, num, sys_d, energies_d, get_energy);
+	if (angleList_d != NULL && tableAngle_d != NULL)
+	    computeTabulatedAngles<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numReplicas,
+							      numAngles, angleList_d, tableAngle_d);
+	
+	if (dihedralList_d != NULL && tableDihedral_d != NULL)
+	    computeTabulatedDihedrals<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numReplicas,
+								 numDihedrals, dihedralList_d, dihedralPotList_d, tableDihedral_d);
+	
 
 	// Calculate the energy based on the array created by the kernel
 	if (get_energy) {
@@ -709,17 +712,35 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 	gpuErrchk(cudaDeviceSynchronize());
 }
 
-void ComputeForce::createBondList(int3 *bondList)
-{
-	size_t size = (numBonds / 2) * numReplicas * sizeof(int3);
-	gpuErrchk( cudaMalloc( &bondList_d, size ) );
-	gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, size, cudaMemcpyHostToDevice) );
+// void ComputeForce::createBondList(int3 *bondList)
+// {
+// 	size_t size = (numBonds / 2) * numReplicas * sizeof(int3);
+// 	gpuErrchk( cudaMalloc( &bondList_d, size ) );
+// 	gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, size, cudaMemcpyHostToDevice) );
 
-	for(int i = 0 ; i < (numBonds / 2) * numReplicas ; i++)
-	{
-		cout << "Displaying: bondList_d["<< i <<"].x = " << bondList[i].x << ".\n"
-			<< "Displaying: bondList_d["<< i <<"].y = " << bondList[i].y << ".\n"
-			<< "Displaying: bondList_d["<< i <<"].z = " << bondList[i].z << ".\n";
+// 	for(int i = 0 ; i < (numBonds / 2) * numReplicas ; i++)
+// 	{
+// 		cout << "Displaying: bondList_d["<< i <<"].x = " << bondList[i].x << ".\n"
+// 			<< "Displaying: bondList_d["<< i <<"].y = " << bondList[i].y << ".\n"
+// 			<< "Displaying: bondList_d["<< i <<"].z = " << bondList[i].z << ".\n";
 
-	}
+// 	}
+// }
+
+void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList) {
+    size_t size = (numBonds / 2) * numReplicas * sizeof(int3);
+    gpuErrchk( cudaMalloc( &bondList_d, size ) );
+    gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, size, cudaMemcpyHostToDevice) );
+
+    size = numAngles * numReplicas * sizeof(int4);
+    gpuErrchk( cudaMalloc( &angleList_d, size ) );
+    gpuErrchk( cudaMemcpyAsync( angleList_d, angleList, size, cudaMemcpyHostToDevice) );
+    
+    size = numDihedrals * numReplicas * sizeof(int4);
+    gpuErrchk( cudaMalloc( &dihedralList_d, size ) );
+    gpuErrchk( cudaMemcpyAsync( dihedralList_d, dihedralList, size, cudaMemcpyHostToDevice) );
+
+    size = numDihedrals * numReplicas * sizeof(int);
+    gpuErrchk( cudaMalloc( &dihedralPotList_d, size ) );
+    gpuErrchk( cudaMemcpyAsync( dihedralPotList_d, dihedralPotList, size, cudaMemcpyHostToDevice) );
 }
