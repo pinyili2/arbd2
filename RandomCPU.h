@@ -83,7 +83,7 @@ public:
     print("INIT\n");
   }
 
-  HOST DEVICE inline void print(char* string)
+  HOST DEVICE inline void print(const char* string)
 		{
 			printf(string);
 			printf("RAND48_SEED = %d, RAND48_MULT = %d, RAND48_ADD = %d, RAND48_MASK = %d\n", RAND48_SEED, RAND48_MULT, RAND48_ADD, RAND48_MASK);

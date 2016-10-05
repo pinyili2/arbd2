@@ -695,9 +695,9 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 	}
 }*/
 
-__global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,					int num,
-									   int numParts,		BaseGrid* sys,					int3* bondList_d,
-									   int numBonds,		int numReplicas,				float* g_energies,
+__global__ void computeTabulatedBonds( Vector3* __restrict__ force,		Vector3* __restrict__ pos,					int num,
+				int numParts,		BaseGrid* __restrict__ sys,					int3* __restrict__ bondList_d,
+									   int numBonds,		int numReplicas,				float* __restrict__ g_energies,
 									   bool get_energy,		TabulatedPotential** tableBond)
 {
 	// Thread's unique ID.
@@ -735,25 +735,21 @@ __global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,					int nu
 
 // TODO: add kernel for energy calculation 
 __global__
-void computeTabulatedAngles(Vector3* __restrict__ force, Vector3* __restrict__ pos,
-			    BaseGrid* __restrict__ sys, int numReplicas,
-			    int numAngles, int4* angleList_d, TabulatedAnglePotential** tableAngle) {
-				
-    int currAngle = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
-
-    // Loop over ALL angles in ALL replicas
-    if( currAngle < (numAngles * numReplicas) ) {
-
-	int4& ids = angleList_d[currAngle];
-	computeAngle(tableAngle[ ids.w ], sys, force, pos, ids.x, ids.y, ids.z);
-
+void computeTabulatedAngles(Vector3* __restrict__ force,
+				Vector3* __restrict__ pos,
+				BaseGrid* __restrict__ sys,
+				int numAngles, int4* __restrict__ angleList_d, TabulatedAnglePotential** tableAngle) {
+	// Loop over ALL angles in ALL replicas
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numAngles; i+=blockDim.x*gridDim.x) {
+		int4& ids = angleList_d[i];
+		computeAngle(tableAngle[ ids.w ], sys, force, pos, ids.x, ids.y, ids.z);
 	// if (get_energy)
 	// {
 	//     //TODO: clarification on energy computation needed, consider changing.
 	//     atomicAdd( &g_energies[i], energy_local);
 	//     //atomicAdd( &g_energies[j], energy_local);
 	// }
-    }
+	}
 }
 
 
@@ -847,7 +843,7 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
 
 __global__
 void computeTabulatedDihedrals(Vector3* __restrict__ force, const Vector3* __restrict__ pos,
-			       const BaseGrid* __restrict__ sys, int numReplicas,
+			       const BaseGrid* __restrict__ sys,
 			       int numDihedrals, const int4* __restrict__ dihedralList_d,
 			       const int* __restrict__ dihedralPotList_d, TabulatedDihedralPotential** tableDihedral) {
 
@@ -855,11 +851,10 @@ void computeTabulatedDihedrals(Vector3* __restrict__ force, const Vector3* __res
 
     // Loop over ALL dihedrals in ALL replicas
     // TODO make grid stride loop
-    if( currDihedral < (numDihedrals * numReplicas) ) {
-	const int4& ids = dihedralList_d[currDihedral];
-	const int& id = dihedralPotList_d[currDihedral];
-
-	computeDihedral(tableDihedral[ id ], sys, force, pos, ids.x, ids.y, ids.z, ids.w);
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numDihedrals; i+=blockDim.x*gridDim.x) {
+		const int4& ids = dihedralList_d[i];
+		const int& id = dihedralPotList_d[i];
+		computeDihedral(tableDihedral[ id ], sys, force, pos, ids.x, ids.y, ids.z, ids.w);
 
 	// if (get_energy)
 	// {

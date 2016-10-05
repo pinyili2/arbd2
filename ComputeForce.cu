@@ -605,12 +605,10 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	    computeTabulatedBonds <<<numBlocks, numThreads>>> ( forceInternal_d, pos_d, num, numParts, sys_d, bondList_d, (numBonds/2), numReplicas, energies_d, get_energy, tableBond_d);
 	}
 	if (angleList_d != NULL && tableAngle_d != NULL)
-	    computeTabulatedAngles<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numReplicas,
-							      numAngles, angleList_d, tableAngle_d);
+		computeTabulatedAngles<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
 	
 	if (dihedralList_d != NULL && tableDihedral_d != NULL)
-	    computeTabulatedDihedrals<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numReplicas,
-								 numDihedrals, dihedralList_d, dihedralPotList_d, tableDihedral_d);
+		computeTabulatedDihedrals<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
 	
 
 	// Calculate the energy based on the array created by the kernel
