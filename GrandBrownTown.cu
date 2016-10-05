@@ -226,32 +226,37 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	}
 
 	//Mlog: this is where we create the bondList.
-	bondList = new int3[ (numBonds / 2) * numReplicas ];
-	int j = 0;
+	if (numBonds > 0) {
+		bondList = new int3[ (numBonds / 2) * numReplicas ];
+		int j = 0;
 
-	for(int k = 0 ; k < numReplicas; k++)
-	{
-		for(int i = 0; i < numBonds; ++i)
+		for(int k = 0 ; k < numReplicas; k++)
 		{
-			if(bonds[i].ind1 < bonds[i].ind2)
+			for(int i = 0; i < numBonds; ++i)
 			{
-				bondList[j] = make_int3( (bonds[i].ind1 + k * num), (bonds[i].ind2 + k * num), bonds[i].tabFileIndex );
-				cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
-				<< "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
-				<< "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
-				j++;
+				if(bonds[i].ind1 < bonds[i].ind2)
+				{
+					bondList[j] = make_int3( (bonds[i].ind1 + k * num), (bonds[i].ind2 + k * num), bonds[i].tabFileIndex );
+					// cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
+					// << "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
+					// << "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
+					j++;
+				}
 			}
 		}
 	}
 	// internal->createBondList(bondList);
 
+	if (numAngles > 0) {
 	angleList = new int4[ (numAngles) * numReplicas ];
 	for(int k = 0 ; k < numReplicas; k++) {
 	    for(int i = 0; i < numAngles; ++i) {
 		angleList[i] = make_int4( angles[i].ind1+k*num, angles[i].ind2+k*num, angles[i].ind3+k*num, angles[i].tabFileIndex );
 	    }
 	}
+	}
 	
+	if (numDihedrals > 0) {
 	dihedralList = new int4[ (numDihedrals) * numReplicas ];
 	dihedralPotList = new  int[ (numDihedrals) * numReplicas ];
 	for(int k = 0 ; k < numReplicas; k++) {
@@ -259,6 +264,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		dihedralList[i] = make_int4( dihedrals[i].ind1+k*num, dihedrals[i].ind2+k*num, dihedrals[i].ind3+k*num, dihedrals[i].ind4+k*num);
 		dihedralPotList[i] = dihedrals[i].tabFileIndex;
 	    }
+	}
 	}
 	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList);
 	

@@ -726,14 +726,23 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 // }
 
 void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList) {
-    size_t size = (numBonds / 2) * numReplicas * sizeof(int3);
-    gpuErrchk( cudaMalloc( &bondList_d, size ) );
-    gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, size, cudaMemcpyHostToDevice) );
 
+	
+	size_t size;
+
+	if (numBonds > 0) {
+	size = (numBonds / 2) * numReplicas * sizeof(int3);
+	gpuErrchk( cudaMalloc( &bondList_d, size ) );
+	gpuErrchk( cudaMemcpyAsync( bondList_d, bondList, size, cudaMemcpyHostToDevice) );
+	}
+	
+	if (numAngles > 0) {
     size = numAngles * numReplicas * sizeof(int4);
     gpuErrchk( cudaMalloc( &angleList_d, size ) );
     gpuErrchk( cudaMemcpyAsync( angleList_d, angleList, size, cudaMemcpyHostToDevice) );
-    
+	}
+	
+	if (numDihedrals > 0) {
     size = numDihedrals * numReplicas * sizeof(int4);
     gpuErrchk( cudaMalloc( &dihedralList_d, size ) );
     gpuErrchk( cudaMemcpyAsync( dihedralList_d, dihedralList, size, cudaMemcpyHostToDevice) );
@@ -741,4 +750,5 @@ void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *d
     size = numDihedrals * numReplicas * sizeof(int);
     gpuErrchk( cudaMalloc( &dihedralPotList_d, size ) );
     gpuErrchk( cudaMemcpyAsync( dihedralPotList_d, dihedralPotList, size, cudaMemcpyHostToDevice) );
+	}
 }
