@@ -360,7 +360,7 @@ void GrandBrownTown::run() {
 	// Do decomposition if we have to
 	if (fullLongRange == 0)
 	{
-		cudaSetDevice(0);
+		// cudaSetDevice(0);
 		internal->decompose();
 	}
 
@@ -391,7 +391,7 @@ void GrandBrownTown::run() {
 					case 0: // [ N*log(N) ] interactions, + cutoff | decomposition
 						if (s % decompPeriod == 0)
 						{
-							cudaSetDevice(0);
+							// cudaSetDevice(0);
 							internal -> decompose();
 						}
 						
@@ -412,7 +412,7 @@ void GrandBrownTown::run() {
 					case 0: // Use cutoff | cell decomposition.
 						if (s % decompPeriod == 0)
 						{
-							cudaSetDevice(0);
+							// cudaSetDevice(0);
 							internal->decompose();
 						}
 						energy = internal->compute(get_energy);
@@ -453,7 +453,7 @@ void GrandBrownTown::run() {
 		RBC.updateForces(s);					/* update RB forces before update particle positions... */
 
 		//MLog: Call the kernel to update the positions of each particle
-		cudaSetDevice(0);
+		// cudaSetDevice(0);
 		updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
 		//gpuErrchk(cudaPeekAtLastError()); // Does not work on old GPUs (like mine). TODO: write a better wrapper around Peek
 		
@@ -494,7 +494,7 @@ void GrandBrownTown::run() {
 				}
 			}
 			if (clientsock) {
-				cudaSetDevice(0);
+				// cudaSetDevice(0);
 				gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num, cudaMemcpyDeviceToHost));
 				float* coords = new float[num * 3];
 				for (size_t i = 0; i < num; i++) {
@@ -511,7 +511,7 @@ void GrandBrownTown::run() {
 		// Output trajectories (to files)
 		if (s % outputPeriod == 0) {
 			// Copy particle positions back to CPU
-			cudaSetDevice(0);
+			// cudaSetDevice(0);
 			gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas,
 					cudaMemcpyDeviceToHost));
 
@@ -546,7 +546,7 @@ void GrandBrownTown::run() {
 		// Output energy.
 		if (get_energy) {
 			// Stop the timer.
-			cudaSetDevice(0);
+			// cudaSetDevice(0);
 			rt_timer_stop(timerS);
 
 			// Copy back forces to display (internal only)
@@ -630,7 +630,7 @@ void GrandBrownTown::run() {
 	else if (tot_min > 0) printf("%dm%.1fs\n", tot_min, tot_sec);
 	else printf("%.2fs\n", tot_sec);
 
-	cudaSetDevice(0);
+	// cudaSetDevice(0);
 	gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
 
 	// Write the restart file (once again)
@@ -997,8 +997,8 @@ void GrandBrownTown::updateReservoirs() {
 // -----------------------------------------------------------------------------
 // Allocate memory on GPU(s) and copy to device
 void GrandBrownTown::copyToCUDA() {
-	const size_t tot_num = num * numReplicas;
-	/*gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
+	/* const size_t tot_num = num * numReplicas;
+	gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
 	gpuErrchk(cudaMemcpyAsync(pos_d, pos, sizeof(Vector3) * tot_num,
 														cudaMemcpyHostToDevice));
 
