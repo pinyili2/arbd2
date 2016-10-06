@@ -185,21 +185,21 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	// TODO: check for duplicate potentials 
 	if (c.tabulatedPotential) {
-		printf("Loading the tabulated potentials...\n");
+		printf("Loading %d tabulated non-bonded potentials...\n", numParts*numParts);
 		for (int p = 0; p < numParts*numParts; p++) {
 			if (partTableFile[p].length() > 0) {
 				int type0 = partTableIndex0[p];
 				int type1 = partTableIndex1[p];
 
 				internal->addTabulatedPotential(partTableFile[p].val(), type0, type1);
-				printf("Loaded %s for types %s and %s.\n", partTableFile[p].val(),
-						part[type0].name.val(), part[type1].name.val());
+				// printf("  Loaded %s for types %s and %s.\n", partTableFile[p].val(),
+				// 		part[type0].name.val(), part[type1].name.val());
 			}
 		}
 	}
 
 	if (c.readBondsFromFile) {
-		printf("Loading the tabulated bond potentials...\n");
+		printf("Loading %d tabulated bond potentials...\n", numTabBondFiles);
 		for (int p = 0; p < numTabBondFiles; p++)
 			if (bondTableFile[p].length() > 0) {
 				//MLog: make sure to add to all GPUs
@@ -209,7 +209,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	}
 
 	if (c.readAnglesFromFile) {
-		printf("Loading the tabulated angle potentials...\n");
+		printf("Loading %d tabulated angle potentials...\n", numTabAngleFiles);
 		for (int p = 0; p < numTabAngleFiles; p++)
 			if (angleTableFile[p].length() > 0)
 			{
@@ -219,7 +219,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	}
 
 	if (c.readDihedralsFromFile) {
-		printf("Loading the tabulated dihedral potentials...\n");
+		printf("Loading %d tabulated dihedral potentials...\n", numTabDihedralFiles);
 		for (int p = 0; p < numTabDihedralFiles; p++)
 			if (dihedralTableFile[p].length() > 0)
 				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals);
@@ -571,7 +571,7 @@ void GrandBrownTown::run() {
 		*/
 
 			// Copy positions from GPU to CPU.
-			gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num * numReplicas,
+			gpuErrchk(cudaMemcpy(pos, internal->getPos_d(), sizeof(Vector3)*num*numReplicas,
 													 cudaMemcpyDeviceToHost));
 
 			// Write restart files for each replica.
@@ -585,7 +585,7 @@ void GrandBrownTown::run() {
 		{
 			int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 			//MLog: along with calls to internal (ComputeForce class) this function should execute once per GPU.
-			clearInternalForces<<< numBlocks, NUM_THREADS >>>(internal -> getForceInternal_d(), num, numReplicas);
+			clearInternalForces<<< numBlocks, NUM_THREADS >>>(internal->getForceInternal_d(), num*numReplicas);
 		}
 		
 	} // done with all Brownian dynamics steps

@@ -19,17 +19,16 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	// Find the distance between each pair of particles
 	const float distab = ab.length();
 	const float distbc = bc.length();
-	const float distac = ac.length();
+	const float distac2 = ac.length2();
   
 	// Find the cosine of the angle we want - <ABC	
-	float cos = (distbc * distbc + distab * distab - distac * distac) / (2.0f * distbc * distab);
+	float cos = (distbc * distbc + distab * distab - distac2) / (2.0f * distbc * distab);
   
 	// If the cosine is illegitimate, set it to 1 or -1 so that acos won't fail
 	if (cos < -1.0f) cos = -1.0f;
 	if (cos > 1.0f) cos = 1.0f;
 
 	// Find the sine while we're at it.
-	float sin = sqrtf(1.0f - cos*cos);
 
 	// Now we can use the cosine to find the actual angle (in radians)		
 	float angle = acos(cos);
@@ -44,18 +43,23 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	assert(home >= 0);
 	assert(home < a->size);
 
-	// Make angle the distance from [0,1) from the first index in the potential array index
-	angle -= home;
+	// // Make angle the distance from [0,1) from the first index in the potential array index
+	// angle -= home;
 		
 	// Linearly interpolate the potential	
 	float U0 = a->pot[home];
 	float dUdx = (a->pot[(home+1)] - U0) / a->angle_step;
 	// float energy = (dUdx * angle) + U0;
-	dUdx /= sqrtf(1.0f-cos*cos);
+	float sin = sqrtf(1.0f - cos*cos);
+	dUdx /= abs(sin) > 1e-4 ? sin : 1e-4; // avoid singularity 
 
 	// Calculate the forces
 	Vector3 force1 = (dUdx/distab) * (ab * (cos/distab) - bc / distbc); // force on particle 1
 	Vector3 force3 = (dUdx/distbc) * (bc * (cos/distbc) - ab / distab); // force on particle 3
+
+	// assert( force1.length() < 10000.0f );
+	// assert( force3.length() < 10000.0f );
+	
 	atomicAdd( &force[i], force1 );
 	atomicAdd( &force[k], force3 );
 	atomicAdd( &force[j], -(force1 + force3) );
@@ -81,7 +85,10 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	Vector3 crossABC = ab.cross(bc);
 	Vector3 crossBCD = bc.cross(cd);
 	Vector3 crossX = bc.cross(crossABC);
+	// assert( crossABC.rLength2() <= 1.0f );
+	// assert( crossBCD.rLength2() <= 1.0f );
 
+	
 	const float cos_phi = crossABC.dot(crossBCD) / (crossABC.length() * crossBCD.length());
 	const float sin_phi = crossX.dot(crossBCD) / (crossX.length() * crossBCD.length());
 		
@@ -116,10 +123,14 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 
 	// avoid singularity when one angle is straight 
 	force = (crossABC.rLength() > 1.0f || crossBCD.rLength() > 1.0f) ? 0.0f : force;
-	    
+	assert( force < 10000.0f );
 	f1 *= force;
 	f2 *= force;
 	f3 *= force;
+
+	// assert( f1.length() < 10000.0f );
+	// assert( f2.length() < 10000.0f );
+	// assert( f3.length() < 10000.0f );
 
 	atomicAdd( &forces[i], f1 );
 	atomicAdd( &forces[j], f2-f1 );

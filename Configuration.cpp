@@ -1262,8 +1262,8 @@ void Configuration::readAngles() {
 	}
 	std::sort(angles, angles + numAngles, compare());	
 
-	for(int i = 0; i < numAngles; i++)
-		angles[i].print();
+	// for(int i = 0; i < numAngles; i++)
+	// 	angles[i].print();
 }
 
 void Configuration::readDihedrals() {
@@ -1324,8 +1324,8 @@ void Configuration::readDihedrals() {
 	}
 	std::sort(dihedrals, dihedrals + numDihedrals, compare());	
 
-	for(int i = 0; i < numDihedrals; i++)
-		dihedrals[i].print();
+	// for(int i = 0; i < numDihedrals; i++)
+	// 	dihedrals[i].print();
 }
 
 void Configuration::populate() {

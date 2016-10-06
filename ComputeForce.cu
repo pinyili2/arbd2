@@ -578,23 +578,24 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	// int nb = (1+(decomp.nCells.x * decomp.nCells.y * decomp.nCells.z)) * 75; /* RBTODO: number of pairLists */
 	const int nb = 800;
 	// printf("ComputeTabulated\n");
-	
-	if (get_energy) 
+	gpuErrchk(cudaDeviceSynchronize());
+
+	// RBTODO: get_energy
+	//if (get_energy)
+	if (false) 
 	{
 		clearEnergies<<< nb, numThreads >>>(energies_d,num);
 		gpuErrchk(cudaDeviceSynchronize());
-		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, type_d, tablePot_d, sys_d, energies_d, cutoff2, numPairs_d, pairLists_d, pairTabPotType_d);
+		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
+						cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d, energies_d);
 	}
 	
 	else
 	{
-		computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, type_d,
-						tablePot_d, tableBond_d, sys_d,
-						bonds_d, bondMap_d,	numBonds, cutoff2,
-						numPairs_d, pairLists_d, pairTabPotType_d);
+		computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
+						cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d);
 	}
 	/* printPairForceCounter<<<1,32>>>(); */
-	/* gpuErrchk(cudaDeviceSynchronize()); */
 
 	//Mlog: the commented function doesn't use bondList, uncomment for testing.
 	//if(bondMap_d != NULL && tableBond_d != NULL)
@@ -602,21 +603,23 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	{
 	    //computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap_d, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
-	    computeTabulatedBonds <<<numBlocks, numThreads>>> ( forceInternal_d, pos_d, num, numParts, sys_d, bondList_d, (numBonds/2), numReplicas, energies_d, get_energy, tableBond_d);
+	computeTabulatedBonds <<<nb, numThreads>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d);
 	}
+
 	if (angleList_d != NULL && tableAngle_d != NULL)
-		computeTabulatedAngles<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
-	
+		computeTabulatedAngles<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
+
 	if (dihedralList_d != NULL && tableDihedral_d != NULL)
-		computeTabulatedDihedrals<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
-	
+		computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
+
 
 	// Calculate the energy based on the array created by the kernel
-	if (get_energy) {
-		gpuErrchk(cudaDeviceSynchronize());
-		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
-	}
+	// TODO: return energy
+	// if (get_energy) {
+	// 	gpuErrchk(cudaDeviceSynchronize());
+	// 	thrust::device_ptr<float> en_d(energies_d);
+	// 	energy = thrust::reduce(en_d, en_d + num);
+	// }
 
 	return energy;
 }

@@ -18,7 +18,7 @@ TabulatedPotential::TabulatedPotential() {
 }
 
 TabulatedPotential::TabulatedPotential(const char* fileName) : fileName(fileName) {
-	printf("File: %s\n", fileName);
+	// printf("File: %s\n", fileName);
 	FILE* inp = fopen(fileName, "r");
 	if (inp == NULL) {
 		printf("TabulatedPotential:TabulatedPotential Could not open file '%s'\n", fileName);

@@ -432,12 +432,9 @@ __global__ void printPairForceCounter() {
 // using cell decomposition
 //
 __global__ void computeTabulatedKernel(
-	Vector3* force, const Vector3* __restrict__ pos, int* type,
-	TabulatedPotential** __restrict__ tablePot, TabulatedPotential** __restrict__ tableBond,
-	const BaseGrid* __restrict__ sys,
-	const Bond* __restrict__ bonds, const int2* __restrict__ bondMap, int numBonds,
-	float cutoff2, const int* __restrict__ g_numPairs,
-	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType) {
+	Vector3* force, const Vector3* __restrict__ pos,
+	const BaseGrid* __restrict__ sys, float cutoff2,
+	const int* __restrict__ g_numPairs,	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType, 	TabulatedPotential** __restrict__ tablePot) {
 //remove int* type. remove bond references	
 
 	const int numPairs = *g_numPairs;
@@ -470,10 +467,10 @@ __global__ void clearEnergies(float* g_energies, int num) {
 		g_energies[i] = 0.0f;
 	}
 }
-__global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict__ pos,	int* type, TabulatedPotential** __restrict__ tablePot, BaseGrid* __restrict__ sys,  float* g_energies, float cutoff2, int* __restrict__ g_numPairs,	int2* __restrict__ g_pair, int* __restrict__ g_pairTabPotType) {
-	
+__global__ void computeTabulatedEnergyKernel(Vector3* force, const Vector3* __restrict__ pos,
+				const BaseGrid* __restrict__ sys, float cutoff2,
+				const int* __restrict__ g_numPairs,	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType, 	TabulatedPotential** __restrict__ tablePot, float* g_energies) {
 	const int numPairs = *g_numPairs;
-	// RBTODO: BONDS (handle through an independent kernel call?)
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numPairs; i+=blockDim.x*gridDim.x) {
 		const int2 pair = g_pair[i];
 		const int ai = pair.x;
@@ -486,7 +483,7 @@ __global__ void computeTabulatedEnergyKernel(Vector3* force, Vector3* __restrict
     // Calculate the force based on the tabulatedPotential file
 		float d2 = dr.length2();
 		/* RBTODO: filter tabpot particles ahead of time */
-		// RBTODO: order pairs according to distance to reduce divergence
+		// RBTODO: order pairs according to distance to reduce divergence // not actually faster
 		
 		if (tablePot[ind] != NULL && d2 <= cutoff2) { 
 			EnergyForce fe = tablePot[ind]->compute(dr,d2);
@@ -695,22 +692,17 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 	}
 }*/
 
-__global__ void computeTabulatedBonds( Vector3* __restrict__ force,		Vector3* __restrict__ pos,					int num,
-				int numParts,		BaseGrid* __restrict__ sys,					int3* __restrict__ bondList_d,
-									   int numBonds,		int numReplicas,				float* __restrict__ g_energies,
-									   bool get_energy,		TabulatedPotential** tableBond)
-{
-	// Thread's unique ID.
-	int currBond = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
-
+__global__ void computeTabulatedBonds(Vector3* __restrict__ force,
+				Vector3* __restrict__ pos,
+				BaseGrid* __restrict__ sys,
+				int numBonds, int3* __restrict__ bondList_d, TabulatedPotential** tableBond) {
 	// Loop over ALL bonds in ALL replicas
-	if( currBond < (numBonds * numReplicas) ) //numBonds should be divided by 2 in the kernel call
-	{
+	for (int bid = threadIdx.x+blockIdx.x*blockDim.x; bid<numBonds; bid+=blockDim.x*gridDim.x) {
 		// Initialize interaction energy (per particle)
-		float energy_local = 0.0f;
+		// float energy_local = 0.0f;
 		
-		int i = bondList_d[currBond].x;
-		int j = bondList_d[currBond].y;
+		int i = bondList_d[bid].x;
+		int j = bondList_d[bid].y;
 
 		// Particle's type and position
 		//Vector3 posi = pos[i];
@@ -719,17 +711,17 @@ __global__ void computeTabulatedBonds( Vector3* __restrict__ force,		Vector3* __
 		// wrapping this value if necessary
 		const Vector3 dr = sys->wrapDiff(pos[j] - pos[i]);
 
-		Vector3 force_local = tableBond[ bondList_d[currBond].z ]->computef(dr,dr.length2());
+		Vector3 force_local = tableBond[ bondList_d[bid].z ]->computef(dr,dr.length2());
 			
 		atomicAdd( &force[i], force_local );
 		atomicAdd( &force[j], -force_local );
-
-		if (get_energy)
-		{
-			//TODO: clarification on energy computation needed, consider changing.
-			atomicAdd( &g_energies[i], energy_local);
-			//atomicAdd( &g_energies[j], energy_local);
-		}
+		
+		// if (get_energy)
+		// {
+		// 	//TODO: clarification on energy computation needed, consider changing.
+		// 	atomicAdd( &g_energies[i], energy_local);
+		// 	//atomicAdd( &g_energies[j], energy_local);
+		// }
 	}
 }
 

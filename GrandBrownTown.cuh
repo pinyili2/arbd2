@@ -14,9 +14,9 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 						 Random *randoGen, int num);
 
 __global__
-void clearInternalForces(Vector3 forceInternal[], int num, int numReplicas) {
+void clearInternalForces(Vector3* __restrict__ forceInternal, const int num) {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < num * numReplicas)
+	if (idx < num)
 		forceInternal[idx] = Vector3(0.0f);
 }
 __global__
@@ -90,8 +90,10 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 		/* printf("atom %d: force: %f %f %f\n", idx, force.x, force.y, force.z); */
 		/* printf("atom %d: kTlocal, diffusion, timestep: %f, %f, %f\n", */
 		/* 			 idx, kTlocal, diffusion, timestep); */
-		
-		pos[idx] = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
+		Vector3 tmp = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
+		assert( tmp.length() < 10000.0f );
+		pos[idx] = tmp;
+			
 	}
 }
 
