@@ -46,12 +46,23 @@ public:
 			return curand_normal(&states[idx]);
 		return 0.0f;
 	}
+	DEVICE inline float gaussian(curandState* state) {
+		return curand_normal(state);
+	}
 
 	DEVICE inline Vector3 gaussian_vector(int idx, int num) {
 		// TODO do stuff
-		float x = gaussian(idx, num);
-		float y = gaussian(idx, num);
-		float z = gaussian(idx, num);
+		if (idx < num) {
+			curandState localState = states[idx];
+			Vector3 v = gaussian_vector(&localState);
+			states[idx] = localState;
+			return v;
+		} else return Vector3(0.0f);			
+	}
+	DEVICE inline Vector3 gaussian_vector(curandState* state) {
+		float x = gaussian(state);
+		float y = gaussian(state);
+		float z = gaussian(state);
 		return Vector3(x, y, z);
 	}
 

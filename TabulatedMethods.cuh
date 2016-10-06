@@ -2,7 +2,7 @@
 
 #define BD_PI 3.1415927f
 
-__device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ a, const BaseGrid* __restrict__ sys, Vector3* __restrict__ force, const Vector3* __restrict__ pos,
+__device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ a, const BaseGrid* __restrict__ sys, Vector3* force, const Vector3* __restrict__ pos,
 				const int& i, const int& j, const int& k) {
 	    
 	    
@@ -67,7 +67,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 
 
 __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restrict__ d,
-				const BaseGrid* __restrict__ sys, Vector3* __restrict__ forces, const Vector3* __restrict__ pos,
+				const BaseGrid* __restrict__ sys, Vector3* forces, const Vector3* __restrict__ pos,
 				const int& i, const int& j, const int& k, const int& l) {
 	const Vector3 posa = pos[i];
 	const Vector3 posb = pos[j];

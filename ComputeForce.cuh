@@ -286,7 +286,7 @@ void createPairlistsOld(Vector3* __restrict__ pos, int num, int numReplicas,
 }
 
 __global__
-void createPairlists(Vector3* __restrict__ pos, int num, int numReplicas,
+void createPairlists(Vector3* __restrict__ pos, const int num, const int numReplicas,
 				const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
 				const int nCells,
 				int* g_numPairs, int2* g_pair,
@@ -462,11 +462,12 @@ __global__ void computeTabulatedKernel(
 }
 
 
-__global__ void clearEnergies(float* g_energies, int num) {
+__global__ void clearEnergies(float* __restrict__  g_energies, int num) {
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < num; i+=blockDim.x*gridDim.x) {
 		g_energies[i] = 0.0f;
 	}
 }
+
 __global__ void computeTabulatedEnergyKernel(Vector3* force, const Vector3* __restrict__ pos,
 				const BaseGrid* __restrict__ sys, float cutoff2,
 				const int* __restrict__ g_numPairs,	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType, 	TabulatedPotential** __restrict__ tablePot, float* g_energies) {
@@ -692,7 +693,7 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 	}
 }*/
 
-__global__ void computeTabulatedBonds(Vector3* __restrict__ force,
+__global__ void computeTabulatedBonds(Vector3* force,
 				Vector3* __restrict__ pos,
 				BaseGrid* __restrict__ sys,
 				int numBonds, int3* __restrict__ bondList_d, TabulatedPotential** tableBond) {
@@ -727,7 +728,7 @@ __global__ void computeTabulatedBonds(Vector3* __restrict__ force,
 
 // TODO: add kernel for energy calculation 
 __global__
-void computeTabulatedAngles(Vector3* __restrict__ force,
+void computeTabulatedAngles(Vector3* force,
 				Vector3* __restrict__ pos,
 				BaseGrid* __restrict__ sys,
 				int numAngles, int4* __restrict__ angleList_d, TabulatedAnglePotential** tableAngle) {
@@ -834,12 +835,12 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
     // 			    bool get_energy, TabulatedDihedralPotential** __restrict__ tableDihedral) {
 
 __global__
-void computeTabulatedDihedrals(Vector3* __restrict__ force, const Vector3* __restrict__ pos,
+void computeTabulatedDihedrals(Vector3* force, const Vector3* __restrict__ pos,
 			       const BaseGrid* __restrict__ sys,
-			       int numDihedrals, const int4* __restrict__ dihedralList_d,
+			       int numDihedrals, const int4* const __restrict__ dihedralList_d,
 			       const int* __restrict__ dihedralPotList_d, TabulatedDihedralPotential** tableDihedral) {
 
-    int currDihedral = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
+	// int currDihedral = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
 
     // Loop over ALL dihedrals in ALL replicas
     // TODO make grid stride loop
@@ -856,4 +857,3 @@ void computeTabulatedDihedrals(Vector3* __restrict__ force, const Vector3* __res
 	// }
     }
 }
-

@@ -1,8 +1,9 @@
 // GrandBrownTown.cuh
 //
 // Terrance Howard <heyterrance@gmail.com>
-
 #pragma once
+
+#include "CudaUtil.cuh"
 
 __device__
 Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
@@ -20,7 +21,7 @@ void clearInternalForces(Vector3* __restrict__ forceInternal, const int num) {
 		forceInternal[idx] = Vector3(0.0f);
 }
 __global__
-void updateKernel(Vector3 pos[], Vector3 forceInternal[],
+void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 									int type[], BrownianParticleType* part[],
 									float kT, BaseGrid* kTGrid,
 									float electricField, int tGridLength,
@@ -29,7 +30,9 @@ void updateKernel(Vector3 pos[], Vector3 forceInternal[],
 	// Calculate this thread's ID
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-	// Loop over ALL particles in ALL replicas
+
+	// TODO: Make this a grid-stride loop to make efficient reuse of RNG states 
+  // Loop over ALL particles in ALL replicas
 	if (idx < num * numReplicas) {
 		const int t = type[idx];
 		Vector3& p = pos[idx];
@@ -102,6 +105,7 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 						 Vector3 diffGrad, float timestep, BaseGrid *sys,
 						 Random *randoGen, int num) {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	// TODO: improve performance by storing state locally, then sending it back to GPU
 	Vector3 rando = randoGen->gaussian_vector(idx, num);
 
 	diffusion *= timestep;
@@ -109,6 +113,7 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 	Vector3 r = r0 + (diffusion / kTlocal) * force
 							+ timestep * diffGrad
 							+ sqrtf(2.0f * diffusion) * rando;
+	// Wrap about periodic boundaries
 	Vector3 l = sys->getInverseBasis().transform(r - sys->getOrigin());
 	l.x = sys->wrapFloat(l.x, sys->getNx());
  	l.y = sys->wrapFloat(l.y, sys->getNy());

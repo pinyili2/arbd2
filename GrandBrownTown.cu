@@ -305,7 +305,8 @@ GrandBrownTown::~GrandBrownTown() {
 // Run the Brownian Dynamics steps.
 void GrandBrownTown::run() {
 	printf("\n");
-
+	Vector3 runningNetForce(0.0f);
+	
 	// Open the files for recording ionic currents
 	for (int repID = 0; repID < numReplicas; ++repID) {
 		newCurrent(repID);
@@ -452,6 +453,21 @@ void GrandBrownTown::run() {
 
 		RBC.updateForces(s);					/* update RB forces before update particle positions... */
 
+		/* DEBUG: reduce net force on particles
+		{  
+			Vector3 netForce(0.0f);
+			Vector3* netForce_d;
+			gpuErrchk(cudaMalloc(&netForce_d, sizeof(Vector3)));
+			gpuErrchk(cudaMemcpy(netForce_d, &netForce, sizeof(Vector3), cudaMemcpyHostToDevice));
+			reduceVector<<< 500, NUM_THREADS, NUM_THREADS*sizeof(Vector3)>>>(
+				num, internal->getForceInternal_d(), netForce_d);
+			gpuErrchk(cudaDeviceSynchronize());
+			gpuErrchk(cudaMemcpy(&netForce, netForce_d, sizeof(Vector3), cudaMemcpyDeviceToHost));
+			runningNetForce = runningNetForce + netForce;
+			printf("Net Force: %f %f %f\n", runningNetForce.x,runningNetForce.y,runningNetForce.z);
+		}		
+		// */
+		
 		//MLog: Call the kernel to update the positions of each particle
 		// cudaSetDevice(0);
 		updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);

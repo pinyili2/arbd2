@@ -1,5 +1,19 @@
 
 * TODO active
+
+** test RB code 
+
+** re-implement exclusions
+how?
+
+*** in-thread approach, with particles i,j?
+
+ 1) Look at whether i*j is in an array? --> potentially very memory intensive; could run out of integers!
+ 2) Look at find i,j in array? --> potentially slow
+ 3) Look at 
+*** post-pairlist filtering step
+
+
 ** split computation into multiple regions
 *** simulate regions, also in overlap
 **** atoms at edge of overlap can have DoF frozen
