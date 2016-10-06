@@ -5,12 +5,16 @@
 #include <vector>
 /* #include <thrust/host_vector.h> */
 /* #include <thrust/device_vector.h> */
-#include "Reservoir.h"
-#include "BaseGrid.h"
-#include "RigidBodyGrid.h"
+/* #include "Reservoir.h" */
+/* #include "BaseGrid.h" */
+/* #include "RigidBodyGrid.h" */
 #include "useful.h"
 
 #include <cstdio>
+
+class Reservoir;
+class BaseGrid;
+class RigidBodyGrid;
 
 class RigidBodyType {
 private:

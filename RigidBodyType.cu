@@ -1,4 +1,7 @@
 #include "RigidBodyType.h"
+#include "Reservoir.h"
+#include "BaseGrid.h"
+#include "RigidBodyGrid.h"
 
 void RigidBodyType::clear() {
 	num = 0;											// RBTODO: not 100% sure about this

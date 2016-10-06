@@ -8,6 +8,7 @@
 #include "RigidBodyController.h"
 #include "Configuration.h"
 #include "RigidBodyType.h"
+#include "RigidBodyGrid.h"
 #include "ComputeGridGrid.cuh"
 
 #include <cuda_profiler_api.h>

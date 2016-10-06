@@ -15,7 +15,7 @@
     #define DEVICE 
 #endif
 
-class Configuration;						/* forward decleration */
+class Configuration;
 
 typedef float BigReal;					/* strip this out later */
 typedef Vector3 Force;

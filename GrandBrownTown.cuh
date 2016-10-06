@@ -4,6 +4,8 @@
 #pragma once
 
 #include "CudaUtil.cuh"
+#include "RigidBodyType.h"
+#include "RigidBodyGrid.h"
 
 __device__
 Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
@@ -32,7 +34,7 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 
 
 	// TODO: Make this a grid-stride loop to make efficient reuse of RNG states 
-  // Loop over ALL particles in ALL replicas
+	// Loop over ALL particles in ALL replicas
 	if (idx < num * numReplicas) {
 		const int t = type[idx];
 		Vector3& p = pos[idx];

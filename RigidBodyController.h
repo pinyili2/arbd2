@@ -1,14 +1,20 @@
+#pragma once
+
 #include <vector>
 #include <fstream>
-#include "RigidBody.h"
 /* #include "RandomCUDA.h" */
 #include <cuda.h>
 #include <cuda_runtime.h>
+#include "useful.h"
 
 // #define NUMTHREADS 128					/* try with 64, every 32+ */
 #define NUMTHREADS 96
 #define NUMSTREAMS 8
 
+// #include "RigidBody.h"
+
+class RigidBodyType;
+class RigidBody;
 class Configuration;
 class RandomCPU;
 
