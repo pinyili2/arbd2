@@ -451,7 +451,7 @@ void GrandBrownTown::run() {
 		int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 		int tl = temperatureGrid.length();
 
-		RBC.updateForces(s);					/* update RB forces before update particle positions... */
+		RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);					/* update RB forces before update particle positions... */
 
 		/* DEBUG: reduce net force on particles
 		{  

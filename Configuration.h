@@ -156,6 +156,7 @@ public:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+	int* numPartsOfType;
 	String partFile;
 	String bondFile;
 	String excludeFile;
@@ -167,6 +168,7 @@ public:
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
 	String* partGridFile;
+	std::vector<String>* partRigidBodyGrid;
 	String* partDiffusionGridFile;
 	String* partForceXGridFile;
 	String* partForceYGridFile;

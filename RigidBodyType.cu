@@ -18,50 +18,20 @@ void RigidBodyType::clear() {
 	potentialGridKeys.clear();
 	densityGridKeys.clear();
 	pmfKeys.clear();
+
+	if (numParticles > 0) {
+		for (int i=0; i < numParticles[i]; ++i) {
+			delete[] particles[i];
+		}
+		delete[] numParticles;
+		delete[] particles;
+	}
 	
 	if (numPotGrids > 0) delete[] rawPotentialGrids;
 	if (numDenGrids > 0) delete[] rawDensityGrids;
 	rawPotentialGrids = NULL;
 	rawDensityGrids = NULL;
 }
-
-
-// void RigidBodyType::copy(const RigidBodyType& src) {
-// 	this = new RigidBodyType(src.name);
-// 	num = src.num;
-// 	// if (src.pmf != NULL) pmf = new BaseGrid(*src.pmf);
-// 	if (src.reservoir != NULL) reservoir = new Reservoir(*src.reservoir);
-
-// 	numPotentialGrid = src.numPotentialGrid;
-// 																// TODO: fix this: BaseGrid*[]
-// 	for (int i=0; i < numPotentialGrid; i++) {
-		
-// 	}	
-	
-// 	numDensityGrid = src.numDensityGrid;
-// }
-
-// RigidBodyType& RigidBodyType::operator=(const RigidBodyType& src) {
-// 	clear();
-// 	copy(src);
-// 	return *this;
-// }
-
-
-// KeyGrid RigidBodyType::createKeyGrid(String s) {
-// 	// tokenize and return
-// 	int numTokens = s.tokenCount();
-// 	if (numTokens != 2) {
-// 		printf("ERROR: could not add Grid.\n"); // TODO improve this message
-// 		exit(1);
-// 	}
-// 	String* token = new String[numTokens];
-// 	s.tokenize(token);
-// 	KeyGrid g;
-// 	g.key = token[0];
-// 	g.grid = * new BaseGrid(token[1]);
-// 	return g;
-// }
 
 
 // void RigidBodyType::setDampingCoeffs(float timestep, float tmp_mass, Vector3 tmp_inertia, float tmp_transDamping, float tmp_rotDamping) {

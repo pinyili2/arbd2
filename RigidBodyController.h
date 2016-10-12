@@ -94,11 +94,13 @@ public:
 	RigidBodyController(const Configuration& c, const char* outArg);
 
 	void integrate(int step);
-	void updateForces(int s);
+	void updateForces(Vector3* pos_d, Vector3* force_d, int s);
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, const RigidBodyType& t, std::vector<RigidBody>& rbs, int s);
     
 private:
 	void copyGridsToDevice();
 	void initializeForcePairs();
+	void initializeParticleLists();
 
 	void print(int step);
 	void printLegend(std::ofstream &file);

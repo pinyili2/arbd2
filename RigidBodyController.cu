@@ -59,7 +59,8 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 
 	random = new RandomCPU(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
-initializeForcePairs();
+	initializeForcePairs();
+	initializeParticleLists();
 }
 RigidBodyController::~RigidBodyController() {
 	for (int i = 0; i < rigidBodyByType.size(); i++)
@@ -166,8 +167,90 @@ void RigidBodyController::initializeForcePairs() {
 		forcePairs[i].initialize();
 			
 }
+
+void RigidBodyController::initializeParticleLists() {
+	// Populate RigidBodyType.particles
 	
-void RigidBodyController::updateForces(int s) {
+	// TODO: ensure no duplicates in conf.partRigidBodyGrid[i]
+	
+    // Allocate RB type's numParticles array
+	for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
+		RigidBodyType& t = conf.rigidBody[rb];
+		t.numParticles = new int[t.numPotGrids];
+		for (int i = 0; i < t.numPotGrids; ++i) t.numParticles[i] = 0;
+	}		
+
+	// Count the number of particles; Loop over particle types
+	for (int i = 0; i < conf.numParts; ++i) {
+
+		// Loop over rigid body grid names associated with particle type
+		const std::vector<String>& gridNames = conf.partRigidBodyGrid[i];
+		for (int j = 0; j < gridNames.size(); ++j) {
+
+			// Loop over RB types
+			for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
+				RigidBodyType& t = conf.rigidBody[rb];
+				const std::vector<String>& keys = t.potentialGridKeys;
+
+				// Loop over potential grids
+				for(int k = 0; k < keys.size(); k++) {
+					// printf("    checking grid keys ");
+					if (gridNames[j] == keys[k])
+						t.numParticles[k] += conf.numPartsOfType[i];
+				}
+			}
+		}
+	}
+
+	// Allocate each particles array
+	for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
+		RigidBodyType& t = conf.rigidBody[rb];
+		t.particles = new int*[t.numPotGrids];
+		for (int i = 0; i < t.numPotGrids; ++i) {
+			t.particles[i] = new int[t.numParticles[i]];
+			t.numParticles[i] = 0; // now use this as a counter 
+		}
+	}
+
+	// Set the number of particles; Loop over particle types
+	for (int i = 0; i < conf.numParts; ++i) {
+		int tmp[conf.numPartsOfType[i]]; // temporary array holding particles of type i
+		int currId = 0;
+		for (int j = 0; j < conf.num; ++j) {
+			if (conf.type[j] == i)
+				tmp[currId++] = j;
+		}
+		
+		// Loop over rigid body grid names associated with particle type
+		const std::vector<String>& gridNames = conf.partRigidBodyGrid[i];
+		for (int j = 0; j < gridNames.size(); ++j) {
+
+			// Loop over RB types
+			for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
+				RigidBodyType& t = conf.rigidBody[rb];
+				const std::vector<String>& keys = t.potentialGridKeys;
+
+				// Loop over potential grids
+				for(int k = 0; k < keys.size(); k++) {
+					// printf("    checking grid keys ");
+					if (gridNames[j] == keys[k]) {
+						memcpy( &(t.particles[k][t.numParticles[k]]), tmp, sizeof(int)*currId );
+						t.numParticles[k] += currId;
+					}
+				}
+			}
+		}
+	}
+
+	// Initialize device data for RB force pairs after std::vector is done growing
+
+	// for (int i = 0; i < forcePairs.size(); i++)
+	// 	forcePairs[i].initialize();
+			
+}
+
+
+void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) {
 	if (s <= 1)
 		gpuErrchk( cudaProfilerStart() );
 
@@ -181,6 +264,12 @@ void RigidBodyController::updateForces(int s) {
 		}
 	}
 
+	// Grid–particle forces
+	for (int i = 0; i < rigidBodyByType.size(); i++) {
+		callGridParticleForceKernel( pos_d, force_d, conf.rigidBody[i], rigidBodyByType[i], s );
+	}
+
+	// Grid–Grid forces
 	if (forcePairs.size() > 0) {
 		
 		for (int i=0; i < forcePairs.size(); i++)
@@ -204,7 +293,7 @@ void RigidBodyController::updateForces(int s) {
 	}
 }
 void RigidBodyController::integrate(int step) {
-	// tell RBs to integrate
+ 	// tell RBs to integrate
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
 			RigidBody& rb = rigidBodyByType[i][j];
@@ -353,6 +442,69 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		lastRbGridID = i;
 	}
 }
+void RigidBodyController::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d,
+				const RigidBodyType& t, std::vector<RigidBody>& rbs, int s) {
+	// get the force/torque on a rigid body, and forces on particles
+	
+	// RBTODO: consolidate CUDA stream management
+	for (int i = 0; i < t.numPotGrids; ++i) {
+		if (t.numParticles[i] == 0) continue;
+
+		for (int j = 0; j < rbs.size(); ++j) {
+			// const int nb = 500;
+			/*
+			  r: postion of particle in real space
+			  B: grid Basis
+			  o: grid origin
+			  R: rigid body orientation
+			  c: rigid body center
+
+			  B': R.B 
+			  c': R.o + c
+			*/
+			// Matrix3 B1 = getBasis1(i);
+			Vector3 c =  rbs[j].getOrientation()*t.potentialGrids[i].getOrigin() + rbs[j].getPosition();
+			Matrix3 B = (rbs[j].getOrientation()*t.potentialGrids[i].getBasis()).inverse();
+		
+			// RBTODO: get energy
+			const int nb = (t.numParticles[i]/NUMTHREADS)+1;
+
+			// RBTODO: IMPORTANT: Improve this
+			Vector3 forces[nb];
+			Vector3 torques[nb];
+			for (int k=0; k < nb; ++k) {
+				forces[k] = Vector3(0.0f);
+				torques[k] = Vector3(0.0f);
+			}
+			Vector3* forces_d;
+			Vector3* torques_d;			
+			gpuErrchk(cudaMalloc(&forces_d, sizeof(Vector3)*nb));
+			gpuErrchk(cudaMalloc(&torques_d, sizeof(Vector3)*nb));
+			gpuErrchk(cudaMemcpy(forces_d, forces, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
+			gpuErrchk(cudaMemcpy(torques_d, torques, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
+			
+			computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3) >>>(
+				pos_d, force_d, t.numParticles[i], t.particles[i],
+				t.rawPotentialGrids_d[i],
+				B, c, forces_d, torques_d);
+
+			gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
+			gpuErrchk(cudaMemcpy(torques, torques_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
+
+			Vector3 f = Vector3(0.0f);
+			Vector3 t = Vector3(0.0f);
+			for (int k = 0; k < nb; ++k) {
+				f = f + forces[k];
+				t = t + torques[j];
+			}
+			
+			t = -t - (rbs[j].getPosition()-c).cross( -f ); 
+			rbs[j].addForce( -f );
+			rbs[j].addTorque( t );
+		}
+	}
+}
+
 void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
 	// i: grid ID (less than numGrids)
 	const cudaStream_t &s = stream[streamID[i]];

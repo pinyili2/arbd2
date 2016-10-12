@@ -295,6 +295,15 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		}
 	}
 
+	// Count number of particles of each type
+	numPartsOfType = new int[numParts];
+	for (int i = 0; i < numParts; ++i) {
+		numPartsOfType[i] = 0;
+	}
+	for (int i = 0; i < num; ++i) {
+		++numPartsOfType[type[i]];
+	}
+
 	// Some geometric stuff that should be gotten rid of.
 	Vector3 buffer = (sys->getCenter() + 2.0f*sys->getOrigin())/3.0f;
 	initialZ = buffer.z;
@@ -381,6 +390,7 @@ Configuration::~Configuration() {
 	delete[] partForceZGridFile;
 	delete[] partDiffusionGridFile;
 	delete[] partReservoirFile;
+	delete[] partRigidBodyGrid;
 	
 	// TODO: plug memory leaks
 	if (partsFromFile != NULL) delete[] partsFromFile;
@@ -391,6 +401,8 @@ Configuration::~Configuration() {
 	if (angles != NULL) delete[] angles;
 	if (dihedrals != NULL) delete[] dihedrals;
 
+	delete[] numPartsOfType;
+	  
 	// Table parameters
 	delete[] partTableFile;
 	delete[] partTableIndex0;
@@ -588,13 +600,14 @@ int Configuration::readParameters(const char * config_file) {
 	partForceZGridFile = new String[numParts];
 	partDiffusionGridFile = new String[numParts];
 	partReservoirFile = new String[numParts];
-
+	partRigidBodyGrid = new std::vector<String>[numParts];
+	
 	// Allocate the table variables.
 	partTableFile = new String[numParts*numParts];
 	partTableIndex0 = new int[numParts*numParts];
 	partTableIndex1 = new int[numParts*numParts];
 
-  // Allocate rigid body types
+	// Allocate rigid body types
 	rigidBody = new RigidBodyType[numRigidTypes];
 	
 	int btfcap = 10;
@@ -764,7 +777,9 @@ int Configuration::readParameters(const char * config_file) {
 			}
 			if (readDihedralFile(value, ++currDihedral))
 				numTabDihedralFiles++;
-		} 
+		} else if (param == String("rigidBodyPotential")) {
+			partRigidBodyGrid[currPart].push_back(value);
+		}
 		// RIGID BODY
 		else if (param == String("rigidBody")) {
 			// part[++currPart] = BrownianParticleType(value);
