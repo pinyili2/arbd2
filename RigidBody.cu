@@ -5,10 +5,10 @@
 
 #include "Debug.h"
 
-
+// RBTODO: make units same as those in atomic simulation
 RigidBody::RigidBody(String name, const Configuration& cref, RigidBodyType& tref)
 	: name(name), c(&cref), t(&tref), impulse_to_momentum(4.184e8f) {
-	// units "(kcal_mol/AA) * ns" "amu AA/ns" * 4.184e+08
+	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08
 	
 	timestep = c->timestep;
 	// RBTODO: fix this
@@ -58,7 +58,8 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	Force torq = Vector3::element_mult(t->rotTorqueCoeff,w2) -
 		Vector3::element_mult(t->rotDamping, angularMomentum);
 
-	f = orientation * f; // return to lab frame
+	// return to lab frame
+	f = orientation * f;
 	torq = orientation * torq;
 
 	// printf("LANGTORQUE: %f %f %f\n",torq.x,torq.y,torq.z);
@@ -91,10 +92,9 @@ void RigidBody::integrate(int startFinishAll) {
 #endif
 
 	if ( isnan(force.x) || isnan(torque.x) ) { // NaN check
-		printf("Rigid Body force was NaN!\n");
+		printf("Rigid Body force or torque was NaN!\n");
 		exit(-1);
 	}
-	// torque = Vector3(0,0,10); // + orientation.transpose()*Vector3(1,0,0);
 
 	if (startFinishAll == 0 || startFinishAll == 1) {
 		// propogate momenta by half step
@@ -118,26 +118,35 @@ void RigidBody::integrate(int startFinishAll) {
 		// update orientations a full timestep
 		Matrix3 R; // represents a rotation about a principle axis
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R1
-		angularMomentum = R * angularMomentum;
-		orientation = R * orientation;
+		applyRotation(R);
 
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R2
-		angularMomentum = R * angularMomentum;
-		orientation = R * orientation;
-
+		applyRotation(R);
+			
 		R = Rz(    timestep * angularMomentum.z / t->inertia.z ); // R3
-		angularMomentum = R * angularMomentum;
-		orientation = R * orientation;
-
+		applyRotation(R);
+			
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R4
-		angularMomentum = R * angularMomentum;
-		orientation = R * orientation;
-
+		applyRotation(R);
+		
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R5
-		angularMomentum = R * angularMomentum;
-		orientation = R * orientation;
+		applyRotation(R);		
+
 	}
 }    
+
+void RigidBody::applyRotation(const Matrix3& R) {
+	angularMomentum = R * angularMomentum;
+
+	// According to DLM, but rotations work the wrong way; I think DLM update is wrong
+	// orientation = orientation * R.transpose(); 
+
+	// This makes sense: apply a rotation in the body frame followed by a transformation from body to lab frame
+	// Also works in statistical test
+	// Consistent with www.archer.ac.uk/documentation/white-papers/lammps-elba/lammps-ecse.pdf
+	orientation = orientation * R; 
+	
+}
 
 // Rotations about axes
 // for very small angles 10^-8, cos^2+sin^2 != 1 

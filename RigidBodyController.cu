@@ -299,7 +299,6 @@ void RigidBodyController::integrate(int step) {
 			RigidBody& rb = rigidBodyByType[i][j];
 			
 			// thermostat
-			// rb.addLangevin( random->gaussian_vector(), random->gaussian_vector() );
 			rb.addLangevin( random->gaussian_vector(), random->gaussian_vector() );
 		}
 	}
@@ -535,14 +534,14 @@ void RigidBodyForcePair::processGPUForces() {
 		
 		// tmpT is the torque calculated about the origin of grid k2 (e.g. c2)
 		//   so here we transform torque to be about rb1
-		Vector3 c2 = getOrigin2(i);
-		tmpT = tmpT - (rb1->getPosition() - c2).cross( tmpF ); 
+		Vector3 o2 = getOrigin2(i);
+		tmpT = tmpT - (rb1->getPosition() - o2).cross( tmpF ); 
 
 		// sum forces and torques
 		f = f + tmpF;
 		t = t + tmpT;
 	}
-	
+   
 	rb1->addForce( f );
 	rb1->addTorque( t );
 
@@ -551,9 +550,10 @@ void RigidBodyForcePair::processGPUForces() {
 		rb2->addForce( -f );
 		rb2->addTorque( t2 );
 	}
-		
-	/* printf("force: (%f,%f,%f)\n",f.x,f.y,f.z); */
-	/* printf("torque: (%f,%f,%f)\n",t1.x,t1.y,t1.z); */
+
+	// printf("force: %s\n", f.toString().val());
+	// printf("torque: %s\n", t.toString().val());
+	
 }
 
 void RigidBodyController::copyGridsToDevice() {

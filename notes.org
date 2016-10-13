@@ -1,17 +1,20 @@
 
 * TODO active
 
-** test RB code 
-
 ** re-implement exclusions
-how?
+how should this be done?
 
 *** in-thread approach, with particles i,j?
-
  1) Look at whether i*j is in an array? --> potentially very memory intensive; could run out of integers!
  2) Look at find i,j in array? --> potentially slow
  3) Look at 
 *** post-pairlist filtering step
+
+
+
+** make units and kT more uniform (references to 295 K are hardcoded into RB code and Temperature code) 
+*** I would prefer to specify temperature in K, rather than specifying a scaling factor to be applied to all energies to make them kT
+** DONE test RB code 
 
 
 ** split computation into multiple regions

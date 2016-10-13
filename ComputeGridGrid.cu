@@ -41,7 +41,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 		force[tid] = basis_u_inv.transpose().transform( r_val*force[tid] ); /* transform to lab frame, with correct scaling factor */
 
 		// Calculate torque about origin_u in the lab frame
-		torque[tid] = r_pos.cross(force[tid]);				// RBTODO: test if sign is correct!
+		torque[tid] = r_pos.cross(force[tid]);
 	}
 
 	// Reduce force and torques

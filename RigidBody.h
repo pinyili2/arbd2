@@ -63,11 +63,11 @@ private:
 	// String key;
 	String name;
 	/* static const SimParameters * simParams; */
-	Vector3 position;
+	Vector3 position;		  /* position of center of mass */
 	// Q = orientation.transpose(); in Dullweber et al
 	Matrix3 orientation;					/* rotation that brings RB coordinates into the lab frame */
 
-	Vector3 momentum;
+	Vector3 momentum;		 /* in lab frame */
 	Vector3 angularMomentum; // angular momentum along corresponding principal axes
     
 	// Langevin
@@ -93,7 +93,7 @@ private:
 	`–––––––––––––––––––––––––––––––––––––––––*/
 	BigReal impulse_to_momentum; /* should be const, but copy constructor failed */
 
-
+	HOST DEVICE inline void applyRotation(const Matrix3& R);
 	HOST DEVICE inline Matrix3 Rx(BigReal t);
 	HOST DEVICE inline Matrix3 Ry(BigReal t);
 	HOST DEVICE inline Matrix3 Rz(BigReal t);
