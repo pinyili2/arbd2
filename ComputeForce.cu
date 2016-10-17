@@ -430,7 +430,7 @@ void ComputeForce::decompose() {
 	float pairlistdist2 = (sqrt(cutoff2) + 2.0f);
 	pairlistdist2 = pairlistdist2*pairlistdist2;
 	
-	createPairlists<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, pairlistdist2);
+	createPairlists<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 	/* createPairlistsOld<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, */
 	/* 																					 sys_d, decomp_d, nCells, blocksPerCell, */
 	/* 																					 numPairs_d, pairLists_d, */

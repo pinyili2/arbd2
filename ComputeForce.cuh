@@ -291,6 +291,7 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 				const int nCells,
 				int* g_numPairs, int2* g_pair,
 				int numParts, const int* __restrict__ type, int* __restrict__ g_pairTabPotType,
+				const Exclude* __restrict__ excludes, const int2* __restrict__ excludeMap, const int numExcludes,
 				float pairlistdist2) {
 	// Loop over threads searching for atom pairs
   //   Each thread has designated values in shared memory as a buffer
@@ -313,30 +314,51 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 				const CellDecomposition::cell_t celli = cellInfo[ci];
 				// Vector3 posi = pos[ai];
 
+				// Same as for bonds, but for exclusions now
+				
 				for (int x = -1; x <= 1; ++x) {
 					for (int y = -1; y <= 1; ++y) {
 						for (int z = -1; z <= 1; ++z) {					
 							
-							const int nID = decomp->getNeighborID(celli, x, y, z);				
+							const int nID = decomp->getNeighborID(celli, x, y, z);
 							if (nID < 0) continue; 
-							const CellDecomposition::range_t range = decomp->getRange(nID, repID);
+
+							// Initialize exclusions
+							// TODO: see if this can be moved out of the loop;
+							// TODO: optimize exclusion code
+							const int ex_start = (excludeMap != NULL) ? excludeMap[ai].x : -1;
+							const int ex_end   = (excludeMap != NULL) ? excludeMap[ai].y : -1;
+							int currEx = ex_start;
+							int nextEx = (ex_start >= 0) ? excludes[ex_start].ind2 : -1;
+							int ajLast = -1; // TODO: remove this sanity check
 							
+							const CellDecomposition::range_t range = decomp->getRange(nID, repID);
+
 							for (int n = range.first + tid; n < range.last; n+=blockDim.x) {
 								const int aj = cellInfo[n].particle;
 								if (aj <= ai) continue;
 								
-								// skip ones that are too far away
+								// Skip excludes
+								//   Implementation requires that aj increases monotonically
+								assert( ajLast < aj ); ajLast = aj; // TODO: remove this sanity check
+									
+								if (nextEx == (aj - repID * num)) {
+									nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
+									continue;
+								}
+								// TODO: Skip non-interacting types for efficiency
+
+								// Skip ones that are too far away
 								const float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
 								// const float dr = (sys->wrapDiff(pos[aj] - posi)).length2();
 								if (dr > pairlistdist2) continue;
-								
+
+								// Add to pairlist
 								int gid = atomicAggInc( g_numPairs, warpLane );
-								
-								// RBTODO: skip exclusions, non-interacting types
 								int pairType = type[ai] + type[aj] * numParts;
 								/* assert( ai >= 0 ); */
 								/* assert( aj >= 0 ); */
-								
+
 								g_pair[gid] = make_int2(ai,aj);
 								g_pairTabPotType[gid] = pairType;
 								// g_pairDists[gid] = dr; 

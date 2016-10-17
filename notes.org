@@ -14,9 +14,14 @@ how should this be done?
 
 ** make units and kT more uniform (references to 295 K are hardcoded into RB code and Temperature code) 
 *** I would prefer to specify temperature in K, rather than specifying a scaling factor to be applied to all energies to make them kT
-** DONE test RB code 
+
+** handle periodic boundaries for RBs
+** RB read restart file
+** RB throw exception if an RB type uses a grid key multiple times
+** RB each RB gets temperature from grid
 
 
+* TODO eventually
 ** split computation into multiple regions
 *** simulate regions, also in overlap
 **** atoms at edge of overlap can have DoF frozen
@@ -25,24 +30,19 @@ how should this be done?
 **** monitor energy jumps associated with this process
 
 
-* TODO eventually
 ** organize code a bit better
 ** increase cells/cutoff
 
 ** improve pairlist algorithm
 http://arxiv.org/pdf/1306.1737.pdf
-** RB periodic boundaries?
-** RB read restart file
-** RB throw exception if an RB type uses a grid key multiple times
-** RB each RB gets temperature from grid
 ** RB optionally don't eval forces every ts
 
-* organization
+** pairlists for rigid bodies 
+*** maybe for grids, depending on parallel structure of code
+
+* Organization of code
 ** RgidBodyController (RBC) holds device pointers, manages force evaluation and integration
 
-
-* pairlists for rigid bodies 
-** maybe for grids, depending on parallel structure of code
 
 * other ideas
 ** interpolate density grid?
