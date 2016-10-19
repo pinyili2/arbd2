@@ -410,54 +410,6 @@ Matrix3::Matrix3(const float* d) {
 	setIsDiag();
 }	
 
-const Matrix3 Matrix3::operator*(float s) const {
-	Matrix3 m;
-	m.exx = s*exx;
-	m.exy = s*exy;
-	m.exz = s*exz;
-	m.eyx = s*eyx;
-	m.eyy = s*eyy;
-	m.eyz = s*eyz;
-	m.ezx = s*ezx;
-	m.ezy = s*ezy;
-	m.ezz = s*ezz;
-	m.isDiag = isDiag;
-	return m;
-}
-
-
-const Matrix3 Matrix3::operator*(const Matrix3& m) const {
-	Matrix3 ret;
-	ret.exx = exx*m.exx + exy*m.eyx + exz*m.ezx;
-	ret.eyx = eyx*m.exx + eyy*m.eyx + eyz*m.ezx;
-	ret.ezx = ezx*m.exx + ezy*m.eyx + ezz*m.ezx;
-
-	ret.exy = exx*m.exy + exy*m.eyy + exz*m.ezy;
-	ret.eyy = eyx*m.exy + eyy*m.eyy + eyz*m.ezy;
-	ret.ezy = ezx*m.exy + ezy*m.eyy + ezz*m.ezy;
-
-	ret.exz = exx*m.exz + exy*m.eyz + exz*m.ezz;
-	ret.eyz = eyx*m.exz + eyy*m.eyz + eyz*m.ezz;
-	ret.ezz = ezx*m.exz + ezy*m.eyz + ezz*m.ezz;
-	ret.setIsDiag();
-	return ret;
-}
-
-const Matrix3 Matrix3::operator-() const {
-	Matrix3 m;
-	m.exx = -exx;
-	m.exy = -exy;
-	m.exz = -exz;
-	m.eyx = -eyx;
-	m.eyy = -eyy;
-	m.eyz = -eyz;
-	m.ezx = -ezx;
-	m.ezy = -ezy;
-	m.ezz = -ezz;
-	m.isDiag = isDiag;
-	return m;
-}
-
 Matrix3 Matrix3::inverse() const {
 	Matrix3 m;
 	if (isDiag) {
@@ -483,11 +435,6 @@ float Matrix3::det() const {
 		exx*(eyy*ezz-eyz*ezy) - exy*(eyx*ezz-eyz*ezx) + exz*(eyx*ezy-eyy*ezx);
 }
 
-
-Vector3 Matrix3::ex() const { return Vector3(exx,eyx,ezx); }
-Vector3 Matrix3::ey() const { return Vector3(exy,eyy,ezy); }
-Vector3 Matrix3::ez() const { return Vector3(exz,eyz,ezz); }
-
 String Matrix3::toString() const {
 	char s[128];
 	sprintf(s, "%2.8f %2.8f %2.8f\n%2.8f %2.8f %2.8f\n%2.8f %2.8f %2.8f",
@@ -502,31 +449,6 @@ String Matrix3::toString1() const {
 	return String(s);
 }
 
-Matrix3 operator*(float s, Matrix3 m) { 
-	m.exx *= s;
-	m.exy *= s;
-	m.exz *= s;
-	m.eyx *= s;
-	m.eyy *= s;
-	m.eyz *= s;
-	m.ezx *= s;
-	m.ezy *= s;
-	m.ezz *= s;
-	return m;
-}
-
-Matrix3 operator/(Matrix3 m, float s) {
-	m.exx /= s;
-	m.exy /= s;
-	m.exz /= s;
-	m.eyx /= s;
-	m.eyy /= s;
-	m.eyz /= s;
-	m.ezx /= s;
-	m.ezy /= s;
-	m.ezz /= s;
-	return m;
-}
 
 // class IndexList
 // A growable list of integers.

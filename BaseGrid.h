@@ -644,6 +644,14 @@ public:
 	}
 
   // Wrap coordinate: 0 <= x < l
+  HOST DEVICE   inline int quotient(float x, float l) const {
+#ifdef __CUDA_ARCH__
+	  return int(floorf( __fdividef(x,l) ));
+#else
+	  return int(floor(x/l));
+#endif
+  }
+
   HOST DEVICE inline float wrapFloat(float x, float l) const {
 		int image = int(floor(x/l));
 		x -= image*l;
@@ -651,14 +659,7 @@ public:
   }
   
   // Wrap distance: -0.5*l <= x < 0.5*l
-	DEVICE static inline float d_wrapDiff(float x, float l) {
-		// int image = int(floor(x/l));
-		int image = int(floorf( __fdividef(x,l) ));
-		x -= image*l;
-		x = (x >= 0.5f * l) ? x-l : x;
-		return x;
-  }
-	HOST DEVICE static inline float wrapDiff(float x, float l) {
+  HOST DEVICE static inline float wrapDiff(float x, float l) {
 		int image = int(floor(x/l));
 		x -= image*l;
 		if (x >= 0.5f * l)
@@ -666,15 +667,39 @@ public:
 		return x;
   }
 
+  // TODO: implement simpler approach when basis is diagonal
+  // TODO: implement device version using __fdividef and floorf
+  // TODO: make BaseGrid an abstract class that diagGrid and nonDiagGrid inherit from 
+  // TODO: test wrap and wrapDiff for non-diagonal basis
   // Wrap vector, 0 <= x < lx  &&  0 <= y < ly  &&  0 <= z < lz
   HOST DEVICE inline Vector3 wrap(Vector3 r) const {
-    Vector3 l = basisInv.transform(r - origin);
-    l.x = wrapFloat(l.x, nx);
-    l.y = wrapFloat(l.y, ny);
-    l.z = wrapFloat(l.z, nz);
-    return basis.transform(l) + origin;
+	Vector3 l = basisInv.transform(r - origin);
+	if ( basis.isDiagonal() ) {
+		r = r - Vector3(quotient(l.x,nx) * nx*basis.exx,
+						quotient(l.y,ny) * ny*basis.eyy,
+						quotient(l.z,nz) * nz*basis.ezz);
+	} else {
+		r = r - quotient(l.x,nx) * nx*basis.ex();
+		r = r - quotient(l.y,ny) * ny*basis.ey();
+		r = r - quotient(l.z,nz) * nz*basis.ez();
+	}
+	return r;
   }
-	
+
+  HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const {
+	Vector3 l = basisInv.transform(r);
+	if ( basis.isDiagonal() ) {
+		r = r - Vector3(quotient(l.x+0.5f*nx,nx) * nx*basis.exx,
+						quotient(l.y+0.5f*ny,ny) * ny*basis.eyy,
+						quotient(l.z+0.5f*nz,nz) * nz*basis.ezz);
+	} else {
+		r = r - quotient(l.x+0.5f*nx,nx) * nx*basis.ex();
+		r = r - quotient(l.y+0.5f*ny,ny) * ny*basis.ey();
+		r = r - quotient(l.z+0.5f*nz,nz) * nz*basis.ez();
+	}
+	return r;
+  }
+  
   // Wrap vector distance, -0.5*l <= x < 0.5*l  && ...
   /* HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const { */
   /*   Vector3 l = basisInv.transform(r); */
@@ -683,21 +708,13 @@ public:
   /*   l.z = wrapDiff(l.z, nz); */
   /*   return basis.transform(l); */
   /* } */
-  HOST DEVICE inline Vector3 wrapDiff(Vector3 r) const {
+  HOST DEVICE inline Vector3 wrapDiffOrig(Vector3 r) const {
     Vector3 l = basisInv.transform(r);
     l.x = wrapDiff(l.x, nx);
     l.y = wrapDiff(l.y, ny);
     l.z = wrapDiff(l.z, nz);
     return basis.transform(l);
   }
-  DEVICE inline Vector3 d_wrapDiff(Vector3 r) const {
-		Vector3 l = basisInv.transform(r);
-    l.x = d_wrapDiff(l.x, nx);
-    l.y = d_wrapDiff(l.y, ny);
-    l.z = d_wrapDiff(l.z, nz);
-    return basis.transform(l);
-  }
-
   Vector3 wrapDiffNearest(Vector3 r) const;
 
   // Includes the home node.

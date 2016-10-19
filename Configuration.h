@@ -128,6 +128,7 @@ public:
 	int tabulatedPotential;
 	int fullLongRange;
 	float kT;
+	float temperature;
 	float coulombConst;
 	float electricField;
 	float cutoff;

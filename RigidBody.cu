@@ -98,8 +98,8 @@ void RigidBody::integrate(int startFinishAll) {
 
 	if (startFinishAll == 0 || startFinishAll == 1) {
 		// propogate momenta by half step
-		momentum += 0.5 * timestep * force * impulse_to_momentum;
-		angularMomentum += 0.5 * timestep * orientation.transpose()*torque * impulse_to_momentum;
+		momentum += 0.5f * timestep * force * impulse_to_momentum;
+		angularMomentum += 0.5f * timestep * (orientation.transpose()*torque) * impulse_to_momentum;
 	} else {
 		// propogate momenta by a full timestep
 		momentum += timestep * force * impulse_to_momentum;
@@ -156,33 +156,30 @@ Matrix3 RigidBody::Rx(BigReal t) {
 	BigReal cos = (1-qt)/(1+qt);
 	BigReal sin = t/(1+qt);
 
-	Matrix3 tmp;
-	tmp.exx = 1; tmp.exy =   0; tmp.exz =    0;
-	tmp.eyx = 0; tmp.eyy = cos; tmp.eyz = -sin;
-	tmp.ezx = 0; tmp.ezy = sin; tmp.ezz =  cos;
-	return tmp;
+	return Matrix3(
+		1.0f, 0.0f, 0.0f,
+		0.0f,  cos, -sin,
+		0.0f,  sin,  cos);
 }
 Matrix3 RigidBody::Ry(BigReal t) {
 	BigReal qt = 0.25*t*t;  // for approximate calculations of sin(t) and cos(t)
 	BigReal cos = (1-qt)/(1+qt);
 	BigReal sin = t/(1+qt);
 
-	Matrix3 tmp;
-	tmp.exx =  cos; tmp.exy = 0; tmp.exz = sin;
-	tmp.eyx =    0; tmp.eyy = 1; tmp.eyz =   0;
-	tmp.ezx = -sin; tmp.ezy = 0; tmp.ezz = cos;
-	return tmp;
+	return Matrix3(
+		cos,  0.0f,  sin,
+		0.0f, 1.0f, 0.0f,
+		-sin, 0.0f,  cos);
 }
 Matrix3 RigidBody::Rz(BigReal t) {
 	BigReal qt = 0.25*t*t;  // for approximate calculations of sin(t) and cos(t)
 	BigReal cos = (1-qt)/(1+qt);
 	BigReal sin = t/(1+qt);
 
-	Matrix3 tmp;
-	tmp.exx = cos; tmp.exy = -sin; tmp.exz = 0;
-	tmp.eyx = sin; tmp.eyy =  cos; tmp.eyz = 0;
-	tmp.ezx =   0; tmp.ezy =    0; tmp.ezz = 1;
-	return tmp;
+	return Matrix3(
+		cos,  -sin, 0.0f,
+		sin,   cos, 0.0f,
+		0.0f, 0.0f, 1.0f);
 }
 Matrix3 RigidBody::eulerToMatrix(const Vector3 e) {
 	// convert euler angle input to rotation matrix

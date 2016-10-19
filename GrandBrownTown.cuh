@@ -82,6 +82,7 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 																								 0.5*pt.diffusionGrid->nz)); 
 		Vector3 p2 = p - gridCenter;
 		p2 = sys->wrapDiff( p2 ) + gridCenter;
+			
 		/* p2 = sys->wrap( p2 ); */
 		/* p2 = p2 - gridCenter; */
 		/* printf("atom %d: ps2: %f %f %f\n", idx, p2.x, p2.y, p2.z); */
@@ -90,20 +91,20 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 			diffusion = diff.e;
 			diffGrad = diff.f;
 		}
+
+		// if (idx == 0) {
+		// 	printf("force: "); force.print();
+		// }
 		
-		/* printf("atom %d: pos: %f %f %f\n", idx, p.x, p.y, p.z); */
-		/* printf("atom %d: force: %f %f %f\n", idx, force.x, force.y, force.z); */
-		/* printf("atom %d: kTlocal, diffusion, timestep: %f, %f, %f\n", */
-		/* 			 idx, kTlocal, diffusion, timestep); */
 		Vector3 tmp = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
-		assert( tmp.length() < 10000.0f );
+		// assert( tmp.length() < 10000.0f );
 		pos[idx] = tmp;
 			
 	}
 }
 
 __device__
-Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
+inline Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 						 Vector3 diffGrad, float timestep, BaseGrid *sys,
 						 Random *randoGen, int num) {
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -111,16 +112,11 @@ Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion,
 	Vector3 rando = randoGen->gaussian_vector(idx, num);
 
 	diffusion *= timestep;
-	
 	Vector3 r = r0 + (diffusion / kTlocal) * force
 							+ timestep * diffGrad
 							+ sqrtf(2.0f * diffusion) * rando;
 	// Wrap about periodic boundaries
-	Vector3 l = sys->getInverseBasis().transform(r - sys->getOrigin());
-	l.x = sys->wrapFloat(l.x, sys->getNx());
- 	l.y = sys->wrapFloat(l.y, sys->getNy());
- 	l.z = sys->wrapFloat(l.z, sys->getNz());
-	return sys->getBasis().transform(l) + sys->getOrigin();
+	return sys->wrap(r);
 }
 
 __global__ void devicePrint(RigidBodyType* rb[]) {

@@ -649,6 +649,10 @@ int Configuration::readParameters(const char * config_file) {
 		else if (param == String("kT"))
 			kT = (float) strtod(value.val(), NULL);
 		// else if (param == String("kTGridFile")) kTGridFile = value;
+		else if (param == String("temperature")) {
+			temperature =  (float) strtod(value.val(),NULL);
+			kT = 0.58622522f * temperature / 295.0f; // kcal/mol (units "295 k K" "kcal_mol")
+		}
 		else if (param == String("temperatureGrid"))
 			temperatureGrid = value;
 		else if (param == String("numberFluct"))

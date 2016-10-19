@@ -471,7 +471,7 @@ __global__ void computeTabulatedKernel(
 	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); //*/
 
 		Vector3 dr = pos[aj] - pos[ai];
-		dr = sys->d_wrapDiff(dr);
+		dr = sys->wrapDiff(dr);
 	
     // Calculate the force based on the tabulatedPotential file
 		float d2 = dr.length2();
@@ -502,7 +502,7 @@ __global__ void computeTabulatedEnergyKernel(Vector3* force, const Vector3* __re
 
 		// RBTODO: implement wrapDiff2, returns dr2 (???)
 		Vector3 dr = pos[aj] - pos[ai];
-		dr = sys->d_wrapDiff(dr);
+		dr = sys->wrapDiff(dr);
     // Calculate the force based on the tabulatedPotential file
 		float d2 = dr.length2();
 		/* RBTODO: filter tabpot particles ahead of time */
