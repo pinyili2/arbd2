@@ -5,14 +5,13 @@
 
 #include "Debug.h"
 
-// RBTODO: make units same as those in atomic simulation
 RigidBody::RigidBody(String name, const Configuration& cref, RigidBodyType& tref)
 	: name(name), c(&cref), t(&tref), impulse_to_momentum(4.184e8f) {
 	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08
 	
 	timestep = c->timestep;
-	// RBTODO: fix this
-	Temp = 295;
+	Temp = c->temperature;
+	// RBTODO: use temperature grids
 	// tempgrid = c->temperatureGrid;
 
 	position = t->initPos;

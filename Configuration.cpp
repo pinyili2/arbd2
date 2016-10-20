@@ -113,28 +113,24 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readExcludesFromFile) readExcludes();
 	if (readAnglesFromFile) readAngles();
 	if (readDihedralsFromFile) readDihedrals();
-	/*
-	if (kTGridFile.length() != 0) {
-		printf("\nFound kT grid file: %s\n", kTGridFile.val());
-		kTGrid = new BaseGrid(kTGridFile.val());
-		printf("Loaded `%s'.\n", kTGridFile.val());
-		printf("System size %s.\n", kTGrid->getExtent().toString().val());
-	}
-	*/
-	if (temperatureGrid.length() != 0) {
-		printf("\nFound temperature grid file: %s\n", temperatureGrid.val());
-		tGrid = new BaseGrid(temperatureGrid.val());
-		printf("Loaded `%s'.\n", temperatureGrid.val());
+
+	kT = temperature * 0.0019872065f; // `units "k K" "kcal_mol"`
+	if (temperatureGridFile.length() != 0) {
+		printf("\nFound temperature grid file: %s\n", temperatureGridFile.val());
+		tGrid = new BaseGrid(temperatureGridFile.val());
+		printf("Loaded `%s'.\n", temperatureGridFile.val());
 		printf("System size %s.\n", tGrid->getExtent().toString().val());
 
+		// TODO: ask Max Belkin what this is about and how to remove hard-coded temps
 		float ToSo = 1.0f / (295.0f * 4.634248239f); // 1 / (To * sigma(To))
-		sigmaT = new BaseGrid(temperatureGrid.val());
+		sigmaT = new BaseGrid(*tGrid);
 		sigmaT->shift(-122.8305f);
 		sigmaT->scale(0.0269167f);
 		sigmaT->mult(*tGrid);
 		sigmaT->scale(ToSo);
-		kTGrid = new BaseGrid(temperatureGrid.val());
-		float factor = kT/295.0f;
+
+		kTGrid = new BaseGrid(*tGrid);
+		float factor = 0.0019872065f; // `units "k K" "kcal_mol"`
 		kTGrid->scale(factor);
 		// char outFile[256];
 		// char comment[256]; sprintf(comment,"KTGrid");
@@ -195,7 +191,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 			printf("System size %s.\n", part[i].diffusionGrid->getExtent().toString().val());
 		}
 
-		if (temperatureGrid.length() != 0) {
+		if (temperatureGridFile.length() != 0) {
 			if (partDiffusionGridFile[i].length() != 0) {
 				part[i].diffusionGrid->mult(*sigmaT);
 			} else {
@@ -479,7 +475,7 @@ void Configuration::copyToCUDA() {
 
 	// kTGrid_d
 	kTGrid_d = NULL;
-	if (temperatureGrid.length() > 0) {
+	if (temperatureGridFile.length() > 0) {
 		gpuErrchk(cudaMalloc(&kTGrid_d, sizeof(BaseGrid)));
 		gpuErrchk(cudaMemcpyAsync(kTGrid_d, kTGrid, sizeof(BaseGrid), cudaMemcpyHostToDevice));
 	}
@@ -530,7 +526,7 @@ void Configuration::copyToCUDA() {
 }
 
 void Configuration::setDefaults() {
-	// System parameters
+    // System parameters
 	outputName = "out";
 	timestep = 1e-5f;
 	steps = 100;
@@ -542,9 +538,9 @@ void Configuration::setDefaults() {
 	interparticleForce = 1;
 	tabulatedPotential = 0;
 	fullLongRange = 1;
-	kT = 1.0f;
 	//	kTGridFile = ""; // Commented out for an unknown reason
-	temperatureGrid = "";
+	temperature = 295.0f;
+	temperatureGridFile = "";
 	coulombConst = 566.440698f/92.0f;
 	electricField = 0.0f;
 	cutoff = 10.0f;
@@ -646,15 +642,10 @@ int Configuration::readParameters(const char * config_file) {
 			inputCoordinates = value;
 		else if (param == String("restartCoordinates"))
 			restartCoordinates = value;
-		else if (param == String("kT"))
-			kT = (float) strtod(value.val(), NULL);
-		// else if (param == String("kTGridFile")) kTGridFile = value;
-		else if (param == String("temperature")) {
+		else if (param == String("temperature"))
 			temperature =  (float) strtod(value.val(),NULL);
-			kT = 0.58622522f * temperature / 295.0f; // kcal/mol (units "295 k K" "kcal_mol")
-		}
 		else if (param == String("temperatureGrid"))
-			temperatureGrid = value;
+			temperatureGridFile = value;
 		else if (param == String("numberFluct"))
 			numberFluct = atoi(value.val());
 		else if (param == String("numberFluctPeriod"))

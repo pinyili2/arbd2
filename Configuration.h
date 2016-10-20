@@ -33,6 +33,13 @@
 #include <cuda.h> 
 #include <cuda_runtime.h>
 
+// Units:
+//    Energy: kcal/mol (6.947694e-24 kJ)
+//    Temperature: Kelvin
+//    Time: nanoseconds
+//    Length: nanometers
+
+
 class Configuration {
 	struct compare {
 		bool operator()(const String& lhs, const String& rhs);
@@ -120,7 +127,7 @@ public:
 	long int steps;
 	long int seed;
 	// String kTGridFile;
-	String temperatureGrid;
+	String temperatureGridFile;
 	String inputCoordinates;
 	String restartCoordinates;
 	int numberFluct;

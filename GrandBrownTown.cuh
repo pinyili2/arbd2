@@ -32,7 +32,6 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 	// Calculate this thread's ID
 	const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-
 	// TODO: Make this a grid-stride loop to make efficient reuse of RNG states 
 	// Loop over ALL particles in ALL replicas
 	if (idx < num * numReplicas) {
@@ -53,7 +52,7 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
 		if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(p);
 		if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(p);
-		if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(p);		
+		if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(p);
 #endif
 
 		// Compute total force:
@@ -76,18 +75,16 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 			// printf("atom %d: pos: %f %f %f\n", idx, p.x, p.y, p.z);
 			// p = pt.diffusionGrid->wrap(p); // illegal mem access; no origin/basis?
 
-		Vector3 gridCenter = pt.diffusionGrid->origin +
-			pt.diffusionGrid->basis.transform( Vector3(0.5*pt.diffusionGrid->nx,
-																								 0.5*pt.diffusionGrid->ny,
-																								 0.5*pt.diffusionGrid->nz)); 
-		Vector3 p2 = p - gridCenter;
-		p2 = sys->wrapDiff( p2 ) + gridCenter;
-			
-		/* p2 = sys->wrap( p2 ); */
-		/* p2 = p2 - gridCenter; */
-		/* printf("atom %d: ps2: %f %f %f\n", idx, p2.x, p2.y, p2.z); */
-		
-		ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
+			Vector3 gridCenter = pt.diffusionGrid->origin +
+				pt.diffusionGrid->basis.transform( Vector3(0.5*pt.diffusionGrid->nx,
+												0.5*pt.diffusionGrid->ny,
+												0.5*pt.diffusionGrid->nz)); 
+			Vector3 p2 = p - gridCenter;
+			p2 = sys->wrapDiff( p2 ) + gridCenter;			
+			/* p2 = sys->wrap( p2 ); */
+			/* p2 = p2 - gridCenter; */
+			/* printf("atom %d: ps2: %f %f %f\n", idx, p2.x, p2.y, p2.z); */		
+			ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
 			diffusion = diff.e;
 			diffGrad = diff.f;
 		}

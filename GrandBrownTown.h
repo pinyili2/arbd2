@@ -171,8 +171,7 @@ private:
 	float timestep;
 	long int steps;
 	long int seed;
-	// String kTGridFile;
-	String temperatureGrid;
+	String temperatureGridFile;
 	String inputCoordinates;
 	String restartCoordinates;
 	int numberFluct;
@@ -180,6 +179,7 @@ private:
 	int tabulatedPotential;
 	int fullLongRange;
 	float kT;
+	float temperature;
 	float coulombConst;
 	float electricField;
 	float cutoff;

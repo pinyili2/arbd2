@@ -77,7 +77,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	timestep = c.timestep;
 	steps = c.steps;
 	seed = c.seed;
-	temperatureGrid = c.temperatureGrid;
+	temperatureGridFile = c.temperatureGridFile;
 	inputCoordinates = c.inputCoordinates;
 	restartCoordinates = c.restartCoordinates;
 	numberFluct = c.numberFluct;
@@ -86,6 +86,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	readBondsFromFile = c.readBondsFromFile;
 	fullLongRange = c.fullLongRange;
 	kT = c.kT;
+	temperature = c.temperature;
 	coulombConst = c.coulombConst;
 	electricField = c.electricField;
 	cutoff = c.cutoff;
@@ -449,7 +450,7 @@ void GrandBrownTown::run() {
 
 		// int numBlocks = (num * numReplicas) / NUM_THREADS + 1;
 		int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
-		int tl = temperatureGrid.length();
+		int tl = temperatureGridFile.length();
 
 		RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);					/* update RB forces before update particle positions... */
 
