@@ -15,8 +15,17 @@
 class Reservoir;
 class BaseGrid;
 class RigidBodyGrid;
+class Configuration;
 
 class RigidBodyType {
+	
+public:
+RigidBodyType(const String& name = "", const Configuration* conf = NULL ) :
+	name(name), conf(conf), num(0),
+		reservoir(NULL), mass(1.0f), inertia(), transDamping(),
+		rotDamping(), initPos(), initRot(Matrix3(1.0f)),
+		numPotGrids(0), numDenGrids(0), numPmfs(0), numParticles(NULL) { }
+	~RigidBodyType() { clear(); }
 private:
 	// Deletes all members
 	void clear();
@@ -28,40 +37,31 @@ private:
 	void applyScaleFactor(
 		const std::vector<String> &scaleKeys, const std::vector<float> &scaleFactors,
 		const std::vector<String> &gridKeys, std::vector<BaseGrid> &grids);
+
+	void updateRaw();
+	void copyGridToDevice(RigidBodyGrid*& ptr_d, RigidBodyGrid g);
+	void freeGridFromDevice(RigidBodyGrid* ptr_d);
 	
 public:
-/* RigidBodyType(const String& name = "") : */
-/* 	name(name), num(0), */
-/* 		reservoir(NULL), mass(1.0f), inertia(), transDamping(), */
-/* 		rotDamping(), potentialGrids(NULL), densityGrids(NULL), */
-/* 		potentialGrids_D(NULL), densityGrids_D(NULL) { } */
-
-RigidBodyType(const String& name = "") :
-	name(name), num(0),
-	reservoir(NULL), mass(1.0f), inertia(), transDamping(),
-	rotDamping(), initPos(), initRot(Matrix3(1.0f)),
-		numPotGrids(0), numDenGrids(0), numPmfs(0), numParticles(0) { }
-	
-	/* RigidBodyType(const RigidBodyType& src) { copy(src); } */
-	~RigidBodyType() { clear(); }
-
 	/* RigidBodyType& operator=(const RigidBodyType& src); */
-
-  void addPotentialGrid(String s);
+	void copyGridsToDevice();
+	
+	void addPotentialGrid(String s);
 	void addDensityGrid(String s);
 	void addPMF(String s);
-  void scalePotentialGrid(String s);
+	void scalePotentialGrid(String s);
 	void scaleDensityGrid(String s);
 	void scalePMF(String s);
 
-	void updateRaw();
 	void setDampingCoeffs(float timestep);
 
+	void initializeParticleLists();
 	// TODO: privatize
 public:
-
-	
 	String name;
+private:
+	const Configuration* conf;
+public:
 	int num; // number of particles of this type
 
 	Reservoir* reservoir;
@@ -91,9 +91,6 @@ public:
 	std::vector<float> potentialGridScale;
 	std::vector<float> densityGridScale;
 	std::vector<float> pmfScale;
-
-	int* numParticles;		  /* particles affected by potential grids */
-	int** particles;		 	
 	
 	// RBTODO: clear std::vectors after initialization, (but keep offsets)
 	// duplicates of std::vector grids for device
@@ -101,6 +98,12 @@ public:
 	int numPotGrids;
 	int numDenGrids;
 	int numPmfs;
+
+	int* numParticles;		  /* particles affected by potential grids */
+	int** particles;		 	
+	int** particles_d;		 	
+
+
 	RigidBodyGrid* rawPotentialGrids;
 	RigidBodyGrid* rawDensityGrids;
 	BaseGrid* rawPmfs;
@@ -116,4 +119,3 @@ public:
 	RigidBodyGrid** rawPmfs_d;
 	
 };
-

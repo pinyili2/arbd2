@@ -236,9 +236,8 @@ public:
 		return ret;
 	}
 
-	HOST DEVICE inline void print() {
-		// printf("%0.3f %0.3f %0.3f\n", x,y,z);
-		printf("%0.12f %0.12f %0.12f\n", x,y,z);
+	HOST DEVICE inline void print() const {
+		printf("%0.3f %0.3f %0.3f\n", x,y,z);
 	}
 	
 	String toString() const;
@@ -389,8 +388,13 @@ public:
 	HOST DEVICE inline Vector3 ey() const { return Vector3(exy,eyy,ezy); }
 	HOST DEVICE inline Vector3 ez() const { return Vector3(exz,eyz,ezz); }
 	String toString() const;
-
 	String toString1() const;
+
+	HOST DEVICE inline void print() const {
+		printf("%0.3f %0.3f %0.3f\n", exx,exy,exz);
+		printf("%0.3f %0.3f %0.3f\n", eyx,eyy,eyz);
+		printf("%0.3f %0.3f %0.3f\n", ezx,ezy,ezz);
+	}
 
 	HOST DEVICE inline bool isDiagonal() const { return isDiag; }
 	

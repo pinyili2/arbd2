@@ -1,7 +1,15 @@
+#include "Configuration.h"
 #include "RigidBodyType.h"
 #include "Reservoir.h"
 #include "BaseGrid.h"
 #include "RigidBodyGrid.h"
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, line);
+      if (abort) exit(code);
+   }
+}
 
 void RigidBodyType::clear() {
 	num = 0;											// RBTODO: not 100% sure about this
@@ -19,14 +27,21 @@ void RigidBodyType::clear() {
 	densityGridKeys.clear();
 	pmfKeys.clear();
 
-	if (numParticles > 0) {
-		for (int i=0; i < numParticles[i]; ++i) {
-			delete[] particles[i];
+	
+	if (numParticles != NULL) {
+		for (int i=0; i < numPotGrids; ++i) {
+			printf("CLEARING\n");
+			if (numParticles[i] > 0) {
+				delete[] particles[i];
+				gpuErrchk(cudaFree( particles_d[i] ));
+			}
 		}
 		delete[] numParticles;
 		delete[] particles;
+		delete[] particles_d;
+		numParticles = NULL;
 	}
-	
+		
 	if (numPotGrids > 0) delete[] rawPotentialGrids;
 	if (numDenGrids > 0) delete[] rawDensityGrids;
 	rawPotentialGrids = NULL;
@@ -43,18 +58,18 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 	|                                                        |
 	| f[kcal/mol AA] = - dampingCoeff * momentum[amu AA/ns]  |
 	|                                                        |
-	| units "(1/ps) * (amu AA/ns)" "kcal_mol/AA" * 2.390e-06 |
+	| units "(1/ns) * (amu AA/ns)" "kcal_mol/AA" * 2.390e-09 |
 	`–––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 
 	/*––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| < f(t) f(t') > = 2 kT dampingCoeff mass delta(t-t') |
 	|                                                     |
-	|  units "sqrt( k K (1/ps) amu / ns )" "kcal_mol/AA"  |
-	|    * 6.8916889e-05                                  |
+	|  units "sqrt( k K (1/ns) amu / ns )" "kcal_mol/AA"  |
+	|    * 2.1793421e-06                                  |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 	// RBTODO: make units consistent with rest of RB code 
 	float Temp = 295; /* RBTODO: temperature should be read from grid? Or set in uniformly in config file */
-	transForceCoeff = 6.8916889e-05 * Vector3::element_sqrt( 2*Temp*mass*transDamping/timestep );
+	transForceCoeff = 2.1793421e-06 * Vector3::element_sqrt( 2*Temp*mass*transDamping/timestep );
 
 	// setup for langevin
 	// langevin = rbParams->langevin;
@@ -62,12 +77,12 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 	// T = - dampingCoeff * angularMomentum
 
 	// < f(t) f(t') > = 2 kT dampingCoeff inertia delta(t-t')
-	rotTorqueCoeff = 6.8916889e-05 *
+	rotTorqueCoeff = 2.1793421e-06 *
 		Vector3::element_sqrt( 2*Temp* Vector3::element_mult(inertia,rotDamping) / timestep );
 
 
-	transDamping = 2.3900574e-6 * transDamping;
-	rotDamping = 2.3900574e-6 * rotDamping;
+	transDamping = 2.3900574e-9 * transDamping;
+	rotDamping = 2.3900574e-9 * rotDamping;
 
 	// Also apply scale factors
 	applyScaleFactors();
@@ -139,10 +154,73 @@ void RigidBodyType::scalePMF(String s) {
 	addScaleFactor(s, pmfScaleKeys, pmfScale);
 }
 
+// void RigidBodyType::copyGridToDevice(RigidBodyGrid* ptr_d, const RigidBodyGrid* g)  {
+// 	// copy grid data
+// 	float* tmpData;
+// 	size_t sz = sizeof(float) * g->getSize();
+// 	gpuErrchk(cudaMalloc( &tmpData, sz)); 
+// 	gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
+
+// 	// create temporary grid
+// 	sz = sizeof(RigidBodyGrid);
+// 	RigidBodyGrid* tmp;
+// 	memcpy(tmp, g, sz);
+// 	tmp->val = tmpData;
+	
+// 	// copy grid
+// 	gpuErrchk(cudaMalloc(&ptr_d, sz));
+// 	gpuErrchk(cudaMemcpy(ptr_d, tmp, sz, cudaMemcpyHostToDevice));
+	
+// 	// gpuErrchk(cudaMemcpy( &(ptr_d->val), &tmpData, sizeof(float*), cudaMemcpyHostToDevice));
+// }
+void RigidBodyType::copyGridToDevice(RigidBodyGrid*& ptr_d, RigidBodyGrid g)  {
+	// copy grid data
+	float* tmpData;
+	size_t sz = sizeof(float) * g.getSize();
+	gpuErrchk(cudaMalloc( &tmpData, sz)); 
+	gpuErrchk(cudaMemcpy( tmpData, g.val, sz, cudaMemcpyHostToDevice));
+
+	// set grid pointer to device 
+	g.val = tmpData;
+	
+	// copy grid
+	sz = sizeof(RigidBodyGrid);
+	gpuErrchk(cudaMalloc(&ptr_d, sz));
+	gpuErrchk(cudaMemcpy(ptr_d, &g, sz, cudaMemcpyHostToDevice));
+
+	// prevent destructor from trying to delete device pointer
+	g.val = NULL; 
+}
+
+void RigidBodyType::freeGridFromDevice(RigidBodyGrid* ptr_d) {
+	gpuErrchk(cudaFree( ptr_d->val ));	// free grid data
+	gpuErrchk(cudaFree( ptr_d ));		// free grid 
+}
+
+void RigidBodyType::copyGridsToDevice() {
+	int ng = numDenGrids;
+	rawDensityGrids_d = new RigidBodyGrid*[ng];
+	for (int gid = 0; gid < ng; gid++)
+		copyGridToDevice(rawDensityGrids_d[gid], rawDensityGrids[gid]);
+
+	ng = numPotGrids;
+	rawPotentialGrids_d = new RigidBodyGrid*[ng];
+	for (int gid = 0; gid < ng; gid++)
+		copyGridToDevice(rawPotentialGrids_d[gid], rawPotentialGrids[gid]);
+
+	ng = numPmfs;
+	rawPmfs_d = new RigidBodyGrid*[ng];
+	for (int gid = 0; gid < ng; gid++) {
+		//RigidBodyGrid tmp = RigidBodyGrid(rawPmfs[gid]);
+		//copyGridToDevice(rawPmfs_d[gid], &tmp);
+		copyGridToDevice(rawPmfs_d[gid], RigidBodyGrid(rawPmfs[gid]));
+	}
+}
+
 void RigidBodyType::updateRaw() {
-	if (numPotGrids > 0) delete[] rawPotentialGrids;
-	if (numDenGrids > 0) delete[] rawDensityGrids;
-	if (numDenGrids > 0) delete[] rawPmfs;
+	if (numPotGrids > 0 && rawPotentialGrids != NULL) delete[] rawPotentialGrids;
+	if (numDenGrids > 0 && rawDensityGrids != NULL) delete[] rawDensityGrids;
+	if (numPmfs > 0 && rawPmfs != NULL) delete[] rawPmfs;
 	numPotGrids = potentialGrids.size();
 	numDenGrids = densityGrids.size();
 	numPmfs = pmfs.size();
@@ -174,3 +252,59 @@ void RigidBodyType::updateRaw() {
 		rawPmfs[i] = pmfs[i];	
 }
 
+void RigidBodyType::initializeParticleLists() {
+	updateRaw();			   
+
+	numParticles = new int[numPotGrids];
+	particles = new int*[numPotGrids];
+	particles_d = new int*[numPotGrids];
+
+	// Loop over potential grids
+	for (int i = 0; i < numPotGrids; ++i) {
+		String& gridName = potentialGridKeys[i];
+		numParticles[i] = 0;
+		
+		// Loop over particle types to count the number of particles
+		for (int j = 0; j < conf->numParts; ++j) {
+			// Loop over rigid body grid names associated with particle type
+			const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
+			for (int k = 0; k < gridNames.size(); ++k) {
+				if (gridNames[k] == gridName) {
+					numParticles[i] += conf->numPartsOfType[j];
+				}
+			}
+		}
+
+		// allocate array of particle ids for the potential grid 
+		particles[i] = new int[numParticles[i]];
+		int pid = 0;
+		
+		// Loop over particle types to count the number of particles
+		for (int j = 0; j < conf->numParts; ++j) {
+
+			// Build temporary id array of type j particles
+			int tmp[conf->numPartsOfType[j]];
+			int currId = 0;
+			for (int aid = 0; aid < conf->num; ++aid) {
+				if (conf->type[aid] == j)
+					tmp[currId++] = aid;
+			}
+
+			// Loop over rigid body grid names associated with particle type
+			const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
+			for (int k = 0; k < gridNames.size(); ++k) {
+				if (gridNames[k] == gridName) {
+					// Copy type j particles to particles[i]
+					memcpy( &(particles[i][pid]), tmp, sizeof(int)*currId );
+					assert(currId == conf->numPartsOfType[j]);
+					pid += conf->numPartsOfType[j];
+				}
+			}
+		}
+	
+		// Initialize device data
+		size_t sz = sizeof(int*) * numParticles[i];
+		gpuErrchk(cudaMalloc( &(particles_d[i]), sz ));
+		gpuErrchk(cudaMemcpyAsync( particles_d[i], particles[i], sz, cudaMemcpyHostToDevice));
+	}
+}

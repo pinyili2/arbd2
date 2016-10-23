@@ -160,10 +160,27 @@ public:
   
   // A matrix defining the basis for the entire system.
   Matrix3 getBox() const;
-  // The longest diagonal of the system.
+  // The diagonal (nx,ny,nz) of the system.
   Vector3 getExtent() const;
-  // The longest diagonal of the system.
+  // The length of diagonal (nx,ny,nz) of the system.
   float getDiagonal() const;
+
+  HOST DEVICE inline int getRadius() const {
+	  // return radius of smallest sphere circumscribing grid
+	  float radius = basis.transform(Vector3(nx,ny,nz)).length2();
+	  
+	  float tmp = basis.transform(Vector3(-nx,ny,nz)).length2();
+	  radius = tmp > radius ? tmp : radius;
+
+	  tmp = basis.transform(Vector3(nx,-ny,nz)).length2();
+	  radius = tmp > radius ? tmp : radius;
+
+	  tmp = basis.transform(Vector3(nx,ny,-nz)).length2();
+	  radius = tmp > radius ? tmp : radius;
+
+	  return 0.5 * sqrt(radius);
+  }
+
   // The position farthest from the origin.
   Vector3 getDestination() const;
   // The center of the grid.

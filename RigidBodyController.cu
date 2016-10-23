@@ -32,14 +32,14 @@ inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) 
 
 RigidBodyController::RigidBodyController(const Configuration& c, const char* outArg) :
 	conf(c), outArg(outArg) {
-
-	if (conf.numRigidTypes > 0) {
-		copyGridsToDevice();
-	}
+	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
+	for (int i = 0; i < conf.numRigidTypes; i++)
+		conf.rigidBody[i].initializeParticleLists();
 
 	int numRB = 0;
 	// grow list of rbs
 	for (int i = 0; i < conf.numRigidTypes; i++) {			
+		conf.rigidBody[i].copyGridsToDevice();
 		numRB += conf.rigidBody[i].num;
 		std::vector<RigidBody> tmp;
 		// RBTODO: change conf.rigidBody to conf.rigidBodyType
@@ -53,15 +53,17 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 			}
 			RigidBody r(name, conf, conf.rigidBody[i]);
 			tmp.push_back( r );
-	}
+		}
 		rigidBodyByType.push_back(tmp);
-}
+	}
 
 	random = new RandomCPU(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
+	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 	initializeForcePairs();
-	initializeParticleLists();
+	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 }
+
 RigidBodyController::~RigidBodyController() {
 	for (int i = 0; i < rigidBodyByType.size(); i++)
 		rigidBodyByType[i].clear();
@@ -168,85 +170,12 @@ void RigidBodyController::initializeForcePairs() {
 			
 }
 
-void RigidBodyController::initializeParticleLists() {
-	// Populate RigidBodyType.particles
-	
-	// TODO: ensure no duplicates in conf.partRigidBodyGrid[i]
-	
-    // Allocate RB type's numParticles array
-	for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
-		RigidBodyType& t = conf.rigidBody[rb];
-		t.numParticles = new int[t.numPotGrids];
-		for (int i = 0; i < t.numPotGrids; ++i) t.numParticles[i] = 0;
-	}		
-
-	// Count the number of particles; Loop over particle types
-	for (int i = 0; i < conf.numParts; ++i) {
-
-		// Loop over rigid body grid names associated with particle type
-		const std::vector<String>& gridNames = conf.partRigidBodyGrid[i];
-		for (int j = 0; j < gridNames.size(); ++j) {
-
-			// Loop over RB types
-			for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
-				RigidBodyType& t = conf.rigidBody[rb];
-				const std::vector<String>& keys = t.potentialGridKeys;
-
-				// Loop over potential grids
-				for(int k = 0; k < keys.size(); k++) {
-					// printf("    checking grid keys ");
-					if (gridNames[j] == keys[k])
-						t.numParticles[k] += conf.numPartsOfType[i];
-				}
-			}
+void RigidBodyController::updateParticleLists(Vector3* pos_d) {
+	for (int i = 0; i < rigidBodyByType.size(); i++) {
+		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+			rigidBodyByType[i][j].updateParticleList(pos_d);
 		}
 	}
-
-	// Allocate each particles array
-	for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
-		RigidBodyType& t = conf.rigidBody[rb];
-		t.particles = new int*[t.numPotGrids];
-		for (int i = 0; i < t.numPotGrids; ++i) {
-			t.particles[i] = new int[t.numParticles[i]];
-			t.numParticles[i] = 0; // now use this as a counter 
-		}
-	}
-
-	// Set the number of particles; Loop over particle types
-	for (int i = 0; i < conf.numParts; ++i) {
-		int tmp[conf.numPartsOfType[i]]; // temporary array holding particles of type i
-		int currId = 0;
-		for (int j = 0; j < conf.num; ++j) {
-			if (conf.type[j] == i)
-				tmp[currId++] = j;
-		}
-		
-		// Loop over rigid body grid names associated with particle type
-		const std::vector<String>& gridNames = conf.partRigidBodyGrid[i];
-		for (int j = 0; j < gridNames.size(); ++j) {
-
-			// Loop over RB types
-			for (int rb = 0; rb < conf.numRigidTypes; ++rb) {
-				RigidBodyType& t = conf.rigidBody[rb];
-				const std::vector<String>& keys = t.potentialGridKeys;
-
-				// Loop over potential grids
-				for(int k = 0; k < keys.size(); k++) {
-					// printf("    checking grid keys ");
-					if (gridNames[j] == keys[k]) {
-						memcpy( &(t.particles[k][t.numParticles[k]]), tmp, sizeof(int)*currId );
-						t.numParticles[k] += currId;
-					}
-				}
-			}
-		}
-	}
-
-	// Initialize device data for RB force pairs after std::vector is done growing
-
-	// for (int i = 0; i < forcePairs.size(); i++)
-	// 	forcePairs[i].initialize();
-			
 }
 
 
@@ -263,18 +192,24 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 			rb.clearTorque();
 		}
 	}
-
+	
 	// Grid–particle forces
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
-		callGridParticleForceKernel( pos_d, force_d, conf.rigidBody[i], rigidBodyByType[i], s );
+		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+			RigidBody& rb = rigidBodyByType[i][j];
+			rb.callGridParticleForceKernel( pos_d, force_d, s );
+		}
 	}
-
+	
 	// Grid–Grid forces
 	if (forcePairs.size() > 0) {
 		
-		for (int i=0; i < forcePairs.size(); i++)
-			forcePairs[i].callGridForceKernel(i,s);
-
+		for (int i=0; i < forcePairs.size(); i++) {
+			// TODO: performance: make this check occur less frequently
+			if (forcePairs[i].isWithinPairlistDist())
+				forcePairs[i].callGridForceKernel(i,s);
+		}
+		
 		// each kernel call is followed by async memcpy for previous; now get last
 		RigidBodyForcePair* fp = RigidBodyForcePair::lastRbForcePair;
 		fp->retrieveForcesForGrid( fp->lastRbGridID );
@@ -288,10 +223,11 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 		gpuErrchk(cudaDeviceSynchronize());
 	
 		for (int i=0; i < forcePairs.size(); i++)
-			forcePairs[i].processGPUForces();
-
+			if (forcePairs[i].isWithinPairlistDist())
+				forcePairs[i].processGPUForces();
 	}
 }
+
 void RigidBodyController::integrate(int step) {
  	// tell RBs to integrate
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
@@ -360,14 +296,28 @@ void RigidBodyForcePair::createStreams() {
 		gpuErrchk( cudaStreamCreate( &(stream[i]) ) );
 		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
 }
+bool RigidBodyForcePair::isWithinPairlistDist() const {
+	float pairlistDist = 2.0f; /* TODO: get from conf */
+	float rbDist = (rb1->getPosition() - rb2->getPosition()).length();
+		
+	for (int i = 0; i < gridKeyId1.size(); ++i) {
+		const int k1 = gridKeyId1[i];
+		const int k2 = gridKeyId2[i];
+		float d1 = type1->densityGrids[k1].getRadius() + type1->densityGrids[k1].getCenter().length();
+		float d2 = type2->potentialGrids[k2].getRadius() + type2->potentialGrids[k2].getCenter().length();
+		if (rbDist < d1+d2+pairlistDist) 
+			return true;
+	}
+	return false;
+}
 Vector3 RigidBodyForcePair::getOrigin1(const int i) {
 	const int k1 = gridKeyId1[i];
-	return rb1->getOrientation()*type1->densityGrids[k1].getOrigin() + rb1->getPosition();
+	return rb1->transformBodyToLab( type1->densityGrids[k1].getOrigin() );
 }
 Vector3 RigidBodyForcePair::getOrigin2(const int i) {
 	const int k2 = gridKeyId2[i];
 	if (!isPmf)
-		return rb2->getOrientation()*type2->potentialGrids[k2].getOrigin() + rb2->getPosition();
+		return rb2->transformBodyToLab( type2->potentialGrids[k2].getOrigin() );
 	else
 		return type2->rawPmfs[k2].getOrigin();
 }		
@@ -441,68 +391,6 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		lastRbGridID = i;
 	}
 }
-void RigidBodyController::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d,
-				const RigidBodyType& t, std::vector<RigidBody>& rbs, int s) {
-	// get the force/torque on a rigid body, and forces on particles
-	
-	// RBTODO: consolidate CUDA stream management
-	for (int i = 0; i < t.numPotGrids; ++i) {
-		if (t.numParticles[i] == 0) continue;
-
-		for (int j = 0; j < rbs.size(); ++j) {
-			// const int nb = 500;
-			/*
-			  r: postion of particle in real space
-			  B: grid Basis
-			  o: grid origin
-			  R: rigid body orientation
-			  c: rigid body center
-
-			  B': R.B 
-			  c': R.o + c
-			*/
-			// Matrix3 B1 = getBasis1(i);
-			Vector3 c =  rbs[j].getOrientation()*t.potentialGrids[i].getOrigin() + rbs[j].getPosition();
-			Matrix3 B = (rbs[j].getOrientation()*t.potentialGrids[i].getBasis()).inverse();
-		
-			// RBTODO: get energy
-			const int nb = (t.numParticles[i]/NUMTHREADS)+1;
-
-			// RBTODO: IMPORTANT: Improve this
-			Vector3 forces[nb];
-			Vector3 torques[nb];
-			for (int k=0; k < nb; ++k) {
-				forces[k] = Vector3(0.0f);
-				torques[k] = Vector3(0.0f);
-			}
-			Vector3* forces_d;
-			Vector3* torques_d;			
-			gpuErrchk(cudaMalloc(&forces_d, sizeof(Vector3)*nb));
-			gpuErrchk(cudaMalloc(&torques_d, sizeof(Vector3)*nb));
-			gpuErrchk(cudaMemcpy(forces_d, forces, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
-			gpuErrchk(cudaMemcpy(torques_d, torques, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
-			
-			computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3) >>>(
-				pos_d, force_d, t.numParticles[i], t.particles[i],
-				t.rawPotentialGrids_d[i],
-				B, c, forces_d, torques_d);
-
-			gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
-			gpuErrchk(cudaMemcpy(torques, torques_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
-
-			Vector3 f = Vector3(0.0f);
-			Vector3 t = Vector3(0.0f);
-			for (int k = 0; k < nb; ++k) {
-				f = f + forces[k];
-				t = t + torques[j];
-			}
-			
-			t = -t - (rbs[j].getPosition()-c).cross( -f ); 
-			rbs[j].addForce( -f );
-			rbs[j].addTorque( t );
-		}
-	}
-}
 
 void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
 	// i: grid ID (less than numGrids)
@@ -553,137 +441,6 @@ void RigidBodyForcePair::processGPUForces() {
 
 	// printf("force: %s\n", f.toString().val());
 	// printf("torque: %s\n", t.toString().val());
-	
-}
-
-void RigidBodyController::copyGridsToDevice() {
-	// RBTODO: clean this function up
-	RigidBodyType **rb_addr = new RigidBodyType*[conf.numRigidTypes];	/* temporary pointer to device pointer */
-
-	gpuErrchk(cudaMalloc(&rbType_d, sizeof(RigidBodyType*) * conf.numRigidTypes));
-	// TODO: The above line fails when there is not enough memory. If it fails, stop.
-
-	printf("Copying RBs\n");
-	// Copy rigidbody types 
-	// http://stackoverflow.com/questions/16024087/copy-an-object-to-device
- 	for (int i = 0; i < conf.numRigidTypes; i++)
-		conf.rigidBody[i].updateRaw();
-
-
-	// density grids
- 	for (int i = 0; i < conf.numRigidTypes; i++) {
-		printf("Copying density grids of RB type %d\n",i);
-		RigidBodyType& rb = conf.rigidBody[i];
-
-		int ng = rb.numDenGrids;
-		rb.rawDensityGrids_d = new RigidBodyGrid*[ng]; /* not sure this is needed */
-		
-		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);		
-		// copy grid data to device
-		for (int gid = 0; gid < ng; gid++) { 
-			RigidBodyGrid* g = &(rb.rawDensityGrids[gid]); // convenience
-			// RigidBodyGrid* g_d = rb.rawDensityGrids_d[gid]; // convenience
-			int len = g->getSize();
-			float* tmpData;
-
-			size_t sz = sizeof(RigidBodyGrid);
-			gpuErrchk(cudaMalloc((void **) &(rb.rawDensityGrids_d[gid]), sz));
-			/* gpuErrchk(cudaMemcpy(rb.rawDensityGrids_d[gid], g, */
-			/* 										 sz, cudaMemcpyHostToDevice)); */
-			gpuErrchk(cudaMemcpy(rb.rawDensityGrids_d[gid], &(rb.rawDensityGrids[gid]),
-													 sz, cudaMemcpyHostToDevice));
-
-			// allocate grid data on device
-			// copy temporary host pointer to device pointer
-			// copy data to device through temporary host pointer
-			sz = sizeof(float) * len;
-			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
-			// gpuErrchk(cudaMemcpy( tmpData, g->val, sz, cudaMemcpyHostToDevice));
-			gpuErrchk(cudaMemcpy( tmpData, rb.rawDensityGrids[gid].val, sz, cudaMemcpyHostToDevice));
-			gpuErrchk(cudaMemcpy( &(rb.rawDensityGrids_d[gid]->val), &tmpData,
-														sizeof(float*), cudaMemcpyHostToDevice));
-		}
-  }
-
-	for (int i = 0; i < conf.numRigidTypes; i++) {
-		printf("Working on RB %d\n",i);
-		RigidBodyType& rb = conf.rigidBody[i];
-
-		int ng = rb.numPotGrids;
-		rb.rawPotentialGrids_d = new RigidBodyGrid*[ng]; /* not 100% sure this is needed, possible memory leak */
-
-		printf("  RigidBodyType %d: numGrids = %d\n", i, ng);		
-		// copy potential grid data to device
-		for (int gid = 0; gid < ng; gid++) { 
-			RigidBodyGrid* g = &(rb.rawPotentialGrids[gid]); // convenience
-			// RigidBodyGrid* g_d = rb.rawDensityGrids_d[gid]; // convenience
-			int len = g->getSize();
-			float* tmpData;
-			// tmpData = new float*[len];
-
-			size_t sz = sizeof(RigidBodyGrid);
-			gpuErrchk(cudaMalloc((void **) &(rb.rawPotentialGrids_d[gid]), sz));
-			gpuErrchk(cudaMemcpy( rb.rawPotentialGrids_d[gid], &(rb.rawPotentialGrids[gid]),
-													 sz, cudaMemcpyHostToDevice ));
-
-			// allocate grid data on device
-			// copy temporary host pointer to device pointer
-			// copy data to device through temporary host pointer
-			sz = sizeof(float) * len;
-			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
-			// sz = sizeof(float) * len;
-			gpuErrchk(cudaMemcpy( tmpData, rb.rawPotentialGrids[gid].val, sz, cudaMemcpyHostToDevice));
-			gpuErrchk(cudaMemcpy( &(rb.rawPotentialGrids_d[gid]->val), &tmpData,
-														sizeof(float*), cudaMemcpyHostToDevice));
-			
-				// RBTODO: why can't tmpData be deleted? 
-			// delete[] tmpData;
-		}
-	}
-
-	for (int i = 0; i < conf.numRigidTypes; i++) {
-		printf("Copying PMFs for RB %d\n",i);
-		RigidBodyType& rb = conf.rigidBody[i];
-
-		int ng = rb.numPmfs;
-		rb.rawPmfs_d = new RigidBodyGrid*[ng]; /* not 100% sure this is needed, possible memory leak */
-
-		printf("  RigidBodyType %d: numPmfs = %d\n", i, ng);		
-
-		// copy pmf grid data to device
-		for (int gid = 0; gid < ng; gid++) { 
-			RigidBodyGrid g = rb.rawPmfs[gid];
-			int len = g.getSize();
-			float* tmpData;
-			// tmpData = new float*[len];
-
-			size_t sz = sizeof(RigidBodyGrid);
-			gpuErrchk(cudaMalloc((void **) &(rb.rawPmfs_d[gid]), sz));
-			gpuErrchk(cudaMemcpy( rb.rawPmfs_d[gid], &g,
-													 sz, cudaMemcpyHostToDevice ));
-
-			// allocate grid data on device
-			// copy temporary host pointer to device pointer
-			// copy data to device through temporary host pointer
-			sz = sizeof(float) * len;
-			gpuErrchk(cudaMalloc((void **) &tmpData, sz)); 
-			// sz = sizeof(float) * len;
-			gpuErrchk(cudaMemcpy( tmpData, rb.rawPmfs[gid].val, sz, cudaMemcpyHostToDevice));
-			gpuErrchk(cudaMemcpy( &(rb.rawPmfs_d[gid]->val), &tmpData,
-														sizeof(float*), cudaMemcpyHostToDevice));
-			
-		}
-	}
-	
-	gpuErrchk(cudaDeviceSynchronize());
-	printf("Done copying RBs\n");
-
-	/* // DEBUG */
-	/* RigidBodyType& rb = conf.rigidBody[0]; */
-	/* printRigidBodyGrid<<<1,1>>>( rb.rawPotentialGrids_d[0] ); */
-	/* gpuErrchk(cudaDeviceSynchronize()); */
-	/* printRigidBodyGrid<<<1,1>>>( rb.rawDensityGrids_d[0] ); */
-	/* gpuErrchk(cudaDeviceSynchronize()); */
 }
 
 void RigidBodyController::print(int step) {

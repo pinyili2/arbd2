@@ -47,23 +47,6 @@ public:
   // The most obvious of constructors.
 	RigidBodyGrid(int nx0, int ny0, int nz0);
 
-  // Make an orthogonal grid given the box dimensions and resolution.
-  RigidBodyGrid(Vector3 box, float dx);
-
-  // The box gives the system geometry.
-  // The grid point numbers define the resolution.
-  RigidBodyGrid(Matrix3 box, int nx0, int ny0, int nz0);
-
-  // The box gives the system geometry.
-  // dx is the approx. resolution.
-  // The grid spacing is always a bit larger than dx.
-  RigidBodyGrid(Matrix3 box, Vector3 origin0, float dx);
-
-  // The box gives the system geometry.
-  // dx is the approx. resolution.
-  // The grid spacing is always a bit smaller than dx.
-  RigidBodyGrid(Matrix3 box, float dx);
-
   // Make a copy of a BaseGrid grid.
   RigidBodyGrid(const BaseGrid& g);
 
@@ -108,6 +91,22 @@ public:
   HOST DEVICE inline int getNy() const {return ny;}
   HOST DEVICE inline int getNz() const {return nz;}
   HOST DEVICE inline int getSize() const {return nx*ny*nz;}
+
+  HOST DEVICE inline int getRadius(Matrix3 basis) const {
+	  // return radius of smallest sphere circumscribing grid
+	  float radius = basis.transform(Vector3(nx,ny,nz)).length2();
+
+	  float tmp = basis.transform(Vector3(-nx,ny,nz)).length2();
+	  radius = tmp > radius ? tmp : radius;
+
+	  tmp = basis.transform(Vector3(nx,-ny,nz)).length2();
+	  radius = tmp > radius ? tmp : radius;
+
+	  tmp = basis.transform(Vector3(nx,ny,-nz)).length2();
+	  radius = tmp > radius ? tmp : radius;
+
+	  return 0.5 * sqrt(radius);
+  }
 
   
   // Add a fixed value to the grid.

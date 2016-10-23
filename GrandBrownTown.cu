@@ -364,6 +364,8 @@ void GrandBrownTown::run() {
 	{
 		// cudaSetDevice(0);
 		internal->decompose();
+		gpuErrchk(cudaDeviceSynchronize());
+		RBC.updateParticleLists( internal->getPos_d() );
 	}
 
 	float t; // simulation time
@@ -395,6 +397,7 @@ void GrandBrownTown::run() {
 						{
 							// cudaSetDevice(0);
 							internal -> decompose();
+							RBC.updateParticleLists( internal->getPos_d() );
 						}
 						
 						//MLog: added Bond* bondList to the list of passed in variables.
@@ -416,6 +419,7 @@ void GrandBrownTown::run() {
 						{
 							// cudaSetDevice(0);
 							internal->decompose();
+							RBC.updateParticleLists( internal->getPos_d() );
 						}
 						energy = internal->compute(get_energy);
 						break;

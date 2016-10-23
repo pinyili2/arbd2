@@ -51,7 +51,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	float dUdx = (a->pot[(home+1)] - U0) / a->angle_step;
 	// float energy = (dUdx * angle) + U0;
 	float sin = sqrtf(1.0f - cos*cos);
-	dUdx /= abs(sin) > 1e-4 ? sin : 1e-4; // avoid singularity 
+	dUdx /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity 
 
 	// Calculate the forces
 	Vector3 force1 = (dUdx/distab) * (ab * (cos/distab) - bc / distbc); // force on particle 1

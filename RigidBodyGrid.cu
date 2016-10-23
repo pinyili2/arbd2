@@ -27,80 +27,6 @@ RigidBodyGrid::RigidBodyGrid(int nx0, int ny0, int nz0) {
 	zero();
 }
 
-// Make an orthogonal grid given the box dimensions and resolution.
-RigidBodyGrid::RigidBodyGrid(Vector3 box, float dx) {
-	dx = fabsf(dx);
-	box.x = fabsf(box.x);
-	box.y = fabsf(box.y);
-	box.z = fabsf(box.z);
-
-	// Tile the grid into the system box.
-	// The grid spacing is always a bit smaller than dx.
-	nx = int(ceilf(box.x/dx));
-	ny = int(ceilf(box.y/dx));
-	nz = int(ceilf(box.z/dx));
-	if (nx <= 0) nx = 1;
-	if (ny <= 0) ny = 1;
-	if (nz <= 0) nz = 1;
-	
-	val = new float[nx*ny*nz];
-	zero();
-}
-
-// The box gives the system geometry.
-// The grid point numbers define the resolution.
-RigidBodyGrid::RigidBodyGrid(Matrix3 box, int nx0, int ny0, int nz0) {
-	nx = nx0;
-	ny = ny0;
-	nz = nz0;
-
-	// Tile the grid into the system box.
-	if (nx <= 0) nx = 1;
-	if (ny <= 0) ny = 1;
-	if (nz <= 0) nz = 1;
-
-	val = new float[nx*ny*nz];
-	zero();
-}
-
-// The box gives the system geometry.
-// dx is the approx. resolution.
-// The grid spacing is always a bit larger than dx.
-RigidBodyGrid::RigidBodyGrid(Matrix3 box, Vector3 origin0, float dx) {
-	dx = fabs(dx);
-	
-	// Tile the grid into the system box.
-	// The grid spacing is always a bit larger than dx.
-	nx = int(floor(box.ex().length()/dx))-1;
-	ny = int(floor(box.ey().length()/dx))-1;
-	nz = int(floor(box.ez().length()/dx))-1;
-	if (nx <= 0) nx = 1;
-	if (ny <= 0) ny = 1;
-	if (nz <= 0) nz = 1;
-
-	val = new float[nx*ny*nz];
-	zero();
-}
-
-// The box gives the system geometry.
-// dx is the approx. resolution.
-// The grid spacing is always a bit smaller than dx.
-RigidBodyGrid::RigidBodyGrid(Matrix3 box, float dx) {
-	dx = fabs(dx);
-	
-	// Tile the grid into the system box.
-	// The grid spacing is always a bit smaller than dx.
-	nx = int(ceilf(box.ex().length()/dx));
-	ny = int(ceilf(box.ey().length()/dx));
-	nz = int(ceilf(box.ez().length()/dx));
-	if (nx <= 0) nx = 1;
-	if (ny <= 0) ny = 1;
-	if (nz <= 0) nz = 1;
-
-	val = new float[nx*ny*nz];
-	zero();
-}
-
 RigidBodyGrid::RigidBodyGrid(const BaseGrid& g) {
 	nx = g.nx;
 	ny = g.ny;
@@ -302,7 +228,7 @@ DEVICE ForceEnergy RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) co
 
 	Vector3 f;
 
-	const float wx = l.x - homeY;
+	const float wx = l.x - homeX;
 	const float wy = l.y - homeY;	
 	const float wz = l.z - homeZ;
 

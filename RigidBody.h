@@ -27,9 +27,12 @@ class RigidBody { // host side representation of rigid bodies
 	| splitting methods for rigid body molecular dynamics". J Chem Phys. (1997) |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 		public:
-	HOST DEVICE RigidBody(String name, const Configuration& c, RigidBodyType& t);
+    RigidBody(String name, const Configuration& c, const RigidBodyType& t);
+    RigidBody(const RigidBody& rb);
+    // RigidBody(const RigidBody& rb) : RigidBody(rb.name, *rb.c, *rb.t) {};
+	void init();
 	/* HOST DEVICE RigidBody(RigidBodyType t); */
-	HOST DEVICE ~RigidBody();
+	~RigidBody();
 
 	HOST DEVICE void addForce(Force f); 
 	HOST DEVICE void addTorque(Force t);
@@ -46,6 +49,7 @@ class RigidBody { // host side representation of rigid bodies
 	// HOST DEVICE inline String getKey() const { return t->name; }
 	HOST DEVICE inline String getKey() const { return name; }
 	
+	HOST DEVICE inline Vector3 transformBodyToLab(Vector3 v) const { return orientation*v + position; }
 	HOST DEVICE inline Vector3 getPosition() const { return position; }
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
 	// HOST DEVICE inline Matrix3 getBasis() const { return orientation; }
@@ -56,9 +60,13 @@ class RigidBody { // host side representation of rigid bodies
 									 angularMomentum.y / t->inertia.y,
 									 angularMomentum.z / t->inertia.z );
 	}
+	void updateParticleList(Vector3* pos_d);
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s);
+	
+	
 	bool langevin;
 	Vector3 torque; // lab frame (except in integrate())
-    
+
 private:
 	// String key;
 	String name;
@@ -82,12 +90,20 @@ private:
 
 	// integration
 	const Configuration* c;
-	RigidBodyType* t;					/* RBTODO: const? */
+	const RigidBodyType* t;
 	float timestep;					
 	Vector3 force;  // lab frame
 
 	bool isFirstStep; 
-
+	
+	int* numParticles;		  /* particles affected by potential grids */
+	int** particles_d;		 	
+	Vector3** particleForces;
+	Vector3** particleTorques;
+	Vector3** particleForces_d;
+	Vector3** particleTorques_d;
+	
+	
 	/*–––––––––––––––––––––––––––––––––––––––––.
 	| units "kcal_mol/AA * ns" "(AA/ns) * amu" |
 	`–––––––––––––––––––––––––––––––––––––––––*/

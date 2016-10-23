@@ -386,7 +386,7 @@ Configuration::~Configuration() {
 	delete[] partForceZGridFile;
 	delete[] partDiffusionGridFile;
 	delete[] partReservoirFile;
-	delete[] partRigidBodyGrid;
+	partRigidBodyGrid.clear();
 	
 	// TODO: plug memory leaks
 	if (partsFromFile != NULL) delete[] partsFromFile;
@@ -545,6 +545,7 @@ void Configuration::setDefaults() {
 	electricField = 0.0f;
 	cutoff = 10.0f;
 	switchLen = 2.0f;
+	pairlistDistance = 2.0f;
 	outputPeriod = 200;
 	outputEnergyPeriod = -1;
 	outputFormat = TrajectoryWriter::formatDcd;
@@ -596,7 +597,7 @@ int Configuration::readParameters(const char * config_file) {
 	partForceZGridFile = new String[numParts];
 	partDiffusionGridFile = new String[numParts];
 	partReservoirFile = new String[numParts];
-	partRigidBodyGrid = new std::vector<String>[numParts];
+	partRigidBodyGrid.resize(numParts);
 	
 	// Allocate the table variables.
 	partTableFile = new String[numParts*numParts];
@@ -662,6 +663,8 @@ int Configuration::readParameters(const char * config_file) {
 			cutoff = (float) strtod(value.val(), NULL);
 		else if (param == String("switchLen"))
 			switchLen = (float) strtod(value.val(), NULL);
+		else if (param == String("pairlistDistance"))
+			pairlistDistance = (float) strtod(value.val(), NULL);
 		else if (param == String("outputPeriod"))
 			outputPeriod = atoi(value.val());
 		else if (param == String("outputEnergyPeriod"))
@@ -778,7 +781,7 @@ int Configuration::readParameters(const char * config_file) {
 		// RIGID BODY
 		else if (param == String("rigidBody")) {
 			// part[++currPart] = BrownianParticleType(value);
-			rigidBody[++currRB] = RigidBodyType(value);
+			rigidBody[++currRB] = RigidBodyType(value, this);
 			currPartClass = partClassRB;
 		}
 		else if (param == String("mass"))

@@ -139,6 +139,7 @@ public:
 	float coulombConst;
 	float electricField;
 	float cutoff;
+	float pairlistDistance;
 	float switchLen;
 	int outputPeriod;
 	int outputEnergyPeriod;
@@ -176,7 +177,7 @@ public:
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
 	String* partGridFile;
-	std::vector<String>* partRigidBodyGrid;
+	std::vector< std::vector<String> > partRigidBodyGrid;
 	String* partDiffusionGridFile;
 	String* partForceXGridFile;
 	String* partForceYGridFile;

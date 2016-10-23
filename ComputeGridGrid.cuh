@@ -19,4 +19,10 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 				Vector3* __restrict__ retForce, Vector3* __restrict__ retTorque);
 
 extern __global__
+void createPartlist(const Vector3* __restrict__ pos,
+				const int numTypeParticles, const int* __restrict__ typeParticles_d,
+				int* numParticles_d, int* particles_d,
+				const Vector3 gridCenter, const float radius2);
+	
+extern __global__
 void printRigidBodyGrid(const RigidBodyGrid* rho);

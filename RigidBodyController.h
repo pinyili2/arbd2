@@ -18,6 +18,8 @@ class RigidBody;
 class Configuration;
 class RandomCPU;
 
+
+// TODO: performance: create RigidBodyGridPair so pairlistdist check is done per grid pair, not per RB pair
 class RigidBodyForcePair  {
 	friend class RigidBodyController;
 
@@ -42,9 +44,10 @@ public:
 		printf("    Copying assigning RB force pair...\n");
 		swap(*this,o);
 		return *this;
-	}
-	
+	}	
 	~RigidBodyForcePair();
+
+	bool isWithinPairlistDist() const;	
 
 private:
 	int initialize();
@@ -95,12 +98,10 @@ public:
 
 	void integrate(int step);
 	void updateForces(Vector3* pos_d, Vector3* force_d, int s);
-	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, const RigidBodyType& t, std::vector<RigidBody>& rbs, int s);
+	void updateParticleLists(Vector3* pos_d);
     
 private:
-	void copyGridsToDevice();
 	void initializeForcePairs();
-	void initializeParticleLists();
 
 	void print(int step);
 	void printLegend(std::ofstream &file);

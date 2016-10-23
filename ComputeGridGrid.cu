@@ -110,6 +110,27 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	}
 }
 
+__global__
+void createPartlist(const Vector3* __restrict__ pos,
+				const int numTypeParticles, const int* __restrict__ typeParticles_d,
+				int* numParticles_d, int* particles_d,
+				const Vector3 gridCenter, const float radius2) {
+	const int tid = threadIdx.x;
+	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
+	const int split = 32;					/* numblocks should be divisible by split */
+	/* const int blocksPerCell = gridDim.x/split;  */
+	
+	const int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < numTypeParticles) {
+		int aid = typeParticles_d[i];
+		float dist = (pos[aid] - gridCenter).length2();
+
+		if (dist <= radius2) {
+			int tmp = atomicAggInc(numParticles_d, warpLane);
+			particles_d[tmp] = aid;
+		}
+	}
+}		
 
 __global__
 void printRigidBodyGrid(const RigidBodyGrid* rho) {

@@ -2,13 +2,25 @@
 #include <typeinfo>
 #include "RigidBody.h"
 #include "Configuration.h"
+#include "ComputeGridGrid.cuh"
 
 #include "Debug.h"
 
-RigidBody::RigidBody(String name, const Configuration& cref, RigidBodyType& tref)
-	: name(name), c(&cref), t(&tref), impulse_to_momentum(4.184e8f) {
-	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08
-	
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, line);
+      if (abort) exit(code);
+   }
+}
+
+
+RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref) 
+	: name(name), c(&cref), t(&tref), impulse_to_momentum(4.184e8f) { init(); }
+RigidBody::RigidBody(const RigidBody& rb)
+	: name(rb.name), c(rb.c), t(rb.t), impulse_to_momentum(4.184e8f) { init(); }
+void RigidBody::init() {
+	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08	
 	timestep = c->timestep;
 	Temp = c->temperature;
 	// RBTODO: use temperature grids
@@ -25,6 +37,48 @@ RigidBody::RigidBody(String name, const Configuration& cref, RigidBodyType& tref
 	angularMomentum.x *= t->inertia.x;
 	angularMomentum.y *= t->inertia.y;
 	angularMomentum.z *= t->inertia.z;
+
+	// Memory allocation for forces between particles and grids 
+	const int& numGrids = t->numPotGrids;
+	numParticles = new int[numGrids];
+	particles_d = new int*[numGrids];
+	particleForces = new Vector3*[numGrids];
+	particleTorques = new Vector3*[numGrids];
+	particleForces_d = new Vector3*[numGrids];
+	particleTorques_d = new Vector3*[numGrids];
+	for (int i = 0; i < numGrids; ++i) {
+		const int& n = t->numParticles[i];
+		const int nb = (n/NUMTHREADS)+1; // max number of blocks
+		if (n > 0) {
+			gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n ));
+			particleForces[i] = new Vector3[nb];
+			particleTorques[i] = new Vector3[nb];
+			gpuErrchk(cudaMalloc( &particleForces_d[i], sizeof(Vector3)*nb ));
+			gpuErrchk(cudaMalloc( &particleTorques_d[i], sizeof(Vector3)*nb ));
+		}
+	}
+}
+
+RigidBody::~RigidBody() {
+	const int& numGrids = t->numPotGrids;
+	for (int i = 0; i < numGrids; ++i) {
+		const int& n = t->numParticles[i];
+		if (n > 0) {
+			gpuErrchk(cudaFree( particles_d[i] ));
+			delete[] particleForces[i];
+			delete[] particleTorques[i];
+			gpuErrchk(cudaFree( particleForces_d[i] ));
+			gpuErrchk(cudaFree( particleTorques_d[i] ));
+		}
+	}
+	if (numParticles != NULL) {
+		delete[] numParticles;
+		delete[] particles_d;
+		delete[] particleForces;
+		delete[] particleTorques;
+		delete[] particleForces_d;
+		delete[] particleTorques_d;
+	}
 }
 
 void RigidBody::addForce(Force f) { 
@@ -33,7 +87,91 @@ void RigidBody::addForce(Force f) {
 void RigidBody::addTorque(Force torq) {
 	torque += torq; 
 }
-RigidBody::~RigidBody() {}
+
+void RigidBody::updateParticleList(Vector3* pos_d) {
+	for (int i = 0; i < t->numPotGrids; ++i) {
+		int& tnp = t->numParticles[i];
+		if (tnp > 0) {
+			Vector3 gridCenter = t->potentialGrids[i].getCenter();
+			float cutoff = gridCenter.length();
+			cutoff += t->potentialGrids[i].getRadius();
+			cutoff += c->pairlistDistance; 
+		   
+			numParticles[i] = 0;
+			int* tmp_d;
+			gpuErrchk(cudaMalloc( &tmp_d, sizeof(int) ));
+			gpuErrchk(cudaMemcpy( tmp_d, &numParticles[i], sizeof(int), cudaMemcpyHostToDevice ));
+
+			int nb = floor(tnp/NUMTHREADS) + 1;
+			createPartlist<<<NUMTHREADS,nb>>>(pos_d, tnp, t->particles_d[i],
+							tmp_d, particles_d[i],
+							gridCenter + position, cutoff*cutoff);
+
+			gpuErrchk(cudaMemcpy(&numParticles[i], tmp_d, sizeof(int), cudaMemcpyDeviceToHost ));
+		}
+	}
+}
+
+void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s) {
+	// Apply the force and torque on the rigid body, and forces on particles
+	
+	// RBTODO: performance: consolidate CUDA stream management
+	// loop over potential grids 
+	for (int i = 0; i < t->numPotGrids; ++i) {
+		if (numParticles[i] == 0) continue;
+		// const int nb = 500;
+		/*
+		  r: postion of particle in real space
+		  B: grid Basis
+		  o: grid origin
+		  R: rigid body orientation
+		  c: rigid body center
+
+		  B': R.B 
+		  c': R.o + c
+		*/
+
+		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
+		Matrix3 B = (getOrientation()*t->potentialGrids[i].getBasis()).inverse();
+		
+		// RBTODO: get energy
+		// RBTODO: performance: Improve parellism here (use streams/events; overlap with other computations)
+		const int nb = (numParticles[i]/NUMTHREADS)+1;
+		
+		Vector3* forces = particleForces[i];
+		Vector3* torques = particleTorques[i];
+		Vector3* forces_d = particleForces_d[i];
+		Vector3* torques_d = particleTorques_d[i];
+
+		for (int k=0; k < nb; ++k) {
+			forces[k] = Vector3(0.0f);
+			torques[k] = Vector3(0.0f);
+		}
+		gpuErrchk(cudaMemcpy(forces_d, forces, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
+		gpuErrchk(cudaMemcpy(torques_d, torques, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
+		
+		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3) >>>(
+			pos_d, force_d, numParticles[i], particles_d[i],
+			t->rawPotentialGrids_d[i],
+			B, c, forces_d, torques_d);
+		
+		gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
+		gpuErrchk(cudaMemcpy(torques, torques_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
+
+		// Sum and apply forces and torques
+		Vector3 f = Vector3(0.0f);
+		Vector3 torq = Vector3(0.0f);
+		for (int k = 0; k < nb; ++k) {
+			f = f + forces[k];
+			torq = torq + torques[k];
+		}
+		
+		torq = -torq + (getPosition()-c).cross( f ); 
+		addForce( -f );
+		addTorque( torq );
+	}
+}
+
 	/*===========================================================================\
 	| Following "Algorithm for rigid-body Brownian dynamics" Dan Gordon, Matthew |
 	|   Hoyles, and Shin-Ho Chung                                                |
