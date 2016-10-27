@@ -807,6 +807,8 @@ int Configuration::readParameters(const char * config_file) {
 			rigidBody[currRB].initPos = stringToVector3( value );
 		else if (param == String("orientation"))
 			rigidBody[currRB].initRot = stringToMatrix3( value );
+		else if (param == String("inputRBCoordinates"))
+			inputRBCoordinates = value;
 		
 		// COMMON
 		else if (param == String("num")) {

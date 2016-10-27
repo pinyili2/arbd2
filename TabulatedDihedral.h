@@ -23,7 +23,7 @@ public:
 	~TabulatedDihedralPotential();
 
 	float* pot;				// actual potential values
-	float angle_step;	// angular increments of potential file
+	float angle_step_inv;	// angular increments of potential file
 	int size;					// number of data points in the file
 	String fileName;
 
@@ -61,7 +61,7 @@ public:
 	
 		// Shift "angle" by "PI" since    -PI < dihedral < PI
 		// And our tabulated potential data: 0 < angle < 2 PI
-		float t = (angle + BD_PI) / angle_step;
+		float t = (angle + BD_PI) * angle_step_inv;
 		int home = (int) floorf(t);
 		t = t - home;
 
@@ -74,7 +74,7 @@ public:
 		float dU = pot[home1] - U0; // Change in potential
 		
 		energy = dU * t + U0;
-		force = -dU / angle_step;
+		force = -dU * angle_step_inv;
 		//================================================
 		// TODO: add an option for cubic interpolation
 

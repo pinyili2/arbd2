@@ -166,9 +166,10 @@ public:
 	}
 
 	HOST DEVICE inline Vector3& operator/=(float s) {
-		x /= s;
-		y /= s;
-		z /= s;
+		const float sinv = 1.0f/s;
+		x *= sinv;
+		y *= sinv;
+		z *= sinv;
 		return *this;
 	}
 
@@ -252,10 +253,8 @@ HOST DEVICE inline Vector3 operator*(float s, Vector3 v) {
 }
 
 HOST DEVICE inline Vector3 operator/(Vector3 v, float s) {
-	v.x /= s;
-	v.y /= s;
-	v.z /= s;
-	return v;
+	const float sinv = 1.0f/s;
+	return v*sinv;
 }
 
 // class Matrix3
@@ -284,10 +283,8 @@ public:
 	}
 	HOST DEVICE friend inline Matrix3 operator*(float s, Matrix3 m) { return m*s; }
 	HOST DEVICE friend inline Matrix3 operator/(Matrix3 m, float s) {
-		m.exx /= s; m.exy /= s; m.exz /= s;
-		m.eyx /= s;	m.eyy /= s;	m.eyz /= s;
-		m.ezx /= s;	m.ezy /= s;	m.ezz /= s;
-		return m;
+		const float sinv = 1.0f/s;
+		return m*sinv;
 	}
 
 	HOST DEVICE inline const Vector3 operator*(const Vector3& v) const	{ return this->transform(v); }
@@ -375,6 +372,20 @@ public:
 	Matrix3 inverse() const;
 
 	float det() const;
+
+	HOST DEVICE inline Matrix3 normalized() const {
+		Vector3 x = this->ex();
+		Vector3 y = this->ey();
+		float error = x.dot(y);
+		x = x-(0.5*error)*y;
+		y = y-(0.5*error)*x;
+		Vector3 z = x.cross(y);
+		
+		x = (0.5*(3-x.dot(x)))*x; /* approximate normalization */
+		y = (0.5*(3-y.dot(y)))*y; 
+		z = (0.5*(3-z.dot(z)))*z; 
+		return Matrix3(x,y,z);		
+	}
 
 	HOST DEVICE void setIsDiag() {
 		isDiag = (exy == 0 && exz == 0 &&

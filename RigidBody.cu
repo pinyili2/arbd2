@@ -50,7 +50,7 @@ void RigidBody::init() {
 		const int& n = t->numParticles[i];
 		const int nb = (n/NUMTHREADS)+1; // max number of blocks
 		if (n > 0) {
-			gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n ));
+			gpuErrchk(cudaMalloc( &particles_d[i], 0.5*sizeof(int)*n ));
 			particleForces[i] = new Vector3[nb];
 			particleTorques[i] = new Vector3[nb];
 			gpuErrchk(cudaMalloc( &particleForces_d[i], sizeof(Vector3)*nb ));
@@ -90,6 +90,7 @@ void RigidBody::addTorque(Force torq) {
 
 void RigidBody::updateParticleList(Vector3* pos_d) {
 	for (int i = 0; i < t->numPotGrids; ++i) {
+		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];
 		if (tnp > 0) {
 			Vector3 gridCenter = t->potentialGrids[i].getCenter();
@@ -97,7 +98,6 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 			cutoff += t->potentialGrids[i].getRadius();
 			cutoff += c->pairlistDistance; 
 		   
-			numParticles[i] = 0;
 			int* tmp_d;
 			gpuErrchk(cudaMalloc( &tmp_d, sizeof(int) ));
 			gpuErrchk(cudaMemcpy( tmp_d, &numParticles[i], sizeof(int), cudaMemcpyHostToDevice ));
@@ -118,7 +118,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 	// RBTODO: performance: consolidate CUDA stream management
 	// loop over potential grids 
 	for (int i = 0; i < t->numPotGrids; ++i) {
-		if (numParticles[i] == 0) continue;
+		if (numParticles[i] <= 0) continue;
 		// const int nb = 500;
 		/*
 		  r: postion of particle in real space
@@ -269,6 +269,12 @@ void RigidBody::integrate(int startFinishAll) {
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R5
 		applyRotation(R);		
 
+		// TODO make this periodic
+		// printf("det: %.12f\n", orientation.det());
+ 		orientation = orientation.normalized();
+		// orientation = orientation/orientation.det();
+		// printf("det2: %.12f\n", orientation.det());
+		// orientation = orientation/orientation.det(); // TODO: see if this can be somehow eliminated (wasn't in original DLM algorithm...)
 	}
 }    
 

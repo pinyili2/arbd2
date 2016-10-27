@@ -58,7 +58,8 @@ TabulatedAnglePotential::TabulatedAnglePotential(String fileName) : fileName(fil
 		angle[size] = atof(tokenList[0].val());
 		pot[size++] = atof(tokenList[1].val());
 	}
-	angle_step = angle[1]-angle[0]; 
+	// units "1/deg" "1/radian"  *57.29578
+	angle_step_inv = 57.29578f / (angle[1]-angle[0]); 
 	delete[] angle;
 	fclose(inp);
 }
@@ -70,7 +71,7 @@ TabulatedAnglePotential::TabulatedAnglePotential(const TabulatedAnglePotential &
 	pot = new float[size];
 	for (int i = 0; i < size; i++)
 		pot[i] = tab.pot[i];
-	angle_step = tab.angle_step;
+	angle_step_inv = tab.angle_step_inv;
 }
 
 TabulatedAnglePotential::~TabulatedAnglePotential() {

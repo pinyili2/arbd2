@@ -19,7 +19,7 @@ public:
 	TabulatedAnglePotential(const TabulatedAnglePotential &tab);
 	~TabulatedAnglePotential();
 	float* pot;			// actual potential values
-	float angle_step;	// 'step' angle in potential file. potential file might not go 1, 2, 3,...,360, it could be in steps of .5 or something smaller 
+	float angle_step_inv;	// '1/step' angle in potential file. potential file might not go 1, 2, 3,...,360, it could be in steps of .5 or something smaller 
 	int size;			// The number of data points in the file
 	String fileName;
 
@@ -55,15 +55,13 @@ public:
 
 		// tableAngle is divided into units of angle_step length
 		// 'convertedAngle' is the angle, represented in these units
-		float convertedAngle = angle / angle_step;
+		float convertedAngle = angle * angle_step_inv;
 
 		// tableAngle[0] stores the potential at angle_step
 		// tableAngle[1] stores the potential at angle_step * 2, etc.
 		// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table	
 
-		int home;
-		if (angle_step == 0) home = 0;
-		else home = int(floor(convertedAngle));
+		int home = int(floor(convertedAngle));
 
 		// diffHome is the distance between the convertedAngle and the home index
 		float diffHome = convertedAngle - home;
@@ -71,8 +69,8 @@ public:
 		// Linear interpolation for the potential
 		float pot0 = pot[home];
 		float delta_pot = pot[(home+1) % size] - pot0;
-		float energy = (delta_pot / angle_step) * diffHome + pot0;
-		float diff = -delta_pot / angle_step;
+		float energy = (delta_pot * angle_step_inv) * diffHome + pot0;
+		float diff = -delta_pot * angle_step_inv;
 		diff /= sin;
 
 		// Don't know what these are for, so I didn't bother giving them better names. 

@@ -52,13 +52,14 @@ TabulatedDihedralPotential::TabulatedDihedralPotential(String fileName) : fileNa
 		angle[size] = atof(tokenList[0].val());
 		pot[size++] = atof(tokenList[1].val());
 	}
-	angle_step = angle[1]-angle[0]; 
+	// units "1/deg" "1/radian"  *57.29578
+	angle_step_inv = 57.29578f / (angle[1]-angle[0]); 
 	delete[] angle;
 	fclose(inp);
 }
 
 TabulatedDihedralPotential::TabulatedDihedralPotential(const TabulatedDihedralPotential &src) :
-		size(src.size), fileName(src.fileName), angle_step(src.angle_step) {
+		size(src.size), fileName(src.fileName), angle_step_inv(src.angle_step_inv) {
 	pot = new float[size];
 	for (int i = 0; i < size; i++)
 		pot[i] = src.pot[i];

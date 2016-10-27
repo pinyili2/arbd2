@@ -129,6 +129,7 @@ public:
 	// String kTGridFile;
 	String temperatureGridFile;
 	String inputCoordinates;
+	String inputRBCoordinates;
 	String restartCoordinates;
 	int numberFluct;
 	int interparticleForce;

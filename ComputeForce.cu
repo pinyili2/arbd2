@@ -259,6 +259,7 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 
 bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[])
 {
+	// TODO: see if tableBond_addr can be removed
 	if (tableBond[ind] != NULL) {
 		delete tableBond[ind];
 		gpuErrchk(cudaFree(tableBond_addr[ind]));

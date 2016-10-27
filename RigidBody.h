@@ -22,6 +22,7 @@ typedef Vector3 Force;
 
 
 class RigidBody { // host side representation of rigid bodies
+	friend class RigidBodyController;
 	/*––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––.
 	| See Appendix A of: Dullweber, Leimkuhler and McLaclan. "Symplectic        |
 	| splitting methods for rigid body molecular dynamics". J Chem Phys. (1997) |

@@ -16,6 +16,7 @@ Bond::Bond(String strflag, int ind1, int ind2, String fileName) :
 		printf("         Using default flag\n");
 		flag = DEFAULT;
 	}
+	tabFileIndex = -1;
 }
 
 void Bond::print() {

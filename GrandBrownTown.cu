@@ -237,6 +237,11 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			{
 				if(bonds[i].ind1 < bonds[i].ind2)
 				{
+					if (bonds[i].tabFileIndex == -1) {
+						fprintf(stderr,"Error: bondfile '%s' was not read with tabulatedBondFile command.\n", bonds[i].fileName.val());
+						exit(1);
+					}
+						
 					bondList[j] = make_int3( (bonds[i].ind1 + k * num), (bonds[i].ind2 + k * num), bonds[i].tabFileIndex );
 					// cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
 					// << "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
@@ -252,6 +257,10 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	angleList = new int4[ (numAngles) * numReplicas ];
 	for(int k = 0 ; k < numReplicas; k++) {
 	    for(int i = 0; i < numAngles; ++i) {
+			if (angles[i].tabFileIndex == -1) {
+				fprintf(stderr,"Error: anglefile '%s' was not read with tabulatedAngleFile command.\n", angles[i].fileName.val());
+				exit(1);
+			}
 		angleList[i] = make_int4( angles[i].ind1+k*num, angles[i].ind2+k*num, angles[i].ind3+k*num, angles[i].tabFileIndex );
 	    }
 	}
@@ -262,6 +271,10 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	dihedralPotList = new  int[ (numDihedrals) * numReplicas ];
 	for(int k = 0 ; k < numReplicas; k++) {
 	    for(int i = 0; i < numDihedrals; ++i) {
+			if (dihedrals[i].tabFileIndex == -1) {
+				fprintf(stderr,"Error: dihedralfile '%s' was not read with tabulatedDihedralFile command.\n", dihedrals[i].fileName.val());
+				exit(1);
+			}
 		dihedralList[i] = make_int4( dihedrals[i].ind1+k*num, dihedrals[i].ind2+k*num, dihedrals[i].ind3+k*num, dihedrals[i].ind4+k*num);
 		dihedralPotList[i] = dihedrals[i].tabFileIndex;
 	    }

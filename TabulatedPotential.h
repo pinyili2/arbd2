@@ -124,7 +124,7 @@ public:
   float* v3;
   int n;
   int numLines;
-  float dr;
+  float dr; //TODO replace with drInv
   float r0, r1;
   float e0;
   String fileName;

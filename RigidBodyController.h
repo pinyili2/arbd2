@@ -101,6 +101,7 @@ public:
 	void updateParticleLists(Vector3* pos_d);
     
 private:
+	bool loadRBCoordinates(const char* fileName);
 	void initializeForcePairs();
 
 	void print(int step);

@@ -57,6 +57,9 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 		rigidBodyByType.push_back(tmp);
 	}
 
+	if (conf.inputRBCoordinates.length() > 0)
+		loadRBCoordinates(conf.inputRBCoordinates.val());
+	
 	random = new RandomCPU(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
@@ -70,6 +73,67 @@ RigidBodyController::~RigidBodyController() {
 	rigidBodyByType.clear();
 	delete random;
 }
+
+bool RigidBodyController::loadRBCoordinates(const char* fileName) {
+	char line[STRLEN];
+	FILE* inp = fopen(fileName, "r");
+
+	if (inp == NULL) {
+		printf("GrandBrownTown: load RB coordinates: File '%s' does not exist\n", fileName);
+		exit(-1);	   
+	}
+
+	int imax = rigidBodyByType.size();
+	int i = 0;
+	int jmax = rigidBodyByType[i].size();
+	int j = 0;
+
+	while (fgets(line, STRLEN, inp) != NULL) {
+		// Ignore comments.
+		int len = strlen(line);
+		if (line[0] == '#') continue;
+		if (len < 2) continue;
+
+		String s(line);
+		int numTokens = s.tokenCount();
+		if (numTokens != 3+9) {
+			printf("GrandBrownTown: load RB coordinates: Invalid coordinate file line: %s\n", line);
+			fclose(inp);	
+			exit(-1);
+		}
+
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+		if (tokenList == NULL) {
+			printf("GrandBrownTown: load RB coordinates: Invalid coordinate file line: %s\n", line);
+			fclose(inp);
+			exit(-1);
+		}
+
+		RigidBody& rb = rigidBodyByType[i][j];
+		rb.position = Vector3(
+			(float) strtod(tokenList[0],NULL), (float) strtod(tokenList[1],NULL), (float) strtod(tokenList[2],NULL));
+		rb.orientation = Matrix3(
+			(float) strtod(tokenList[3],NULL), (float) strtod(tokenList[4],NULL), (float) strtod(tokenList[5],NULL),
+			(float) strtod(tokenList[6],NULL), (float) strtod(tokenList[7],NULL), (float) strtod(tokenList[8],NULL),
+			(float) strtod(tokenList[9],NULL), (float) strtod(tokenList[10],NULL), (float) strtod(tokenList[11],NULL));
+
+		
+		delete[] tokenList;
+
+		i++;
+		if (i == imax) {
+			j++;
+			i=0;
+			if (j == jmax)
+				break;
+		}
+	}
+	fclose(inp);
+	return true;
+}
+
+		
 
 void RigidBodyController::initializeForcePairs() {
 	// Loop over all pairs of rigid body types

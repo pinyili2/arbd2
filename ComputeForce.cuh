@@ -326,8 +326,8 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 							// Initialize exclusions
 							// TODO: see if this can be moved out of the loop;
 							// TODO: optimize exclusion code
-							const int ex_start = (excludeMap != NULL) ? excludeMap[ai].x : -1;
-							const int ex_end   = (excludeMap != NULL) ? excludeMap[ai].y : -1;
+							const int ex_start = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].x : -1;
+							const int ex_end   = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].y : -1;
 							int currEx = ex_start;
 							int nextEx = (ex_start >= 0) ? excludes[ex_start].ind2 : -1;
 							int ajLast = -1; // TODO: remove this sanity check
@@ -807,8 +807,8 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
 	
 		// Shift "angle" by "PI" since    -PI < dihedral < PI
 		// And our tabulated potential data: 0 < angle < 2 PI
-		float dangle = tableDihedral[d.tabFileIndex]->angle_step;
-		float t = (angle + BD_PI) / dangle;
+		float& dangleInv = tableDihedral[d.tabFileIndex]->angle_step_inv;
+		float t = (angle + BD_PI) * dangleInv;
 		int home = (int) floorf(t);
 		t = t - home;
 
@@ -823,7 +823,7 @@ void computeDihedrals(Vector3 force[], Vector3 pos[],
 		float dU = pot[home1] - U0; // Change in potential
 		
 		float energy = dU * t + U0;
-		float f = -dU / dangle;
+		float f = -dU * dangleInv;
 		//================================================
 		// TODO: add an option for cubic interpolation [Probably not]
 

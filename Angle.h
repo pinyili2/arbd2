@@ -21,7 +21,7 @@ class Angle
 public:
 	Angle() {}
 	Angle(int ind1, int ind2, int ind3, String fileName) :
-			ind1(ind1), ind2(ind2), ind3(ind3), fileName(fileName) { }
+	ind1(ind1), ind2(ind2), ind3(ind3), fileName(fileName), tabFileIndex(-1) { }
 	
 	int ind1, ind2, ind3;
 	// tabFileIndex will be assigned after ComputeForce loads the
