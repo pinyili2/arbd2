@@ -184,7 +184,7 @@ void RigidBodyController::initializeForcePairs() {
 						RigidBody* rb2 = &(rbs2[j]);
 
 						printf("    pushing RB force pair for %d:%d\n",i,j);
-						RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t2),rb1,rb2,gridKeyId1,gridKeyId2, false);
+						RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t2),rb1,rb2,gridKeyId1,gridKeyId2, false, conf.rigidBodyGridGridPeriod );
 						gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 						forcePairs.push_back( fp ); 
 						printf("    done pushing RB force pair for %d:%d\n",i,j);
@@ -221,7 +221,7 @@ void RigidBodyController::initializeForcePairs() {
 			// Loop over rigid bodies of these types
 			for (int i = 0; i < rbs1.size(); i++) {
 					RigidBody* rb1 = &(rbs1[i]);
-					RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t1),rb1,rb1,gridKeyId1,gridKeyId2, true);
+					RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t1),rb1,rb1,gridKeyId1,gridKeyId2, true, conf.rigidBodyGridGridPeriod);
 					gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 					forcePairs.push_back( fp ); 
 			}
@@ -246,17 +246,7 @@ void RigidBodyController::updateParticleLists(Vector3* pos_d) {
 void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) {
 	if (s <= 1)
 		gpuErrchk( cudaProfilerStart() );
-
-	
-	// clear old forces
-	for (int i = 0; i < rigidBodyByType.size(); i++) {
-		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
-			RigidBody& rb = rigidBodyByType[i][j];
-			rb.clearForce();
-			rb.clearTorque();
-		}
-	}
-	
+		
 	// Grid–particle forces
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
@@ -266,8 +256,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 	}
 	
 	// Grid–Grid forces
-	if (forcePairs.size() > 0) {
-		
+	if ( (s % conf.rigidBodyGridGridPeriod) == 0 && forcePairs.size() > 0) {
 		for (int i=0; i < forcePairs.size(); i++) {
 			// TODO: performance: make this check occur less frequently
 			if (forcePairs[i].isWithinPairlistDist())
@@ -345,6 +334,15 @@ void RigidBodyController::integrate(int step) {
 					rb.integrate(2);	
 				}
 			}
+		}
+	}
+
+	// clear old forces
+	for (int i = 0; i < rigidBodyByType.size(); i++) {
+		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+			RigidBody& rb = rigidBodyByType[i][j];
+			rb.clearForce();
+			rb.clearTorque();
 		}
 	}
 }
@@ -493,7 +491,10 @@ void RigidBodyForcePair::processGPUForces() {
 		f = f + tmpF;
 		t = t + tmpT;
 	}
-   
+
+	f *= updatePeriod;
+	t *= updatePeriod;
+	
 	rb1->addForce( f );
 	rb1->addTorque( t );
 

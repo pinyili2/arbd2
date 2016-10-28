@@ -26,8 +26,8 @@ class RigidBodyForcePair  {
 public:
 	RigidBodyForcePair(RigidBodyType* t1, RigidBodyType* t2,
 										 RigidBody* rb1, RigidBody* rb2,
-										 std::vector<int> gridKeyId1, std::vector<int> gridKeyId2, bool isPmf) :
-		type1(t1), type2(t2), rb1(rb1), rb2(rb2),
+					std::vector<int> gridKeyId1, std::vector<int> gridKeyId2, bool isPmf, int updatePeriod) :
+	updatePeriod(updatePeriod), type1(t1), type2(t2), rb1(rb1), rb2(rb2),
 		gridKeyId1(gridKeyId1), gridKeyId2(gridKeyId2), isPmf(isPmf)
 		{
 			printf("    Constructing RB force pair...\n");
@@ -35,7 +35,7 @@ public:
 			// printf("    done constructing RB force pair\n");
 		}
 	RigidBodyForcePair(const RigidBodyForcePair& o) :
-		type1(o.type1), type2(o.type2), rb1(o.rb1), rb2(o.rb2),
+		updatePeriod(o.updatePeriod), type1(o.type1), type2(o.type2), rb1(o.rb1), rb2(o.rb2),
 		gridKeyId1(o.gridKeyId1), gridKeyId2(o.gridKeyId2), isPmf(o.isPmf) {
 		printf("    Copying RB force pair...\n");
 		/* initialize(); */
@@ -52,6 +52,8 @@ public:
 private:
 	int initialize();
 	void swap(RigidBodyForcePair& a, RigidBodyForcePair& b);
+
+	int updatePeriod;
 	
 	static const int numThreads = NUMTHREADS;
 	
@@ -79,7 +81,7 @@ private:
 	static int lastStreamID;
 	static RigidBodyForcePair* lastRbForcePair;
 	static int lastRbGridID;
-
+	
 	void callGridForceKernel(int pairId, int s);
 	void retrieveForcesForGrid(const int i);
 	void processGPUForces();

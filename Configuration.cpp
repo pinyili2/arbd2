@@ -529,6 +529,7 @@ void Configuration::setDefaults() {
     // System parameters
 	outputName = "out";
 	timestep = 1e-5f;
+	rigidBodyGridGridPeriod = 1;
 	steps = 100;
 	seed = 0;
 	inputCoordinates = "";
@@ -635,6 +636,8 @@ int Configuration::readParameters(const char * config_file) {
 			outputName = value;
 		else if (param == String("timestep"))
 			timestep = (float) strtod(value.val(), NULL);
+		else if (param == String("rigidBodyGridGridPeriod"))
+			rigidBodyGridGridPeriod = atoi(value.val());
 		else if (param == String("steps"))
 			steps = atol(value.val());
 		else if (param == String("seed"))
@@ -825,7 +828,8 @@ int Configuration::readParameters(const char * config_file) {
 		}
 		// UNKNOWN
 		else {
-			printf("WARNING: Unrecognized keyword `%s'.\n", param.val());
+			printf("ERROR: Unrecognized keyword `%s'.\n", param.val());
+			exit(1);
 		}
 	}
 

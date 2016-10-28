@@ -155,6 +155,7 @@ public:
 	unsigned long randoSeed;
 
 	// Other parameters.
+	int rigidBodyGridGridPeriod;
 	float switchStart;
 	float maxInitialPot;
 	float initialZ;
