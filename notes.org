@@ -12,6 +12,7 @@
 
 
 * TODO eventually
+** enable flag to disable physics-checking assertions in kernels (also write these assertions)
 ** split computation into multiple regions
 *** simulate regions, also in overlap
 **** atoms at edge of overlap can have DoF frozen

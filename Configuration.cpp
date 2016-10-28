@@ -1059,7 +1059,7 @@ void Configuration::readBonds() {
 		}
 		
 		// If we don't have enough room in our bond array, we need to expand it.
-		if (numBonds >= capacity) {
+		if (numBonds+1 >= capacity) { // "numBonds+1" because we are adding two bonds to array
 			// Temporary pointer to the old array
 			Bond* temp = bonds;	
 
@@ -1086,6 +1086,11 @@ void Configuration::readBonds() {
 			printf("WARNING: Bond exclusions not implemented\n");
 			continue;
 		}*/
+
+		if (ind1 < 0 || ind1 >= num || ind2 < 0 || ind2 >=num) {
+			printf("ERROR: Bond file line '%s' includes invalid index\n", line);
+			exit(1);
+		}
 
 		Bond* b = new Bond(op, ind1, ind2, file_name);
 		bonds[numBonds++] = *b;
