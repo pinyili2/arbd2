@@ -46,7 +46,8 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 		Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
 		// Compute PMF
-		ForceEnergy fe = pt.pmf->interpolateForceDLinearly(p);
+		// TODO: maybe make periodic and nonPeriodic versions of this kernel
+		ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(p);
 
 #ifndef FORCEGRIDOFF
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
@@ -70,6 +71,9 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 		// Update the particle's position using the calculated values for time, force, etc.
 		float diffusion = pt.diffusion;
 		Vector3 diffGrad = Vector3(0.0f);
+		// printf("force: %f %f %f %f %f %f\n", p.x, p.y, p.z,
+		//        fe.f.x, fe.f.y, fe.f.z);
+		//        // force.x, force.y, force.z);
 
 		if (pt.diffusionGrid != NULL) {
 			// printf("atom %d: pos: %f %f %f\n", idx, p.x, p.y, p.z);

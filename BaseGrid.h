@@ -571,15 +571,19 @@ public:
 		float v[2][2][2];
 		for (int iz = 0; iz < 2; iz++) {
 			int jz = (iz + homeZ);
-			if (jz >= nz) jz = 0;	 
+			jz = (jz < 0) ? nz-1 : jz;
+			jz = (jz >= nz) ? 0 : jz;
 			for (int iy = 0; iy < 2; iy++) {
 				int jy = (iy + homeY);
-				if (jy >= ny) jy = 0;	 
+				jy = (jy < 0) ? ny-1 : jy;
+				jy = (jy >= ny) ? 0 : jy;
 				for (int ix = 0; ix < 2; ix++) {
 					int jx = (ix + homeX);
-					if (jx >= nx) jx = 0;	 
+					jx = (jx < 0) ? nx-1 : jx;
+					jx = (jx >= nx) ? 0 : jx;	 
 					int ind = jz + jy*nz + jx*nz*ny;
 					v[ix][iy][iz] = val[ind];
+					// printf("%d %d %d: %d %f\n",ix,iy,iz,ind,val[ind]); looks OK
 				}
 			}
 		}
