@@ -1,0 +1,47 @@
+/============================================\
+| Atomic Resolution Brownian Dynamics (ARBD) |
+\============================================/
+
+Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
+nanomaterials that balances detail with computational efficiency.
+
+ARBD supports tabulated non-bonded and bonded interactions between BD particles
+that can also be influenced by grid-specified potentials. Uniquely, ARBD also allows grid-specified densities and potentials to be associated with rigid body particles that rotate and translate to represent larger molecules. Most importantly,
+
+Please be aware that ARBD is being actively developed, is offered as alpha
+software (bugs may be present) and is offered without warranty.
+
+/==============\
+| Installation |
+\==============/
+
+To build, please run `make' in the src directory
+
+Note that ARBD was developed using CUDA-8.0 and targets NVIDIA GPUs featuring
+6.0 compute capability. The code should still run using older NVIDIA hardware,
+but no guarantees are being made.
+
+/========\
+| Citing |
+\========/
+
+If you publish results obtained using ARBD, please cite the following manuscript:
+
+"Atoms-to-microns model for small solute transport through sticky nanochannels"
+Rogan Carr, Jeffrey Comer, Mark D. Ginsberg, and Aleksei Aksimentiev
+Lab Chip 11(22) 3766-73 (2011)
+
+/=========\
+| Authors |
+\=========/
+
+ARBD is developed by the Aksimentiev group (http://bionano.physics.illinois.edu).
+
+Please direct questions or problems to Chris.
+
+Christopher Maffeo <cmaffeo2@illinois.edu>
+Jeffrey Comer
+Max Belkin
+Emmanual Guzman
+Justin Dufresne
+Terrance Howard

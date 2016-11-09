@@ -359,6 +359,7 @@ void RigidBodyForcePair::createStreams() {
 		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
 }
 bool RigidBodyForcePair::isWithinPairlistDist() const {
+	if (isPmf) return true;
 	float pairlistDist = 2.0f; /* TODO: get from conf */
 	float rbDist = (rb1->getPosition() - rb2->getPosition()).length();
 		
