@@ -1,6 +1,6 @@
 ### Paths, libraries, includes, options
-CUDA_PATH ?= /usr/local/cuda-8.0
 include ./findcudalib.mk
+CUDA_PATH ?= /usr/local/cuda-8.0
 
 $(info CUDA_PATH=$(CUDA_PATH))
 INCLUDE = $(CUDA_PATH)/include
