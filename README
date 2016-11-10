@@ -5,11 +5,15 @@
 Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
 nanomaterials that balances detail with computational efficiency.
 
-ARBD supports tabulated non-bonded and bonded interactions between BD particles
-that can also be influenced by grid-specified potentials. Uniquely, ARBD also allows grid-specified densities and potentials to be associated with rigid body particles that rotate and translate to represent larger molecules. Most importantly,
+ARBD supports tabulated non-bonded and bonded interactions between BD
+particles that can also be influenced by grid-specified
+potentials. Uniquely, ARBD also allows grid-specified densities and
+potentials to be associated with rigid body particles that rotate and
+translate to represent larger molecules. Most importantly, the code is
+designed to run quickly on modern NVIDIA GPUs.
 
 Please be aware that ARBD is being actively developed, is offered as alpha
-software (bugs may be present) and is offered without warranty.
+software without warranty. Expect to run into the occasional bug.
 
 /==============\
 | Installation |
