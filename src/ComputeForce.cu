@@ -96,8 +96,8 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 	gpuErrchk(cudaMalloc(&tableDihedral_d, sizeof(TabulatedDihedralPotential*) * numTabDihedralFiles));
 
 	{	// allocate device for pairlists
-		// RBTODO: select maxpairs in better way
-		const int maxPairs = 1<<20;
+		// RBTODO: select maxpairs in better way; add assertion in kernel to avoid going past this
+		const int maxPairs = 1<<25;
 		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
 		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
 		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
