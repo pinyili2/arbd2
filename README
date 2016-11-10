@@ -17,15 +17,22 @@ the GPU and enabling grid-specified particle models. Please be aware that ARBD
 is being actively developed and is offered without warranty.
 
 
-/==============\
-| Installation |
-\==============/
+/==========\
+| Building |
+\==========/
 
-To build, please run `make' in the src directory
+To build, please run `make' in the src directory.
+
+If your CUDA toolkit is installed in a nonstandard location, you may specify
+that location using the CUDA_PATH environment variable. For example:
+make CUDA_PATH=/nonstandard/path/to/cuda
 
 Note that ARBD was developed using CUDA-8.0 and targets NVIDIA GPUs featuring
-6.0 compute capability. The code should still run using older NVIDIA hardware,
-but no guarantees are being made.
+6.0 compute capability. The code should work with devices with compute capability >=2.0,
+but there are no guarantees.
+
+Older versions of CUDA are not compatible with SM 6.0, so you may need to change
+the SMS variable in the makefile, or specify it as an argument to make.
 
 
 /==============\
@@ -36,9 +43,11 @@ Please explore the examples in the 'tests' directory.
 
 For example, try the following commands:
 
-cd tests/argon
+cd tests/argon-small
 mkdir output
 ../../src/arbd BrownDyn.bd output/BrownDyn > output/BrownDyn.log
+
+You may use the '-g n' option to specify the n-th GPU on your machine, counting from 0.
 
 
 /========\

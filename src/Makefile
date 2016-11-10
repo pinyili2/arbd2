@@ -42,10 +42,7 @@ SM=$(lastword $(sort $(SMS)))
 NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM)
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
-
 LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
-LD_FLAGS += -lcuda 
-
 
 ### Sources
 CC_SRC := $(wildcard *.cpp)
