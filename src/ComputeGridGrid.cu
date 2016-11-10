@@ -30,7 +30,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 		r_pos = basis_rho.transform( r_pos ) + origin_rho_minus_origin_u; /* real space */
 		const Vector3 u_ijk_float = basis_u_inv.transform( r_pos );
 
-		// RBTODO What about non-unit delta?
+		// RBTODO: Test for non-unit delta
 		/* Vector3 tmpf  = Vector3(0.0f); */
 		/* float tmpe = 0.0f; */
 		/* const ForceEnergy fe = ForceEnergy( tmpf, tmpe); */
@@ -90,7 +90,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 		atomicAdd( &particleForce[id], force[tid] ); // apply force to particle
 		
 		// Calculate torque about origin_u in the lab frame
-		torque[tid] = p.cross(force[tid]);				// RBTODO: test if sign is correct!
+		torque[tid] = p.cross(force[tid]);				// RBTODO: test sign
 	}
 
 	// Reduce force and torques

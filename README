@@ -1,6 +1,6 @@
-/============================================\
-| Atomic Resolution Brownian Dynamics (ARBD) |
-\============================================/
+/===========================================================\
+| Atomic Resolution Brownian Dynamics (ARBD) - alpha Nov 16 |
+\===========================================================/
 
 Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
 nanomaterials that balances detail with computational efficiency.
@@ -12,8 +12,10 @@ potentials to be associated with rigid body particles that rotate and
 translate to represent larger molecules. Most importantly, the code is
 designed to run quickly on modern NVIDIA GPUs.
 
-Please be aware that ARBD is being actively developed, is offered as alpha
-software without warranty. Expect to run into the occasional bug.
+ARBD is a rewrite of the BrownianMover code, moving almost all computations to
+the GPU and enabling grid-specified particle models. Please be aware that ARBD
+is being actively developed and is offered without warranty.
+
 
 /==============\
 | Installation |
@@ -25,21 +27,33 @@ Note that ARBD was developed using CUDA-8.0 and targets NVIDIA GPUs featuring
 6.0 compute capability. The code should still run using older NVIDIA hardware,
 but no guarantees are being made.
 
+
 /========\
 | Citing |
 \========/
 
-If you publish results obtained using ARBD, please cite the following manuscript:
+If you publish results obtained using ARBD, please cite the following manuscripts:
+
+"DNA base-calling from a nanopore using a Viterbi algorithm"
+Winston Timp, Jeffrey Comer, and Aleksei Aksimentiev
+Biophys J 102(10) L37-9 (2012)
+
+"Predicting the DNA sequence dependence of nanopore ion current using atomic-resolution Brownian dynamics"
+Jeffrey Comer and Aleksei Aksimentiev.
+J Phys Chem C Nanomater Interfaces 116:3376-3393 (2012).
 
 "Atoms-to-microns model for small solute transport through sticky nanochannels"
 Rogan Carr, Jeffrey Comer, Mark D. Ginsberg, and Aleksei Aksimentiev
 Lab Chip 11(22) 3766-73 (2011)
 
+
 /=========\
 | Authors |
 \=========/
 
-ARBD is developed by the Aksimentiev group (http://bionano.physics.illinois.edu).
+ARBD is developed by the Aksimentiev group (http://bionano.physics.illinois.edu)
+as a part of the NIH Center for Macromolecular Modeling and Bioinformatics
+(http://www.ks.uiuc.edu/).
 
 Please direct questions or problems to Chris.
 

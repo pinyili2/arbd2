@@ -299,7 +299,9 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 		/* if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]); */
 	}
 }
-	__global__
+
+// TODO: deprecate?
+__global__
 void computeKernel(Vector3 force[], Vector3 pos[], int type[],
 									 float tableAlpha[], float tableEps[], float tableRad6[],
 									 int num, int numParts, BaseGrid* sys,
@@ -431,17 +433,14 @@ __global__ void computeTabulatedEnergyKernel(Vector3* force, const Vector3* __re
 		// RBTODO: implement wrapDiff2, returns dr2 (???)
 		Vector3 dr = pos[aj] - pos[ai];
 		dr = sys->wrapDiff(dr);
-    // Calculate the force based on the tabulatedPotential file
 		float d2 = dr.length2();
-		/* RBTODO: filter tabpot particles ahead of time */
 		// RBTODO: order pairs according to distance to reduce divergence // not actually faster
 		
 		if (tablePot[ind] != NULL && d2 <= cutoff2) { 
 			EnergyForce fe = tablePot[ind]->compute(dr,d2);
-			// RBTODO: is this the best approach?
 			atomicAdd( &force[ai], -fe.f );
 			atomicAdd( &force[aj],  fe.f );
-			// RBTODO: why are energies calculated for each atom? Could be reduced
+			// RBTODO: reduce energies
 			atomicAdd( &(g_energies[ai]), fe.e );
 			atomicAdd( &(g_energies[aj]), fe.e );
 		}
@@ -579,70 +578,7 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 	}
 }
 
-//Mlog: the commented function doesn't use bondList, uncomment for testing.
-/*__global__ void computeTabulatedBonds( Vector3* force,		Vector3* pos,		int num,
-									   int numParts,		BaseGrid* sys,		Bond* bonds,
-									   int2* bondMap,		int numBonds,		int numReplicas,
-									   float* g_energies,	bool get_energy,	TabulatedPotential** tableBond)
-{
-	// Thread's unique ID.
-	int i = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
-
-	// Loop over ALL bonds in ALL replicas
-	if(i < num * numReplicas)
-	{
-		// Initialize interaction energy (per particle)
-		float energy_local = 0.0f;
-
-		const int repID = i / num; //TODO: ask why repID is even here, it's unnecessary in this kernel
-		*/
-		// BONDS
-		/* Each particle may have a varying number of bonds
-		 * bondMap is an array with one element for each particle
-		 * which keeps track of where a particle's bonds are stored
-		 * in the bonds array.
-		 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
-		 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
-		 */
-
-		// Get bond_start and bond_end from the bondMap
-		/*const int bond_start = bondMap[i - repID * num].x;
-		const int bond_end = bondMap[i - repID * num].y;
-		
-		// Initialize force_local - force on a particle (i)
-		Vector3 force_local(0.0f);
-		
-		for (int currBond = bond_start; currBond < bond_end; ++currBond)
-		{
-			// currBond is the index in the bonds array that we should look at next
-			// currBond is initialized to bond_start because that is the first index of the
-			// bonds array where this particle's bonds are stored
-
-			int j = bonds[currBond].ind2; // other particle ID
-
-			// Particle's type and position
-			Vector3 posi = pos[i];
-		
-			// Find the distance between particles i and j,
-			// wrapping this value if necessary
-			const Vector3 dr = sys->wrapDiff(pos[j] - posi);
-
-			// Calculate the force on the particle from the bond
-			// If the user has specified the REPLACE option for this bond,
-			// then overwrite the force we calculated from the regular
-			// tabulated potential
-			// If the user has specified the ADD option, then add the bond
-			// force to the tabulated potential value
-
-			force_local += tableBond[ bonds[currBond].tabFileIndex ]->computef(dr,dr.length2());
-		}
-		atomicAdd( &force[i], force_local );
-		
-		if (get_energy)
-			atomicAdd( &g_energies[i], energy_local);
-	}
-}*/
-
+// TODO: add kernels for energy calculations
 __global__ void computeTabulatedBonds(Vector3* force,
 				Vector3* __restrict__ pos,
 				BaseGrid* __restrict__ sys,
@@ -655,9 +591,6 @@ __global__ void computeTabulatedBonds(Vector3* force,
 		int i = bondList_d[bid].x;
 		int j = bondList_d[bid].y;
 
-		// Particle's type and position
-		//Vector3 posi = pos[i];
-		
 		// Find the distance between particles i and j,
 		// wrapping this value if necessary
 		const Vector3 dr = sys->wrapDiff(pos[j] - pos[i]);
@@ -676,7 +609,6 @@ __global__ void computeTabulatedBonds(Vector3* force,
 	}
 }
 
-// TODO: add kernel for energy calculation 
 __global__
 void computeTabulatedAngles(Vector3* force,
 				Vector3* __restrict__ pos,
@@ -793,7 +725,6 @@ void computeTabulatedDihedrals(Vector3* force, const Vector3* __restrict__ pos,
 	// int currDihedral = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
 
     // Loop over ALL dihedrals in ALL replicas
-    // TODO make grid stride loop
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numDihedrals; i+=blockDim.x*gridDim.x) {
 		const int4& ids = dihedralList_d[i];
 		const int& id = dihedralPotList_d[i];

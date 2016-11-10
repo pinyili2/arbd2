@@ -95,6 +95,14 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 	}
 	gpuErrchk(cudaMalloc(&tableDihedral_d, sizeof(TabulatedDihedralPotential*) * numTabDihedralFiles));
 
+	{	// allocate device for pairlists
+		// RBTODO: select maxpairs in better way
+		const int maxPairs = 1<<20;
+		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
+		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
+		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
+	}
+	
 	//Calculate the number of blocks the grid should contain
 	gridSize =  num / NUM_THREADS + 1;
 
@@ -109,10 +117,10 @@ ComputeForce::~ComputeForce() {
 	delete[] tableEps;
 	delete[] tableRad6;
 	delete[] tableAlpha;
-	cudaFree(tableEps_d);
-	cudaFree(tableAlpha_d);
-	cudaFree(tableRad6_d);
-
+	gpuErrchk(cudaFree(tableEps_d));
+	gpuErrchk(cudaFree(tableAlpha_d));
+	gpuErrchk(cudaFree(tableRad6_d));
+	
 	for (int j = 0; j < numParts * numParts; ++j)
 		delete tablePot[j];
 	delete[] tablePot;
@@ -149,6 +157,11 @@ ComputeForce::~ComputeForce() {
 		gpuErrchk( cudaFree(dihedrals_d) );
 		gpuErrchk( cudaFree(bondList_d) );
 	}
+
+	gpuErrchk(cudaFree(numPairs_d));
+	gpuErrchk(cudaFree(pairLists_d));
+	gpuErrchk(cudaFree(pairTabPotType_d));
+
 }
 
 void ComputeForce::updateNumber(int newNum) {
@@ -395,17 +408,6 @@ void ComputeForce::decompose() {
 	// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
 	int blocksPerCell = 10;
-	if (newDecomp) {
-		// RBTODO: free memory elsewhere
-		// allocate device data
-		const int maxPairs = 1<<20;
-		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
-
-		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
-		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
-
-		gpuErrchk(cudaDeviceSynchronize());
-	}
 
 	
 	/* cuMemGetInfo(&free,&total); */
@@ -450,12 +452,6 @@ IndexList ComputeForce::decompDim() const {
 CellDecomposition ComputeForce::getDecomp() { return decomp; }
 
 float ComputeForce::decompCutoff() { return decomp.getCutoff(); }
-
-// TODO: Fix this
-int* ComputeForce::neighborhood(Vector3 r) {
-	// return decomp.getCell(r)->getNeighbors();
-	return NULL;
-}
 
 float ComputeForce::computeFull(bool get_energy) {
 	float energy = 0.0f;
