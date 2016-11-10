@@ -435,25 +435,8 @@ void ComputeForce::decompose() {
 	// Use shared memory for warp_bcast function
 	createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 #endif			
-
 	
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
-	// if (false)
-	{ // sort pairlist
-		int numPairs;
-		gpuErrchk(cudaMemcpyAsync( &numPairs, numPairs_d, sizeof(int), cudaMemcpyDeviceToHost));
-		gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
-		printf("here, %d pairs\n", numPairs);
-		/* runSort(pairLists_d, pairTabPotType_d, pairDists_d, */
-		/* 				pairLists_s, pairTabPotType_s, pairDists_s, */
-		/* 				numPairs); */
-		/* printf("done\n"); */
-		
-		/* // RBTODO: sort pairListInd as well!!! (i.e. roll your own sort!) */
-		/* // thrust::sort_by_key( pairDists_d, pairDists_d+numPairs_d, pairLists_d ); */
-		/* // thrust::sort_by_key( pairDists_d, pairDists_d+numPairs_d, pairLists_d ); */
-		/* gpuErrchk(cudaDeviceSynchronize()); /\* RBTODO: sync needed here? *\/ */
-	}
 }
 
 IndexList ComputeForce::decompDim() const {
