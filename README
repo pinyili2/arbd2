@@ -28,6 +28,19 @@ Note that ARBD was developed using CUDA-8.0 and targets NVIDIA GPUs featuring
 but no guarantees are being made.
 
 
+/==============\
+| Installation |
+\==============/
+
+Please explore the examples in the 'tests' directory.
+
+For example, try the following commands:
+
+cd tests/argon
+mkdir output
+../../src/arbd BrownDyn.bd output/BrownDyn > output/BrownDyn.log
+
+
 /========\
 | Citing |
 \========/
