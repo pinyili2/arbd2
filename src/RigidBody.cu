@@ -103,10 +103,15 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 			gpuErrchk(cudaMemcpy( tmp_d, &numParticles[i], sizeof(int), cudaMemcpyHostToDevice ));
 
 			int nb = floor(tnp/NUMTHREADS) + 1;
+#if __CUDA_ARCH__ >= 300
 			createPartlist<<<NUMTHREADS,nb>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
 							gridCenter + position, cutoff*cutoff);
-
+#else
+			createPartlist<<<NUMTHREADS,nb,NUMTHREADS/WARPSIZE>>>(pos_d, tnp, t->particles_d[i],
+							tmp_d, particles_d[i],
+							gridCenter + position, cutoff*cutoff);
+#endif			
 			gpuErrchk(cudaMemcpy(&numParticles[i], tmp_d, sizeof(int), cudaMemcpyDeviceToHost ));
 		}
 	}

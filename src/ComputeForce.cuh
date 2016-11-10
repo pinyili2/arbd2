@@ -214,78 +214,6 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 /* } */
 
 __global__
-void createPairlistsOld(Vector3* __restrict__ pos, int num, int numReplicas,
-										 BaseGrid* sys, CellDecomposition* __restrict__ decomp,
-										 const int nCells, const int blocksPerCell,
-										 int* g_numPairs, int2* g_pair,
-										 int numParts, int type[], int* __restrict__ g_pairTabPotType,
-	float pairlistdist2) {
-	// Loop over threads searching for atom pairs
-  //   Each thread has designated values in shared memory as a buffer
-  //   A sync operation periodically moves data from shared to global
-	const int tid = threadIdx.x;
-	const int bid = blockIdx.x;
-
-	const int cID = bid / blocksPerCell; /* cellID */
-
-	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
-	// const int wid = tid/WARPSIZE;
-	const int blockLane = bid % blocksPerCell;
-
-	if (cID >= nCells) return;
-	int count = 0;								/* debug */
-	const CellDecomposition::cell_t* pairs = decomp->getCells();
-
-	for (int repID = 0; repID < numReplicas; repID++) {
-		const CellDecomposition::range_t rangeI = decomp->getRange(cID, repID);
-		/* if (tid == 0) printf("  Cell%d: Working on %d atoms for repID %d\n", */
-		/* 										 cID, rangeI.last - rangeI.first, repID); */
-
-		for (int ci = rangeI.first + blockLane; ci < rangeI.last; ci+=blocksPerCell) {
-			// ai - index of the particle in the original, unsorted array
-			const int ai = pairs[ci].particle;
-			// const CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
-			const CellDecomposition::cell_t celli = pairs[ci];
-			const Vector3 posi = pos[ai];
-				
-			for (int x = -1; x <= 1; ++x) {
-				for (int y = -1; y <= 1; ++y) {
-					for (int z = -1; z <= 1; ++z) {					
-					
-						const int nID = decomp->getNeighborID(celli, x, y, z);				
-						if (nID < 0) continue; 
-						const CellDecomposition::range_t range = decomp->getRange(nID, repID);
-						const int last = range.last;
-						// for (int n = 0; n < last; n++) {}
-						for (int n = range.first + tid; n < last; n+=blockDim.x) {
-							count++;
-							const int aj = pairs[n].particle;
-							if (aj <= ai) continue;
-
-							// skip ones that are too far away
-							float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
-							if (dr > pairlistdist2) continue;
-
-							int gid = atomicAggInc( g_numPairs, warpLane );
-
-							// RBTODO: skip exclusions, non-interacting types
-							int pairType = type[ai] + type[aj] * numParts;
-							/* assert( ai >= 0 ); */
-							/* assert( aj >= 0 ); */
-							
-							g_pair[gid] = make_int2(ai,aj);
-							g_pairTabPotType[gid] = pairType;
-							// g_pairDists[gid] = dr; 
-						} 	// atoms J
-					} 		// z				
-				} 			// y
-			} 				// x
-		} // atoms I					
-	} // replicas
-	/* if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]); */
-}
-
-__global__
 void createPairlists(Vector3* __restrict__ pos, const int num, const int numReplicas,
 				const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
 				const int nCells,
@@ -294,8 +222,8 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 				const Exclude* __restrict__ excludes, const int2* __restrict__ excludeMap, const int numExcludes,
 				float pairlistdist2) {
 	// Loop over threads searching for atom pairs
-  //   Each thread has designated values in shared memory as a buffer
-  //   A sync operation periodically moves data from shared to global
+	//   Each thread has designated values in shared memory as a buffer
+	//   A sync operation periodically moves data from shared to global
 	const int tid = threadIdx.x;
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
 	const int split = 32;					/* numblocks should be divisible by split */

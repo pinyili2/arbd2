@@ -2,6 +2,7 @@
 #pragma once
 #include "useful.h"
 #define NUMTHREADS 96
+#define WARPSIZE 32
 
 class RigidBodyGrid;
 

@@ -1,6 +1,19 @@
 #include "CudaUtil.cuh"
 
-__device__ int warp_bcast(int v, int leader) { return __shfl(v, leader); }
+#if __CUDA_ARCH__ >= 300
+__device__ int warp_bcast(int v, int leader) {return __shfl(v, leader); }
+#else
+volatile extern __shared__ int sh[];
+__device__ int warp_bcast(int v, int leader) {
+	// WARNING: might not be safe to call in divergent branches 
+	const int tid = threadIdx.x;
+	const int warpLane = tid % WARPSIZE;
+	if (warpLane == leader)
+		sh[tid/WARPSIZE] = v;
+	return sh[tid/WARPSIZE];		
+}	
+#endif
+
 __device__ int atomicAggInc(int *ctr, int warpLane) {
 	// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
 	int mask = __ballot(1);

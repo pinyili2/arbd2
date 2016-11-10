@@ -386,7 +386,6 @@ void ComputeForce::decompose() {
 	// Update pairlists using cell decomposition (not sure this is really needed or good) 
 	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);	
 
-
 	/* size_t free, total; */
 	/* { */
 	/* 	cuMemGetInfo(&free,&total); */
@@ -399,8 +398,7 @@ void ComputeForce::decompose() {
 	if (newDecomp) {
 		// RBTODO: free memory elsewhere
 		// allocate device data
-		// initializePairlistArrays<<< 1, 32 >>>(10*nCells*blocksPerCell);
-		const int maxPairs = 1<<25;
+		const int maxPairs = 1<<20;
 		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
 
 		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
@@ -431,12 +429,14 @@ void ComputeForce::decompose() {
 	float pairlistdist2 = (sqrt(cutoff2) + 2.0f);
 	pairlistdist2 = pairlistdist2*pairlistdist2;
 	
+#if __CUDA_ARCH__ >= 300
 	createPairlists<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-	/* createPairlistsOld<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, */
-	/* 																					 sys_d, decomp_d, nCells, blocksPerCell, */
-	/* 																					 numPairs_d, pairLists_d, */
-	/* 																					 numParts, type, pairTabPotType_d, pairlistdist2); */
+#else
+	// Use shared memory for warp_bcast function
+	createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+#endif			
 
+	
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 	// if (false)
 	{ // sort pairlist
