@@ -1,29 +1,18 @@
 ### Paths, libraries, includes, options
 include ./findcudalib.mk
-CUDA_PATH ?= /usr/local/cuda-8.0
-
-$(info CUDA_PATH=$(CUDA_PATH))
 INCLUDE = $(CUDA_PATH)/include
 
+NV_FLAGS += v
 ifeq ($(dbg),1)
-	DEBUG = -g -O0
-	NV_FLAGS = -v -g -G
+	CC_FLAGS += -g -O0
+	NV_FLAGS += -g -G
 	EX_FLAGS = -O0 -m$(OS_SIZE)
 else
-	NV_FLAGS = -v
 	EX_FLAGS = -O3 -m$(OS_SIZE)
 endif
 
-CC_FLAGS = -Wall -Wno-write-strings -I$(INCLUDE) $(DEBUG) -std=c++0x -pedantic
+CC_FLAGS += -Wall -Wno-write-strings -I$(INCLUDE) -std=c++0x -pedantic
 NV_FLAGS += -lineinfo
-
-ifneq ($(MAVERICKS),)
-    CC = $(CLANG)
-    CC_FLAGS += -stdlib=libstdc++
-    NV_FLAGS += -Xcompiler -arch -Xcompiler x86_64
-else
-    CC = $(GCC)
-endif
 
 ifneq ($(DARWIN),)
     LIBRARY = $(CUDA_PATH)/lib
@@ -33,13 +22,17 @@ endif
 
 # NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
+## Find valid compute capabilities for this machine
 SMS ?= 20 30 35 37 50 52 60
-## Generate SASS code
-$(foreach SM,$(SMS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM)) )
+$(info Testing CUDA toolkit with compute capabilities SMS='$(SMS)')
+SMS := $(shell for sm in $(SMS); do $(NVCC) cuda-test.c -arch=sm_$$sm &> /dev/null && echo $$sm; done)
 
-## Generate PTX code for highest SM architecture for future GPUs
-SM=$(lastword $(sort $(SMS)))
-NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM)
+SMPTXS ?= $(lastword $(sort $(SMS)))
+$(info Building SASS code for SMS='$(SMS)' and PTX code for '$(SMPTXS)')
+
+## Generate SASS and PTX code
+$(foreach SM,$(SMS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM)) )
+$(foreach SM,$(SMPTXS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)) )
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
 LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
@@ -51,7 +44,6 @@ CU_SRC := $(wildcard *.cu)
 
 CC_OBJ := $(patsubst %.cpp, %.o, $(CC_SRC))
 CU_OBJ := $(patsubst %.cu, %.o, $(CU_SRC))
-
 
 ### Targets
 TARGET = arbd

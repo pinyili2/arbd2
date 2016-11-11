@@ -34,6 +34,17 @@
 #
 ################################################################################
 
+## Find Location of most recent CUDA Toolkit
+ifeq (,$(CUDA_PATH))
+	CUDA_PATH := $(shell echo $(wildcard /usr/local/cuda*) | tr ' ' '\n' | sort -Vr | head -n1)
+    ifeq (,$(CUDA_PATH))
+        $(info ERROR: Could not CUDA_PATH. Please pass as follows: $(MAKE) CUDA_PATH=/path/to/cuda)
+        exit
+    else 
+        $(info Using CUDA_PATH=$(CUDA_PATH))
+    endif
+endif
+
 # OS Name (Linux or Darwin)
 OSUPPER = $(shell uname -s 2>/dev/null | tr "[:lower:]" "[:upper:]")
 OSLOWER = $(shell uname -s 2>/dev/null | tr "[:upper:]" "[:lower:]")
@@ -66,6 +77,7 @@ ifneq ($(DARWIN),)
    LION        = $(strip $(findstring 10.7, $(shell egrep "<string>10\.7" /System/Library/CoreServices/SystemVersion.plist)))
    MOUNTAIN    = $(strip $(findstring 10.8, $(shell egrep "<string>10\.8" /System/Library/CoreServices/SystemVersion.plist)))
    MAVERICKS   = $(strip $(findstring 10.9, $(shell egrep "<string>10\.9" /System/Library/CoreServices/SystemVersion.plist)))
+   MAVERICKS   = $(strip $(findstring 10.9, $(shell egrep "<string>10\.9" /System/Library/CoreServices/SystemVersion.plist)))
 endif 
 
 # Common binaries
@@ -73,16 +85,16 @@ GCC   ?= g++
 CLANG ?= /usr/bin/clang++
 
 ifeq ("$(OSUPPER)","LINUX")
-     NVCC ?= $(CUDA_PATH)/bin/nvcc -ccbin $(GCC)
+	CC=$(GCC)
 else
-  # for some newer versions of XCode, CLANG is the default compiler, so we need to include this
-  ifneq ($(MAVERICKS),)
-        NVCC   ?= $(CUDA_PATH)/bin/nvcc -ccbin $(CLANG)
-        STDLIB ?= -stdlib=libstdc++
-  else
-        NVCC   ?= $(CUDA_PATH)/bin/nvcc -ccbin $(GCC)
-  endif
+    # for some newer versions of XCode, CLANG is the default compiler, so we need to include this
+    ifeq ($(shell expr `xcodebuild -version | grep -i xcode | awk '{print $$2}' | cut -d'.' -f1` \>= 5),1)
+        CC = $(CLANG)
+		CC_FLAGS += -stdlib=libstdc++
+		NV_FLAGS += -Xcompiler -arch -Xcompiler x86_64
+    endif
 endif
+NVCC ?= $(CUDA_PATH)/bin/nvcc -ccbin $(CC)
 
 # Take command line flags that override any of these settings
 ifeq ($(i386),1)
@@ -97,130 +109,3 @@ ifeq ($(ARMv7),1)
 	OS_SIZE = 32
 	OS_ARCH = armv7l
 endif
-
-ifeq ("$(OSUPPER)","LINUX")
-    # Each Linux Distribuion has a set of different paths.  This applies especially when using the Linux RPM/debian packages
-    ifeq ("$(DISTRO)","ubuntu")
-        CUDAPATH  ?= /usr/lib/nvidia-current
-        CUDALINK  ?= -L/usr/lib/nvidia-current
-        DFLT_PATH  = /usr/lib
-    endif
-    ifeq ("$(DISTRO)","kubuntu")
-        CUDAPATH  ?= /usr/lib/nvidia-current
-        CUDALINK  ?= -L/usr/lib/nvidia-current
-        DFLT_PATH  = /usr/lib
-    endif
-    ifeq ("$(DISTRO)","debian")
-        CUDAPATH  ?= /usr/lib/nvidia-current
-        CUDALINK  ?= -L/usr/lib/nvidia-current
-        DFLT_PATH  = /usr/lib
-    endif
-    ifeq ("$(DISTRO)","suse")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","suse linux")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","opensuse")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","fedora")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?= /usr/lib64/nvidia
-        CUDALINK  ?= -L/usr/lib64/nvidia
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","redhat")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?= /usr/lib64/nvidia
-        CUDALINK  ?= -L/usr/lib64/nvidia
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","red")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?= /usr/lib64/nvidia
-        CUDALINK  ?= -L/usr/lib64/nvidia
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","redhatenterpriseworkstation")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?= /usr/lib64/nvidia
-        CUDALINK  ?= -L/usr/lib64/nvidia
-        DFLT_PATH ?= /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH ?= /usr/lib
-      endif
-    endif
-    ifeq ("$(DISTRO)","centos")
-      ifeq ($(OS_SIZE),64)
-        CUDAPATH  ?= /usr/lib64/nvidia
-        CUDALINK  ?= -L/usr/lib64/nvidia
-        DFLT_PATH  = /usr/lib64
-      else
-        CUDAPATH  ?=
-        CUDALINK  ?=
-        DFLT_PATH  = /usr/lib
-      endif
-    endif
-  
-    ifeq ($(ARMv7),1)
-      CUDAPATH := /usr/arm-linux-gnueabihf/lib
-      CUDALINK := -L/usr/arm-linux-gnueabihf/lib
-      ifneq ($(TARGET_FS),) 
-        CUDAPATH += $(TARGET_FS)/usr/lib/nvidia-current
-        CUDALINK += -L$(TARGET_FS)/usr/lib/nvidia-current
-      endif 
-    endif
-
-  # Search for Linux distribution path for libcuda.so
-  CUDALIB ?= $(shell find $(CUDAPATH) $(DFLT_PATH) -name libcuda.so -print 2>/dev/null)
-
-  ifeq ("$(CUDALIB)",'')
-      $(info >>> WARNING - CUDA Driver libcuda.so is not found.  Please check and re-install the NVIDIA driver. <<<)
-      EXEC=@echo "[@]"
-  endif
-else
-  # This would be the Mac OS X path if we had to do anything special
-endif
-

@@ -666,7 +666,7 @@ public:
 
   // Wrap coordinate: 0 <= x < l
   HOST DEVICE   inline int quotient(float x, float l) const {
-#ifdef __CUDA_ARCH__
+#if __CUDA_ARCH__ > 0
 	  return int(floorf( __fdividef(x,l) ));
 #else
 	  return int(floor(x/l));

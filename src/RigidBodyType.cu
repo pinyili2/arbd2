@@ -1,8 +1,10 @@
+#include <assert.h>
 #include "Configuration.h"
 #include "RigidBodyType.h"
 #include "Reservoir.h"
 #include "BaseGrid.h"
 #include "RigidBodyGrid.h"
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
