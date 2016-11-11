@@ -5,7 +5,7 @@
 
 #include <cmath>
 #include "useful.h"
-using namespace std;
+// using namespace std;
 
 class FlowForce {
 public:

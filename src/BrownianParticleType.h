@@ -13,7 +13,6 @@
 #include "Reservoir.h"
 #include "BaseGrid.h"
 #include "CellDecomposition.h"
-#include "BaseGrid.h"
 
 // Stores particle type's potential grid and other information
 class BrownianParticleType {

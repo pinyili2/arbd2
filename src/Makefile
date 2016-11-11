@@ -2,7 +2,6 @@
 include ./findcudalib.mk
 INCLUDE = $(CUDA_PATH)/include
 
-NV_FLAGS += v
 ifeq ($(dbg),1)
 	CC_FLAGS += -g -O0
 	NV_FLAGS += -g -G
@@ -11,7 +10,8 @@ else
 	EX_FLAGS = -O3 -m$(OS_SIZE)
 endif
 
-CC_FLAGS += -Wall -Wno-write-strings -I$(INCLUDE) -std=c++0x -pedantic
+CC_FLAGS += -I$(CUDA_PATH)/include
+# CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic
 NV_FLAGS += -lineinfo
 
 ifneq ($(DARWIN),)
@@ -22,10 +22,16 @@ endif
 
 # NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
+$(info $(NVCC))
+
 ## Find valid compute capabilities for this machine
 SMS ?= 20 30 35 37 50 52 60
 $(info Testing CUDA toolkit with compute capabilities SMS='$(SMS)')
-SMS := $(shell for sm in $(SMS); do $(NVCC) cuda-test.c -arch=sm_$$sm &> /dev/null && echo $$sm; done)
+SMS := $(shell for sm in $(SMS); do $(NVCC) cuda-test.c -arch=sm_$$sm -o /dev/null &> /dev/null && echo $$sm; done)
+
+ifeq (,$(SMS))
+    $(error nvcc ($(NVCC)) failed with all tested compute capabilities.)
+endif
 
 SMPTXS ?= $(lastword $(sort $(SMS)))
 $(info Building SASS code for SMS='$(SMS)' and PTX code for '$(SMPTXS)')

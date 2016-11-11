@@ -19,10 +19,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
-#include <cuda.h>
+// #include <cuda.h>
 
 
-using namespace std;
+// using namespace std;
 
 #define STRLEN 512
 

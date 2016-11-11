@@ -8,7 +8,7 @@
 #include "BaseGrid.h"
 #include "FlowForce.h"
 
-using namespace std;
+// using namespace std;
 
 int main(int argc, char* argv[]) {
   if ( argc != 4 ) {

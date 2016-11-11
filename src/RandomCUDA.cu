@@ -79,7 +79,7 @@ void Random::reorder(int a[], int n) {
 		unsigned int j = i + (integer() % (n-i));
 		if ( j == i )
 			continue;
-		swap<int>(a[i], a[j]);
+		std::swap<int>(a[i], a[j]);
 		const int tmp = a[j];
 		a[j] = a[i];
 		a[i] = tmp;

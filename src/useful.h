@@ -16,9 +16,9 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
-#include <cuda.h>
+//#include <cuda_runtime.h>
 
-using namespace std;
+// using namespace std;
 
 bool isReal(char c);
 

@@ -24,7 +24,7 @@
 #include "TabulatedDihedral.h"
 
 #include <cstdio>
-#include <cuda.h>
+// #include <cuda_runtime.h>
 #include <thrust/transform_reduce.h>	// thrust::reduce
 #include <thrust/functional.h>				// thrust::plus
 

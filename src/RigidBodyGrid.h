@@ -22,7 +22,7 @@
 #include <ctime>
 #include <cuda.h>
 
-using namespace std;
+// using namespace std;
 
 #define STRLEN 512
 

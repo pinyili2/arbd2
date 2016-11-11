@@ -8,7 +8,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include "useful.h"
-using namespace std;
+// using namespace std;
 
 class Scatter {
 public:

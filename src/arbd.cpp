@@ -9,7 +9,8 @@
 #include "Configuration.h"
 #include "GPUManager.h"
 
-using namespace std;
+// using namespace std;
+using std::max;
 
 const unsigned int kIMDPort = 71992;
 

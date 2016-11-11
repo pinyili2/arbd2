@@ -36,13 +36,11 @@
 
 ## Find Location of most recent CUDA Toolkit
 ifeq (,$(CUDA_PATH))
-	CUDA_PATH := $(shell echo $(wildcard /usr/local/cuda*) | tr ' ' '\n' | sort -Vr | head -n1)
+    CUDA_PATH := $(shell echo $(wildcard /usr/local/cuda*) | tail -n1)
     ifeq (,$(CUDA_PATH))
-        $(info ERROR: Could not CUDA_PATH. Please pass as follows: $(MAKE) CUDA_PATH=/path/to/cuda)
-        exit
-    else 
-        $(info Using CUDA_PATH=$(CUDA_PATH))
+        $(error Could not CUDA_PATH. Please pass as follows: $(MAKE) CUDA_PATH=/path/to/cuda)
     endif
+    $(info Using CUDA_PATH=$(CUDA_PATH))
 endif
 
 # OS Name (Linux or Darwin)
@@ -91,7 +89,7 @@ else
     ifeq ($(shell expr `xcodebuild -version | grep -i xcode | awk '{print $$2}' | cut -d'.' -f1` \>= 5),1)
         CC = $(CLANG)
 		CC_FLAGS += -stdlib=libstdc++
-		NV_FLAGS += -Xcompiler -arch -Xcompiler x86_64
+		NV_FLAGS += -Xcompiler -arch -Xcompiler x86_64 -Xcompiler -stdlib=libstdc++
     endif
 endif
 NVCC ?= $(CUDA_PATH)/bin/nvcc -ccbin $(CC)

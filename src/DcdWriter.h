@@ -21,7 +21,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-using namespace std;
+// using namespace std;
 
 #define NFILE_POS (off_t) 8
 #define NPRIV_POS (off_t) 12

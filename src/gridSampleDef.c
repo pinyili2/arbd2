@@ -8,7 +8,7 @@
 #include "BaseGrid.h"
 #include "OverlordGrid.h"
 
-using namespace std;
+//using namespace std;
 
 int main(int argc, char* argv[]) {
   if ( argc != 4 ) {
