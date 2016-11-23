@@ -3,15 +3,14 @@ include ./findcudalib.mk
 INCLUDE = $(CUDA_PATH)/include
 
 ifeq ($(dbg),1)
-	CC_FLAGS += -g -O0
 	NV_FLAGS += -g -G
-	EX_FLAGS = -O0 -m$(OS_SIZE)
+	EX_FLAGS = -g -O0 -m$(OS_SIZE)
 else
 	EX_FLAGS = -O3 -m$(OS_SIZE)
 endif
 
 CC_FLAGS += -I$(CUDA_PATH)/include
-# CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic
+CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic # TODO: test on Mac OSX
 NV_FLAGS += -lineinfo
 
 ifneq ($(DARWIN),)

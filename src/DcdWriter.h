@@ -287,7 +287,8 @@ public:
 
     /* Unit cell */
     if (cell) {
-      out_integer = 48;
+	  // out_integer = 48;
+	  out_integer = 6*4; // this seems correct for float
       NAMD_write(fd, (char *) &out_integer, sizeof(int));
       NAMD_write(fd, (char *) cell, out_integer);
       NAMD_write(fd, (char *) &out_integer, sizeof(int));

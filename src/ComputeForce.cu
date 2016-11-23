@@ -71,6 +71,8 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 	// Create the bond table
 	tableBond = new TabulatedPotential*[numTabBondFiles];
 	tableBond_addr = new TabulatedPotential*[numTabBondFiles];
+	bondList_d = NULL;
+	tableBond_d = NULL;
 	for (int i = 0; i < numTabBondFiles; i++) {
 		tableBond_addr[i] = NULL;
 		tableBond[i] = NULL;
@@ -80,6 +82,8 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 	// Create the angle table
 	tableAngle = new TabulatedAnglePotential*[numTabAngleFiles];
 	tableAngle_addr = new TabulatedAnglePotential*[numTabAngleFiles];
+	angleList_d = NULL;
+	tableAngle_d = NULL;
 	for (int i = 0; i < numTabAngleFiles; i++) {
 		tableAngle_addr[i] = NULL;
 		tableAngle[i] = NULL;
@@ -89,6 +93,8 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 	// Create the dihedral table
 	tableDihedral = new TabulatedDihedralPotential*[numTabDihedralFiles];
 	tableDihedral_addr = new TabulatedDihedralPotential*[numTabDihedralFiles];
+	dihedralList_d = NULL;
+	tableDihedral_d = NULL;
 	for (int i = 0; i < numTabDihedralFiles; i++) {
 		tableDihedral_addr[i] = NULL;
 		tableDihedral[i] = NULL;
@@ -149,13 +155,24 @@ ComputeForce::~ComputeForce() {
 		gpuErrchk( cudaFree(pos_d) );
 		gpuErrchk( cudaFree(forceInternal_d) );
 		gpuErrchk( cudaFree(type_d) );
-		gpuErrchk( cudaFree(bonds_d) );
-		gpuErrchk( cudaFree(bondMap_d) );
-		gpuErrchk( cudaFree(excludes_d) );
-		gpuErrchk( cudaFree(excludeMap_d) );
-		gpuErrchk( cudaFree(angles_d) );
-		gpuErrchk( cudaFree(dihedrals_d) );
-		gpuErrchk( cudaFree(bondList_d) );
+		if (numBonds > 0) {
+			gpuErrchk( cudaFree(bonds_d) );
+			gpuErrchk( cudaFree(bondMap_d) );
+			gpuErrchk( cudaFree(bondList_d) );
+		}
+		if (numAngles > 0) {
+			gpuErrchk( cudaFree(angles_d) );
+			gpuErrchk( cudaFree(angleList_d) );
+		}
+		if (numDihedrals > 0) {
+			gpuErrchk( cudaFree(dihedrals_d) );
+			gpuErrchk( cudaFree(dihedralList_d) );
+			gpuErrchk( cudaFree(dihedralPotList_d) );
+		}
+		if (numExcludes > 0) {
+			gpuErrchk( cudaFree(excludes_d) );
+			gpuErrchk( cudaFree(excludeMap_d) );
+		}
 	}
 
 	gpuErrchk(cudaFree(numPairs_d));

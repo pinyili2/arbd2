@@ -267,9 +267,9 @@ public:
 	HOST DEVICE inline Matrix3() {}
 	HOST DEVICE Matrix3(float s);
 	HOST DEVICE Matrix3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
-	Matrix3(float x, float y, float z);
-	Matrix3(const Vector3& ex, const Vector3& ey, const Vector3& ez);
-	Matrix3(const float* d);
+	HOST DEVICE Matrix3(float x, float y, float z);
+	HOST DEVICE Matrix3(const Vector3& ex, const Vector3& ey, const Vector3& ez);
+	HOST DEVICE Matrix3(const float* d);
 
 
 	// Operators 

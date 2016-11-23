@@ -36,7 +36,7 @@
 
 ## Find Location of most recent CUDA Toolkit
 ifeq (,$(CUDA_PATH))
-    CUDA_PATH := $(shell echo $(wildcard /usr/local/cuda*) | tail -n1)
+    CUDA_PATH := $(shell echo $(wildcard /usr/local/cuda*) | tr ' ' '\n' | tail -n1)
     ifeq (,$(CUDA_PATH))
         $(error Could not CUDA_PATH. Please pass as follows: $(MAKE) CUDA_PATH=/path/to/cuda)
     endif

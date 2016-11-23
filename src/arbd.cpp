@@ -31,13 +31,12 @@ int main(int argc, char* argv[]) {
 		return 0;
 	} else if (argc == 2 && (strcmp(argv[1], "--version") == 0)) {
 		// --version
-		printf("%s 0.1a\n", argv[0]);
-		printf("Written by Jeff Comer, Justin Dufresne, and Terrance Howard.\n");
+		printf("%s Nov 2016 (alpha)\n", argv[0]);
 		return 0;
 	} else if (argc == 2 && (strcmp(argv[1], "--info") == 0)) {
 		// --info
 		GPUManager::load_info();
-		size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
+		// size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
 		return 0;
 	} else if (argc < 3) {
 		printf("%s: missing arguments\n", argv[0]);
@@ -50,7 +49,7 @@ int main(int argc, char* argv[]) {
 	
 	bool debug = false, safe = true;
 	int replicas = 1;
-	unsigned int imd_port;
+	unsigned int imd_port = 0;
 	bool imd_on = false;
 	int num_flags = 0;
 	for (int pos = 1; pos < argc; pos++) {
@@ -66,7 +65,7 @@ int main(int argc, char* argv[]) {
 			num_flags++;
 
 		} else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gpu") == 0) {
-			int arg_val = atoi(argv[pos + 1]);
+			unsigned int arg_val = atoi(argv[pos + 1]);
 			gpuID = arg_val;
 			num_flags += 2;
 			if (arg_val < 0 || arg_val > n_gpus) {

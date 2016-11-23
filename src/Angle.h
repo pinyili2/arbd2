@@ -24,15 +24,15 @@ public:
 	ind1(ind1), ind2(ind2), ind3(ind3), fileName(fileName), tabFileIndex(-1) { }
 	
 	int ind1, ind2, ind3;
+	String fileName;
 	// tabFileIndex will be assigned after ComputeForce loads the
 	// TabulatedAnglePotentials. The tabefileIndex is used by ComputeForce to
 	// discern which TabulatedAnglePotential this Angle uses.
 	int tabFileIndex;
-	String fileName;
 
 	inline Angle(const Angle& a) : ind1(a.ind1), ind2(a.ind2), ind3(a.ind3),
-																 tabFileIndex(a.tabFileIndex),
-																 fileName(a.fileName) { }
+		fileName(a.fileName),
+		tabFileIndex(a.tabFileIndex) { }
 
 	HOST DEVICE inline float calcAngle(Vector3* pos, BaseGrid* sys) {
 		const Vector3& posa = pos[ind1];

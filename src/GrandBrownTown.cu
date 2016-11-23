@@ -302,9 +302,17 @@ GrandBrownTown::~GrandBrownTown() {
 	delete[] pos;
 	delete[] type;
 	delete[] serial;
-	delete[] bondList;
 	delete randoGen;
 
+	if (numBonds > 0)
+		delete[] bondList;
+	if (numAngles > 0)
+		delete[] angleList;
+	if (numDihedrals > 0) {
+		delete[] dihedralList;
+		delete[] dihedralPotList;
+	}
+	
 	// Auxillary objects
 	delete internal;
 	for (int i = 0; i < numReplicas; ++i)
@@ -1041,9 +1049,9 @@ void GrandBrownTown::copyToCUDA() {
 														cudaMemcpyHostToDevice));*/
 
 	gpuErrchk(cudaMalloc(&randoGen_d, sizeof(Random)));
-	gpuErrchk(cudaMemcpyAsync(randoGen_d, randoGen, sizeof(Random),
+	gpuErrchk(cudaMemcpy(randoGen_d, randoGen, sizeof(Random),
 														cudaMemcpyHostToDevice));
-	gpuErrchk(cudaDeviceSynchronize());
+	// gpuErrchk(cudaDeviceSynchronize());
 }
 
 /*void GrandBrownTown::createBondList()
