@@ -111,6 +111,9 @@ Terrance Howard
   particles further than the pairlist distance move to within the
   cutoff
 
+* Failed assertions deliver messages that don't describe where the
+  failure occured
+
 -- Bugs --
 
 * An issue with memory management causes some invalid memory to be

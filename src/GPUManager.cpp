@@ -1,5 +1,13 @@
 #include "GPUManager.h"
 
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"CUDA Error: %s %s:%d\n", cudaGetErrorString(code), __FILE__, line);
+      if (abort) exit(code);
+   }
+}
+
 int GPUManager::nGPUs = 0;
 bool GPUManager::is_safe = true;
 std::vector<int> GPUManager::gpus, GPUManager::timeouts, GPUManager::notimeouts;
@@ -20,10 +28,14 @@ void GPUManager::init() {
 		is_safe = false;
 		gpus = timeouts;
 	}
+	if (gpus.size() == 0) {
+	    fprintf(stderr, "Error: Did not find a GPU\n");
+	    exit(1);
+	}
 }
 
 void GPUManager::load_info() {
-	cudaGetDeviceCount(&nGPUs);
+    gpuErrchk(cudaGetDeviceCount(&nGPUs));
 	printf("Found %d GPU(s)\n", nGPUs);
 
 	for (int dev = 0; dev < nGPUs; dev++) {

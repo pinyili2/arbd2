@@ -10,7 +10,7 @@ else
 endif
 
 CC_FLAGS += -I$(CUDA_PATH)/include
-CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic # TODO: test on Mac OSX
+CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic # TODO: test on Mac OSX and other architectures
 NV_FLAGS += -lineinfo
 
 ifneq ($(DARWIN),)
@@ -24,7 +24,7 @@ endif
 $(info $(NVCC))
 
 ## Find valid compute capabilities for this machine
-SMS ?= 20 30 35 37 50 52 60
+SMS ?= 30 35 37 50 52 60
 $(info Testing CUDA toolkit with compute capabilities SMS='$(SMS)')
 SMS := $(shell for sm in $(SMS); do $(NVCC) cuda-test.c -arch=sm_$$sm -o /dev/null &> /dev/null && echo $$sm; done)
 

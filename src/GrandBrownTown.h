@@ -40,7 +40,6 @@
 /* #include "RigidBodyType.h" */
 /* #include "RigidBodyGrid.h" */
 #include "RigidBodyController.h"
-#include "util.h"
 
 // IMD
 #include "vmdsock.h"

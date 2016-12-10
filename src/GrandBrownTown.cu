@@ -1,6 +1,7 @@
 #include "GrandBrownTown.h"
 #include "GrandBrownTown.cuh"
 /* #include "ComputeGridGrid.cuh" */
+#include "WKFUtils.h"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
@@ -339,11 +340,11 @@ void GrandBrownTown::run() {
 	remember(0.0f);
 
 	// Initialize timers (util.*)
-	rt_timerhandle cputimer;
-	cputimer = rt_timer_create();
-	rt_timerhandle timer0, timerS;
-	timer0 = rt_timer_create();
-	timerS = rt_timer_create();
+	wkf_timerhandle cputimer;
+	cputimer = wkf_timer_create();
+	wkf_timerhandle timer0, timerS;
+	timer0 = wkf_timer_create();
+	timerS = wkf_timer_create();
 
 	copyToCUDA();
 	internal -> copyToCUDA(forceInternal, pos);
@@ -376,8 +377,8 @@ void GrandBrownTown::run() {
 	} // endif (imd_on)
 
 	// Start timers
-	rt_timer_start(timer0);
-	rt_timer_start(timerS);
+	wkf_timer_start(timer0);
+	wkf_timer_start(timerS);
 
 	// We haven't done any steps yet.
 	// Do decomposition if we have to
@@ -400,7 +401,7 @@ void GrandBrownTown::run() {
 		float energy = 0.0f;
 
 		// Set the timer
-		rt_timer_start(cputimer);
+		wkf_timer_start(cputimer);
 
 		// 'interparticleForce' - determines whether particles interact with each other
 		if (interparticleForce) {
@@ -461,10 +462,10 @@ void GrandBrownTown::run() {
 		}
 
 		/* Time force computations.
-		rt_timer_stop(cputimer);
-		float dt1 = rt_timer_time(cputimer);
+		wkf_timer_stop(cputimer);
+		float dt1 = wkf_timer_time(cputimer);
 		printf("Force Computation Time: %f ms\n", dt1 * 1000);
-		rt_timer_start(cputimer);
+		wkf_timer_start(cputimer);
 		// */
 
 		// Make sure the force computation has completed without errors before continuing.
@@ -500,8 +501,8 @@ void GrandBrownTown::run() {
 		//gpuErrchk(cudaPeekAtLastError()); // Does not work on old GPUs (like mine). TODO: write a better wrapper around Peek
 		
 		/* Time position computations.
-		rt_timer_stop(cputimer);
-		float dt2 = rt_timer_time(cputimer);
+		wkf_timer_stop(cputimer);
+		float dt2 = wkf_timer_time(cputimer);
 		printf("Position Update Time: %f ms\n", dt2 * 1000);
 		*/
 
@@ -589,7 +590,7 @@ void GrandBrownTown::run() {
 		if (get_energy) {
 			// Stop the timer.
 			// cudaSetDevice(0);
-			rt_timer_stop(timerS);
+			wkf_timer_stop(timerS);
 
 			// Copy back forces to display (internal only)
 			gpuErrchk(cudaMemcpy(&force0, internal -> getForceInternal_d(), sizeof(Vector3), cudaMemcpyDeviceToHost));
@@ -599,7 +600,7 @@ void GrandBrownTown::run() {
 
 			// Simulation progress and statistics.
 			float percent = (100.0f * s) / steps;
-			float msPerStep = rt_timer_time(timerS) * 1000.0f / outputEnergyPeriod;
+			float msPerStep = wkf_timer_time(timerS) * 1000.0f / outputEnergyPeriod;
 			float nsPerDay = numReplicas * timestep / msPerStep * 864E5f;
 
 			// Nice thousand separator
@@ -621,7 +622,7 @@ void GrandBrownTown::run() {
 				writeRestart(repID);
 
 			// restart the timer
-			rt_timer_start(timerS);
+			wkf_timer_start(timerS);
 		} // s % outputEnergyPeriod
 
 		{
@@ -657,10 +658,10 @@ void GrandBrownTown::run() {
 	}
 
 	// Stop the main timer.
-	rt_timer_stop(timer0);
+	wkf_timer_stop(timer0);
 
 	// Compute performance data.
-	const float elapsed = rt_timer_time(timer0); // seconds
+	const float elapsed = wkf_timer_time(timer0); // seconds
 	int tot_hrs = (int) std::fmod(elapsed / 3600.0f, 60.0f);
 	int tot_min = (int) std::fmod(elapsed / 60.0f, 60.0f);
 	float tot_sec	= std::fmod(elapsed, 60.0f);
