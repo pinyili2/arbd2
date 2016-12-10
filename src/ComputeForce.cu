@@ -27,7 +27,7 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 													 int fullLongRange, int numBonds, int numTabBondFiles,
 													 int numExcludes, int numAngles, int numTabAngleFiles,
 													 int numDihedrals, int numTabDihedralFiles,
-													 int numReplicas) :
+				float pairlistDistance, int numReplicas) :
 		num(num), numParts(numParts), sys(g), switchStart(switchStart),
 		switchLen(switchLen), electricConst(electricConst),
 		cutoff2((switchLen + switchStart) * (switchLen + switchStart)),
@@ -38,6 +38,9 @@ ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
 		numTabDihedralFiles(numTabDihedralFiles), numReplicas(numReplicas) {
 	// Allocate the parameter tables.
 	decomp_d = NULL;
+
+	pairlistdist2 = (sqrt(cutoff2) + pairlistDistance);
+	pairlistdist2 *= pairlistdist2;
 
 	tableEps = new float[numParts * numParts];
 	tableRad6 = new float[numParts * numParts];
@@ -444,17 +447,18 @@ void ComputeForce::decompose() {
 	int tmp = 0;
 	gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,	sizeof(int), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaDeviceSynchronize());
-	
-	float pairlistdist2 = (sqrt(cutoff2) + 2.0f);
-	pairlistdist2 = pairlistdist2*pairlistdist2;
-	
+	// printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
+		
 #if __CUDA_ARCH__ >= 300
 	createPairlists<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 #else
 	// Use shared memory for warp_bcast function
 	createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 #endif			
-	
+	// DEBUGING
+	// gpuErrchk(cudaMemcpy(&tmp, numPairs_d,	sizeof(int), cudaMemcpyDeviceToHost));
+	// printf("CreatePairlist found %d pairs\n",tmp);
+
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 }
 
@@ -662,6 +666,11 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 
 	gpuErrchk(cudaDeviceSynchronize());
 }
+void ComputeForce::setForceInternalOnDevice(Vector3* f) {
+	const size_t tot_num = num * numReplicas;
+	gpuErrchk(cudaMemcpy(forceInternal_d, f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+}
+
 
 void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals)
 {

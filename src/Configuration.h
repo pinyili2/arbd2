@@ -142,6 +142,7 @@ public:
 	float cutoff;
 	float pairlistDistance;
 	float switchLen;
+	float imdForceScale;
 	int outputPeriod;
 	int outputEnergyPeriod;
 	int outputFormat;

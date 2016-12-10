@@ -40,6 +40,7 @@
 /* #include "RigidBodyType.h" */
 /* #include "RigidBodyGrid.h" */
 #include "RigidBodyController.h"
+#include "WKFUtils.h"
 
 // IMD
 #include "vmdsock.h"
@@ -119,7 +120,8 @@ private:
 	// IMD variables
 	bool imd_on;
 	unsigned int imd_port;
-
+	Vector3* imdForces;
+	
 	// Output variables
 	std::vector<std::string> outCurrFiles;
 	std::vector<std::string> restartFiles;

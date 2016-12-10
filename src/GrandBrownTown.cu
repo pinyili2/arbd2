@@ -323,6 +323,11 @@ GrandBrownTown::~GrandBrownTown() {
 	//gpuErrchk(cudaFree(forceInternal_d));
 	gpuErrchk(cudaFree(randoGen_d));
 	//gpuErrchk( cudaFree(bondList_d) );
+
+	if (imd_on)
+		delete[] imdForces;
+	
+		
 }
 
 // Run the Brownian Dynamics steps.
@@ -374,6 +379,10 @@ void GrandBrownTown::run() {
 				imd_recv_header(clientsock, &length) != IMD_GO) {
 			clientsock = NULL;
 		}
+		imdForces = new Vector3[num*numReplicas];
+		for (size_t i = 0; i < num; ++i) // clear old forces
+			imdForces[i] = Vector3(0.0f);
+
 	} // endif (imd_on)
 
 	// Start timers
@@ -514,50 +523,99 @@ void GrandBrownTown::run() {
 		
 		Vector3 force0(0.0f);
 
-		if (imd_on && clientsock && s % outputPeriod == 0) {
-			int length;
-			if (vmdsock_selread(clientsock, 0) == 1) {
-				switch (imd_recv_header(clientsock, &length)) {
-					case IMD_DISCONNECT:
-						printf("[IMD] Disconnecting...\n");
-						imd_disconnect(clientsock);
-						clientsock = NULL;
-						sleep(5);
-						break;
-					case IMD_KILL:
-						printf("[IMD] Killing...\n");
-						imd_disconnect(clientsock);
-						clientsock = NULL;
-						steps = s; // Stop the simulation at this step
-						sleep(5);
-						break;
-					default:
-						printf("[IMD] Something weird happened. Disconnecting..\n");
-						break;
-				}
-			}
-			if (clientsock) {
-				// cudaSetDevice(0);
-				gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num, cudaMemcpyDeviceToHost));
-				float* coords = new float[num * 3];
-				for (size_t i = 0; i < num; i++) {
-					Vector3 p = pos[i];
-					coords[3*i] = p.x;
-					coords[3*i+1] = p.y;
-					coords[3*i+2] = p.z;
-				}
-				imd_send_fcoords(clientsock, num, coords);
-				delete[] coords;
-			}
-		}
 
-		// Output trajectories (to files)
 		if (s % outputPeriod == 0) {
 			// Copy particle positions back to CPU
 			// cudaSetDevice(0);
 			gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas,
 					cudaMemcpyDeviceToHost));
+		}
 
+		if (imd_on && clientsock && s % outputPeriod == 0) {
+		
+			float* coords = new float[num*3]; // TODO: move allocation out of run loop
+			int* atomIds = new int[num]; // TODO: move allocation out of run loop
+
+			int length;
+
+			bool paused = false;
+			while (vmdsock_selread(clientsock, 0) > 0 || paused) {
+				switch (imd_recv_header(clientsock, &length)) {
+				case IMD_DISCONNECT:
+					printf("[IMD] Disconnecting...\n");
+					imd_disconnect(clientsock);
+					clientsock = NULL;
+					sleep(5);
+					break;
+				case IMD_KILL:
+					printf("[IMD] Killing...\n");
+					imd_disconnect(clientsock);
+					clientsock = NULL;
+					steps = s; // Stop the simulation at this step
+					sleep(5);
+					break;
+				case IMD_PAUSE:
+					// if (paused) {
+					// 	printf("[IMD] Continuing...\n");
+					// } else {
+					// 	printf("[IMD] Pausing...\n");
+					// }
+					paused = !paused;
+					break;
+				case IMD_GO:
+					printf("[IMD] Caught IMD_GO\n");
+					break;
+
+				case IMD_MDCOMM:					
+					// if (!paused)
+					// 	printf("[IMD] Receiving %d forces...\n",length);
+					for (size_t i = 0; i < num; ++i) // clear old forces
+						imdForces[i] = Vector3(0.0f);
+
+					if (imd_recv_mdcomm(clientsock, length, atomIds, coords)) {
+						printf("[IMD] Error receiving forces\n"); 
+					} else {
+						for (size_t j = 0; j < length; ++j) {
+							int i = atomIds[j];
+							imdForces[i] = Vector3(coords[j*3], coords[j*3+1], coords[j*3+2]) * conf.imdForceScale;
+							// if (!paused)
+							  // printf("[IMD] Applying force (%0.2f, %0.2f, %0.2f) to particle %d\n", imdForces[i].x, imdForces[i].y, imdForces[i].z, i);
+							  //printf("[IMD] Applying %0.1f pN force to particle %d at step %d\n", 69.47694f * imdForces[i].length(), i, s);
+						}
+					}
+					break; 
+
+				default:
+					printf("[IMD] Something weird happened. Disconnecting..\n");
+					break;
+				}
+			}
+			if (clientsock) {
+				// cudaSetDevice(0);
+				// float* coords = new float[num*3]; // TODO: move allocation out of run loop
+				for (size_t i = 0; i < num; i++) {
+					const Vector3& p = pos[i];
+					coords[3*i] = p.x;
+					coords[3*i+1] = p.y;
+					coords[3*i+2] = p.z;
+				}
+				imd_send_fcoords(clientsock, num, coords);
+			}
+
+			delete[] coords;
+			delete[] atomIds;
+		}
+		
+
+		// Output trajectories (to files)
+		if (s % outputPeriod == 0) {
+		  /* // print IMDforces
+		  for (int i=0; i < num * numReplicas; ++i) {
+		    float f = imdForces[i].length() * 69.47694f;
+		    if (f > 0.1f)
+		      printf("[IMD] Applying %0.1f pN force to particle %d at step %d\n", f, i, s);
+		  }
+		  // */
 			// Nanoseconds computed
 			t = s*timestep;
 
@@ -593,7 +651,7 @@ void GrandBrownTown::run() {
 			wkf_timer_stop(timerS);
 
 			// Copy back forces to display (internal only)
-			gpuErrchk(cudaMemcpy(&force0, internal -> getForceInternal_d(), sizeof(Vector3), cudaMemcpyDeviceToHost));
+			// gpuErrchk(cudaMemcpy(&force0, internal -> getForceInternal_d(), sizeof(Vector3), cudaMemcpyDeviceToHost));
 			
 			// Nanoseconds computed
 			t = s * timestep;
@@ -625,7 +683,9 @@ void GrandBrownTown::run() {
 			wkf_timer_start(timerS);
 		} // s % outputEnergyPeriod
 
-		{
+		if (imd_on && clientsock) {
+			internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
+		} else {
 			int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
 			//MLog: along with calls to internal (ComputeForce class) this function should execute once per GPU.
 			clearInternalForces<<< numBlocks, NUM_THREADS >>>(internal->getForceInternal_d(), num*numReplicas);

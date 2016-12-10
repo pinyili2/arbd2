@@ -221,6 +221,8 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 				int numParts, const int* __restrict__ type, int* __restrict__ g_pairTabPotType,
 				const Exclude* __restrict__ excludes, const int2* __restrict__ excludeMap, const int numExcludes,
 				float pairlistdist2) {
+	// TODO: loop over all cells with edges within pairlistdist2
+
 	// Loop over threads searching for atom pairs
 	//   Each thread has designated values in shared memory as a buffer
 	//   A sync operation periodically moves data from shared to global

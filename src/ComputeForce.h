@@ -36,7 +36,7 @@ public:
 			const BaseGrid* g, float switchStart, float switchLen,
 			float electricConst, int fullLongRange, int numBonds,
 			int numTabBondFiles, int numExcludes, int numAngles, int numTabAngleFiles,
-			int numDihedrals, int numTabDihedralFiles, int numReplicas = 1);
+					int numDihedrals, int numTabDihedralFiles, float pairlistDistance, int numReplicas = 1);
 	~ComputeForce();
 
 	void updateNumber(int newNum);
@@ -87,6 +87,7 @@ public:
 	{
 		return forceInternal_d;
 	}
+	void setForceInternalOnDevice(Vector3* f);
 
 	int* getType_d()
 	{
@@ -172,6 +173,7 @@ private:
 	TabulatedDihedralPotential **tableDihedral_d, **tableDihedral_addr;
 
 	// Pairlists
+	float pairlistdist2;
 	int2 *pairLists_d;
 	int *pairTabPotType_d;
 

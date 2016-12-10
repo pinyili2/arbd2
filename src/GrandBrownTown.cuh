@@ -22,6 +22,7 @@ void clearInternalForces(Vector3* __restrict__ forceInternal, const int num) {
 	if (idx < num)
 		forceInternal[idx] = Vector3(0.0f);
 }
+
 __global__
 void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 									int type[], BrownianParticleType* part[],
