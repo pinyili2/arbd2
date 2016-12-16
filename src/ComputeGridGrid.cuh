@@ -1,7 +1,7 @@
 // Included in RigidBodyController.cu
 #pragma once
 #include "useful.h"
-#define NUMTHREADS 96
+#define NUMTHREADS 128
 #define WARPSIZE 32
 
 class RigidBodyGrid;

@@ -179,8 +179,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	// Prepare internal force computation
 	internal = new ComputeForce(num, part, numParts, sys, switchStart, switchLen, coulombConst,
-			fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
-			numDihedrals, numTabDihedralFiles, numReplicas);
+				    fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
+				    numDihedrals, numTabDihedralFiles, c.pairlistDistance, numReplicas);
 	
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
 	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals);
@@ -480,7 +480,7 @@ void GrandBrownTown::run() {
 		// Make sure the force computation has completed without errors before continuing.
 		//gpuErrchk(cudaPeekAtLastError()); // Does not work on old GPUs (like mine). TODO: write a better wrapper around Peek
 		gpuErrchk(cudaDeviceSynchronize());
-
+		
 		// printf("  Computed energies\n");
 
 		// int numBlocks = (num * numReplicas) / NUM_THREADS + 1;
@@ -503,7 +503,7 @@ void GrandBrownTown::run() {
 			printf("Net Force: %f %f %f\n", runningNetForce.x,runningNetForce.y,runningNetForce.z);
 		}		
 		// */
-		
+
 		//MLog: Call the kernel to update the positions of each particle
 		// cudaSetDevice(0);
 		updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
@@ -520,10 +520,10 @@ void GrandBrownTown::run() {
 		/* computeGridGridForce<<< numBlocks, NUM_THREADS >>>(grid1_d, grid2_d); */
 		
 		// int numBlocks = (numRB ) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
+
+		Vector3 force0(0.0f);		
+
 		
-		Vector3 force0(0.0f);
-
-
 		if (s % outputPeriod == 0) {
 			// Copy particle positions back to CPU
 			// cudaSetDevice(0);

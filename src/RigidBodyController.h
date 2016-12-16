@@ -7,8 +7,6 @@
 #include <cuda_runtime.h>
 #include "useful.h"
 
-// #define NUMTHREADS 128					/* try with 64, every 32+ */
-#define NUMTHREADS 96
 #define NUMSTREAMS 8
 
 // #include "RigidBody.h"
@@ -54,8 +52,6 @@ private:
 	void swap(RigidBodyForcePair& a, RigidBodyForcePair& b);
 
 	int updatePeriod;
-	
-	static const int numThreads = NUMTHREADS;
 	
 	RigidBodyType* type1;
 	RigidBodyType* type2;

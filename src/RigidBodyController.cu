@@ -1,9 +1,3 @@
-/* #ifndef MIN_DEBUG_LEVEL */
-/* #define MIN_DEBUG_LEVEL 5 */
-/* #endif */
-/* #define DEBUGM */
-/* #include "Debug.h" */
-
 /* #include "RigidBody.h" */
 #include "RigidBodyController.h"
 #include "Configuration.h"
@@ -436,12 +430,12 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		
 		// RBTODO: get energy
 		if (!isPmf) {								/* pair of RBs */
-			computeGridGridForce<<< nb, numThreads, NUMTHREADS*2*sizeof(Vector3), s >>>
+			computeGridGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3), s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
 				 B1, B2, c,
 				 forces_d[i], torques_d[i]);
 		} else {										/* RB with a PMF */
-			computeGridGridForce<<< nb, numThreads, NUMTHREADS*2*sizeof(Vector3), s >>>
+			computeGridGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3), s >>>
 				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
 				 B1, B2, c,
 				 forces_d[i], torques_d[i]);
@@ -618,7 +612,7 @@ int RigidBodyForcePair::initialize() {
 	for (int i = 0; i < numGrids; i++) {
 		const int k1 = gridKeyId1[i];
 		const int sz = type1->rawDensityGrids[k1].getSize();
-		const int nb = sz / numThreads + ((sz % numThreads == 0) ? 0:1 );
+		const int nb = sz / NUMTHREADS + ((sz % NUMTHREADS == 0) ? 0:1 );
 		streamID.push_back( nextStreamID % NUMSTREAMS );
 		nextStreamID++;
 

@@ -36,7 +36,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 		/* const ForceEnergy fe = ForceEnergy( tmpf, tmpe); */
 		const ForceEnergy fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
 		force[tid] = fe.f;
-
+		
 		const float r_val = rho->val[r_id]; /* maybe move to beginning of function?  */
 		force[tid] = basis_u_inv.transpose().transform( r_val*force[tid] ); /* transform to lab frame, with correct scaling factor */
 
@@ -47,6 +47,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	// Reduce force and torques
 	// http://www.cuvilib.com/Reduction.pdf
 	// RBTODO optimize further, perhaps
+	// assert( NUMTHREADS==32 || NUMTHREADS==64 || NUMTHREADS==128 || NUMTHREADS==256 || NUMTHREADS==512 );
 	__syncthreads();
 	for (int offset = blockDim.x/2; offset > 0; offset >>= 1) {
 		if (tid < offset) {
@@ -73,7 +74,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	extern __shared__ Vector3 s[];
 	Vector3 *force = s;
 	Vector3 *torque = &s[NUMTHREADS];
-  
+  	
 	const int tid = threadIdx.x;
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -94,6 +95,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	}
 
 	// Reduce force and torques
+	// assert( NUMTHREADS==32 || NUMTHREADS==64 || NUMTHREADS==128 || NUMTHREADS==256 || NUMTHREADS==512 );
 	__syncthreads();
 	for (int offset = blockDim.x/2; offset > 0; offset >>= 1) {
 		if (tid < offset) {
@@ -103,7 +105,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 		}
 		__syncthreads();
 	}
-
+	
 	if (tid == 0) {
 		retForce[blockIdx.x] = force[0];
 		retTorque[blockIdx.x] = torque[0];
@@ -117,8 +119,6 @@ void createPartlist(const Vector3* __restrict__ pos,
 				const Vector3 gridCenter, const float radius2) {
 	const int tid = threadIdx.x;
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
-	const int split = 32;					/* numblocks should be divisible by split */
-	/* const int blocksPerCell = gridDim.x/split;  */
 	
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < numTypeParticles) {

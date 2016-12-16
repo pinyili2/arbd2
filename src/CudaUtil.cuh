@@ -76,7 +76,7 @@ __device__ inline void inclIntCumSum(int* in, const int n) {
 	__syncthreads();
 }
 
-__device__ inline void atomicAdd(Vector3* address, Vector3 val) {
+__device__ inline void atomicAdd(Vector3* address, const Vector3 val) {
 	atomicAdd( &(address->x), val.x);
 	atomicAdd( &(address->y), val.y);
 	atomicAdd( &(address->z), val.z);

@@ -47,10 +47,12 @@ void RigidBody::init() {
 	particleForces_d = new Vector3*[numGrids];
 	particleTorques_d = new Vector3*[numGrids];
 	for (int i = 0; i < numGrids; ++i) {
+	    numParticles[i] = -1;
 		const int& n = t->numParticles[i];
 		const int nb = (n/NUMTHREADS)+1; // max number of blocks
 		if (n > 0) {
-			gpuErrchk(cudaMalloc( &particles_d[i], 0.5*sizeof(int)*n ));
+		    // gpuErrchk(cudaMalloc( &particles_d[i], 0.5*sizeof(int)*n )); // not sure why 0.5 was here; prolly bug
+		        gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n )); // TODO: dynamically allocate memory as needed
 			particleForces[i] = new Vector3[nb];
 			particleTorques[i] = new Vector3[nb];
 			gpuErrchk(cudaMalloc( &particleForces_d[i], sizeof(Vector3)*nb ));
@@ -104,15 +106,16 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 
 			int nb = floor(tnp/NUMTHREADS) + 1;
 #if __CUDA_ARCH__ >= 300
-			createPartlist<<<NUMTHREADS,nb>>>(pos_d, tnp, t->particles_d[i],
+			createPartlist<<<nb,NUMTHREADS>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
 							gridCenter + position, cutoff*cutoff);
 #else
-			createPartlist<<<NUMTHREADS,nb,NUMTHREADS/WARPSIZE>>>(pos_d, tnp, t->particles_d[i],
+			createPartlist<<<nb,NUMTHREADS,NUMTHREADS/WARPSIZE>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
 							gridCenter + position, cutoff*cutoff);
 #endif			
 			gpuErrchk(cudaMemcpy(&numParticles[i], tmp_d, sizeof(int), cudaMemcpyDeviceToHost ));
+			gpuErrchk(cudaFree( tmp_d ));
 		}
 	}
 }
@@ -220,7 +223,7 @@ void RigidBody::integrate(int startFinishAll) {
 	Vector3 trans; // = *p_trans;
 	Matrix3 rot = Matrix3(1); // = *p_rot;
 
-	/* printf("Rigid Body force\n"); */
+	// printf("Rigid Body force\n"); force.print();
 	
 #ifdef DEBUGM
 	switch (startFinishAll) {

@@ -153,3 +153,11 @@ __global__ void devicePrint(RigidBodyType* rb[]) {
 // 	// i, j, k, rb[i]->rawPotentialGrids[j]).val[k];
 	
 // }
+
+
+// __device__ Vector3* totalForce;
+// Vector3* totalForce_h;
+// void initTotalForce() {
+//     cudaMalloc( &totalForce_h, sizeof(Vector3) );
+//     cudaMemcpyToSymbol(totalForce, &totalForce_h, sizeof(totalForce_h));
+// }
