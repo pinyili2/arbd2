@@ -726,7 +726,7 @@ int Configuration::readParameters(const char * config_file) {
 				btfcap *= 2;	
 				bondTableFile = new String[btfcap];
 				for (int j = 0; j < numTabBondFiles; j++)
-					bondTableFile[i] = temp[i];
+					bondTableFile[j] = temp[j];
 				delete[] temp;
 			}
 			if (readBondFile(value, ++currBond))
@@ -768,7 +768,7 @@ int Configuration::readParameters(const char * config_file) {
 				atfcap *= 2;	
 				angleTableFile = new String[atfcap];
 				for (int j = 0; j < numTabAngleFiles; j++)
-					angleTableFile[i] = temp[i];
+					angleTableFile[j] = temp[j];
 				delete[] temp;
 			}
 			if (readAngleFile(value, ++currAngle))
@@ -786,7 +786,7 @@ int Configuration::readParameters(const char * config_file) {
 				dtfcap *= 2;
 				dihedralTableFile = new String[dtfcap];
 				for (int j = 0; j < numTabDihedralFiles; j++)
-					dihedralTableFile[i] = temp[i];
+					dihedralTableFile[j] = temp[j];
 				delete[] temp;
 			}
 			if (readDihedralFile(value, ++currDihedral))

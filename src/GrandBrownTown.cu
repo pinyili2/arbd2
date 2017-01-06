@@ -205,9 +205,14 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		for (int p = 0; p < numTabBondFiles; p++)
 			if (bondTableFile[p].length() > 0) {
 				//MLog: make sure to add to all GPUs
+			    // printf("...loading %s\n",bondTableFile[p].val());
 				internal->addBondPotential(bondTableFile[p].val(), p, bonds);
-				printf("%s\n",bondTableFile[p].val());
+				// printf("%s\n",bondTableFile[p].val());
+			} else {
+			    printf("...skipping %s (\n",bondTableFile[p].val());
+			    internal->addBondPotential(bondTableFile[p].val(), p, bonds);
 			}
+			    
 	}
 
 	if (c.readAnglesFromFile) {
