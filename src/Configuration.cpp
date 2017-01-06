@@ -149,6 +149,8 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		if (len >= 3 && map[len-3]=='.' && map[len-2]=='d' && map[len-1]=='x') {
 			// A dx file. Load the old-fashioned way.
 			part[i].pmf = new BaseGrid(map.val());
+			if (partGridFileScale[i] != 1.0f) part[i].pmf->scale(partGridFileScale[i]);
+
 			part[i].meanPmf = part[i].pmf->mean();
 			printf("Loaded dx grid `%s'.\n", map.val());
 			printf("System size %s.\n", part[i].pmf->getExtent().toString().val());
@@ -382,6 +384,7 @@ Configuration::~Configuration() {
 	// Particle parameters
 	delete[] part;
 	delete[] partGridFile;
+	delete[] partGridFileScale;
 	delete[] partForceXGridFile;
 	delete[] partForceYGridFile;
 	delete[] partForceZGridFile;
@@ -595,6 +598,7 @@ int Configuration::readParameters(const char * config_file) {
 	// Allocate the particle variables.
 	part = new BrownianParticleType[numParts];
 	partGridFile = new String[numParts];
+	partGridFileScale = new float[numParts];
 	partForceXGridFile = new String[numParts];
 	partForceYGridFile = new String[numParts];
 	partForceZGridFile = new String[numParts];
@@ -610,6 +614,11 @@ int Configuration::readParameters(const char * config_file) {
 	// Allocate rigid body types
 	rigidBody = new RigidBodyType[numRigidTypes];
 	
+	// Set a default
+	for (int i = 0; i < numParts; ++i) {
+	    partGridFileScale[i] = 1.0f;
+	}
+
 	int btfcap = 10;
 	bondTableFile = new String[btfcap];
 
@@ -782,6 +791,8 @@ int Configuration::readParameters(const char * config_file) {
 			}
 			if (readDihedralFile(value, ++currDihedral))
 				numTabDihedralFiles++;
+		} else if (param == String("gridFileScale")) {
+			partGridFileScale[currPart] = (float) strtod(value.val(), NULL);
 		} else if (param == String("rigidBodyPotential")) {
 			partRigidBodyGrid[currPart].push_back(value);
 		}

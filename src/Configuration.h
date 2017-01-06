@@ -180,6 +180,7 @@ public:
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
 	String* partGridFile;
+	float* partGridFileScale;
 	std::vector< std::vector<String> > partRigidBodyGrid;
 	String* partDiffusionGridFile;
 	String* partForceXGridFile;
