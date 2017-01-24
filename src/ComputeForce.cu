@@ -448,7 +448,12 @@ void ComputeForce::decompose() {
 	gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,	sizeof(int), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaDeviceSynchronize());
 	// printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
-		
+
+#ifdef DEBUGEXCLUSIONS
+	initExSum();
+	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+#endif
+
 #if __CUDA_ARCH__ >= 300
 	createPairlists<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 #else
@@ -460,6 +465,10 @@ void ComputeForce::decompose() {
 	// printf("CreatePairlist found %d pairs\n",tmp);
 
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+#ifdef DEBUGEXCLUSIONS
+	printf("Counted %d exclusions\n", getExSum());
+#endif
+
 }
 
 IndexList ComputeForce::decompDim() const {
@@ -690,6 +699,8 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 	}
 
 	if (numExcludes > 0) {
+	    // printf("Copying %d exclusions to the GPU\n", numExcludes);
+	    
 		// excludes_d
 		gpuErrchk(cudaMalloc(&excludes_d, sizeof(Exclude) * numExcludes));
 		gpuErrchk(cudaMemcpyAsync(excludes_d, excludes, sizeof(Exclude) * numExcludes,

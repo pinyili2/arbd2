@@ -23,6 +23,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
   
 	// Find the cosine of the angle we want - <ABC	
 	float cos = (distab + distbc - distac2);
+
 	distab = 1.0f/sqrt(distab); //TODO: test other functiosn
 	distbc = 1.0f/sqrt(distbc);
 	cos *= 0.5f * distbc * distab;
@@ -44,7 +45,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table	
 	int home = int(floor(angle));
 	myAssert(home >= 0);
-	myAssert(home < a->size);
+	myAssert(home+1 < a->size);
 
 	// // Make angle the distance from [0,1) from the first index in the potential array index
 	// angle -= home;

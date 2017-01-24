@@ -199,6 +199,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			}
 		}
 	}
+	printf("Using %d non-bonded exclusions\n",numExcludes/2);
 
 	if (c.readBondsFromFile) {
 		printf("Loading %d tabulated bond potentials...\n", numTabBondFiles);

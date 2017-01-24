@@ -213,6 +213,23 @@ void computeElecFullKernel(Vector3 force[], Vector3 pos[], int type[],
 /* 	} */
 /* } */
 
+__device__ int* exSum;
+void initExSum() {
+    int tmp = 0;
+    int* devPtr;
+    cudaMalloc(&devPtr, sizeof(int));
+    cudaMemcpyToSymbol(exSum, &devPtr, sizeof(int*));
+    cudaMemcpy(devPtr, &tmp, sizeof(int), cudaMemcpyHostToDevice);
+
+}
+int getExSum() {
+    int tmp;
+    int* devPtr;
+    cudaMemcpyFromSymbol(&devPtr, exSum, sizeof(int*));
+    cudaMemcpy(&tmp, devPtr, sizeof(int), cudaMemcpyDeviceToHost);
+    return tmp;
+}
+
 __global__
 void createPairlists(Vector3* __restrict__ pos, const int num, const int numReplicas,
 				const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
@@ -245,6 +262,8 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 				// Vector3 posi = pos[ai];
 
 				// Same as for bonds, but for exclusions now
+				const int ex_start = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].x : -1;
+				const int ex_end   = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].y : -1;
 				
 				for (int x = -1; x <= 1; ++x) {
 					for (int y = -1; y <= 1; ++y) {
@@ -252,30 +271,31 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 							
 							const int nID = decomp->getNeighborID(celli, x, y, z);
 							if (nID < 0) continue; 
-
+							
 							// Initialize exclusions
-							// TODO: see if this can be moved out of the loop;
-							// TODO: optimize exclusion code
-							const int ex_start = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].x : -1;
-							const int ex_end   = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].y : -1;
+							// TODO: optimize exclusion code (and entire kernel)
 							int currEx = ex_start;
-							int nextEx = (ex_start >= 0) ? excludes[ex_start].ind2 : -1;
+							int nextEx = (ex_start >= 0) ? excludes[currEx].ind2 : -1;
 							int ajLast = -1; // TODO: remove this sanity check
 							
 							const CellDecomposition::range_t range = decomp->getRange(nID, repID);
 
 							for (int n = range.first + tid; n < range.last; n+=blockDim.x) {
-								const int aj = cellInfo[n].particle;
-								if (aj <= ai) continue;
+							    const int aj = cellInfo[n].particle;
+							    if (aj <= ai) continue;
 								
 								// Skip excludes
 								//   Implementation requires that aj increases monotonically
 								myAssert( ajLast < aj ); ajLast = aj; // TODO: remove this sanity check
-									
+								while (nextEx >= 0 && nextEx < (aj - repID * num)) // TODO get rid of this
+								    nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
 								if (nextEx == (aj - repID * num)) {
-									nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
-									continue;
-								}
+#ifdef DEBUGEXCLUSIONS
+								    atomicAggInc( exSum, warpLane );	
+#endif
+								    nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
+								    continue;
+								} 
 								// TODO: Skip non-interacting types for efficiency
 
 								// Skip ones that are too far away
