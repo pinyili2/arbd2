@@ -300,7 +300,6 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[])
 		tableBond_addr[ind] = NULL;
 	}
 	tableBond[ind] = new TabulatedPotential(fileName);
-	tableBond[ind]->truncate(switchStart, sqrtf(cutoff2), 0.0f);
 
 	for (int i = 0; i < numBonds; ++i)
 		if (bonds[i].fileName == fileName)
