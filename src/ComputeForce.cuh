@@ -3,7 +3,7 @@
 // Terrance Howard <heyterrance@gmail.com>
 
 #pragma once
-#include "myAssert.h"
+#include <cassert>
 #include "CudaUtil.cuh"
 #include "TabulatedMethods.cuh"
 
@@ -286,7 +286,7 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 								
 								// Skip excludes
 								//   Implementation requires that aj increases monotonically
-								myAssert( ajLast < aj ); ajLast = aj; // TODO: remove this sanity check
+								assert( ajLast < aj ); ajLast = aj; // TODO: remove this sanity check
 								while (nextEx >= 0 && nextEx < (aj - repID * num)) // TODO get rid of this
 								    nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
 								if (nextEx == (aj - repID * num)) {

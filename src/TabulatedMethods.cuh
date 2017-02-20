@@ -44,8 +44,8 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	// tableAngle[1] stores the potential at angle_step * 2, etc.
 	// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table	
 	int home = int(floor(angle));
-	myAssert(home >= 0);
-	myAssert(home+1 < a->size);
+	assert(home >= 0);
+	assert(home+1 < a->size);
 
 	// // Make angle the distance from [0,1) from the first index in the potential array index
 	// angle -= home;
@@ -112,8 +112,8 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	int home = (int) floorf(t);
 	t = t - home;
 
-	myAssert(home >= 0);
-	myAssert(home < d->size);
+	assert(home >= 0);
+	assert(home < d->size);
 	// home = home % size;
 	int home1 = (home + 1) >= d->size ? (home+1-d->size) : home+1;
 
@@ -127,7 +127,7 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 
 	// avoid singularity when one angle is straight 
 	force = (crossABC.rLength() > 1.0f || crossBCD.rLength() > 1.0f) ? 0.0f : force;
-	myAssert( force < 10000.0f );
+	assert( force < 10000.0f );
 	f1 *= force;
 	f2 *= force;
 	f3 *= force;

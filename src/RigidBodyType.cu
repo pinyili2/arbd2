@@ -1,4 +1,4 @@
-#include "myAssert.h"
+#include <cassert>
 #include "Configuration.h"
 #include "RigidBodyType.h"
 #include "Reservoir.h"
@@ -298,7 +298,7 @@ void RigidBodyType::initializeParticleLists() {
 				if (gridNames[k] == gridName) {
 					// Copy type j particles to particles[i]
 					memcpy( &(particles[i][pid]), tmp, sizeof(int)*currId );
-					myAssert(currId == conf->numPartsOfType[j]);
+					assert(currId == conf->numPartsOfType[j]);
 					pid += conf->numPartsOfType[j];
 				}
 			}

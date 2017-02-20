@@ -1,5 +1,5 @@
 #include "Configuration.h"
-#include "myAssert.h"
+#include <cassert>
 
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -1235,7 +1235,7 @@ void Configuration::readExcludes()
 	for (int i = 0; i < numExcludes; i++) {
 		if (excludes[i].ind1 != currPart) {
 			currPart = excludes[i].ind1;
-			myAssert(currPart < num);
+			assert(currPart < num);
 			excludeMap[currPart].x = i;
 			if (lastPart >= 0)
 			    excludeMap[lastPart].y = i;
