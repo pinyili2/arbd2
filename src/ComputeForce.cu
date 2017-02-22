@@ -405,12 +405,10 @@ bool ComputeForce::addDihedralPotential(String fileName, int ind, Dihedral dihed
 
 void ComputeForce::decompose() {
 	gpuErrchk( cudaProfilerStart() );
+
 	// Reset the cell decomposition.
-	bool newDecomp = false;
 	if (decomp_d)
 		cudaFree(decomp_d);
-	else
-		newDecomp = true;
 		
 	decomp.decompose_d(pos_d, num);
 	decomp_d = decomp.copyToCUDA();
@@ -426,15 +424,15 @@ void ComputeForce::decompose() {
 	
 	// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
-	int blocksPerCell = 10;
+	// int blocksPerCell = 10;
 
 	
 	/* cuMemGetInfo(&free,&total); */
 	/* printf("Free memory: %zu / %zu\n", free, total); */
 	
-	const int NUMTHREADS = 128;
+	// const int NUMTHREADS = 128;
 	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
-	const size_t nBlocks = nCells*blocksPerCell;
+	// const size_t nBlocks = nCells*blocksPerCell;
 
 	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d, decomp_d); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */

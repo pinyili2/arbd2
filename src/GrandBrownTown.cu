@@ -413,7 +413,7 @@ void GrandBrownTown::run() {
 	for (long int s = 1; s < steps; s++) {
 		// Compute the internal forces. Only calculate the energy when we are about to output.
 		bool get_energy = ((s % outputEnergyPeriod) == 0);
-		float energy = 0.0f;
+		// float energy = 0.0f;
 
 		// Set the timer
 		wkf_timer_start(cputimer);
@@ -439,10 +439,11 @@ void GrandBrownTown::run() {
 						
 						//MLog: added Bond* bondList to the list of passed in variables.
 						/*energy = internal->computeTabulated(forceInternal_d, pos_d, type_d, bonds_d, bondMap_d, excludes_d, excludeMap_d,	angles_d, dihedrals_d, get_energy);*/
-						energy = internal -> computeTabulated(get_energy);
+						// energy = internal -> computeTabulated(get_energy);
+						internal -> computeTabulated(get_energy);
 						break;
 					default: // [ N^2 ] interactions, no cutoff | decompositions
-						energy = internal->computeTabulatedFull(get_energy);
+					    internal->computeTabulatedFull(get_energy);
 						break;
 				}
 			
@@ -458,19 +459,19 @@ void GrandBrownTown::run() {
 							internal->decompose();
 							RBC.updateParticleLists( internal->getPos_d() );
 						}
-						energy = internal->compute(get_energy);
+						internal->compute(get_energy);
 						break;
 
 					case 1: // Do not use cutoff
-						energy = internal->computeFull(get_energy);
+						internal->computeFull(get_energy);
 						break;
 
 					case 2: // Compute only softcore forces.
-						energy = internal->computeSoftcoreFull(get_energy);
+						internal->computeSoftcoreFull(get_energy);
 						break;
 
 					case 3: // Compute only electrostatic forces.
-						energy = internal->computeElecFull(get_energy);
+						internal->computeElecFull(get_energy);
 						break;
 				}
 			}
