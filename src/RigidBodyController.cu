@@ -15,7 +15,7 @@
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) {
    if (code != cudaSuccess) {
-      fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, line);
+       fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, line);
       if (abort) exit(code);
    }
 }
@@ -133,7 +133,7 @@ void RigidBodyController::initializeForcePairs() {
 	// Loop over all pairs of rigid body types
 	//   the references here make the code more readable, but they may incur a performance loss
 	RigidBodyForcePair::createStreams();
-	printf("Initializing force pairs\n");
+	// printf("Initializing force pairs\n");
 	for (int ti = 0; ti < conf.numRigidTypes; ti++) {
 		RigidBodyType& t1 = conf.rigidBody[ti];
 		for (int tj = ti; tj < conf.numRigidTypes; tj++) {
@@ -143,20 +143,20 @@ void RigidBodyController::initializeForcePairs() {
 			const std::vector<String>& keys1 = t1.densityGridKeys; 
 			const std::vector<String>& keys2 = t2.potentialGridKeys;
 
-			printf("  Working on type pair ");
-			t1.name.printInline(); printf(":"); t2.name.print();
+			// printf("  Working on type pair ");
+			// t1.name.printInline(); printf(":"); t2.name.print();
 			
 			// Loop over all pairs of grid keys (e.g. "Elec")
 			std::vector<int> gridKeyId1;
 			std::vector<int> gridKeyId2;
 			
-			printf("  Grid keys %d:%d\n",keys1.size(),keys2.size());
+			// printf("  Grid keys %d:%d\n",keys1.size(),keys2.size());
 
 			bool paired = false;
 			for(int k1 = 0; k1 < keys1.size(); k1++) {
 				for(int k2 = 0; k2 < keys2.size(); k2++) {
-					printf("    checking grid keys ");
-					keys1[k1].printInline(); printf(":"); keys2[k2].print();
+				    // printf("    checking grid keys ");
+				    //	keys1[k1].printInline(); printf(":"); keys2[k2].print();
 					
 					if ( keys1[k1] == keys2[k2] ) {
 						gridKeyId1.push_back(k1);
@@ -177,11 +177,11 @@ void RigidBodyController::initializeForcePairs() {
 						RigidBody* rb1 = &(rbs1[i]);
 						RigidBody* rb2 = &(rbs2[j]);
 
-						printf("    pushing RB force pair for %d:%d\n",i,j);
+						// printf("    pushing RB force pair for %d:%d\n",i,j);
 						RigidBodyForcePair fp = RigidBodyForcePair(&(t1),&(t2),rb1,rb2,gridKeyId1,gridKeyId2, false, conf.rigidBodyGridGridPeriod );
 						gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 						forcePairs.push_back( fp ); 
-						printf("    done pushing RB force pair for %d:%d\n",i,j);
+						// printf("    done pushing RB force pair for %d:%d\n",i,j);
 					}
 				}
 			}
@@ -510,7 +510,7 @@ void RigidBodyController::print(int step) {
 		if ( step % conf.outputPeriod == 0 ) {
 			if ( ! trajFile.rdbuf()->is_open() ) {
 	      // open file
-	      printf("OPENING RIGID BODY TRAJECTORY FILE\n");
+			    // printf("OPENING RIGID BODY TRAJECTORY FILE\n");
 				// RBTODO: backup_file(simParams->rigidBodyTrajectoryFile);
 
 				char fname[140];
@@ -533,7 +533,7 @@ void RigidBodyController::print(int step) {
 	      trajFile << "# RigidBody trajectory file" << std::endl;
 	      printLegend(trajFile);
 			}
-			printf("WRITING RIGID BODY COORDINATES AT STEP %d\n",step);
+			// printf("WRITING RIGID BODY COORDINATES AT STEP %d\n",step);
 			printData(step,trajFile);
 			trajFile.flush();    
 		}
@@ -543,7 +543,7 @@ void RigidBodyController::print(int step) {
 		/* 		 ((step % simParams->restartFrequency) == 0) && */
 		/* 		 (step != simParams->firstTimestep) )	{ */
 		if ( step % conf.outputPeriod == 0 && step != 0 ){
-			printf("RIGID BODY: WRITING RESTART FILE AT STEP %d\n", step);
+		    // printf("RIGID BODY: WRITING RESTART FILE AT STEP %d\n", step);
 			char fname[140];
 			strcpy(fname,outArg);
 			strcat(fname, ".rigid");
@@ -603,7 +603,7 @@ void RigidBodyController::printData(int step,std::ofstream &file) {
 }
 
 int RigidBodyForcePair::initialize() {
-	printf("    Initializing (streams for) RB force pair...\n");
+    // printf("    Initializing (streams for) RB force pair...\n");
 
 	const int numGrids = gridKeyId1.size();
 	// RBTODO assert gridKeysIds are same size 
@@ -653,7 +653,7 @@ void RigidBodyForcePair::swap(RigidBodyForcePair& a, RigidBodyForcePair& b) {
 
 
 RigidBodyForcePair::~RigidBodyForcePair() {
-	printf("    Destructing RB force pair\n");
+    //printf("    Destructing RB force pair\n");
 	const int numGrids = gridKeyId1.size();
 
 	// printf("      numGrids = %d\n",numGrids);

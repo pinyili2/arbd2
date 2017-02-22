@@ -80,7 +80,6 @@ public:
     rand48_seed |= RAND48_SEED & INT64_LITERAL(0x0000ffff);
     rand48_mult = RAND48_MULT;
     rand48_add = RAND48_ADD;
-    print("INIT\n");
   }
 
   HOST DEVICE inline void print(const char* string)

@@ -25,20 +25,20 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	readParameters(config_file);
 
 	// Get the number of particles
-	printf("\nCounting particles specified in the ");
+	// printf("\nCounting particles specified in the ");
 	if (restartCoordinates.length() > 0) {
     // Read them from the restart file.
-		printf("restart file.\n");
+	    // printf("restart file.\n");
 		num = countRestart(restartCoordinates.val());
   } else {
     if (readPartsFromFile) readAtoms();
     if (numPartsFromFile > 0) {
       // Determine number of particles from input file (PDB-style)
-      printf("input file.\n");
+	// printf("input file.\n");
       num = numPartsFromFile;
     } else {
       // Sum up all particles in config file
-      printf("configuration file.\n");
+	// printf("configuration file.\n");
       //int num0 = 0;
       num = 0;
       for (int i = 0; i < numParts; i++) num += part[i].num;
@@ -48,7 +48,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 
 
 	// Set the number capacity
-	printf("\nInitial particles: %d\n", num);
+	printf("\n%d particles\n", num);
 	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
 	if (numCap <= 0) numCap = 20;
 
@@ -152,7 +152,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 			if (partGridFileScale[i] != 1.0f) part[i].pmf->scale(partGridFileScale[i]);
 
 			part[i].meanPmf = part[i].pmf->mean();
-			printf("Loaded dx grid `%s'.\n", map.val());
+			printf("Loaded dx potential grid `%s'.\n", map.val());
 			printf("System size %s.\n", part[i].pmf->getExtent().toString().val());
 		} else if  (len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f') {
 			// A system definition file.
@@ -429,7 +429,7 @@ Configuration::~Configuration() {
 }
 
 void Configuration::copyToCUDA() {
-	printf("Copying to GPU %d\n", GPUManager::current());
+	printf("Copying particle data to GPU %d\n", GPUManager::current());
 
 	BrownianParticleType **part_addr = new BrownianParticleType*[numParts];
 
@@ -1400,7 +1400,7 @@ bool Configuration::readBondFile(const String& value, int currBond) {
 
 	bondTableFile[currBond] = tokenList[0];
 
-	printf("Tabulated Bond Potential: %s\n", bondTableFile[currBond].val() );
+	// printf("Tabulated Bond Potential: %s\n", bondTableFile[currBond].val() );
 
 	return true;
 }
@@ -1421,7 +1421,7 @@ bool Configuration::readAngleFile(const String& value, int currAngle) {
 
 	angleTableFile[currAngle] = tokenList[0];
 
-	printf("Tabulated Angle Potential: %s\n", angleTableFile[currAngle].val() );
+	// printf("Tabulated Angle Potential: %s\n", angleTableFile[currAngle].val() );
 
 	return true;
 }
@@ -1442,7 +1442,7 @@ bool Configuration::readDihedralFile(const String& value, int currDihedral) {
 
 	dihedralTableFile[currDihedral] = tokenList[0];
 
-	printf("Tabulated Dihedral Potential: %s\n", dihedralTableFile[currDihedral].val() );
+	// printf("Tabulated Dihedral Potential: %s\n", dihedralTableFile[currDihedral].val() );
 
 	return true;
 }
@@ -1622,8 +1622,8 @@ bool Configuration::readTableFile(const String& value, int currTab) {
 	partTableIndex1[currTab] = atoi(tokenList[1]);
 	partTableFile[currTab] = tokenList[2];
 
-	printf("tabulatedPotential: %d %d %s\n", partTableIndex0[currTab],
-			partTableIndex1[currTab], partTableFile[currTab].val() );
+	// printf("Tabulated Potential: %d %d %s\n", partTableIndex0[currTab],
+	// 		partTableIndex1[currTab], partTableFile[currTab].val() );
 	delete[] tokenList;
 	return true;
 }

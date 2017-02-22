@@ -338,7 +338,7 @@ GrandBrownTown::~GrandBrownTown() {
 
 // Run the Brownian Dynamics steps.
 void GrandBrownTown::run() {
-	printf("\n");
+	printf("\n\n");
 	Vector3 runningNetForce(0.0f);
 	
 	// Open the files for recording ionic currents
@@ -671,7 +671,7 @@ void GrandBrownTown::run() {
 			setlocale(LC_NUMERIC, "");
 
 			// Do the output
-			printf("Step %ld [%.2f%% complete | %.3f ms/step | %.3f ns/day]\n",
+			printf("\rStep %ld [%.2f%% complete | %.3f ms/step | %.3f ns/day]",
 						 s, percent, msPerStep, nsPerDay);
 		/*	printf("T: %.5g ns | E: %.5g | F: %.5g %.5g %.5g\n",
 						 t, energy, force0.x, force0.y, force0.z);
@@ -705,19 +705,19 @@ void GrandBrownTown::run() {
 			int length;
 			switch (imd_recv_header(clientsock, &length)) {
 				case IMD_DISCONNECT:
-					printf("[IMD] Disconnecting...\n");
+					printf("\n[IMD] Disconnecting...\n");
 					imd_disconnect(clientsock);
 					clientsock = NULL;
 					sleep(5);
 					break;
 				case IMD_KILL:
-					printf("[IMD] Killing...\n");
+					printf("\n[IMD] Killing...\n");
 					imd_disconnect(clientsock);
 					clientsock = NULL;
 					sleep(5);
 					break;
 				default:
-					printf("[IMD] Something weird happened. Disconnecting..\n");
+					printf("\n[IMD] Something weird happened. Disconnecting..\n");
 					break;
 			}
 		}
@@ -732,7 +732,7 @@ void GrandBrownTown::run() {
 	int tot_min = (int) std::fmod(elapsed / 60.0f, 60.0f);
 	float tot_sec	= std::fmod(elapsed, 60.0f);
 
-	printf("Final Step: %d\n", (int) steps);
+	printf("\nFinal Step: %d\n", (int) steps);
 
 	printf("Total Run Time: ");
 	if (tot_hrs > 0) printf("%dh%dm%.1fs\n", tot_hrs, tot_min, tot_sec);
