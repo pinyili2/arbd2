@@ -178,9 +178,10 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	}
 
 	// Prepare internal force computation
-	internal = new ComputeForce(num, part, numParts, sys, switchStart, switchLen, coulombConst,
-				    fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
-				    numDihedrals, numTabDihedralFiles, c.pairlistDistance, numReplicas);
+	// internal = new ComputeForce(num, part, numParts, sys, switchStart, switchLen, coulombConst,
+	// 			    fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
+	// 			    numDihedrals, numTabDihedralFiles, c.pairlistDistance, numReplicas);
+	internal = new ComputeForce(c, numReplicas);
 	
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
 	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals);

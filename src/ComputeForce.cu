@@ -4,6 +4,7 @@
 
 #include "ComputeForce.h"
 #include "ComputeForce.cuh"
+#include "Configuration.h"
 #include <cuda_profiler_api.h>
 
 
@@ -21,55 +22,65 @@ void runSort(int2 *d1, int *d2, float *key,
 				int2 *scratch1, int  *scratch2, float *scratchKey,
 				unsigned int count);
 
-ComputeForce::ComputeForce(int num, const BrownianParticleType part[],
-													 int numParts, const BaseGrid* g, float switchStart,
-													 float switchLen, float electricConst,
-													 int fullLongRange, int numBonds, int numTabBondFiles,
-													 int numExcludes, int numAngles, int numTabAngleFiles,
-													 int numDihedrals, int numTabDihedralFiles,
-				float pairlistDistance, int numReplicas) :
-		num(num), numParts(numParts), sys(g), switchStart(switchStart),
-		switchLen(switchLen), electricConst(electricConst),
-		cutoff2((switchLen + switchStart) * (switchLen + switchStart)),
-		decomp(g->getBox(), g->getOrigin(), switchStart + switchLen, numReplicas),
-		numBonds(numBonds), numTabBondFiles(numTabBondFiles),
-		numExcludes(numExcludes), numAngles(numAngles),
-		numTabAngleFiles(numTabAngleFiles), numDihedrals(numDihedrals),
-		numTabDihedralFiles(numTabDihedralFiles), numReplicas(numReplicas) {
+ComputeForce::ComputeForce(const Configuration& c, const int numReplicas) :
+    num(c.num), numParts(c.numParts), sys(c.sys), switchStart(c.switchStart),
+    switchLen(c.switchLen), electricConst(c.coulombConst),
+    cutoff2((c.switchLen + c.switchStart) * (c.switchLen + c.switchStart)),
+    decomp(c.sys->getBox(), c.sys->getOrigin(), c.switchStart + c.switchLen, numReplicas),
+    numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
+    numExcludes(c.numExcludes), numAngles(c.numAngles),
+    numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
+    numTabDihedralFiles(c.numTabDihedralFiles), numReplicas(numReplicas) {
+
+// int num, const BrownianParticleType part[],
+// int numParts, const BaseGrid* g, float switchStart,
+// float switchLen, float electricConst,
+// int fullLongRange, int numBonds, int numTabBondFiles,
+// int numExcludes, int numAngles, int numTabAngleFiles,
+// int numDihedrals, int numTabDihedralFiles,
+// float pairlistDistance, int numReplicas) :
+// 		num(num), numParts(numParts), sys(g), switchStart(switchStart),
+// 		switchLen(switchLen), electricConst(electricConst),
+// 		cutoff2((switchLen + switchStart) * (switchLen + switchStart)),
+// 		decomp(g->getBox(), g->getOrigin(), switchStart + switchLen, numReplicas),
+// 		numBonds(numBonds), numTabBondFiles(numTabBondFiles),
+// 		numExcludes(numExcludes), numAngles(numAngles),
+// 		numTabAngleFiles(numTabAngleFiles), numDihedrals(numDihedrals),
+// 		numTabDihedralFiles(numTabDihedralFiles), numReplicas(numReplicas) {
 	// Allocate the parameter tables.
+
 	decomp_d = NULL;
 
-	pairlistdist2 = (sqrt(cutoff2) + pairlistDistance);
+	pairlistdist2 = (sqrt(cutoff2) + c.pairlistDistance);
 	pairlistdist2 *= pairlistdist2;
 
-	tableEps = new float[numParts * numParts];
-	tableRad6 = new float[numParts * numParts];
-	tableAlpha = new float[numParts * numParts];
+	int np2     = numParts*numParts;
+	tableEps    = new float[np2];
+	tableRad6   = new float[np2];
+	tableAlpha  = new float[np2];
 
-	const size_t tableSize = sizeof(float) * numParts * numParts;
+	const size_t tableSize = sizeof(float) * np2;
 	gpuErrchk(cudaMalloc(&tableEps_d, tableSize));
 	gpuErrchk(cudaMalloc(&tableRad6_d, tableSize));
 	gpuErrchk(cudaMalloc(&tableAlpha_d, tableSize));
 	gpuErrchk(cudaMalloc(&sys_d, sizeof(BaseGrid)));
 	gpuErrchk(cudaMemcpyAsync(sys_d, sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
-	// Form the parameter tables.
-	makeTables(part);
 
-	gpuErrchk(cudaMemcpyAsync(tableAlpha_d, tableAlpha, tableSize,
-			cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(tableEps_d, tableEps, tableSize,
-			cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(tableRad6_d, tableRad6, tableSize,
-			cudaMemcpyHostToDevice));
+	// Build the parameter tables.
+	makeTables(c.part);
+
+	gpuErrchk(cudaMemcpyAsync(tableAlpha_d, tableAlpha, tableSize, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpyAsync(tableEps_d, tableEps, tableSize, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpyAsync(tableRad6_d, tableRad6, tableSize, cudaMemcpyHostToDevice));
 
 	// Create the potential table
-	tablePot = new TabulatedPotential*[numParts * numParts];
-	tablePot_addr = new TabulatedPotential*[numParts * numParts];
-	for (int i = 0; i < numParts*numParts; i++) {
+	tablePot = new TabulatedPotential*[np2];
+	tablePot_addr = new TabulatedPotential*[np2];
+	for (int i = 0; i < np2; ++i) {
 		tablePot_addr[i] = NULL;
 		tablePot[i] = NULL;
 	}
-	gpuErrchk(cudaMalloc(&tablePot_d, sizeof(TabulatedPotential*) * numParts * numParts));
+	gpuErrchk(cudaMalloc(&tablePot_d, sizeof(TabulatedPotential*) * np2));
 
 	// Create the bond table
 	tableBond = new TabulatedPotential*[numTabBondFiles];

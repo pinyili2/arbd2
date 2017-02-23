@@ -30,15 +30,13 @@
 
 const unsigned int NUM_THREADS = 256;
 
+class Configuration;
+
 class ComputeForce {
 public:
-	ComputeForce(int num, const BrownianParticleType* part, int numParts,
-			const BaseGrid* g, float switchStart, float switchLen,
-			float electricConst, int fullLongRange, int numBonds,
-			int numTabBondFiles, int numExcludes, int numAngles, int numTabAngleFiles,
-					int numDihedrals, int numTabDihedralFiles, float pairlistDistance, int numReplicas = 1);
-	~ComputeForce();
-
+    ComputeForce(const Configuration &c, const int numReplicas);
+    ~ComputeForce();
+    
 	void updateNumber(int newNum);
 	void makeTables(const BrownianParticleType* part);
 
@@ -140,6 +138,7 @@ public:
 	static EnergyForce softcoreForce(Vector3 r, float eps, float rad6);
 
 private:
+	// Configuration* c;
 	int numReplicas;
 	int num;
 	int numParts;
