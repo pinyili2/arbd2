@@ -15,11 +15,14 @@
 #include "BaseGrid.h"
 #include "BrownianParticleType.h"
 #include "CellDecomposition.h"
-#include "JamesBond.h"
-#include "TabulatedPotential.h"
+
+// Simple classes
+#include "Restraint.h"
 #include "useful.h"
 #include "Exclude.h"
 #include "Angle.h"
+#include "JamesBond.h"
+#include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
 #include "TabulatedDihedral.h"
 
@@ -30,6 +33,7 @@
 
 const unsigned int NUM_THREADS = 256;
 
+// Configuration
 class Configuration;
 
 class ComputeForce {
@@ -70,7 +74,7 @@ public:
 	
 	//MLog: new copy function to allocate memory required by ComputeForce class.
 	void copyToCUDA(Vector3* forceInternal, Vector3* pos);
-	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals);
+	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints);
 	
 	// void createBondList(int3 *bondList);
 	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList);
@@ -185,16 +189,26 @@ private:
 	Vector3* pos_d;
 	Vector3* forceInternal_d;
 	int* type_d; 
+
 	Bond* bonds_d; 
 	int2* bondMap_d; 
+
 	Exclude* excludes_d; 
 	int2* excludeMap_d; 
+
 	Angle* angles_d;
 	Dihedral* dihedrals_d;
+
 	int3* bondList_d;
 	int4* angleList_d;
 	int4* dihedralList_d;
 	int* dihedralPotList_d;
+
+	int numRestraints;
+	int* restraintIds_d;
+	Vector3* restraintLocs_d;
+	float* restraintSprings_d;
+
 };
 
 #endif

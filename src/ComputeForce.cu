@@ -22,7 +22,7 @@ void runSort(int2 *d1, int *d2, float *key,
 				int2 *scratch1, int  *scratch2, float *scratchKey,
 				unsigned int count);
 
-ComputeForce::ComputeForce(const Configuration& c, const int numReplicas) :
+ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     num(c.num), numParts(c.numParts), sys(c.sys), switchStart(c.switchStart),
     switchLen(c.switchLen), electricConst(c.coulombConst),
     cutoff2((c.switchLen + c.switchStart) * (c.switchLen + c.switchStart)),
@@ -30,25 +30,9 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas) :
     numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
-    numTabDihedralFiles(c.numTabDihedralFiles), numReplicas(numReplicas) {
+    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints), numReplicas(numReplicas) {
 
-// int num, const BrownianParticleType part[],
-// int numParts, const BaseGrid* g, float switchStart,
-// float switchLen, float electricConst,
-// int fullLongRange, int numBonds, int numTabBondFiles,
-// int numExcludes, int numAngles, int numTabAngleFiles,
-// int numDihedrals, int numTabDihedralFiles,
-// float pairlistDistance, int numReplicas) :
-// 		num(num), numParts(numParts), sys(g), switchStart(switchStart),
-// 		switchLen(switchLen), electricConst(electricConst),
-// 		cutoff2((switchLen + switchStart) * (switchLen + switchStart)),
-// 		decomp(g->getBox(), g->getOrigin(), switchStart + switchLen, numReplicas),
-// 		numBonds(numBonds), numTabBondFiles(numTabBondFiles),
-// 		numExcludes(numExcludes), numAngles(numAngles),
-// 		numTabAngleFiles(numTabAngleFiles), numDihedrals(numDihedrals),
-// 		numTabDihedralFiles(numTabDihedralFiles), numReplicas(numReplicas) {
 	// Allocate the parameter tables.
-
 	decomp_d = NULL;
 
 	pairlistdist2 = (sqrt(cutoff2) + c.pairlistDistance);
@@ -186,6 +170,11 @@ ComputeForce::~ComputeForce() {
 		if (numExcludes > 0) {
 			gpuErrchk( cudaFree(excludes_d) );
 			gpuErrchk( cudaFree(excludeMap_d) );
+		}
+		if (numRestraints > 0) {
+			gpuErrchk( cudaFree(restraintIds_d) );
+			gpuErrchk( cudaFree(restraintLocs_d) );
+			gpuErrchk( cudaFree(restraintSprings_d) );
 		}
 	}
 
@@ -630,6 +619,9 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	if (dihedralList_d != NULL && tableDihedral_d != NULL)
 		computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
 
+	if (restraintIds_d != NULL )
+	    computeHarmonicRestraints<<<1, numThreads>>>(forceInternal_d, pos_d, sys_d, numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
+	
 
 	// Calculate the energy based on the array created by the kernel
 	// TODO: return energy
@@ -689,7 +681,7 @@ void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 }
 
 
-void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals)
+void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints)
 {
 	// type_d
 	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * num * simNum));
@@ -734,6 +726,28 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 												 		  sizeof(Dihedral) * numDihedrals,
 														 	cudaMemcpyHostToDevice));
 	}
+
+	if (numRestraints > 0) {
+	    int restraintIds[numRestraints];
+	    Vector3 restraintLocs[numRestraints];
+	    float restraintSprings[numRestraints];
+	    for (int i = 0; i < numRestraints; ++i) {
+		restraintIds[i]     = restraints[i].id;
+		restraintLocs[i]    = restraints[i].r0;
+		restraintSprings[i] = restraints[i].k;
+	    }
+
+	    gpuErrchk(cudaMalloc(&restraintIds_d, sizeof(int) * numRestraints));
+	    gpuErrchk(cudaMalloc(&restraintLocs_d, sizeof(Vector3) * numRestraints));
+	    gpuErrchk(cudaMalloc(&restraintSprings_d, sizeof(float) * numRestraints));
+	    
+	    gpuErrchk(cudaMemcpyAsync(restraintIds_d, restraintIds,
+				      sizeof(int)     * numRestraints, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(restraintLocs_d, restraintLocs,
+				      sizeof(Vector3) * numRestraints, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(restraintSprings_d, restraintSprings,
+				      sizeof(float)   * numRestraints, cudaMemcpyHostToDevice));
+	}	    
 
 	gpuErrchk(cudaDeviceSynchronize());
 }

@@ -1,4 +1,8 @@
 #include "Configuration.h"
+#include "Angle.h"
+#include "Dihedral.h"
+#include "Restraint.h"
+
 #include <cassert>
 
 
@@ -114,6 +118,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readExcludesFromFile) readExcludes();
 	if (readAnglesFromFile) readAngles();
 	if (readDihedralsFromFile) readDihedrals();
+	if (readRestraintsFromFile) readRestraints();
 
 	kT = temperature * 0.0019872065f; // `units "k K" "kcal_mol"`
 	if (temperatureGridFile.length() != 0) {
@@ -581,6 +586,10 @@ void Configuration::setDefaults() {
 	dihedrals = NULL;
 	numTabDihedralFiles = 0;
 
+	readRestraintsFromFile = false;
+	numRestraints = 0;
+	restraints = NULL;
+
 	// Hidden parameters
 	// Might be parameters later
 	numCapFactor = 5;
@@ -733,7 +742,7 @@ int Configuration::readParameters(const char * config_file) {
 				numTabBondFiles++;
 		} else if (param == String("inputParticles")) {
 			if (readPartsFromFile) {
-				printf("WARNING: More than one particle file specified. Discarding new file.\n");
+				printf("WARNING: More than one particle file specified. Ignoring new file.\n");
 			} else {
 				partFile = value;
 				readPartsFromFile = true;
@@ -741,14 +750,14 @@ int Configuration::readParameters(const char * config_file) {
 			}
 		} else if (param == String("inputBonds")) {
 			if (readBondsFromFile) {
-				printf("WARNING: More than one bond file specified. Discarding new bond file.\n");
+				printf("WARNING: More than one bond file specified. Ignoring new bond file.\n");
 			} else {
 				bondFile = value;				
 				readBondsFromFile = true;
 			}
 		} else if (param == String("inputExcludes")) {
 			if (readExcludesFromFile) {
-				printf("WARNING: More than one exclude file specified. Discarding new exclude file.\n");
+				printf("WARNING: More than one exclude file specified. Ignoring new exclude file.\n");
 			} else {
 				excludeFile = value;				
 				readExcludesFromFile = true;
@@ -757,7 +766,7 @@ int Configuration::readParameters(const char * config_file) {
 			excludeRule = value; 
 		} else if (param == String("inputAngles")) {
 			if (readAnglesFromFile) {
-				printf("WARNING: More than one angle file specified. Discarding new angle file.\n");
+				printf("WARNING: More than one angle file specified. Ignoring new angle file.\n");
 			} else {
 				angleFile = value;
 				readAnglesFromFile = true;
@@ -775,7 +784,7 @@ int Configuration::readParameters(const char * config_file) {
 				numTabAngleFiles++;
 		} else if (param == String("inputDihedrals")) {
 			if (readDihedralsFromFile) {
-				printf("WARNING: More than one dihedral file specified. Discarding new dihedral file.\n");
+				printf("WARNING: More than one dihedral file specified. Ignoring new dihedral file.\n");
 			} else {
 				dihedralFile = value;
 				readDihedralsFromFile = true;
@@ -791,6 +800,13 @@ int Configuration::readParameters(const char * config_file) {
 			}
 			if (readDihedralFile(value, ++currDihedral))
 				numTabDihedralFiles++;
+		} else if (param == String("inputRestraints")) {
+			if (readRestraintsFromFile) {
+				printf("WARNING: More than one restraint file specified. Ignoring new restraint file.\n");
+			} else {
+				restraintFile = value;
+				readRestraintsFromFile = true;
+			}
 		} else if (param == String("gridFileScale")) {
 			partGridFileScale[currPart] = (float) strtod(value.val(), NULL);
 		} else if (param == String("rigidBodyPotential")) {
@@ -1368,6 +1384,62 @@ void Configuration::readDihedrals() {
 	// for(int i = 0; i < numDihedrals; i++)
 	// 	dihedrals[i].print();
 }
+
+void Configuration::readRestraints() {
+	FILE* inp = fopen(restraintFile.val(), "r");
+	char line[256];
+	int capacity = 16;
+	numRestraints = 0;
+	restraints = new Restraint[capacity];
+
+	// If the restraint file cannot be found, exit the program
+	if (inp == NULL) {
+		printf("WARNING: Could not open `%s'.\n", restraintFile.val());
+		printf("  This simulation will not use restraints.\n");
+		return;
+	}
+
+	while(fgets(line, 256, inp)) {
+		if (line[0] == '#') continue;
+		String s(line);
+		int numTokens = s.tokenCount();
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		// inputs have 6 tokens
+		// RESTRAINT | INDEX1 | k | x0 | y0 | z0
+		if (numTokens != 6) {
+			printf("WARNING: Invalid restraint input line: %s\n", line);
+			continue;
+		}
+
+		// Discard any empty line
+		if (tokenList == NULL) continue;
+
+		int   id = atoi(tokenList[1].val());
+		float k  = (float) strtod(tokenList[2].val(), NULL);
+		float x0 = (float) strtod(tokenList[3].val(), NULL);
+		float y0 = (float) strtod(tokenList[4].val(), NULL);
+		float z0 = (float) strtod(tokenList[5].val(), NULL);
+
+		if (id >= num) continue;
+
+		if (numRestraints >= capacity) {
+			Restraint* temp = restraints;
+			capacity *= 2;
+			restraints = new Restraint[capacity];
+			for (int i = 0; i < numRestraints; ++i)
+				restraints[i] = temp[i];
+			delete[] temp;
+		}
+
+		Restraint tmp(id, Vector3(x0,y0,z0), k);
+		restraints[numRestraints++] = tmp;
+		delete[] tokenList;
+	}
+	// std::sort(restraints, restraints + numRestraints, compare());
+}
+
 
 void Configuration::populate() {
 	int pn = 0;

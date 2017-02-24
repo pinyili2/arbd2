@@ -20,13 +20,11 @@
 #include "BaseGrid.h"
 #include "OverlordGrid.h"
 #include "ComputeForce.h"
-#include "Angle.h"
 #include "Reader.h"
 #include "TrajectoryWriter.h"
 #include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
 #include "GPUManager.h"
-#include "Dihedral.h"
 #include "RigidBodyType.h"
 #include "RigidBody.h"
 
@@ -37,8 +35,13 @@
 //    Energy: kcal/mol (6.947694e-24 kJ)
 //    Temperature: Kelvin
 //    Time: nanoseconds
-//    Length: nanometers
+//    Length: angstroms
 
+
+// Forward declerations
+class Angle;
+class Dihedral;
+struct Restraint;
 
 class Configuration {
 	struct compare {
@@ -59,6 +62,7 @@ class Configuration {
 	void readBonds();
 	void readExcludes();
 	void readDihedrals();
+	void readRestraints();
 
 	bool readTableFile(const String& value, int currTab);
 	bool readBondFile(const String& value, int currBond);
@@ -168,17 +172,20 @@ public:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+	int numRestraints;
 	int* numPartsOfType;
 	String partFile;
 	String bondFile;
 	String excludeFile;
 	String angleFile;
 	String dihedralFile;
+	String restraintFile;
 	bool readPartsFromFile;
 	bool readBondsFromFile;
 	bool readExcludesFromFile;
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
+	bool readRestraintsFromFile;
 	String* partGridFile;
 	float* partGridFileScale;
 	std::vector< std::vector<String> > partRigidBodyGrid;
@@ -207,6 +214,8 @@ public:
 	Dihedral* dihedrals;
 	String* dihedralTableFile;
 	int numTabDihedralFiles;
+
+	Restraint* restraints;
 
 	// RigidBody parameters.
 	RigidBodyType* rigidBody;

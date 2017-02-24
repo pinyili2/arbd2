@@ -184,7 +184,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	internal = new ComputeForce(c, numReplicas);
 	
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
-	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals);
+	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints);
 
 	// TODO: check for duplicate potentials 
 	if (c.tabulatedPotential) {
@@ -200,7 +200,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			}
 		}
 	}
-	printf("Using %d non-bonded exclusions\n",numExcludes/2);
+	printf("Using %d non-bonded exclusions\n",c.numExcludes/2);
 
 	if (c.readBondsFromFile) {
 		printf("Loading %d tabulated bond potentials...\n", numTabBondFiles);
