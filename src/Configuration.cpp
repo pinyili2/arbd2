@@ -125,7 +125,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		printf("\nFound temperature grid file: %s\n", temperatureGridFile.val());
 		tGrid = new BaseGrid(temperatureGridFile.val());
 		printf("Loaded `%s'.\n", temperatureGridFile.val());
-		printf("System size %s.\n", tGrid->getExtent().toString().val());
+		printf("Grid size %s.\n", tGrid->getExtent().toString().val());
 
 		// TODO: ask Max Belkin what this is about and how to remove hard-coded temps
 		float ToSo = 1.0f / (295.0f * 4.634248239f); // 1 / (To * sigma(To))
@@ -158,7 +158,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 
 			part[i].meanPmf = part[i].pmf->mean();
 			printf("Loaded dx potential grid `%s'.\n", map.val());
-			printf("System size %s.\n", part[i].pmf->getExtent().toString().val());
+			printf("Grid size %s.\n", part[i].pmf->getExtent().toString().val());
 		} else if  (len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f') {
 			// A system definition file.
 			String rootGrid = OverlordGrid::readDefFirst(map);
@@ -178,25 +178,25 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		if (partForceXGridFile[i].length() != 0) {
 			part[i].forceXGrid = new BaseGrid(partForceXGridFile[i].val());
 			printf("Loaded `%s'.\n", partForceXGridFile[i].val());
-			printf("System size %s.\n", part[i].forceXGrid->getExtent().toString().val());
+			printf("Grid size %s.\n", part[i].forceXGrid->getExtent().toString().val());
 		}
 
 		if (partForceYGridFile[i].length() != 0) {
 			part[i].forceYGrid = new BaseGrid(partForceYGridFile[i].val());
 			printf("Loaded `%s'.\n", partForceYGridFile[i].val());
-			printf("System size %s.\n", part[i].forceYGrid->getExtent().toString().val());
+			printf("Grid size %s.\n", part[i].forceYGrid->getExtent().toString().val());
 		}
 
 		if (partForceZGridFile[i].length() != 0) {
 			part[i].forceZGrid = new BaseGrid(partForceZGridFile[i].val());
 			printf("Loaded `%s'.\n", partForceZGridFile[i].val());
-			printf("System size %s.\n", part[i].forceZGrid->getExtent().toString().val());
+			printf("Grid size %s.\n", part[i].forceZGrid->getExtent().toString().val());
 		}
 
 		if (partDiffusionGridFile[i].length() != 0) {
 			part[i].diffusionGrid = new BaseGrid(partDiffusionGridFile[i].val());
 			printf("Loaded `%s'.\n", partDiffusionGridFile[i].val());
-			printf("System size %s.\n", part[i].diffusionGrid->getExtent().toString().val());
+			printf("Grid size %s.\n", part[i].diffusionGrid->getExtent().toString().val());
 		}
 
 		if (temperatureGridFile.length() != 0) {
@@ -211,7 +211,6 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 				// part[i].diffusionGrid->write(outFile, comment);
 			}
 		}
-
 	}
 
     // Load reservoir files if any
@@ -226,8 +225,20 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 
     // Get the system dimensions
     // from the dimensions of supplied 3D potential maps
+    if (size.length2() > 0) {	// use size if it's defined
+	if (basis1.length2() > 0 || basis2.length2() > 0 || basis3.length2() > 0)
+	    printf("WARNING: both 'size' and 'basis' were specified... using 'size'\n"); 
+	basis1 = Vector3(size.x,0,0);
+	basis2 = Vector3(0,size.y,0);
+	basis3 = Vector3(0,0,size.z);
+    }
+    if (basis1.length2() > 0 && basis2.length2() > 0 && basis3.length2() > 0) {
+	sys = new BaseGrid( Matrix3(basis1,basis2,basis3), origin, 1, 1, 1 );
+    } else {
+	// TODO: use largest system in x,y,z
 	sys = part[0].pmf;
-	sysDim = part[0].pmf->getExtent();
+    }
+    sysDim = sys->getExtent();
 
 // RBTODO: clean this mess up
 	/* // RigidBodies... */
@@ -541,6 +552,13 @@ void Configuration::setDefaults() {
 	rigidBodyGridGridPeriod = 1;
 	steps = 100;
 	seed = 0;
+
+	origin = Vector3(0,0,0);
+	size = Vector3(0,0,0);
+	basis1 = Vector3(0,0,0);
+	basis2 = Vector3(0,0,0);
+	basis3 = Vector3(0,0,0);
+	
 	inputCoordinates = "";
 	restartCoordinates = "";
 	numberFluct = 0;
@@ -662,6 +680,16 @@ int Configuration::readParameters(const char * config_file) {
 			steps = atol(value.val());
 		else if (param == String("seed"))
 			seed = atoi(value.val());
+		else if (param == String("origin"))
+		    origin = stringToVector3( value );
+		else if (param == String("systemSize"))
+		    size = stringToVector3( value );
+		else if (param == String("basis1"))
+		    basis1 = stringToVector3( value );
+		else if (param == String("basis2"))
+		    basis2 = stringToVector3( value );
+		else if (param == String("basis3"))
+		    basis3 = stringToVector3( value );
 		else if (param == String("inputCoordinates"))
 			inputCoordinates = value;
 		else if (param == String("restartCoordinates"))

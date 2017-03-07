@@ -87,6 +87,9 @@ public:
 	// Output variables
 	Vector3 sysDim;
 	BaseGrid* sys;
+	// temporary variables
+	Vector3 origin, size, basis1, basis2, basis3;
+
 
 	bool loadedCoordinates;
 
