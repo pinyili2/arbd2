@@ -23,6 +23,7 @@ private:
 	static bool is_safe;
 
 public:	
+	static std::vector<int> allGpus;
 	static std::vector<int> gpus;
 	static std::vector<cudaDeviceProp> properties;
 	
@@ -38,14 +39,16 @@ public:
 	// set
 	// Set the GPU
 	static void set(int gpu_id);
+
+	// current
+	// @return the current GPU a thread is using
+	static int current();
 	
 	// safe
 	// @param whether gpus should contain GPUs that may timeout
 	static void safe(bool make_safe);
 	
-	// current
-	// @return the current GPU a thread is using
-	static int current();
+	static int getInitialGPU();
 	
 	// Currently unused
 	static std::vector<GPUPeer> peers;

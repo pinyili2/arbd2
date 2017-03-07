@@ -23,8 +23,8 @@ int main(int argc, char* argv[]) {
 		printf("  -g, --gpu=         Index of gpu to use (defaults to 0)\n");
 		printf("  -i, --imd=         IMD port (defaults to %d)\n", kIMDPort);
 		printf("  -d, --debug        Debug mode: allows user to choose which forces are computed\n");
-		printf("  --safe             Do not use GPUs that may timeout (default)\n");
-		printf("  --unsafe           Use GPUs that may timeout\n");
+		printf("  --safe             Do not use GPUs that may timeout\n");
+		printf("  --unsafe           Use GPUs that may timeout (default)\n");
 		printf("  -h, --help         Display this help and exit\n");
 		printf("  --info             Output CPU and GPU information and exit\n");
 		printf("  --version          Output version information and exit\n");
@@ -43,11 +43,17 @@ int main(int argc, char* argv[]) {
     printf("Try '%s --help' for more information.\n", argv[0]);
     return 1;
   }
-	size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
+	// printf("Everything's great when you're...BrownTown\n");
+	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n");
+	printf("  |    Atomic Resolution Brownian Dynamics    |\n");
+	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n\n");
 
-	int gpuID = 0;
+	GPUManager::init();
+
+	size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
+	int gpuID = -1;
 	
-	bool debug = false, safe = true;
+	bool debug = false, safe = false;
 	int replicas = 1;
 	unsigned int imd_port = 0;
 	bool imd_on = false;
@@ -66,17 +72,18 @@ int main(int argc, char* argv[]) {
 
 		} else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gpu") == 0) {
 			unsigned int arg_val = atoi(argv[pos + 1]);
+			safe = false;
 			gpuID = arg_val;
 			num_flags += 2;
 			if (arg_val < 0 || arg_val > n_gpus) {
-				printf("Invalid argument given to %s\n", arg);
+				printf("ERROR: Invalid argument given to %s\n", arg);
 				return 1;
 			}
 			
 		} else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--replicas") == 0) {
 			int arg_val = atoi(argv[pos + 1]);
 			if (arg_val <= 0) {
-				printf("Invalid argument given to %s\n", arg);
+				printf("ERROR: Invalid argument given to %s\n", arg);
 				return 1;
 			}
 			replicas = arg_val;
@@ -111,13 +118,14 @@ int main(int argc, char* argv[]) {
 		configFile = argv[argc - 2];
 		outArg = argv[argc - 1];
 	}
-	
-  printf("Everything's great when you're...BrownTown\n");
 
-	GPUManager::init();
 	GPUManager::safe(safe);
+	if (gpuID == -1)
+	    gpuID = GPUManager::getInitialGPU();
+
 	Configuration config(configFile, replicas, debug);
 	// GPUManager::set(0);
+	printf("Setting gpuID to %d\n",gpuID);
 	GPUManager::set(gpuID);
 	//MLog: this copyToCUDA function (along with the one in GrandBrownTown.cpp) was split into pieces to allocate memory into the ComputeForce, due to the location of this call we may get some memory error as a ComputeForce class isn't allocated until later on.
 	config.copyToCUDA();

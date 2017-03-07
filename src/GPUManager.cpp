@@ -10,7 +10,7 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=t
 
 int GPUManager::nGPUs = 0;
 bool GPUManager::is_safe = true;
-std::vector<int> GPUManager::gpus, GPUManager::timeouts, GPUManager::notimeouts;
+std::vector<int> GPUManager::allGpus, GPUManager::gpus, GPUManager::timeouts, GPUManager::notimeouts;
 std::vector<GPUPeer> GPUManager::peers;
 
 // Currently unused
@@ -20,15 +20,10 @@ std::vector<cudaEvent_t> GPUManager::events;
 
 void GPUManager::init() {
 	load_info();
-	is_safe = true;
-	gpus = notimeouts;
-	// If every GPU times out, use them
-	if (gpus.size() == 0) {
-		printf("WARNING: Using GPUs that may time out\n");
-		is_safe = false;
-		gpus = timeouts;
-	}
-	if (gpus.size() == 0) {
+	is_safe = false;
+	gpus = allGpus;
+
+	if (allGpus.size() == 0) {
 	    fprintf(stderr, "Error: Did not find a GPU\n");
 	    exit(1);
 	}
@@ -46,11 +41,11 @@ void GPUManager::load_info() {
 
 		// Print out properties
 		printf("[%d] %s ", dev, prop.name);
+		allGpus.push_back(dev);
 		if (prop.kernelExecTimeoutEnabled) {
 			printf("(may timeout) ");
-			timeouts.push_back(dev);
 		} else {
-			notimeouts.push_back(dev);
+		    notimeouts.push_back(dev);
 		}
 
 		printf("| SM %d.%d, ", prop.major, prop.minor);
@@ -117,7 +112,16 @@ void GPUManager::safe(bool make_safe) {
 		gpus = notimeouts;
 		is_safe = true;
 	} else {
-		gpus.insert(gpus.end(), timeouts.begin(), timeouts.end());
-		is_safe = false;
+	    gpus = allGpus;
+	    is_safe = false;
 	}
+}
+
+int GPUManager::getInitialGPU() {
+    // TODO: check the load on the gpus and select an unused one
+    for (uint i = 0; i < gpus.size(); ++i) {
+	if (!properties[gpus[i]].kernelExecTimeoutEnabled)
+	    return i; 
+    }
+    return 0;
 }
