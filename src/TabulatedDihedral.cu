@@ -2,6 +2,8 @@
 // Authors: Justin Dufresne and Terrance Howard, 2013
 
 #include "TabulatedDihedral.h"
+#include <cassert>
+#define BD_PI 3.1415927f
 
 TabulatedDihedralPotential::TabulatedDihedralPotential() :
 		pot(NULL), size(0), fileName("") {}
@@ -53,7 +55,24 @@ TabulatedDihedralPotential::TabulatedDihedralPotential(String fileName) : fileNa
 		pot[size++] = atof(tokenList[1].val());
 	}
 	// units "1/deg" "1/radian"  *57.29578
-	angle_step_inv = 57.29578f / (angle[1]-angle[0]); 
+	float deltaAngle = (angle[size-1]-angle[0])/(size-1); 
+	assert( deltaAngle > 0 );
+	assert( size*deltaAngle >= 360 );
+
+	float tmp[size];
+	for (int i = 0; i < size; ++i) {
+	    // j=0 corresponsds to angle[i] in [-Pi,-Pi+delta)
+	    float a = (angle[i] + 180.0f);
+	    while (a < 0) a += 360.0f;
+	    while (a >= 360) a -= 360.0f;
+	    int j = floor( a / deltaAngle );
+	    if (j >= size) continue;
+	    tmp[j] = pot[i];
+	}
+	for (int i = 0; i < size; ++i) pot[i] = tmp[i];
+
+	angle_step_inv = 57.29578f / deltaAngle;
+		 
 	delete[] angle;
 	fclose(inp);
 }

@@ -59,7 +59,7 @@ TabulatedAnglePotential::TabulatedAnglePotential(String fileName) : fileName(fil
 		pot[size++] = atof(tokenList[1].val());
 	}
 	// units "1/deg" "1/radian"  *57.29578
-	angle_step_inv = 57.29578f / (angle[1]-angle[0]); 
+	angle_step_inv = 57.29578f * (size-1) / (angle[size-1]-angle[0]); 
 	delete[] angle;
 	fclose(inp);
 }

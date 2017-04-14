@@ -126,8 +126,16 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	force = -dU * d->angle_step_inv;
 
 	// avoid singularity when one angle is straight 
-	force = (crossABC.rLength() > 1.0f || crossBCD.rLength() > 1.0f) ? 0.0f : force;
+	force = (ab.length2()*bc.length2()*crossABC.rLength2() > 100.0f || (ab.length2()*bc.length2()*crossABC.rLength2())*crossBCD.rLength2() > 100.0f) ? 0.0f : force;
+
+	// if (force >= 10000.0f)
+	//     printf("pot[%d] = %f; pot[%d] = %f\n", home,U0, home1, U0+dU);
+	if ( force > 1000.0f ) 
+	    force = 1000.0f;
+	if ( force < -1000.0f ) 
+	    force = -1000.0f;
 	assert( force < 10000.0f );
+
 	f1 *= force;
 	f2 *= force;
 	f3 *= force;
