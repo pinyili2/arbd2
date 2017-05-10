@@ -113,9 +113,14 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		}
 	}
 
+	
+	/* Initialize exclusions */
+	excludeCapacity = 256;
+	numExcludes = 0;
+	excludes = new Exclude[excludeCapacity];
 
-	if (readBondsFromFile) readBonds();
 	if (readExcludesFromFile) readExcludes();
+	if (readBondsFromFile) readBonds();
 	if (readAnglesFromFile) readAngles();
 	if (readDihedralsFromFile) readDihedrals();
 	if (readRestraintsFromFile) readRestraints();
@@ -281,34 +286,9 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		for (int i = oldNumExcludes; i < numExcludes; i++)
 			excludes[i] = newExcludes[i - oldNumExcludes];
 		printf("Built %d exclusions.\n",numExcludes);
-
-		// Call compareExcludeIndex with qsort to sort the excludes by BOTH ind1 AND ind2
-		std::sort(excludes, excludes + numExcludes, compare());
-
-		/* Each particle may have a varying number of excludes
-		 * excludeMap is an array with one element for each particle
-		 * which keeps track of where a particle's excludes are stored
-		 * in the excludes array.
-		 * excludeMap[i].x is the index in the excludes array where the ith particle's excludes begin
-		 * excludeMap[i].y is the index in the excludes array where the ith particle's excludes end
-		 */
-		excludeMap = new int2[numPartsFromFile];
-		for (int i = 0; i < numPartsFromFile; i++) {
-			excludeMap[i].x = -1;
-			excludeMap[i].y = -1;
-		}
-		int currPart = -1;
-		int lastPart = -1;
-		for (int i = 0; i < numExcludes; i++) {
-			if (excludes[i].ind1 != currPart) {
-				currPart = excludes[i].ind1;
-				excludeMap[currPart].x = i;
-				if (lastPart >= 0)
-					excludeMap[lastPart].y = i;
-				lastPart = currPart;
-			}
-		}
 	}
+
+	buildExcludeMap();
 
 	// Count number of particles of each type
 	numPartsOfType = new int[numParts];
@@ -1120,6 +1100,12 @@ void Configuration::readBonds() {
 			printf("WARNING: Invalid bond file line: %s\n", line);
 			continue;
 		}
+
+		if (ind1 < 0 || ind1 >= num || ind2 < 0 || ind2 >=num) {
+			printf("ERROR: Bond file line '%s' includes invalid index\n", line);
+			exit(1);
+		}
+
 		
 		// If we don't have enough room in our bond array, we need to expand it.
 		if (numBonds+1 >= capacity) { // "numBonds+1" because we are adding two bonds to array
@@ -1143,17 +1129,9 @@ void Configuration::readBonds() {
 		// We must add it twice: Once for (ind1, ind2) and once for (ind2, ind1)
 		
 		// RBTODO: add ind1/2 to exclusion list here iff op == REPLACE
-		/*if (op == Bond::REPLACE)
-		if( (int)(op) == 1)
-		{
-			printf("WARNING: Bond exclusions not implemented\n");
-			continue;
-		}*/
 
-		if (ind1 < 0 || ind1 >= num || ind2 < 0 || ind2 >=num) {
-			printf("ERROR: Bond file line '%s' includes invalid index\n", line);
-			exit(1);
-		}
+		if (op == "REPLACE")
+		    addExclusion(ind1, ind2);
 
 		Bond* b = new Bond(op, ind1, ind2, file_name);
 		bonds[numBonds++] = *b;
@@ -1203,11 +1181,6 @@ void Configuration::readExcludes()
 		return;
 	}
 
-	// Our particle array has a starting capacity of 256
-	// We will expand this later if we need to.
-	excludeCapacity = 256;
-	numExcludes = 0;
-	excludes = new Exclude[excludeCapacity];
 
 	// Get and process all lines of input
 	while (fgets(line, 256, inp) != NULL) {
@@ -1230,65 +1203,74 @@ void Configuration::readExcludes()
 		}
 		int ind1 = atoi(tokenList[1].val());
 		int ind2 = atoi(tokenList[2].val());
-		if (ind1 >= num || ind2 >= num) 
-			continue;
-		
-		// If we don't have enough room in our bond array, we need to expand it.
-		if (numExcludes >= excludeCapacity) {
-			// Temporary pointer to the old array
-			Exclude* temp = excludes;	
-
-			// Double the capacity
-			excludeCapacity *= 2;
-
-			// Create pointer to new array which is twice the size of the old one
-			excludes = new Exclude[excludeCapacity];
-		
-			// Copy the old values into the new array
-			for (int j = 0; j < numExcludes; j++)
-				excludes[j] = temp[j];
-
-			// delete the old array
-			delete[] temp;
-		}
-		// Add the bond to the exclude array
-		// We must add it twice: Once for (ind1, ind2) and once for (ind2, ind1)
-		Exclude ex(ind1, ind2);
-		excludes[numExcludes++] = ex;
-		Exclude ex2(ind2, ind1);
-		excludes[numExcludes++] = ex2;
+		addExclusion(ind1, ind2);
 		delete[] tokenList;
-	}	
-	// Call compareExcludeIndex with qsort to sort the excludes by BOTH ind1 AND ind2
-	std::sort(excludes, excludes + numExcludes, compare());
-
-	/* Each particle may have a varying number of excludes
-	 * excludeMap is an array with one element for each particle
-	 * which keeps track of where a particle's excludes are stored
-	 * in the excludes array.
-	 * excludeMap[i].x is the index in the excludes array where the ith particle's excludes begin
-	 * excludeMap[i].y is the index in the excludes array where the ith particle's excludes end
-	 */
-	excludeMap = new int2[num];
-	for (int i = 0; i < num; i++) {	
-		excludeMap[i].x = -1;
-		excludeMap[i].y = -1;
 	}
-	int currPart = -1;
-	int lastPart = -1;
-	for (int i = 0; i < numExcludes; i++) {
-		if (excludes[i].ind1 != currPart) {
-			currPart = excludes[i].ind1;
-			assert(currPart < num);
-			excludeMap[currPart].x = i;
-			if (lastPart >= 0)
-			    excludeMap[lastPart].y = i;
-			lastPart = currPart;
-		}
-	}
-	if (excludeMap[lastPart].x > 0)
-	    excludeMap[lastPart].y = numExcludes;
+}
+void Configuration::addExclusion(int ind1, int ind2) {
+    if (ind1 >= num || ind2 >= num) {
+	printf("WARNING: Attempted to add an exclusion for an out-of-range particle index (%d or %d >= %d).\n", ind1, ind2, num);
+	return;
+    }
+		
+    // If we don't have enough room in our bond array, we need to expand it.
+    if (numExcludes >= excludeCapacity) {
+	// Temporary pointer to the old array
+	Exclude* temp = excludes;	
 
+	// Double the capacity
+	excludeCapacity *= 2;
+
+	// Create pointer to new array which is twice the size of the old one
+	excludes = new Exclude[excludeCapacity];
+		
+	// Copy the old values into the new array
+	for (int j = 0; j < numExcludes; j++)
+	    excludes[j] = temp[j];
+
+	// delete the old array
+	delete[] temp;
+    }
+
+    // Add the bond to the exclude array
+    // We must add it twice: Once for (ind1, ind2) and once for (ind2, ind1)
+    Exclude ex1(ind1, ind2);
+    excludes[numExcludes++] = ex1;
+    Exclude ex2(ind2, ind1);
+    excludes[numExcludes++] = ex2;
+    
+}    
+
+void Configuration::buildExcludeMap() {
+    // Call compareExcludeIndex with qsort to sort the excludes by BOTH ind1 AND ind2
+    std::sort(excludes, excludes + numExcludes, compare());
+
+    /* Each particle may have a varying number of excludes
+     * excludeMap is an array with one element for each particle
+     * which keeps track of where a particle's excludes are stored
+     * in the excludes array.
+     * excludeMap[i].x is the index in the excludes array where the ith particle's excludes begin
+     * excludeMap[i].y is the index in the excludes array where the ith particle's excludes end
+     */
+    excludeMap = new int2[num];
+    for (int i = 0; i < num; i++) {	
+	excludeMap[i].x = -1;
+	excludeMap[i].y = -1;
+    }
+    int currPart = -1;
+    int lastPart = -1;
+    for (int i = 0; i < numExcludes; i++) {
+	if (excludes[i].ind1 != currPart) {
+	    currPart = excludes[i].ind1;
+	    assert(currPart < num);
+	    excludeMap[currPart].x = i;
+	    if (lastPart >= 0)
+		excludeMap[lastPart].y = i;
+	    lastPart = currPart;
+	}
+    }
+    if (excludeMap[lastPart].x > 0)
+	excludeMap[lastPart].y = numExcludes;
 }
 
 void Configuration::readAngles() {

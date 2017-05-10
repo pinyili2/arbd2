@@ -61,6 +61,8 @@ class Configuration {
 	void readAtoms();
 	void readBonds();
 	void readExcludes();
+	void addExclusion(int ind1, int ind2);
+	void buildExcludeMap();
 	void readDihedrals();
 	void readRestraints();
 
