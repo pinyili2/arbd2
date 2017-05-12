@@ -4,8 +4,7 @@
 #pragma once
 
 #include "useful.h"
-#include "RigidBodyType.h"
-
+#include "RandomCPU.h"		/* for BD integration; RBTODO: fix this */
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -15,7 +14,11 @@
     #define DEVICE 
 #endif
 
+#include "RigidBodyType.h"
+#include "RigidBodyController.h"
+
 class Configuration;
+
 
 typedef float BigReal;					/* strip this out later */
 typedef Vector3 Force;
@@ -28,7 +31,7 @@ class RigidBody { // host side representation of rigid bodies
 	| splitting methods for rigid body molecular dynamics". J Chem Phys. (1997) |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 		public:
-    RigidBody(String name, const Configuration& c, const RigidBodyType& t);
+	RigidBody(String name, const Configuration& c, const RigidBodyType& t, RigidBodyController* RBC);
     RigidBody(const RigidBody& rb);
     // RigidBody(const RigidBody& rb) : RigidBody(rb.name, *rb.c, *rb.t) {};
 	void init();
@@ -44,8 +47,9 @@ class RigidBody { // host side representation of rigid bodies
 
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
-	void integrate(int startFinishAll);
-	
+	void integrateDLM(int startFinishAll);
+	void integrate(int startFinishAll);	
+
 	// HOST DEVICE inline String getKey() const { return key; }
 	// HOST DEVICE inline String getKey() const { return t->name; }
 	HOST DEVICE inline String getKey() const { return name; }
@@ -69,6 +73,12 @@ class RigidBody { // host side representation of rigid bodies
 	Vector3 torque; // lab frame (except in integrate())
 
 private:
+	
+	RigidBodyController* RBC;
+	inline Vector3 getRandomGaussVector() { 
+	    return RBC->getRandomGaussVector();
+	}
+
 	// String key;
 	String name;
 	/* static const SimParameters * simParams; */

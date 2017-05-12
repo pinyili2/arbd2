@@ -1,6 +1,8 @@
 #include <iostream>
 #include <typeinfo>
 #include "RigidBody.h"
+#include "RigidBodyType.h"
+#include "RigidBodyController.h"
 #include "Configuration.h"
 #include "ComputeGridGrid.cuh"
 
@@ -15,10 +17,10 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 
 
-RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref) 
-	: name(name), c(&cref), t(&tref), impulse_to_momentum(4.184e8f) { init(); }
+RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref, RigidBodyController* RBCref) 
+    : name(name), c(&cref), t(&tref), RBC(RBCref), impulse_to_momentum(4.184e8f) { init(); }
 RigidBody::RigidBody(const RigidBody& rb)
-	: name(rb.name), c(rb.c), t(rb.t), impulse_to_momentum(4.184e8f) { init(); }
+    : name(rb.name), c(rb.c), t(rb.t), RBC(rb.RBC), impulse_to_momentum(4.184e8f) { init(); }
 void RigidBody::init() {
 	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08	
 	timestep = c->timestep;
@@ -194,6 +196,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 	|   friction / kt = Diff                                                     |
 	\===========================================================================*/
 void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
+    /* commented out for BD
 	// w1 and w2 should be standard normal distributions
 
 	// in RB frame     
@@ -211,6 +214,7 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	
 	addForce(f);
 	addTorque(torq);
+    */
 }
 
   /*==========================================================================\
@@ -218,8 +222,7 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	| rigid body molecular dynamics. JCP 107. (1997)                            |
 	| http://jcp.aip.org/resource/1/jcpsa6/v107/i15/p5840_s1                    |
 	\==========================================================================*/
-// void RigidBody::integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll) {}
-void RigidBody::integrate(int startFinishAll) {
+void RigidBody::integrateDLM(int startFinishAll) {
 	Vector3 trans; // = *p_trans;
 	Matrix3 rot = Matrix3(1); // = *p_rot;
 
@@ -273,7 +276,7 @@ void RigidBody::integrate(int startFinishAll) {
 			
 		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R4
 		applyRotation(R);
-		
+
 		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R5
 		applyRotation(R);		
 
@@ -285,6 +288,50 @@ void RigidBody::integrate(int startFinishAll) {
 		// orientation = orientation/orientation.det(); // TODO: see if this can be somehow eliminated (wasn't in original DLM algorithm...)
 	}
 }    
+
+/* Following:
+Brownian Dynamics Simulation of Rigid Particles of Arbitrary Shape in External Fields
+Miguel X. Fernandes, José García de la Torre
+*/
+void RigidBody::integrate(int startFinishAll) {
+    if (startFinishAll == 1) return;
+
+    Matrix3 rot = Matrix3(1); // = *p_rot;
+
+    if ( isnan(force.x) || isnan(torque.x) ) { // NaN check
+	printf("Rigid Body force or torque was NaN!\n");
+	exit(-1);
+    }
+    
+    float kT = 1.0f;		// temporary
+    Vector3 diffusion = kT / (t->transDamping*t->mass); // TODO: assign diffusion in config file, or elsewhere
+    Vector3 rotDiffusion = kT / (Vector3::element_mult(t->rotDamping,t->inertia));
+
+    // update positions
+    // trans = Vector(0); if (false) {
+    Vector3 rando = getRandomGaussVector();
+    Vector3 offset = Vector3::element_mult( (diffusion / kT), force ) * timestep +
+	// diffGrad term
+	Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion*timestep), rando );
+
+    rando = getRandomGaussVector();
+    Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / kT) , torque * timestep) +
+	// diffGrad term
+	Vector3::element_mult( Vector3::element_sqrt( 2.0f * rotDiffusion*timestep), rando );
+
+    position += offset;
+
+    // Consider whether a DLM-like decomposition of rotations is needed for time-reversibility
+    orientation = orientation *
+	(Rz(rotationOffset.z) * Ry(rotationOffset.y) * Rx(rotationOffset.x));
+
+    // TODO make this periodic
+    // printf("det: %.12f\n", orientation.det());
+    orientation = orientation.normalized();
+    // orientation = orientation/orientation.det();
+    // printf("det2: %.12f\n", orientation.det());
+    // orientation = orientation/orientation.det(); // TODO: see if this can be somehow eliminated (wasn't in original DLM algorithm...)
+}
 
 void RigidBody::applyRotation(const Matrix3& R) {
 	angularMomentum = R * angularMomentum;

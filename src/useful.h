@@ -257,6 +257,14 @@ HOST DEVICE inline Vector3 operator/(Vector3 v, float s) {
 	return v*sinv;
 }
 
+HOST DEVICE inline Vector3 operator/(float s, Vector3 v) {
+    v.x = s / v.x;
+    v.y = s / v.y;
+    v.z = s / v.z;
+    return v;
+}
+
+
 // class Matrix3
 // Operations on 3D float matrices
 class Matrix3 {

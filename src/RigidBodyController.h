@@ -14,8 +14,8 @@
 class RigidBodyType;
 class RigidBody;
 class Configuration;
-class RandomCPU;
-
+// class RandomCPU;
+#include "RandomCPU.h"
 
 // TODO: performance: create RigidBodyGridPair so pairlistdist check is done per grid pair, not per RB pair
 class RigidBodyForcePair  {
@@ -106,7 +106,12 @@ private:
 	void printLegend(std::ofstream &file);
 	void printData(int step, std::ofstream &file);
 public:
-		RigidBodyType** rbType_d;
+	RigidBodyType** rbType_d;
+
+	inline Vector3 getRandomGaussVector() {
+	    return random->gaussian_vector();
+	}
+	/* RequireReduction *gridReduction; */
 	
 private:
 	std::ofstream trajFile;

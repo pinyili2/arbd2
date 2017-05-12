@@ -45,7 +45,7 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 				snprintf(tmp, 128, "#%d", j);
 				name.add( tmp );
 			}
-			RigidBody r(name, conf, conf.rigidBody[i]);
+			RigidBody r(name, conf, conf.rigidBody[i], this);
 			tmp.push_back( r );
 		}
 		rigidBodyByType.push_back(tmp);
