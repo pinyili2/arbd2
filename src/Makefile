@@ -2,12 +2,27 @@
 include ./findcudalib.mk
 INCLUDE = $(CUDA_PATH)/include
 
+
 ifeq ($(dbg),1)
 	NV_FLAGS += -g -G
 	EX_FLAGS = -g -O0 -m$(OS_SIZE)
 else
 	EX_FLAGS = -O3 -m$(OS_SIZE)
 endif
+
+## Determine the version; TODO add tags for versions
+ifndef (VERSION)
+ifeq ($(shell git status >& /dev/null && echo true),true)
+	VERSION:=git rev. $(shell git rev-parse HEAD | sed 's/\(.\{8\}\).*/\1/')
+ifneq ($(shell git status --porcelain),)
+	VERSION:=$(VERSION) (modified)
+endif
+else 
+	VERSION:=unknown (not compiled in a git repository)
+endif
+endif
+CC_FLAGS += -DVERSION="\"$(VERSION)\""
+
 
 CC_FLAGS += -I$(CUDA_PATH)/include
 CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic # TODO: test on Mac OSX and other architectures

@@ -31,7 +31,12 @@ int main(int argc, char* argv[]) {
 		return 0;
 	} else if (argc == 2 && (strcmp(argv[1], "--version") == 0)) {
 		// --version
-		printf("%s Nov 2016 (alpha)\n", argv[0]);
+		// printf("%s Nov 2016 (alpha)\n", argv[0]);
+#ifdef VERSION
+	    printf("%s %s\n", argv[0], VERSION);
+#else
+	    printf("%s Nov 2016 (alpha)\n", argv[0]);
+#endif
 		return 0;
 	} else if (argc == 2 && (strcmp(argv[1], "--info") == 0)) {
 		// --info
@@ -46,8 +51,7 @@ int main(int argc, char* argv[]) {
 	// printf("Everything's great when you're...BrownTown\n");
 	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n");
 	printf("  |    Atomic Resolution Brownian Dynamics    |\n");
-	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n\n");
-
+	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n");
 	GPUManager::init();
 
 	size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
