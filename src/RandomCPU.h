@@ -85,8 +85,8 @@ public:
   HOST DEVICE inline void print(const char* string)
 		{
 			printf(string);
-			printf("RAND48_SEED = %d, RAND48_MULT = %d, RAND48_ADD = %d, RAND48_MASK = %d\n", RAND48_SEED, RAND48_MULT, RAND48_ADD, RAND48_MASK);
-			printf("rand48_seed = %d, rand48_mult = %d, rand48_add = %d\n", rand48_seed, rand48_mult, rand48_add);
+			printf("RAND48_SEED = %lld, RAND48_MULT = %lld, RAND48_ADD = %lld, RAND48_MASK = %lld\n", RAND48_SEED, RAND48_MULT, RAND48_ADD, RAND48_MASK);
+			printf("rand48_seed = %ld, rand48_mult = %ld, rand48_add = %ld\n", rand48_seed, rand48_mult, rand48_add);
 		}
 
   // advance generator by one (seed = seed * mult + add, to 48 bits)
