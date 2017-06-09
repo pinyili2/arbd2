@@ -60,13 +60,14 @@ TabulatedDihedralPotential::TabulatedDihedralPotential(String fileName) : fileNa
 	assert( size*deltaAngle >= 360 );
 
 	float tmp[size];
-	for (int i = 0; i < size; ++i) {
-	    // j=0 corresponsds to angle[i] in [-Pi,-Pi+delta)
-	    float a = (angle[i] + 180.0f);
+	for (int j = 0; j < size; ++j) {
+	    // reorganize data so that the angle goes from [-Pi,Pi+delta)
+	    float a = -180.0f - angle[0] + j*deltaAngle;
 	    while (a < 0) a += 360.0f;
-	    while (a >= 360) a -= 360.0f;
-	    int j = floor( a / deltaAngle );
-	    if (j >= size) continue;
+	    while (a >= size*deltaAngle) a -= 360.0f;
+	    int i = round( a / deltaAngle );
+	    assert(i >= 0);
+	    assert(i < size);
 	    tmp[j] = pot[i];
 	}
 	for (int i = 0; i < size; ++i) pot[i] = tmp[i];

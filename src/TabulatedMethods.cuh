@@ -117,6 +117,9 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	// home = home % size;
 	int home1 = (home + 1) >= d->size ? (home+1-d->size) : home+1;
 
+	assert(home1 > 0);
+	assert(home1 < d->size);
+
 	//================================================
 	// Linear interpolation
 	float U0 = d->pot[home];       // Potential
@@ -126,15 +129,12 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	force = -dU * d->angle_step_inv;
 
 	// avoid singularity when one angle is straight 
-	force = (ab.length2()*bc.length2()*crossABC.rLength2() > 100.0f || (ab.length2()*bc.length2()*crossABC.rLength2())*crossBCD.rLength2() > 100.0f) ? 0.0f : force;
+	// force = (distbc*distbc*crossABC.rLength2() > 1000.0f || distbc*distbc*crossBCD.rLength2() > 1000.0f) ? 0.0f : force;
+	force = (ab.length2()*bc.length2()*crossABC.rLength2() > 100.0f || bc.length2()*cd.length2()*crossBCD.rLength2() > 100.0f) ? 0.0f : force;
 
-	// if (force >= 10000.0f)
-	//     printf("pot[%d] = %f; pot[%d] = %f\n", home,U0, home1, U0+dU);
-	if ( force > 1000.0f ) 
-	    force = 1000.0f;
-	if ( force < -1000.0f ) 
-	    force = -1000.0f;
-	assert( force < 10000.0f );
+	// if ( force > 1000.0f )
+	//     printf("%f %d %d (%.4f %.4f) %.2f %f\n",force,home,home1, d->pot[home], d->pot[home1], dU, d->angle_step_inv);	    
+	//assert( force < 10000.0f )
 
 	f1 *= force;
 	f2 *= force;
