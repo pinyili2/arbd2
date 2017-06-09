@@ -254,7 +254,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 					// cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
 					// << "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
 					// << "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
-					j++;
+					++j;
 				}
 			}
 		}
@@ -269,7 +269,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				fprintf(stderr,"Error: anglefile '%s' was not read with tabulatedAngleFile command.\n", angles[i].fileName.val());
 				exit(1);
 			}
-		angleList[i] = make_int4( angles[i].ind1+k*num, angles[i].ind2+k*num, angles[i].ind3+k*num, angles[i].tabFileIndex );
+		angleList[i+k*numAngles] = make_int4( angles[i].ind1+k*num, angles[i].ind2+k*num, angles[i].ind3+k*num, angles[i].tabFileIndex );
 	    }
 	}
 	}
@@ -283,8 +283,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				fprintf(stderr,"Error: dihedralfile '%s' was not read with tabulatedDihedralFile command.\n", dihedrals[i].fileName.val());
 				exit(1);
 			}
-		dihedralList[i] = make_int4( dihedrals[i].ind1+k*num, dihedrals[i].ind2+k*num, dihedrals[i].ind3+k*num, dihedrals[i].ind4+k*num);
-		dihedralPotList[i] = dihedrals[i].tabFileIndex;
+		dihedralList[i+k*numDihedrals] = make_int4( dihedrals[i].ind1+k*num, dihedrals[i].ind2+k*num, dihedrals[i].ind3+k*num, dihedrals[i].ind4+k*num);
+		dihedralPotList[i+k*numDihedrals] = dihedrals[i].tabFileIndex;
 	    }
 	}
 	}
