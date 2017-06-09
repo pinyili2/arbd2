@@ -98,7 +98,7 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 		// 	printf("force: "); force.print();
 		// }
 		
-		Vector3 tmp = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num);
+		Vector3 tmp = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num * numReplicas);
 		// assert( tmp.length() < 10000.0f );
 		pos[idx] = tmp;
 			

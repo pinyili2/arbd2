@@ -492,7 +492,7 @@ void GrandBrownTown::run() {
 		// printf("  Computed energies\n");
 
 		// int numBlocks = (num * numReplicas) / NUM_THREADS + 1;
-		int numBlocks = (num * numReplicas) / NUM_THREADS + (num * numReplicas % NUM_THREADS == 0 ? 0 : 1);
+		int numBlocks = (num * numReplicas) / NUM_THREADS + ((num * numReplicas) % NUM_THREADS == 0 ? 0 : 1);
 		int tl = temperatureGridFile.length();
 
 		RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);					/* update RB forces before update particle positions... */
@@ -742,11 +742,11 @@ void GrandBrownTown::run() {
 	else printf("%.2fs\n", tot_sec);
 
 	// cudaSetDevice(0);
-	gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+	// gpuErrchk(cudaMemcpy(pos, internal -> getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
 
-	// Write the restart file (once again)
-	for (int repID = 0; repID < numReplicas; ++repID)
-		writeRestart(repID);
+	// // Write the restart file (once again)
+	// for (int repID = 0; repID < numReplicas; ++repID)
+	// 	writeRestart(repID);
 
 } // GrandBrownTown::run()
 
