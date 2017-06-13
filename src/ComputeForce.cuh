@@ -262,8 +262,8 @@ void createPairlists(Vector3* __restrict__ pos, const int num, const int numRepl
 				// Vector3 posi = pos[ai];
 
 				// Same as for bonds, but for exclusions now
-				const int ex_start = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].x : -1;
-				const int ex_end   = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai].y : -1;
+				const int ex_start = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai -repID*num].x : -1;
+				const int ex_end   = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai -repID*num].y : -1;
 				
 				for (int x = -1; x <= 1; ++x) {
 					for (int y = -1; y <= 1; ++y) {

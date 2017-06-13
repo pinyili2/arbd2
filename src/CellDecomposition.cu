@@ -141,6 +141,7 @@ void make_rangesKernel(CellDecomposition::cell_t cells[], int tmp[],
 
 	if (idx < num * numReplicas) {
 		const int repID = cells[idx].repID;
+		assert(repID == idx/num);
 		const int cellID = cells[idx].id + repID * numCells; // cellID in tmp array
 
 		// Get positions in tmp array.
@@ -156,14 +157,14 @@ void make_rangesKernel(CellDecomposition::cell_t cells[], int tmp[],
 
 		const int prev_id = idx - 1;
 		if (prev_id >= 0
-				and cellID != cells[prev_id].id
-				and cells[prev_id].repID == repID)
+		    and cells[prev_id].repID == repID
+		    and cellID != cells[prev_id].id + repID * numCells)
 			tmp[first] = idx;
 		
 		const int next_id = idx + 1;
 		if (next_id < num * numReplicas
-				and cellID != cells[next_id].id
-				and cells[next_id].repID == repID)
+		    and cells[next_id].repID == repID
+		    and cellID != cells[next_id].id + repID * numCells)
 			tmp[last] = idx + 1;
 	}
 }

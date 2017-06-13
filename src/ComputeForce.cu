@@ -26,7 +26,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     num(c.num), numParts(c.numParts), sys(c.sys), switchStart(c.switchStart),
     switchLen(c.switchLen), electricConst(c.coulombConst),
     cutoff2((c.switchLen + c.switchStart) * (c.switchLen + c.switchStart)),
-    decomp(c.sys->getBox(), c.sys->getOrigin(), c.switchStart + c.switchLen, numReplicas),
+    decomp(c.sys->getBox(), c.sys->getOrigin(), c.switchStart + c.switchLen + c.pairlistDistance, numReplicas),
     numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
