@@ -279,7 +279,7 @@ public:
   /*   to the specified DCD file.						*/
   /*                                                                      */
   /************************************************************************/
-  int writeStep(int N, const float *X, const float *Y, const float *Z, const float *cell)
+  int writeStep(int N, const float *X, const float *Y, const float *Z, const double *cell)
 
   {
     int NSAVC,NSTEP,NFILE;
@@ -287,8 +287,7 @@ public:
 
     /* Unit cell */
     if (cell) {
-	  // out_integer = 48;
-	  out_integer = 6*4; // this seems correct for float
+      out_integer = 6*8;
       NAMD_write(fd, (char *) &out_integer, sizeof(int));
       NAMD_write(fd, (char *) cell, out_integer);
       NAMD_write(fd, (char *) &out_integer, sizeof(int));

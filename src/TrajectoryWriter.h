@@ -40,7 +40,7 @@ private:
   String fileName;
   int format;
   String pdbTemplate;
-  float unitCell[6];
+  double unitCell[6];		/* use double for dcd format */
   int num;
   float timestep;
   int outputPeriod;
