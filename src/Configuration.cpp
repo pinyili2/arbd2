@@ -1700,6 +1700,11 @@ bool Configuration::readTableFile(const String& value, int currTab) {
 		return false;
 	}
 
+	if (currTab >= numParts*numParts) {
+	    printf("ERROR: Number of tabulatedFile entries exceeded %d*%d particle types.\n", numParts,numParts);
+	    exit(1);
+	}
+
 	partTableIndex0[currTab] = atoi(tokenList[0]);
 	partTableIndex1[currTab] = atoi(tokenList[1]);
 	partTableFile[currTab] = tokenList[2];
