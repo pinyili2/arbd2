@@ -1,5 +1,5 @@
 /===========================================================\
-| Atomic Resolution Brownian Dynamics (ARBD) - alpha Nov 16 |
+| Atomic Resolution Brownian Dynamics (ARBD) - alpha Aug 4  |
 \===========================================================/
 
 Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
@@ -51,7 +51,7 @@ You may use the '-g n' option to specify the n-th GPU on your machine, counting 
 
 If you fail to compile and link the applications, we recommend running
 `make clean` to remove object files. Sometimes we have encountered
-CUDA related errors in binaries built in a "dirty" environement.
+CUDA related errors in binaries built in a "dirty" environment.
 
 
 /========\
@@ -113,10 +113,9 @@ Terrance Howard
 
 -- Bugs --
 
-* An issue with memory management causes some invalid memory to be
-  freed when the simulations end, cuasing a seg-fault; the impact of
-  this bug is mitigated because output has already been written at
-  this time
+* Memory is sometimes freed incorrectly freed when the simulations
+  end, causing a seg-fault; the impact of this bug is mitigated
+  because output has already been written at this time
 
 * A large amount of GPU memory for pairlists is allocated statically,
   which may cause out-of-memory crashes in older hardware
