@@ -60,13 +60,15 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	
 	// Replicate identical initial conditions across all replicas
-	// TODO: add an option to generate random initial conditions for all replicas
 	for (int r = 0; r < numReplicas; ++r) {
-		std::copy(c.pos, c.pos + num, pos + r*num);
-		std::copy(c.type, c.type + num, type + r*num);
-		std::copy(c.serial, c.serial + num, serial + r*num);
+	  std::copy(c.type, c.type + num, type + r*num);
+	  std::copy(c.serial, c.serial + num, serial + r*num);
+	  if (c.copyReplicaCoordinates > 0)
+	    std::copy(c.pos, c.pos + num, pos + r*num);
 	}
-
+	if (c.copyReplicaCoordinates <= 0)
+	  std::copy(c.pos, c.pos + numReplicas*num, pos);
+	
 	currSerial = c.currSerial;  // serial number of the next new particle
 	name = c.name;              // list of particle types! useful when 'numFluct == 1'
 	posLast = c.posLast;        // previous positions of particles  (used for computing ionic current)

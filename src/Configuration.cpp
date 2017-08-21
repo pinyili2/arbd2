@@ -541,6 +541,7 @@ void Configuration::setDefaults() {
 	
 	inputCoordinates = "";
 	restartCoordinates = "";
+	copyReplicaCoordinates = 1;
 	numberFluct = 0;
 	numberFluctPeriod = 200;
 	interparticleForce = 1;
@@ -674,6 +675,8 @@ int Configuration::readParameters(const char * config_file) {
 			inputCoordinates = value;
 		else if (param == String("restartCoordinates"))
 			restartCoordinates = value;
+		else if (param == String("copyReplicaCoordinates"))
+		        copyReplicaCoordinates = atoi(value.val());
 		else if (param == String("temperature"))
 			temperature =  (float) strtod(value.val(),NULL);
 		else if (param == String("temperatureGrid"))
@@ -1612,7 +1615,7 @@ bool Configuration::loadCoordinates(const char* file_name) {
 			return false;
 		}
 
-		if (count >= num) {
+		if (count >= num*simNum) {
 			printf("WARNING: Too many coordinates in coordinate file %s.\n", file_name);
 			fclose(inp);
 			return true;

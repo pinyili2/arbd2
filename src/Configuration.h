@@ -139,6 +139,7 @@ public:
 	String temperatureGridFile;
 	String inputCoordinates;
 	String inputRBCoordinates;
+	int copyReplicaCoordinates;
 	String restartCoordinates;
 	int numberFluct;
 	int interparticleForce;
