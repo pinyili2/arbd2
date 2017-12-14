@@ -382,7 +382,7 @@ float BaseGrid::getValue(int j) const {
 	if (j < 0 || j >= size) return 0.0f;
 	return val[j];
 }
-
+/*
 float BaseGrid::getValue(int ix, int iy, int iz) const {
 	if (ix < 0 || ix >= nx) return 0.0f;
 	if (iy < 0 || iy >= ny) return 0.0f;
@@ -391,7 +391,7 @@ float BaseGrid::getValue(int ix, int iy, int iz) const {
 	int j = iz + iy*nz + ix*ny*nz;
 	return val[j];
 }
-
+*/
 Vector3 BaseGrid::getPosition(int ix, int iy, int iz) const {
 	return basis.transform(Vector3(ix, iy, iz)) + origin;
 }

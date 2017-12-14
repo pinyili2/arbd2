@@ -71,7 +71,7 @@ public:
 
   virtual float getValue(int j) const;
 
-  virtual float getValue(int ix, int iy, int iz) const;
+  HOST DEVICE float getValue(int ix, int iy, int iz) const;
 
   HOST DEVICE Vector3 getPosition(int j) const;
 	HOST DEVICE Vector3 getPosition(int j, Matrix3 basis, Vector3 origin) const;
@@ -107,8 +107,11 @@ public:
 
 	  return 0.5 * sqrt(radius);
   }
-
-  
+  DEVICE ForceEnergy interpolateForceDnamd(const Vector3& l) const;
+  DEVICE float compute_V(float *a, float *x, float *y, float *z) const;
+  DEVICE Vector3 compute_dV(float *a, float *x, float *y, float *z) const;
+  DEVICE void compute_a(float *a, float *b) const;
+  DEVICE void compute_b(float * __restrict__ b, int * __restrict__ inds) const; 
   // Add a fixed value to the grid.
   void shift(float s);
 
