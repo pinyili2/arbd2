@@ -12,11 +12,21 @@
     #define DEVICE
 #endif
 
+#if defined(__CUDACC__) // NVCC
+   #define MY_ALIGN(n) __align__(n)
+#elif defined(__GNUC__) // GCC
+  #define MY_ALIGN(n) __attribute__((aligned(n)))
+#elif defined(_MSC_VER) // MSVC
+  #define MY_ALIGN(n) __declspec(align(n))
+#else
+  #error "Please provide a definition for MY_ALIGN macro for your host compiler!"
+#endif
+
 #include <cmath>
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
-//#include <cuda_runtime.h>
+#include <cuda_runtime.h>
 
 // using namespace std;
 
@@ -119,13 +129,14 @@ String operator+(String s1, String s2);
 // class Vector3
 // Operations on 3D float vectors
 //
-class Vector3 {
+class MY_ALIGN(16) Vector3 {
 public:
 	HOST DEVICE inline Vector3() : x(0), y(0), z(0) {}
 	HOST DEVICE inline Vector3(float s):x(s), y(s), z(s) {}
 	HOST DEVICE inline Vector3(const Vector3& v):x(v.x), y(v.y), z(v.z) {}
 	HOST DEVICE inline Vector3(float x0, float y0, float z0) : x(x0), y(y0), z(z0) {}
 	HOST DEVICE inline Vector3(const float* d) : x(d[0]), y(d[1]), z(d[2]) {}
+             DEVICE inline Vector3(const float4 a) : x(a.x ), y(a.y ), z(a.z ) {}
 
 	static Vector3 random(float s);
 
@@ -240,9 +251,9 @@ public:
 	HOST DEVICE inline void print() const {
 		printf("%0.3f %0.3f %0.3f\n", x,y,z);
 	}
-	
+
+        float x, y, z, w; //append a member w	
 	String toString() const;
-	float x, y, z;
 };
 
 HOST DEVICE inline Vector3 operator*(float s, Vector3 v) {
@@ -267,7 +278,7 @@ HOST DEVICE inline Vector3 operator/(float s, Vector3 v) {
 
 // class Matrix3
 // Operations on 3D float matrices
-class Matrix3 {
+class MY_ALIGN(16) Matrix3  {
 	friend class TrajectoryWriter;
 	friend class BaseGrid;
 	friend class RigidBodyController; /* for trajectory writing */
@@ -380,19 +391,29 @@ public:
 	Matrix3 inverse() const;
 
 	float det() const;
-
+        //Han-Yi Chou
 	HOST DEVICE inline Matrix3 normalized() const {
+                
 		Vector3 x = this->ex();
 		Vector3 y = this->ey();
+                /*
+                x = x / x.length();
 		float error = x.dot(y);
-		x = x-(0.5*error)*y;
-		y = y-(0.5*error)*x;
+		y = y-(error*x);
+                y = y / y.length();
 		Vector3 z = x.cross(y);
-		
-		x = (0.5*(3-x.dot(x)))*x; /* approximate normalization */
-		y = (0.5*(3-y.dot(y)))*y; 
-		z = (0.5*(3-z.dot(z)))*z; 
-		return Matrix3(x,y,z);		
+		z = z / z.length();*/
+		//x = (0.5*(3-x.dot(x)))*x; /* approximate normalization */
+		//y = (0.5*(3-y.dot(y)))*y; 
+		//z = (0.5*(3-z.dot(z)))*z; 
+		//return Matrix3(x,y,z);		
+		Vector3 z = x.cross(y);
+                z = z / z.length();
+                x = x / x.length();
+                y = z.cross(x);
+                y = y / y.length();
+
+                return Matrix3(x,y,z);
 	}
 
 	HOST DEVICE void setIsDiag() {
@@ -428,7 +449,7 @@ private:
 
 // class IndexList
 // A growable list of integers.
-class IndexList {
+class MY_ALIGN(16) IndexList {
 public:
 	IndexList();
 	IndexList(const IndexList& l);
