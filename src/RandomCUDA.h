@@ -22,7 +22,7 @@
 #endif
 
 class Random {
-private:
+public:
 	static const size_t RAND_N = 512; // max random numbers stored
 
 	curandState_t *states;

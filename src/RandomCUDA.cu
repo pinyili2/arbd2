@@ -31,14 +31,28 @@ void Random::init(int num, unsigned long seed) {
 	curandCreateGenerator(&generator, CURAND_RNG_PSEUDO_XORWOW);
 	curandSetPseudoRandomGeneratorSeed(generator, seed);
 	
-	if (uniform_d != NULL) {
-		gpuErrchk(cudaFree(uniform_d));
-		gpuErrchk(cudaFree(integer_d));
-		delete[] integer_h;
-		delete[] uniform_h;
+	if (uniform_d != NULL) 
+        {
+            gpuErrchk(cudaFree(uniform_d));
+            uniform_d = NULL;
+        }
+        if(integer_d!=NULL)
+        {
+            gpuErrchk(cudaFree(integer_d));
+            integer_d = NULL;
+        }
+        if(integer_h!=NULL)
+        {
+	    delete[] integer_h;
+            integer_h = NULL;
+        }
+        if(uniform_h!=NULL)
+        {
+	    delete[] uniform_h;
+            uniform_h = NULL;
 	}
-	gpuErrchk(cudaMalloc(&uniform_d, sizeof(float) * RAND_N));
-	gpuErrchk(cudaMalloc(&integer_d, sizeof(unsigned int) * RAND_N));
+	gpuErrchk(cudaMalloc((void**)&uniform_d, sizeof(float) * RAND_N));
+	gpuErrchk(cudaMalloc((void**)&integer_d, sizeof(unsigned int) * RAND_N));
 	integer_h = new unsigned int[RAND_N];
 	uniform_h = new float[RAND_N];
 	uniform_n = 0;
@@ -47,7 +61,7 @@ void Random::init(int num, unsigned long seed) {
 
 float Random::uniform() {
 	if (uniform_n < 1) {
-		cuRandchk(curandGenerateUniform(generator, (float*) uniform_d, RAND_N));
+		cuRandchk(curandGenerateUniform(generator, uniform_d, RAND_N));
 		gpuErrchk(cudaMemcpy(uniform_h, uniform_d, sizeof(float) * RAND_N, cudaMemcpyDeviceToHost));
 		uniform_n = RAND_N;
 	}
@@ -86,8 +100,17 @@ void Random::reorder(int a[], int n) {
 	}
 }
 
-__global__ void initKernel(unsigned long seed, curandState_t *state, int num) {
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx < num)
-		curand_init(seed, idx, 0, &state[idx]);
+__global__ 
+void initKernel(unsigned long seed, curandState_t *state, int num) {
+       int idx = blockIdx.x * blockDim.x + threadIdx.x;
+       int step = blockDim.x * gridDim.x;
+       for(int i = idx; i < num; i=i+step)
+       {
+           curandState_t local;
+           // curand_init(clock64()+seed,i,0,&local);
+           //curand_init(clock64(),i,0,&state[i]);
+	   curand_init(seed,i,0,&local);
+           state[(size_t)i] = local;
+       }
+
 }
