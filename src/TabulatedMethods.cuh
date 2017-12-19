@@ -44,18 +44,19 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	// tableAngle[1] stores the potential at angle_step * 2, etc.
 	// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table	
 	int home = int(floor(angle));
-	assert(home >= 0);
-	assert(home+1 < a->size);
+        home =  (home >= a->size) ? (a->size)-1 : home; 
+	//assert(home >= 0);
+	//assert(home+1 < a->size);
 
 	// // Make angle the distance from [0,1) from the first index in the potential array index
 	// angle -= home;
 		
 	// Linearly interpolate the potential	
 	float U0 = a->pot[home];
-	float dUdx = (a->pot[(home+1)] - U0) * a->angle_step_inv;
+	float dUdx = (a->pot[(((home+1)==(a->size)) ? (a->size)-1 : home+1)] - U0) * a->angle_step_inv;
 	// float energy = (dUdx * angle) + U0;
 	float sin = sqrtf(1.0f - cos*cos);
-	dUdx /= abs(sin) > 1e-2 ? sin : 1e-2; // avoid singularity 
+	dUdx /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity 
 
 	// Calculate the forces
 	Vector3 force1 = -(dUdx*distab) * (ab * (cos*distab) + bc * distbc); // force on particle 1
@@ -111,14 +112,17 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	float t = (angle + BD_PI) * d->angle_step_inv;
 	int home = (int) floorf(t);
 	t = t - home;
+        //home = home % (d->size);
+        home = (home < d->size) ? home : d->size-1;
+        int home1 = (home + 1) >= d->size ? (home+1-d->size) : home+1;
 
-	assert(home >= 0);
-	assert(home < d->size);
+	//assert(home >= 0);
+	//assert(home < d->size);
 	// home = home % size;
-	int home1 = (home + 1) >= d->size ? (home+1-d->size) : home+1;
+	//int home1 = (home + 1) >= d->size ? (home+1-d->size) : home+1;
 
-	assert(home1 > 0);
-	assert(home1 < d->size);
+	//assert(home1 >= 0);
+	//assert(home1 < d->size);
 
 	//================================================
 	// Linear interpolation
@@ -135,6 +139,15 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	// if ( force > 1000.0f )
 	//     printf("%f %d %d (%.4f %.4f) %.2f %f\n",force,home,home1, d->pot[home], d->pot[home1], dU, d->angle_step_inv);	    
 	//assert( force < 10000.0f )
+
+	//if( force != force ) 
+            //force = 0.f;
+        assert(force == force);
+	if ( force > 1000.0f ) 
+	    force = 1000.0f;
+	if ( force < -1000.0f ) 
+	    force = -1000.0f;
+	//assert( force < 10000.0f );
 
 	f1 *= force;
 	f2 *= force;
