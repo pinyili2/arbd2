@@ -49,12 +49,14 @@ class BrownianParticleType {
 public:
 		String name;
 		int num; // number of particles of this type
-
+                float mass; // mass of brownian particles Han-Yi Chou
+                Vector3 transDamping; // translational damping coefficient Han-Yi Chou
 		float diffusion;
 		float radius;
 		float charge;
 		float eps;
 		float meanPmf;
+                float mu; //for Nose-Hoover Langevin dynamics
 
 		Reservoir* reservoir;
 		BaseGrid* pmf;

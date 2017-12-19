@@ -61,25 +61,19 @@ public:
 	~GrandBrownTown();
 
 	void run();
+        void RunNoseHooverLangevin();
 	static bool DEBUG;
 
 private:  
-	Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion);
-	Vector3 step(Vector3 r0, float kTlocal, Vector3 force, float diffusion, Vector3 diffGrad);
 
 	// Given the numbers of each particle, populate the type list.
 	void populate();
-
-	// Load coordinates from a three column text file.
-	bool loadCoordinates(const char* fileName);
 
 	// Count the number of atoms in the restart file.
 	int countRestart(const char* fileName);
 
 	void writeRestart(int repID) const;
-		
-	// Load coordinates from a four column text file (type x y z).
-	void loadRestart(const char* fileName);
+        void writeMomentumRestart(int repID) const;
 
 	void initialCondCen();
 	void initialCond();
@@ -99,6 +93,13 @@ private:
 	
 	void copyToCUDA();
 
+        //Compute the kinetic energy in general. Han-Yi Chou
+        float KineticEnergy();
+        float RotKineticEnergy();
+
+        //Initialize the Nose-Hoover auxilliary variables
+        void InitNoseHooverBath(int N);
+        //curandState_t *randoDevice;
 public:
 	// Compute the current in nanoamperes.
 	float current(float t) const;
@@ -126,7 +127,17 @@ private:
 	std::vector<std::string> outCurrFiles;
 	std::vector<std::string> restartFiles;
 	std::vector<std::string> outFilePrefixes;
+
+        //Hna-Yi Chou Langevin Dynamics
+        std::vector<std::string> restartMomentumFiles;
+        std::vector<std::string> outMomentumFilePrefixes;//, outForceFilePrefixes;
+
 	std::vector<TrajectoryWriter*> writers;
+
+        //For momentum, i.e. Langevin dynamic Han-Yi Chou
+        std::vector<TrajectoryWriter*> momentum_writers;
+        //std::vector<TrajectoryWriter*> force_writers;
+
 	Vector3 sysDim;
 
 	// Integrator variables
@@ -143,11 +154,15 @@ private:
 	int numCap; 		// max number of particles
 	int num; 			// number of particles
 	Vector3* pos; 		// particle positions
+        Vector3* momentum;      // particle momentum Han-Yi Chou
+        float *random;
+        //Vector3* force;
 	int* type; 			// particle types: 0, 1, ... -> num * numReplicas
 	String* name; 		// particle types: POT, CLA, ... -> num * numReplicas
 	int* serial; 		// particle serial numbers
 	int currSerial; 	// the serial number of the next new particle
 	Vector3* posLast; 	// previous positions of particles
+        Vector3* momLast;
 	float timeLast; 	// used with posLast
 	float minimumSep; 	// minimum separation allowed with placing new particles
 
@@ -159,7 +174,7 @@ private:
 	//int *type_d;
 	BrownianParticleType **part_d;
 	BaseGrid *sys_d, *kTGrid_d;
-	Random *randoGen_d;
+	Random* randoGen_d;
 	//Bond* bonds_d;
 	//int2* bondMap_d;
 	//Exclude* excludes_d;
@@ -250,6 +265,11 @@ private:
 	int4 *dihedralList;
 	int  *dihedralPotList;
 
+        //Han-Yi Chou
+        String particle_dynamic;
+        String rigidbody_dynamic;
+        String particle_langevin_integrator;
+
 	void updateNameList();
 
 	void remember(float t);
@@ -268,6 +288,7 @@ private:
 	// Add or delete particles in the reservoirs.
 	// Reservoirs are not wrapped.
 	void updateReservoirs();
+
 };
 
 #endif

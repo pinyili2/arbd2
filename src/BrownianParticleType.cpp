@@ -19,10 +19,14 @@ void BrownianParticleType::copy(const BrownianParticleType& src) {
 	name = src.name;
 	num = src.num;
 	diffusion = src.diffusion;
+        mass      = src.mass;
 	charge = src.charge;
 	radius = src.radius;
 	eps = src.eps;
 	meanPmf = src.meanPmf;
+        //Han-Yi Chou
+        transDamping = src.transDamping;
+        mu = src.mu;
 	pmf = NULL, diffusionGrid = NULL;
 	forceXGrid = NULL, forceYGrid = NULL, forceZGrid = NULL;
 	reservoir = NULL;
