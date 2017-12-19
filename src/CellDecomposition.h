@@ -23,6 +23,15 @@
 #include "useful.h" // Vector3, Matrix3
 #include "BaseGrid.h"
 
+#if defined(__CUDACC__) // NVCC
+   #define MY_ALIGN(n) __align__(n)
+#elif defined(__GNUC__) // GCC
+  #define MY_ALIGN(n) __attribute__((aligned(n)))
+#elif defined(_MSC_VER) // MSVC
+  #define MY_ALIGN(n) __declspec(align(n))
+#else
+  #error "Please provide a definition for MY_ALIGN macro for your host compiler!"
+#endif
 
 class CellDecomposition : public BaseGrid {
 public:
@@ -95,6 +104,11 @@ public:
 	inline const cell_t* getCells() const {
 		return cells;
 	}
+        //Han-Yi Chou
+        HOST DEVICE
+        inline const cell_t* getCells_d() const {
+                return cells_d;
+        }
 
 	/*
 	HOST DEVICE
@@ -159,7 +173,28 @@ public:
 		if (nCells.z == 2 and (w < 0 || w > 1)) return -1;
 		return getCellID(u, v, w, nCells);
 	}
+/*
+        HOST DEVICE
+inline int getNeighborID(int idx, int dx, int dy, int dz) const
+{
+    if(dx == 0 and dy == 0 and dz == 0)
+        return idx;
+    int idx_z = idx % nCells.z;
+    int idx_y = idx / nCells.z % nCells.y;
+    int idx_x = idx / (nCells.z * nCells.y);
 
+    int u = (dx + idx_x + nCells.x) % nCells.x;
+    int v = (dy + idx_y + nCells.y) % nCells.y;
+    int w = (dz + idx_z + nCells.z) % nCells.z;
+    if (nCells.x == 1 and u != 0) return -1;
+    if (nCells.y == 1 and v != 0) return -1;
+    if (nCells.z == 1 and w != 0) return -1;
+    if (nCells.x == 2 and (u < 0 || u > 1)) return -1;
+    if (nCells.y == 2 and (v < 0 || v > 1)) return -1;
+    if (nCells.z == 2 and (w < 0 || w > 1)) return -1;
+    return getCellID(u, v, w, nCells);
+}
+*/
 public:
 	int3 nCells;
 

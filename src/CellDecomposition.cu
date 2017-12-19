@@ -17,6 +17,18 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 
+#define gpuKernelCheck() {kernelCheck( __FILE__, __LINE__); }
+inline void kernelCheck(const char* file, int line)
+{
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::fprintf(stderr,"Error: %s in %s %d\n", cudaGetErrorString(err),file, line);
+        assert(1==2);
+    }
+    //gpuErrchk(cudaDeviceSynchronize());
+}
+
 // *****************************************************************************
 // CUDA Kernel Definitions
 
@@ -96,7 +108,8 @@ void CellDecomposition::decompose_d(Vector3 pos_d[], size_t num) {
 	thrust::device_ptr<cell_t> c_d(cells_d);
 	thrust::sort(c_d, c_d + num * numReplicas);
 	gpuErrchk(cudaMemcpyAsync(cells, cells_d, cells_sz, cudaMemcpyDeviceToHost));
-	
+	//Han-Yi Chou
+        //gpuErrchk(cudaMemcpy(cells, cells_d, cells_sz, cudaMemcpyDeviceToHost));
 	const size_t nMax = std::max(2lu * numCells, num);
 	nBlocks = (nMax * numReplicas) / NUM_THREADS + 1;
 
@@ -172,7 +185,7 @@ void make_rangesKernel(CellDecomposition::cell_t cells[], int tmp[],
 __global__
 void bind_rangesKernel(CellDecomposition::range_t ranges[], int tmp[],
 											 int numCells, int numReplicas) {
-	const size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+        const size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < numCells * numReplicas)
 		ranges[idx] = CellDecomposition::range_t(tmp[2*idx], tmp[2*idx+1]);
 	/* Print range of each cell. Skip over empty cells
