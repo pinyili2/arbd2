@@ -16,6 +16,18 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
    }
 }
 
+#define gpuKernelCheck() {kernelCheck( __FILE__, __LINE__); }
+inline void kernelCheck(const char* file, int line)
+{
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess)
+    {
+        std::fprintf(stderr,"Error: %s in %s %d\n", cudaGetErrorString(err),file, line);
+        assert(1==2);
+    }
+    //gpuErrchk(cudaDeviceSynchronize());
+}
+
 cudaEvent_t start, stop;
 
 void runSort(int2 *d1, int *d2, float *key,
@@ -104,7 +116,23 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		const int maxPairs = 1<<25;
 		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
 		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
+                gpuErrchk(cudaBindTexture(0, pairListsTex, pairLists_d, sizeof(int2)*maxPairs)); //Han-Yi
 		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
+                gpuErrchk(cudaBindTexture(0, pairTabPotTypeTex, pairTabPotType_d, sizeof(int)*maxPairs)); //Han-Yi
+
+                //Han-Yi Chou
+                size_t nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+                //int* nCells_dev;
+                int3 *Cells_dev;
+
+                gpuErrchk(cudaMalloc(&CellNeighborsList,sizeof(int)*27*nCells));
+                //gpuErrchk(cudaMalloc(&nCells_dev,sizeof(int)));
+                gpuErrchk(cudaMalloc(&Cells_dev,sizeof(int3)));
+                //gpuErrchk(cudaMemcpy(nCells_dev,&nCells,1,cudaMemcpyHostToDevice);
+                gpuErrchk(cudaMemcpy(Cells_dev,&(decomp.nCells),sizeof(int3),cudaMemcpyHostToDevice));
+                createNeighborsList<<<1,64>>>(Cells_dev,CellNeighborsList);
+                gpuErrchk(cudaFree(Cells_dev));
+                cudaBindTexture(0, NeighborsTex, CellNeighborsList, 27*nCells*sizeof(int));
 	}
 	
 	//Calculate the number of blocks the grid should contain
@@ -149,7 +177,8 @@ ComputeForce::~ComputeForce() {
 		gpuErrchk(cudaFree(energies_d));
 
 		gpuErrchk(cudaFree(sys_d));
-
+                //Han-Yi Unbind the texture
+                gpuErrchk(cudaUnbindTexture(PosTex));
 		gpuErrchk( cudaFree(pos_d) );
 		gpuErrchk( cudaFree(forceInternal_d) );
 		gpuErrchk( cudaFree(type_d) );
@@ -179,8 +208,12 @@ ComputeForce::~ComputeForce() {
 	}
 
 	gpuErrchk(cudaFree(numPairs_d));
+        gpuErrchk(cudaUnbindTexture(pairListsTex)); //Han-Yi 
 	gpuErrchk(cudaFree(pairLists_d));
+        gpuErrchk(cudaUnbindTexture(pairTabPotTypeTex));
 	gpuErrchk(cudaFree(pairTabPotType_d));
+        gpuErrchk(cudaUnbindTexture(NeighborsTex));
+        gpuErrchk(cudaFree( CellNeighborsList));
 
 }
 
@@ -424,6 +457,7 @@ void ComputeForce::decompose() {
 	
 	// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+
 	// int blocksPerCell = 10;
 
 	
@@ -450,22 +484,102 @@ void ComputeForce::decompose() {
 	initExSum();
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 #endif
+    //Han-Yi Chou bind texture
+    //printf("%d\n", sizeof(Vector3));
+    //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d,sizeof(Vector3)*num*numReplicas));
+    //gpuErrchk(cudaBindTexture(0,CellsTex, decomp_d->getCells_d(),sizeof(CellDecomposition::cell_t)*num*numReplicas));
+   
+//#if __CUDA_ARCH__ >= 300
+	//createPairlists_debug<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+    //#ifdef NEW
+   //for sm52
+    //createPairlists<32,64,1><<< dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, 
+      //GTX 980
+      //Han-Yi Chou 2017 my code
+      
+      #if __CUDA_ARCH__ >= 520
+      createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+                                                                             pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d,
+                                                                             excludeMap_d, numExcludes, pairlistdist2);
+      #else //__CUDA_ARCH__ == 300
+      createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+                                                                           pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, 
+                                                                           excludeMap_d, numExcludes, pairlistdist2);
+      #endif
+       
+      gpuKernelCheck();
+      gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 
-#if __CUDA_ARCH__ >= 300
-	createPairlists<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-#else
+    //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+    //                                                                  pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d,
+    //                                                                  excludeMap_d, numExcludes, pairlistdist2);
+
+    //#else
+    //createPairlists_debug<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, 
+      //                            pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+    //#endif
+//#else
 	// Use shared memory for warp_bcast function
-	createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-#endif			
+	//createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+    //#ifdef NEW
+    //for sm52
+    //createPairlists<32,64,1><<<dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, 
+      //GTX 980
+      //createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+        //GTX 680
+        //createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+        //                                                              pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, 
+        //                                                              excludeMap_d, numExcludes, pairlistdist2);
+    //createPairlists<64,64><<<dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+    //                                                                  pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d,
+    //                                                                  excludeMap_d, numExcludes, pairlistdist2);
+
+    //#else
+    //createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d,
+      //                                             pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2, CellNeighborsList);
+    //#endif
+
+//#endif
+#if 0
+//////debug section			
 	// DEBUGING
-	// gpuErrchk(cudaMemcpy(&tmp, numPairs_d,	sizeof(int), cudaMemcpyDeviceToHost));
-	// printf("CreatePairlist found %d pairs\n",tmp);
+	gpuErrchk(cudaMemcpy(&tmp, numPairs_d,	sizeof(int), cudaMemcpyDeviceToHost));
+	//printf("CreatePairlist found %d pairs\n",tmp);
+        gpuErrchk(cudaDeviceSynchronize());
+
+        gpuErrchk( cudaProfilerStart() );
+
+        // Reset the cell decomposition.
+        if (decomp_d)
+            cudaFree(decomp_d);
+
+        decomp.decompose_d(pos_d, num);
+        decomp_d = decomp.copyToCUDA();
 
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+        int tmp1 = 0;
+        gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp1,     sizeof(int), cudaMemcpyHostToDevice));
+        gpuErrchk(cudaDeviceSynchronize());
+        // printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
+
+#ifdef DEBUGEXCLUSIONS
+        initExSum();
+        gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+#endif
+        #if __CUDA_ARCH__ >= 300
+        createPairlists_debug<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+#else
+        // Use shared memory for warp_bcast function
+        createPairlists_debug<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+#endif
+    gpuErrchk(cudaMemcpy(&tmp1, numPairs_d,  sizeof(int), cudaMemcpyDeviceToHost));
+    printf("Difference CreatePairlist found %d pairs\n",tmp-tmp1);
+    gpuErrchk(cudaDeviceSynchronize());
+
 #ifdef DEBUGEXCLUSIONS
 	printf("Counted %d exclusions\n", getExSum());
 #endif
-
+#endif
 }
 
 IndexList ComputeForce::decompDim() const {
@@ -599,8 +713,12 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	
 	else
 	{
-		computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
+                //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d,sizeof(Vector3)*num*numReplicas));
+		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
+		  computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1) >>>(forceInternal_d, pos_d, sys_d,
 						cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d);
+                  gpuKernelCheck();
+                //gpuErrchk(cudaUnbindTexture(PosTex));
 	}
 	/* printPairForceCounter<<<1,32>>>(); */
 
@@ -668,6 +786,10 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 	const size_t tot_num = num * numReplicas;
 
 	gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
+        //Han-Yi bind to the texture
+        gpuErrchk(cudaBindTexture(0,  PosTex, pos_d,sizeof(Vector3)*tot_num));
+        gpuErrchk(cudaDeviceSynchronize());
+
 	gpuErrchk(cudaMemcpyAsync(pos_d, pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
 	gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
@@ -675,6 +797,49 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 
 	gpuErrchk(cudaDeviceSynchronize());
 }
+void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom)
+{
+        const size_t tot_num = num * numReplicas;
+
+        gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
+        gpuErrchk(cudaMalloc(&mom_d, sizeof(Vector3) * tot_num));
+        //Han-Yi Chou bind to the texture
+                  gpuErrchk(cudaBindTexture(0, PosTex, pos_d,sizeof(Vector3)*tot_num));
+        //gpuErrchk(cudaBindTexture(0, MomTex, mom_d,sizeof(Vector3)*tot_num));
+                  gpuErrchk(cudaDeviceSynchronize());
+
+        gpuErrchk(cudaMemcpyAsync(pos_d, pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+
+        gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
+        gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+
+        gpuErrchk(cudaDeviceSynchronize());
+}
+void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random)
+{
+        const size_t tot_num = num * numReplicas;
+
+        gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
+        gpuErrchk(cudaMalloc(&mom_d, sizeof(Vector3) * tot_num));
+        gpuErrchk(cudaMalloc(&ran_d, sizeof(float) * tot_num));
+
+        //Han-Yi Chou bind to the texture
+                  gpuErrchk(cudaBindTexture(0, PosTex, pos_d,sizeof(Vector3)*tot_num));
+        //gpuErrchk(cudaBindTexture(0, MomTex, mom_d,sizeof(Vector3)*tot_num));
+                  gpuErrchk(cudaDeviceSynchronize());
+
+        gpuErrchk(cudaMemcpyAsync(pos_d, pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(ran_d, random, sizeof(float) * tot_num, cudaMemcpyHostToDevice));
+
+        gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
+        gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+
+        gpuErrchk(cudaDeviceSynchronize());
+
+}
+
 void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 	const size_t tot_num = num * numReplicas;
 	gpuErrchk(cudaMemcpy(forceInternal_d, f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));

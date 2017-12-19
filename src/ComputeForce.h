@@ -75,6 +75,8 @@ public:
 	//MLog: new copy function to allocate memory required by ComputeForce class.
 	void copyToCUDA(Vector3* forceInternal, Vector3* pos);
 	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints);
+        void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom);
+        void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
 	// void createBondList(int3 *bondList);
 	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList);
@@ -84,6 +86,14 @@ public:
 	{
 		return pos_d;
 	}
+        Vector3* getMom_d() const
+        {
+            return mom_d;
+        }
+        float* getRan_d()
+        {
+            return ran_d;
+        }
 
 	Vector3* getForceInternal_d()
 	{
@@ -181,12 +191,16 @@ private:
 	int *pairTabPotType_d;
 
 	int *numPairs_d;
-	
+
+        //Han-Yi Chou
+        int *CellNeighborsList;	
 	//MLog: List of variables that need to be moved over to ComputeForce class. Members of this list will be set to static to avoid large alterations in working code, thereby allowing us to access these variables easily.
 	//BrownianParticleType* part;
 	//float electricConst;
 	//int fullLongRange;
 	Vector3* pos_d;
+        Vector3* mom_d;
+        float*   ran_d;
 	Vector3* forceInternal_d;
 	int* type_d; 
 
