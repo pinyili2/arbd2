@@ -28,15 +28,12 @@
 #include "RigidBodyType.h"
 #include "RigidBody.h"
 
-#include <cuda.h> 
-#include <cuda_runtime.h>
-
 // Units:
 //    Energy: kcal/mol (6.947694e-24 kJ)
 //    Temperature: Kelvin
 //    Time: nanoseconds
 //    Length: angstroms
-
+//    Momentum: Da * \mu m / ns
 
 // Forward declerations
 class Angle;
@@ -80,6 +77,12 @@ class Configuration {
 
 	void getDebugForce();
 
+        //Han-Yi Chou
+        bool Boltzmann(const Vector3& com_v,int N);
+        bool loadMomentum(const char* file_name);
+        void loadRestartMomentum(const char* file_name);
+        void Print();
+        void PrintMomentum();
 public:
 	Configuration(const char * config_file, int simNum = 0, bool debug=false);
 	~Configuration();
@@ -94,6 +97,7 @@ public:
 
 
 	bool loadedCoordinates;
+        bool loadedMomentum;
 
 	// Device Variables
 	//int *type_d;
@@ -117,11 +121,14 @@ public:
 	int numCap; // max number of particles
 	int num; // current number of particles
 	Vector3* pos; //  position of each particle
+        Vector3* momentum; //momentum of each brownian particles Han-Yi Chou
+        Vector3  COM_Velocity; //center of mass velocity Han-Yi Chou
 	int* type; // type of each particle
 	int* serial; // serial number of each particle
 	int currSerial; // the serial number of the next new particle
 	String* name; // name of each particle
 	Vector3* posLast; // used for current computation
+        Vector3* momLast; //used for Lagevin dynamics
 	float timeLast; // used with posLast
 	float minimumSep; // minimum separation allowed with placing new particles
 
@@ -138,9 +145,11 @@ public:
 	// String kTGridFile;
 	String temperatureGridFile;
 	String inputCoordinates;
+        String inputMomentum; //Han-Yi Chou
 	String inputRBCoordinates;
 	int copyReplicaCoordinates;
 	String restartCoordinates;
+        String restartMomentum; //Han-Yi Chou
 	int numberFluct;
 	int interparticleForce;
 	int tabulatedPotential;
@@ -223,6 +232,10 @@ public:
 
 	Restraint* restraints;
 
+        //Han-Yi Chou
+        String ParticleDynamicType;
+        String RigidBodyDynamicType;
+        String ParticleLangevinIntegrator;
 	// RigidBody parameters.
 	RigidBodyType* rigidBody;
 	int numRigidTypes;

@@ -2,9 +2,13 @@
 #include "Angle.h"
 #include "Dihedral.h"
 #include "Restraint.h"
-
+#include <cmath>
 #include <cassert>
-
+#include <stdlib.h>     /* srand, rand */
+#include <time.h>       /* time */
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+#include <gsl/gsl_math.h>
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
@@ -58,23 +62,53 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 
 	// Allocate particle variables.
 	pos = new Vector3[num * simNum];
-	type = new int[num * simNum];
+        //Han-Yi Chou
+        if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+            momentum = new Vector3[num * simNum];
+
+	type   = new int[num * simNum];
 	serial = new int[num * simNum];
 	posLast = new Vector3[num * simNum];
+        //Han-Yi Chou
+        if(ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+           momLast = new Vector3[num * simNum];
 	name = new String[num * simNum];
 	currSerial = 0;
 
 
   // Now, load the coordinates
 	loadedCoordinates = false;
+        loadedMomentum    = false; //Han-Yi Chou
 
+  //I need kT here Han-Yi Chou
+  kT = temperature * 0.0019872065f; // `units "k K" "kcal_mol"`
+  //kT = temperature * 0.593f;
  // If we have a restart file - use it
 	if (restartCoordinates.length() > 0) {
-		loadRestart(restartCoordinates.val());
+		loadRestart(restartCoordinates.val()); 
 		printf("Loaded %d restart coordinates from `%s'.\n", num, restartCoordinates.val());
 		printf("Particle numbers specified in the configuration file will be ignored.\n");
 		loadedCoordinates = true;
-	} else {
+                //Han-Yi Chou Langevin dynamic
+                if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+                {
+                    if (restartMomentum.length() > 0)
+                    {
+                        loadRestartMomentum(restartMomentum.val());
+                        printf("Loaded %d restart momentum from `%s'.\n", num, restartMomentum.val());
+                        printf("Particle numbers specified in the configuration file will be ignored.\n");
+                        loadedMomentum = true;
+                    }
+                    else
+                    {
+                        printf("Warning: There is no restart momentum file when using restart coordinates in Langevin Dynamics\n");
+                        printf("Initialize with Boltzmann distribution\n");
+                        loadedMomentum = Boltzmann(COM_Velocity, num * simNum);
+                    }
+               }
+	} 
+        else 
+        {
 		// Load coordinates from a file?
 		if (numPartsFromFile > 0) {
 			loadedCoordinates = true;
@@ -91,29 +125,59 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 						currType = j;
 
 				for (int s = 0; s < simNum; ++s)
-					type[i + s*num] = currType;
+				    type[i + s*num] = currType;
 
 				serial[i] = currSerial++;
 
-				pos[i] = Vector3(atof(tokenList[3].val()),
-												 atof(tokenList[4].val()),
-												 atof(tokenList[5].val()));
+				pos[i] = Vector3(atof(tokenList[3].val()), atof(tokenList[4].val()), atof(tokenList[5].val()));
+                                //Han-Yi Chou
+                                if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+                                {
+                                    loadedMomentum = true;
+                                    if(numTokens == 9)
+                                        momentum[i] = Vector3(atof(tokenList[6].val()), atof(tokenList[7].val()), atof(tokenList[8].val()));
+                                    else
+                                    {
+                                        printf("Error occurs in %s at line %d. Please specify momentum\n", __FILE__, __LINE__);
+                                        assert(1==2);
+                                    }
+                                }
 			}
 			delete[] partsFromFile;
 			partsFromFile = NULL;
-		} else {
-			// Not loading coordinates from a file
-			populate();
-			if (inputCoordinates.length() > 0) {
-				printf("Loading coordinates from %s ... ", inputCoordinates.val());
-				loadedCoordinates = loadCoordinates(inputCoordinates.val());
-				if (loadedCoordinates)
-					printf("done!\n");
-			}
-		}
-	}
-
-	
+                        //Han-Yi Chou
+                        for(int i = 1; i < simNum; ++i)
+                            for(int j = 0; j < num; ++j)
+                                serial[j + num * i] = currSerial++;
+                }
+                else 
+                {
+	            // Not loading coordinates from a file
+	            populate();
+	            if (inputCoordinates.length() > 0) 
+                    {
+		        printf("Loading coordinates from %s ... ", inputCoordinates.val());
+			loadedCoordinates = loadCoordinates(inputCoordinates.val());
+			if (loadedCoordinates)
+			    printf("done!\n");
+	            }
+                    if(ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+                    {
+                        if (inputMomentum.length() > 0) 
+                        {
+                            printf("Loading momentum from %s ... ", inputMomentum.val());
+                            loadedMomentum = loadMomentum(inputMomentum.val());
+                            if (loadedMomentum)
+                                printf("done!\n");
+                        }
+                        else
+                            loadedMomentum = Boltzmann(COM_Velocity, num * simNum);
+                    }
+                }
+            }
+        //Check initialize momentum
+        //if(ParticleDynamicType == String("Langevin"))
+            //PrintMomentum();
 	/* Initialize exclusions */
 	excludeCapacity = 256;
 	numExcludes = 0;
@@ -125,7 +189,6 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readDihedralsFromFile) readDihedrals();
 	if (readRestraintsFromFile) readRestraints();
 
-	kT = temperature * 0.0019872065f; // `units "k K" "kcal_mol"`
 	if (temperatureGridFile.length() != 0) {
 		printf("\nFound temperature grid file: %s\n", temperatureGridFile.val());
 		tGrid = new BaseGrid(temperatureGridFile.val());
@@ -368,12 +431,21 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	
 	if (fullLongRange != 0)
 		printf("No cell decomposition created.\n");
+
 }
 
 Configuration::~Configuration() {
 	// System state
 	delete[] pos;
+        //Han-Yi Chou
+        if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+            delete[] momentum;
+
 	delete[] posLast;
+        //Han-Yi Chou
+        if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
+            delete[] momLast;
+
 	delete[] type;
 	delete[] name;
 	
@@ -541,6 +613,9 @@ void Configuration::setDefaults() {
 	
 	inputCoordinates = "";
 	restartCoordinates = "";
+        //Han-Yi Chou
+        inputMomentum = "";
+        restartMomentum = "";
 	copyReplicaCoordinates = 1;
 	numberFluct = 0;
 	numberFluctPeriod = 200;
@@ -588,6 +663,12 @@ void Configuration::setDefaults() {
 	readRestraintsFromFile = false;
 	numRestraints = 0;
 	restraints = NULL;
+
+        //Han-Yi Chou default values
+        ParticleDynamicType  = String("Brown");
+        RigidBodyDynamicType = String("Brown");
+        COM_Velocity = Vector3(0.f,0.f,0.f);
+        ParticleLangevinIntegrator = String("BAOAB"); //The default is BAOAB
 
 	// Hidden parameters
 	// Might be parameters later
@@ -675,6 +756,12 @@ int Configuration::readParameters(const char * config_file) {
 			inputCoordinates = value;
 		else if (param == String("restartCoordinates"))
 			restartCoordinates = value;
+
+                //Han-Yi Chou
+                else if (param == String("inputMomentum"))
+                        inputMomentum = value;
+                else if (param == String("restartMomentum"))
+                        restartMomentum = value;
 		else if (param == String("copyReplicaCoordinates"))
 		        copyReplicaCoordinates = atoi(value.val());
 		else if (param == String("temperature"))
@@ -713,11 +800,22 @@ int Configuration::readParameters(const char * config_file) {
 			numCap = atoi(value.val());
 		else if (param == String("decompPeriod"))
 			decompPeriod = atoi(value.val());
+
+                //Han-Yi Chou
+                else if (param == String("ParticleDynamicType"))
+                    ParticleDynamicType = value;
+                else if (param == String("RigidBodyDynamicType"))
+                    RigidBodyDynamicType = value;
+                else if (param == String("ParticleLangevinIntegrator"))
+                    ParticleLangevinIntegrator = value;
+
 		// PARTICLES
 		else if (param == String("particle")) {
 			part[++currPart] = BrownianParticleType(value);
 			currPartClass = partClassPart;
 		}
+                else if (param == String("mu")) // for Nose-Hoover Langevin
+                        part[currPart].mu = (float) strtod(value.val(), NULL);
 		else if (param == String("forceXGridFile"))
 			partForceXGridFile[currPart] = value;
 		else if (param == String("forceYGridFile"))
@@ -823,18 +921,18 @@ int Configuration::readParameters(const char * config_file) {
 		} else if (param == String("rigidBodyPotential")) {
 			partRigidBodyGrid[currPart].push_back(value);
 		}
+                //Han-Yi Chou initial COM velocity for total particles
+                else if (param == String("COM_Velocity"))
+                    COM_Velocity = stringToVector3(value);
+
 		// RIGID BODY
 		else if (param == String("rigidBody")) {
 			// part[++currPart] = BrownianParticleType(value);
 			rigidBody[++currRB] = RigidBodyType(value, this);
 			currPartClass = partClassRB;
 		}
-		else if (param == String("mass"))
-			rigidBody[currRB].mass = (float) strtod(value.val(), NULL);
 		else if (param == String("inertia"))
 			rigidBody[currRB].inertia = stringToVector3( value );
-		else if (param == String("transDamping"))
-			rigidBody[currRB].transDamping = stringToVector3( value );
 		else if (param == String("rotDamping"))
 			rigidBody[currRB].rotDamping = stringToVector3( value );
 
@@ -852,6 +950,10 @@ int Configuration::readParameters(const char * config_file) {
 			rigidBody[currRB].initPos = stringToVector3( value );
 		else if (param == String("orientation"))
 			rigidBody[currRB].initRot = stringToMatrix3( value );
+                else if (param == String("momentum"))
+                        rigidBody[currRB].initMomentum = stringToVector3(value);
+                else if (param == String("angularMomentum"))//for angular momentum, serve as restart purpose
+                        rigidBody[currRB].initAngularMomentum = stringToVector3(value);
 		else if (param == String("inputRBCoordinates"))
 			inputRBCoordinates = value;
 		
@@ -862,6 +964,23 @@ int Configuration::readParameters(const char * config_file) {
 			else if (currPartClass == partClassRB) 
 				rigidBody[currRB].num = atoi(value.val());
 		}
+                //set mass here Han-Yi Chou
+                else if (param == String("mass"))
+                {
+                    if(currPartClass == partClassPart)
+                        part[currPart].mass    = (float) strtod(value.val(),NULL);
+                    else if (currPartClass == partClassRB)
+                        rigidBody[currRB].mass = (float) strtod(value.val(),NULL);
+                }
+                //set damping here, using anisotropic damping, i.e. data type Vector3 Han-Yi Chou
+                else if (param == String("transDamping"))
+                {
+                    if(currPartClass == partClassPart)
+                        part[currPart].transDamping    = stringToVector3(value);
+                    else if (currPartClass == partClassRB)
+                        rigidBody[currRB].transDamping = stringToVector3(value);
+
+                }
 		else if (param == String("gridFile")) {
 			if (currPartClass == partClassPart)
 				partGridFile[currPart] = value;
@@ -878,8 +997,32 @@ int Configuration::readParameters(const char * config_file) {
 	// extra configuration for RB types
 	for (int i = 0; i < numRigidTypes; i++)
 		rigidBody[i].setDampingCoeffs(timestep);
-	
+
+        //For debugging purpose Han-Yi Chou
+        //Print();
 	return numParams;
+}
+//Han-Yi Chou
+void Configuration::Print()
+{
+    printf("The dynamic type for particle is %s \n", ParticleDynamicType.val());
+    for(int i = 0; i < numParts; ++i)
+    {
+        printf("The type %d has mass %f \n", i,part[i].mass);
+        printf("The diffusion coefficient is %f \n", part[i].diffusion);
+        printf("The translational damping is %f %f %f \n", part[i].transDamping.x, part[i].transDamping.y, part[i].transDamping.z);
+    }
+    printf("Done with check for Langevin");
+    //assert(1==2);
+}
+
+void Configuration::PrintMomentum()
+{
+    for(int i = 0; i < num; ++i)
+    {
+        printf("%f %f %f\n", momentum[i].x, momentum[i].y, momentum[i].z);
+    }
+    //assert(1==2);
 }
 Vector3 Configuration::stringToVector3(String s) {
 	// tokenize and return
@@ -1453,20 +1596,22 @@ void Configuration::readRestraints() {
 	// std::sort(restraints, restraints + numRestraints, compare());
 }
 
-
+//populate the type list and serial list
 void Configuration::populate() {
-	int pn = 0;
-	int p = 0;
+    for (int repID = 0; repID < simNum; ++repID) {
+                const int offset = repID * num;
+                int pn = 0;
+                int p = 0;
+                for (int i = 0; i < num; ++i) {
+                        type[i + offset] = p;
+                        serial[i + offset] = currSerial++;
 
-	for (int i = 0; i < num; i++) {
-		for (int s = 0; s < simNum; ++s)
-			type[i + s*num] = p;
-		serial[i] = currSerial++;
-		if (++pn >= part[p].num) {
-			p++;
-			pn = 0;
-		}
-	}
+                        if (++pn >= part[p].num) {
+                                p++;
+                                pn = 0;
+                        }
+                }
+        }
 }
 
 bool Configuration::readBondFile(const String& value, int currBond) {
@@ -1531,7 +1676,7 @@ bool Configuration::readDihedralFile(const String& value, int currDihedral) {
 
 	return true;
 }
-
+//Load the restart coordiantes only
 void Configuration::loadRestart(const char* file_name) {
 	char line[STRLEN];
 	FILE* inp = fopen(file_name, "r");
@@ -1585,6 +1730,73 @@ void Configuration::loadRestart(const char* file_name) {
 
 	fclose(inp);    
 }
+//Han-Yi Chou
+//First the resart coordinates should be loaded
+void Configuration::loadRestartMomentum(const char* file_name) 
+{
+    char line[STRLEN];
+    FILE* inp = fopen(file_name, "r");
+
+    if (inp == NULL) 
+    {
+        printf("GrandBrownTown:loadRestart File `%s' does not exist\n", file_name);
+        exit(-1);
+    }
+    if(!loadedCoordinates)
+    {
+        printf("First load the restart coordinates\n");
+        assert(1==2);
+    }
+    int count = 0;
+    while (fgets(line, STRLEN, inp) != NULL) 
+    {
+        // Ignore comments.
+        int len = strlen(line);
+        if (line[0] == '#') continue;
+        if (len < 2) continue;
+
+        String s(line);
+        int numTokens = s.tokenCount();
+        if (numTokens != 4) 
+        {
+            printf("GrandBrownTown:loadRestart Invalid momentum file line: %s\n", line);
+            fclose(inp);
+            exit(-1);
+        }
+
+        String* tokenList = new String[numTokens];
+        s.tokenize(tokenList);
+        if (tokenList == NULL) 
+        {
+            printf("GrandBrownTown:loadRestart Invalid momentum file line: %s\n", line);
+            fclose(inp);
+            exit(-1);
+        }
+
+        int typ = atoi(tokenList[0]);
+        float x = (float) strtod(tokenList[1],NULL);
+        float y = (float) strtod(tokenList[2],NULL);
+        float z = (float) strtod(tokenList[3],NULL);
+
+        if (typ < 0 || typ >= numParts) 
+        {
+            printf("GrandBrownTown:countRestart Invalid particle type : %d\n", typ);
+            fclose(inp);
+            exit(-1);
+        }
+
+        if(typ != type[count])
+        {
+            printf("Inconsistent in momentum file with the position file\n");
+            fclose(inp);
+            exit(-1);
+        }
+        momentum[count] = Vector3(x,y,z);
+        ++count;
+        delete[] tokenList;
+    }
+    fclose(inp);
+}
 
 bool Configuration::loadCoordinates(const char* file_name) {
 	char line[STRLEN];
@@ -1636,6 +1848,66 @@ bool Configuration::loadCoordinates(const char* file_name) {
 		return false;
 	}
 	return true;
+}
+//Han-Yi Chou The function populate should be called before entering this function
+bool Configuration::loadMomentum(const char* file_name) 
+{
+    char line[STRLEN];
+    FILE* inp = fopen(file_name, "r");
+
+    if (inp == NULL) 
+        return false;
+
+    int count = 0;
+    while (fgets(line, STRLEN, inp) != NULL) 
+    {
+        // Ignore comments.
+        int len = strlen(line);
+        if (line[0] == '#') 
+            continue;
+        if (len < 2) 
+            continue;
+
+        String s(line);
+        int numTokens = s.tokenCount();
+        if (numTokens != 3) 
+        {
+            printf("ERROR: Invalid momentum file line: %s\n", line);
+            fclose(inp);
+            return false;
+        }
+
+        String* tokenList = new String[numTokens];
+        s.tokenize(tokenList);
+        if (tokenList == NULL) 
+        {
+            printf("ERROR: Invalid momentum file line: %s\n", line);
+            fclose(inp);
+            return false;
+        }
+
+        if (count >= num) 
+        {
+            printf("WARNING: Too many momentum in momentum file %s.\n", file_name);
+            fclose(inp);
+            return false;
+        }
+
+        float x = (float) strtod(tokenList[0],NULL);
+        float y = (float) strtod(tokenList[1],NULL);
+        float z = (float) strtod(tokenList[2],NULL);
+        momentum[count] = Vector3(x,y,z);
+        ++count;
+        delete[] tokenList;
+    }
+    fclose(inp);
+
+    if (count < num) 
+    {
+        printf("ERROR: Too few momentum in momentum file.\n");
+        return false;
+    }
+    return true;
 }
 
 // Count the number of atoms in the restart file.
@@ -1775,6 +2047,45 @@ void Configuration::getDebugForce() {
 	}
 	printf("\n");
 }
+//Han-Yi Chou setting boltzman distribution of momentum with a given center of mass velocity
+//Before using this code, make sure the array type list and serial list are both already initialized
+bool Configuration::Boltzmann(const Vector3& v_com, int N)
+{
+    int count = 0;
+    Vector3 total_momentum = Vector3(0.);
+
+    gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
+    srand(time(NULL));
+    gsl_rng_set (gslcpp_rng, rand() % 100000);
+
+    for(int i = 0; i < N; ++i)
+    {
+        int typ = type[i];
+        double M = part[typ].mass;
+        double sigma = sqrt(kT * M) * 2.046167337e4;
+   
+        Vector3 tmp(gsl_ran_gaussian(gslcpp_rng,sigma),gsl_ran_gaussian(gslcpp_rng,sigma),gsl_ran_gaussian(gslcpp_rng,sigma));
+        tmp = tmp * 1e-4;
+        total_momentum += tmp;
+        momentum[(size_t)count] = tmp;
+        ++count;
+    }
+    if(N > 1)
+    {
+        total_momentum = total_momentum / (double)N;
+
+        for(int i = 0; i < N; ++i)
+        {
+            int typ = type[i];
+            double M = part[typ].mass;
+        
+            momentum[i] = momentum[i] - total_momentum + M * v_com;
+        }
+    }
+
+    gsl_rng_free(gslcpp_rng);
+    return true;
+} 
 
 //////////////////////////
 // Comparison operators //
