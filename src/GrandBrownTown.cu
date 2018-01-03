@@ -5,10 +5,8 @@
 #include "BrownParticlesKernel.h"
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
-#include <gsl/gsl_math.h>
 
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
 	if (code != cudaSuccess) {
@@ -16,13 +14,14 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 	if (abort) exit(code);
 	}
 }
+#endif
 
 bool GrandBrownTown::DEBUG;
 
 cudaEvent_t START, STOP;
 
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
-		const long int randomSeed, bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
+		bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
 	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
 	conf(c), RBC(RigidBodyController(c,outArg)) {
         printf("%d\n",__LINE__);
@@ -76,7 +75,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
         {
             momentum = new Vector3[num * numReplicas]; //[HOST] array of particles' momentum
             if(particle_dynamic == String("NoseHooverLangevin"))
-                random   = new float[num * numReplicas];
+                random = new float[num * numReplicas];
         }
         printf("%d\n",__LINE__);
         //for debug
@@ -198,22 +197,12 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	//angles_d = c.angles_d;
 	//dihedrals_d = c.dihedrals_d;
 
+	printf("Setting up random number generator with seed %lu\n", seed);
+	randoGen = new Random(num * numReplicas, seed);
+	copyRandToCUDA();
+
         if(particle_dynamic == String("NoseHooverLangevin"))
             InitNoseHooverBath(num * numReplicas);
-        printf("%d\n",__LINE__);
-	// Seed random number generator
-	long unsigned int r_seed;
-	if (seed == 0) {
-		long int r0 = randomSeed;
-		for (int i = 0; i < 4; i++)
-			r0 *= r0 + 1;
-		r_seed = time(NULL) + r0;
-	} else {
-		r_seed = seed + randomSeed;
-	}
-	printf("Setting up Random Generator\n");
-	randoGen = new Random(num * numReplicas, r_seed);
-	printf("Random Generator Seed: %lu -> %lu\n", randomSeed, r_seed);
 
 	// "Some geometric stuff that should be gotten rid of." -- Jeff Comer
 	Vector3 buffer = (sys->getCenter() + 2.0f * sys->getOrigin())/3.0f;
@@ -223,8 +212,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	if (!c.loadedCoordinates) {
 		//printf("Populating\n");
 		//populate(); Han-Yi Chou, Actually the list is already populated 
-		initialCond();
-		printf("Set random initial conditions.\n");
+	    initialCond();
+		printf("Setting random initial conditions.\n");
 	}
 
 	// Prepare internal force computation
@@ -1465,13 +1454,12 @@ void GrandBrownTown::initialCond() {
 	}
 }
 
-#if 0
 // A couple old routines for getting particle positions.
 Vector3 GrandBrownTown::findPos(int typ) {
 	Vector3 r;
 	const BrownianParticleType& pt = part[typ];
 	do {
-		const float rx = sysDim.x * randoGen->uniform();
+		const float rx = sysDim.x * randoGen->uniform(); 
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
@@ -1490,39 +1478,6 @@ Vector3 GrandBrownTown::findPos(int typ, float minZ) {
 		r = sys->wrap( Vector3(rx, ry, rz) );
 	} while (pt.pmf->interpolatePotential(r) > pt.meanPmf and fabs(r.z) > minZ);
 	return r;
-}
-#endif 
-
-Vector3 GrandBrownTown::findPos(int typ) {
-        Vector3 r;
-        static gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-        //srand (time(NULL));
-        //gsl_rng_set (gslcpp_rng, rand() % 100000);
-        
-        const BrownianParticleType& pt = part[typ];
-        do {
-                const float rx = sysDim.x * (float)(gsl_ran_flat(gslcpp_rng,0.,1.));
-                const float ry = sysDim.y * (float)(gsl_ran_flat(gslcpp_rng,0.,1.));
-                const float rz = sysDim.z * (float)(gsl_ran_flat(gslcpp_rng,0.,1.));
-                r = sys->wrap( Vector3(rx, ry, rz) );
-        } while (pt.pmf->interpolatePotential(r) > pt.meanPmf);
-        return r;
-}
-
-
-Vector3 GrandBrownTown::findPos(int typ, float minZ) {
-        Vector3 r;
-        static gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-        //srand(time(NULL));
-
-        const BrownianParticleType& pt = part[typ];
-        do {
-                const float rx = sysDim.x * (float)(gsl_ran_flat(gslcpp_rng,0.,1.));
-                const float ry = sysDim.y * (float)(gsl_ran_flat(gslcpp_rng,0.,1.));
-                const float rz = sysDim.z * (float)(gsl_ran_flat(gslcpp_rng,0.,1.));
-                r = sys->wrap( Vector3(rx, ry, rz) );
-        } while (pt.pmf->interpolatePotential(r) > pt.meanPmf and fabs(r.z) > minZ);
-        return r;
 }
 
 //Compute the kinetic energy of particle and rigid body Han-Yi Chou
@@ -1559,9 +1514,6 @@ void GrandBrownTown::InitNoseHooverBath(int N)
 {
     printf("Entering Nose-Hoover Langevin\n");
     int count = 0;
-    gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-    srand (time(NULL));
-    gsl_rng_set (gslcpp_rng, rand() % 100000);
 
     for(int i = 0; i < N; ++i)
     {
@@ -1570,11 +1522,10 @@ void GrandBrownTown::InitNoseHooverBath(int N)
         
         double sigma = sqrt(kT / mu);
 
-        float tmp = gsl_ran_gaussian(gslcpp_rng,sigma);
+        float tmp = sigma * randoGen->gaussian();
         random[(size_t)count] = tmp;
         ++count;
     }
-    gsl_rng_free(gslcpp_rng);
     printf("Done in nose-hoover bath\n");
 }
 // -----------------------------------------------------------------------------
@@ -1857,6 +1808,12 @@ void GrandBrownTown::updateReservoirs() {
 		internal->updateNumber(num);
 }
 
+void GrandBrownTown::copyRandToCUDA() {
+	gpuErrchk(cudaMalloc((void**)&randoGen_d, sizeof(Random)));
+        gpuErrchk(cudaMemcpy(&(randoGen_d->states), &(randoGen->states), sizeof(curandState_t*),cudaMemcpyHostToDevice));
+}
+
+
 // -----------------------------------------------------------------------------
 // Allocate memory on GPU(s) and copy to device
 void GrandBrownTown::copyToCUDA() {
@@ -1868,18 +1825,6 @@ void GrandBrownTown::copyToCUDA() {
 	gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
 	gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3) * tot_num,
 														cudaMemcpyHostToDevice));*/
-
-	//gpuErrchk(cudaMalloc(&randoGen_d, sizeof(Random)));
-	//gpuErrchk(cudaMemcpy(randoGen_d, randoGen, sizeof(Random),
-	//													cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMalloc((void**)&randoGen_d, sizeof(Random)));
-        //gpuErrchk(cudaMemcpy(randoGen_d, randoGen,  sizeof(Random), cudaMemcpyHostToDevice));
-
-        //gpuErrchk(cudaMemcpy(&(randoGen_d->generator), &(randoGen->generator), sizeof(curandGenerator_t),cudaMemcpyHostToDevice));
-        gpuErrchk(cudaMemcpy(&(randoGen_d->states), &(randoGen->states), sizeof(curandState_t*),cudaMemcpyHostToDevice));
-        gpuErrchk(cudaMemcpy(&(randoGen_d->generator), &(randoGen->generator), sizeof(curandGenerator_t),cudaMemcpyHostToDevice));
-        gpuErrchk(cudaMemcpy(&(randoGen_d->integer_d), &(randoGen->integer_d), sizeof(unsigned int*),cudaMemcpyHostToDevice));
-        gpuErrchk(cudaMemcpy(&(randoGen_d->uniform_d), &(randoGen->uniform_d), sizeof(float*),cudaMemcpyHostToDevice));
 
 	// gpuErrchk(cudaDeviceSynchronize());
 }

@@ -54,9 +54,9 @@
 
 class GrandBrownTown {
 public:
-	GrandBrownTown(const char* configFile, const char* outArg, const long int randomSeed,
+	GrandBrownTown(const char* configFile, const char* outArg,
 			bool debug, bool imd_on, unsigned int imd_port, int numReplicas = 0);
-	GrandBrownTown(const Configuration& c, const char* outArg, const long int randomSeed,
+	GrandBrownTown(const Configuration& c, const char* outArg,
 			bool debug, bool imd_on, unsigned int imd_port, int numReplicas = 0);
 	~GrandBrownTown();
 
@@ -91,6 +91,7 @@ private:
 	void writeCurrentSegment(int repID, float t, float segZ) const;
 	void getDebugForce();
 	
+	void copyRandToCUDA();
 	void copyToCUDA();
 
         //Compute the kinetic energy in general. Han-Yi Chou
@@ -186,7 +187,7 @@ private:
 	String outputName;
 	float timestep;
 	long int steps;
-	long int seed;
+	unsigned long int seed;
 	String temperatureGridFile;
 	String inputCoordinates;
 	String restartCoordinates;
@@ -210,7 +211,6 @@ private:
 	BaseGrid* kTGrid;
 	BaseGrid* tGrid;
 	BaseGrid* sigmaT;
-	unsigned long randoSeed;
 
 	// Other parameters.
 	float switchStart;

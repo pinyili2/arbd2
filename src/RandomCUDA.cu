@@ -1,21 +1,5 @@
 #include "RandomCUDA.h"
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
-	if (code != cudaSuccess) {
-		fprintf(stderr,"CUDA Error: %s (%s:%d)\n", cudaGetErrorString(code), file, line);
-		if (abort) exit(code);
-	}
-}
-
-#define cuRandchk(ans) { cuRandAssert((ans), __FILE__, __LINE__); }
-inline void cuRandAssert(curandStatus code, const char *file, int line, bool abort=true) {
-	if (code != CURAND_STATUS_SUCCESS) {
-		fprintf(stderr, "CURAND Error: %d (%s:%d)\n", code, file, line);
-		if (abort) exit(code);
-	}
-}
-
 __global__
 void initKernel(unsigned long seed, curandState_t *state, int num);
 
@@ -41,6 +25,11 @@ void Random::init(int num, unsigned long seed) {
             gpuErrchk(cudaFree(integer_d));
             integer_d = NULL;
         }
+        if(gaussian_d!=NULL)
+        {
+            gpuErrchk(cudaFree(gaussian_d));
+            gaussian_d = NULL;
+        }
         if(integer_h!=NULL)
         {
 	    delete[] integer_h;
@@ -51,12 +40,20 @@ void Random::init(int num, unsigned long seed) {
 	    delete[] uniform_h;
             uniform_h = NULL;
 	}
+        if(gaussian_h!=NULL)
+        {
+	    delete[] gaussian_h;
+            gaussian_h = NULL;
+        }
 	gpuErrchk(cudaMalloc((void**)&uniform_d, sizeof(float) * RAND_N));
 	gpuErrchk(cudaMalloc((void**)&integer_d, sizeof(unsigned int) * RAND_N));
+	gpuErrchk(cudaMalloc((void**)&gaussian_d, sizeof(float) * RAND_N));
 	integer_h = new unsigned int[RAND_N];
 	uniform_h = new float[RAND_N];
+	gaussian_h = new float[RAND_N];
 	uniform_n = 0;
 	integer_n = 0;
+	gaussian_n = 0;
 }
 
 float Random::uniform() {

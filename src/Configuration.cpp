@@ -6,9 +6,7 @@
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
-#include <gsl/gsl_math.h>
+
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
@@ -603,7 +601,11 @@ void Configuration::setDefaults() {
 	timestep = 1e-5f;
 	rigidBodyGridGridPeriod = 1;
 	steps = 100;
-	seed = 0;
+
+	unsigned long int r0 = clock();
+	for (int i = 0; i < 4; i++)
+	    r0 *= r0 + 1;
+	seed = time(NULL) + r0;
 
 	origin = Vector3(0,0,0);
 	size = Vector3(0,0,0);
@@ -2054,9 +2056,7 @@ bool Configuration::Boltzmann(const Vector3& v_com, int N)
     int count = 0;
     Vector3 total_momentum = Vector3(0.);
 
-    gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-    srand(time(NULL));
-    gsl_rng_set (gslcpp_rng, rand() % 100000);
+    RandomCPU random = RandomCPU(seed + 2); /* +2 to avoid using same seed elsewhere */
 
     for(int i = 0; i < N; ++i)
     {
@@ -2064,7 +2064,7 @@ bool Configuration::Boltzmann(const Vector3& v_com, int N)
         double M = part[typ].mass;
         double sigma = sqrt(kT * M) * 2.046167337e4;
    
-        Vector3 tmp(gsl_ran_gaussian(gslcpp_rng,sigma),gsl_ran_gaussian(gslcpp_rng,sigma),gsl_ran_gaussian(gslcpp_rng,sigma));
+        Vector3 tmp = random.gaussian_vector() * sigma;
         tmp = tmp * 1e-4;
         total_momentum += tmp;
         momentum[(size_t)count] = tmp;
@@ -2083,7 +2083,7 @@ bool Configuration::Boltzmann(const Vector3& v_com, int N)
         }
     }
 
-    gsl_rng_free(gslcpp_rng);
+    
     return true;
 } 
 

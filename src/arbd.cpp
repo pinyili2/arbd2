@@ -111,16 +111,15 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
-	long int randomSeed = 1992;
 	char* configFile = NULL;
 	char* outArg = NULL;
-	if (argc - num_flags >= 4) {
-		configFile = argv[argc - 3];
-		outArg = argv[argc - 2];
-		randomSeed = atol(argv[argc - 1]);
-	} else if (argc - num_flags >= 3) {
+	if (argc - num_flags == 3) {
 		configFile = argv[argc - 2];
 		outArg = argv[argc - 1];
+	} else {
+	    printf("%s: too many arguments\n", argv[0]);
+	    printf("Try '%s --help' for more information.\n", argv[0]);
+	    return 1;
 	}
 
 	GPUManager::safe(safe);
@@ -135,7 +134,7 @@ int main(int argc, char* argv[]) {
 	config.copyToCUDA();
 	
 
-	GrandBrownTown brown(config, outArg, randomSeed,
+	GrandBrownTown brown(config, outArg,
 			debug, imd_on, imd_port, replicas);
 	printf("Running on GPU %d...\n", GPUManager::current());
 	cudaDeviceProp prop = GPUManager::properties[GPUManager::current()];

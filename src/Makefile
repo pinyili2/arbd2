@@ -37,7 +37,6 @@ ifneq ($(DARWIN),)
 else
     LIBRARY = $(CUDA_PATH)/lib64
 endif
-LIBRARY += -lgsl -lgslcblas
 # NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
 $(info $(NVCC))

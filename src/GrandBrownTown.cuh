@@ -94,6 +94,8 @@ __global__ void updateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* __re
     }
 }
 #endif
+
+
 ////The kernel is for Nose-Hoover Langevin dynamics
 __global__ void updateKernelNoseHooverLangevin(Vector3* pos, Vector3* momentum, float* random, Vector3* __restrict__ forceInternal,
                                   int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField,

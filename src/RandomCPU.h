@@ -53,7 +53,7 @@ class RandomCPU {
 private:
 
 	float second_gaussian;
-  int64 second_gaussian_waiting;
+  bool second_gaussian_waiting;
   int64 rand48_seed;
   int64 rand48_mult;
   int64 rand48_add;
@@ -74,7 +74,7 @@ public:
   // reinitialize with seed
   HOST DEVICE inline void init(unsigned long seed) {
     second_gaussian = 0;
-    second_gaussian_waiting = 0;
+    second_gaussian_waiting = false;
     rand48_seed = seed & INT64_LITERAL(0x00000000ffffffff);
     rand48_seed = rand48_seed << 16;
     rand48_seed |= RAND48_SEED & INT64_LITERAL(0x0000ffff);
@@ -122,7 +122,7 @@ public:
     rand48_seed = save_seed;
 
     second_gaussian = 0;
-    second_gaussian_waiting = 0;
+    second_gaussian_waiting = false;
     print("END SPLIT\n");
   }
 
@@ -151,7 +151,7 @@ public:
     BigReal fac, r, v1, v2;
 
     if (second_gaussian_waiting) {
-      second_gaussian_waiting = 0;
+      second_gaussian_waiting = false;
       return second_gaussian;
     } else {
       r = 2.;                 // r >= 1.523e-8 ensures abs result < 6
@@ -164,7 +164,7 @@ public:
       fac = sqrt(-2.0 * log(r)/r);
       // now make the Box-Muller transformation to get two normally
       // distributed random numbers. Save one and return the other.
-      second_gaussian_waiting = 1;
+      second_gaussian_waiting = true;
       second_gaussian = v1 * fac;
       return v2 * fac;
     }
