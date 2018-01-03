@@ -23,7 +23,7 @@ public:
 RigidBodyType(const String& name = "", const Configuration* conf = NULL ) :
 	name(name), conf(conf), num(0),
 		reservoir(NULL), mass(1.0f), inertia(), transDamping(),
-		rotDamping(), initPos(), initRot(Matrix3(1.0f)),
+		rotDamping(), initPos(), initRot(Matrix3(1.0f)), initMomentum(Vector3(0.f)), initAngularMomentum(Vector3(0.f)),
 		numPotGrids(0), numDenGrids(0), numPmfs(0), numParticles(NULL) { }
 	~RigidBodyType() { clear(); }
 private:
@@ -75,6 +75,8 @@ public:
 
 	Vector3 initPos;	
 	Matrix3 initRot;
+        Vector3 initMomentum;
+        Vector3 initAngularMomentum;
 	
 	std::vector<String> potentialGridKeys;
 	std::vector<String> densityGridKeys;

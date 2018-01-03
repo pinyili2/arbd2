@@ -91,18 +91,23 @@ class RigidBodyController {
 public:
 	/* DEVICE RigidBodyController(const NamdState *s, int reductionTag, SimParameters *sp); */
 	RigidBodyController();
-  ~RigidBodyController();
+        ~RigidBodyController();
 	RigidBodyController(const Configuration& c, const char* outArg);
 
+        void AddLangevin();
+        void SetRandomTorques();
 	void integrate(int step);
+        void integrateDLM(int step);
 	void updateForces(Vector3* pos_d, Vector3* force_d, int s);
 	void updateParticleLists(Vector3* pos_d);
-    
+        void clearForceAndTorque(); 
+        float KineticEnergy();
+        void print(int step);
 private:
 	bool loadRBCoordinates(const char* fileName);
 	void initializeForcePairs();
 
-	void print(int step);
+	//void print(int step);
 	void printLegend(std::ofstream &file);
 	void printData(int step, std::ofstream &file);
 public:

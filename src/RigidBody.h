@@ -59,19 +59,24 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
 	// HOST DEVICE inline Matrix3 getBasis() const { return orientation; }
 	HOST DEVICE inline BigReal getMass() const { return t->mass; }
-	HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
+	//HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
+	HOST DEVICE inline Vector3 getVelocity() const { return momentum; }
+	//HOST DEVICE inline Vector3 getAngularVelocity() const { 
+	//	return Vector3( angularMomentum.x / t->inertia.x,
+	//								 angularMomentum.y / t->inertia.y,
+									 //angularMomentum.z / t->inertia.z );
+	//}
 	HOST DEVICE inline Vector3 getAngularVelocity() const { 
-		return Vector3( angularMomentum.x / t->inertia.x,
-									 angularMomentum.y / t->inertia.y,
-									 angularMomentum.z / t->inertia.z );
-	}
+              return Vector3( angularMomentum.x, angularMomentum.y, angularMomentum.z);
+        }
+
 	void updateParticleList(Vector3* pos_d);
 	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s);
 	
 	
 	bool langevin;
 	Vector3 torque; // lab frame (except in integrate())
-
+        
 private:
 	
 	RigidBodyController* RBC;
@@ -88,7 +93,8 @@ private:
 
 	Vector3 momentum;		 /* in lab frame */
 	Vector3 angularMomentum; // angular momentum along corresponding principal axes
-    
+        Vector3 W1,W2;
+ 
 	// Langevin
 	Vector3 langevinTransFriction; /* RBTODO: make this work with a grid */
 	Vector3 langevinRotFriction;
@@ -125,5 +131,7 @@ private:
 	HOST DEVICE inline Matrix3 Ry(BigReal t);
 	HOST DEVICE inline Matrix3 Rz(BigReal t);
 	HOST DEVICE inline Matrix3 eulerToMatrix(const Vector3 e);
+        float Temperature();
+        void  Boltzmann();
 };
 

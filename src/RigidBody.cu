@@ -18,27 +18,22 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 
 
 RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref, RigidBodyController* RBCref) 
-    : name(name), c(&cref), t(&tref), RBC(RBCref), impulse_to_momentum(4.184e8f) { init(); }
+    : name(name), c(&cref), t(&tref), RBC(RBCref), impulse_to_momentum(4.1867999435271e4) /*impulse_to_momentum(4.184e8f)*/ { init(); }
 RigidBody::RigidBody(const RigidBody& rb)
-    : name(rb.name), c(rb.c), t(rb.t), RBC(rb.RBC), impulse_to_momentum(4.184e8f) { init(); }
+    : name(rb.name), c(rb.c), t(rb.t), RBC(rb.RBC), impulse_to_momentum(4.1867999435271e4)/*impulse_to_momentum(4.184e8f)*/ { init(); }
 void RigidBody::init() {
 	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08	
 	timestep = c->timestep;
-	Temp = c->temperature;
+	Temp = c->temperature * 0.0019872065f;
 	// RBTODO: use temperature grids
 	// tempgrid = c->temperatureGrid;
-
 	position = t->initPos;
 
 	// Orientation matrix that brings vector from the RB frame to the lab frame
 	orientation = t->initRot;
-	
-	momentum = Vector3() * t->mass; // lab frame
 
-	angularMomentum = Vector3(); // rigid body frame
-	angularMomentum.x *= t->inertia.x;
-	angularMomentum.y *= t->inertia.y;
-	angularMomentum.z *= t->inertia.z;
+        momentum = t->initMomentum;
+        angularMomentum = t->initAngularMomentum;
 
 	// Memory allocation for forces between particles and grids 
 	const int& numGrids = t->numPotGrids;
@@ -61,6 +56,20 @@ void RigidBody::init() {
 			gpuErrchk(cudaMalloc( &particleTorques_d[i], sizeof(Vector3)*nb ));
 		}
 	}
+}
+
+//Boltzmann distribution
+void RigidBody::Boltzmann()
+{
+
+    Vector3 rando = getRandomGaussVector();
+    momentum = sqrt(t->mass*Temp) * 2.046167135 * rando;
+    rando = getRandomGaussVector();
+    angularMomentum.x = sqrt(t->inertia.x*Temp) * 2.046167135 * rando.x;
+    angularMomentum.y = sqrt(t->inertia.y*Temp) * 2.046167135 * rando.y;
+    angularMomentum.z = sqrt(t->inertia.z*Temp) * 2.046167135 * rando.z;
+
+    printf("%f\n", Temperature());
 }
 
 RigidBody::~RigidBody() {
@@ -195,26 +204,22 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 	|                                                                            |
 	|   friction / kt = Diff                                                     |
 	\===========================================================================*/
-void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
-    /* commented out for BD
-	// w1 and w2 should be standard normal distributions
+void RigidBody::addLangevin(Vector3 w1, Vector3 w2) 
+{
+    Vector3 transForceCoeff = Vector3::element_sqrt( 2. * Temp * t->mass*t->transDamping / timestep );
+    Vector3  rotTorqueCoeff = Vector3::element_sqrt( 2. * Temp * Vector3::element_mult(t->inertia,t->rotDamping) / timestep );
 
-	// in RB frame     
-	Force f = Vector3::element_mult(t->transForceCoeff,w1) -
-		Vector3::element_mult(t->transDamping, orientation.transpose()*momentum); 
+    Force f = Vector3::element_mult(transForceCoeff,w1) * 2.046167337 -
+              Vector3::element_mult(t->transDamping, orientation.transpose()*momentum) * 41867.999435; 
     
-	Force torq = Vector3::element_mult(t->rotTorqueCoeff,w2) -
-		Vector3::element_mult(t->rotDamping, angularMomentum);
+    Force torq = Vector3::element_mult(rotTorqueCoeff,w2) * 2.046167337 -
+                 Vector3::element_mult(t->rotDamping, angularMomentum) * 41867.999435;
 
-	// return to lab frame
-	f = orientation * f;
-	torq = orientation * torq;
+    f = orientation * f;
+    torq = orientation * torq;
 
-	// printf("LANGTORQUE: %f %f %f\n",torq.x,torq.y,torq.z);
-	
-	addForce(f);
-	addTorque(torq);
-    */
+    addForce(f);
+    addTorque(torq);
 }
 
   /*==========================================================================\
@@ -222,120 +227,99 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2) {
 	| rigid body molecular dynamics. JCP 107. (1997)                            |
 	| http://jcp.aip.org/resource/1/jcpsa6/v107/i15/p5840_s1                    |
 	\==========================================================================*/
-void RigidBody::integrateDLM(int startFinishAll) {
-	Vector3 trans; // = *p_trans;
-	Matrix3 rot = Matrix3(1); // = *p_rot;
+void RigidBody::integrateDLM(int startFinishAll) 
+{
+    Vector3 trans; // = *p_trans;
+    //Matrix3 rot = Matrix3(1); // = *p_rot;
+    if ( isnan(force.x) || isnan(torque.x) ) 
+    {   
+        // NaN check
+        printf("Rigid Body force or torque was NaN!\n");
+        exit(-1);
+    }
 
-	// printf("Rigid Body force\n"); force.print();
-	
-#ifdef DEBUGM
-	switch (startFinishAll) {
-	case 0: // start
-		DebugM(2, "Rigid Body integrating start of cycle" << "\n" << endi);
-	case 1: // finish
-		DebugM(2, "Rigid Body integrating finish of cycle" << "\n" << endi);
-	case 2: // finish and start
-		DebugM(2, "Rigid Body integrating finishing last cycle, starting this one" << "\n" << endi);
-	}    
-#endif
+    if (startFinishAll == 0 || startFinishAll == 2) 
+    {
+        // propogate momenta by half step
+        momentum += 0.5f * timestep * force * impulse_to_momentum;
+        angularMomentum += 0.5f * timestep * (orientation.transpose()*torque) * impulse_to_momentum;
+    } 
+    else if (startFinishAll == 1)
+    {
+        position += timestep * momentum / t->mass * 1e4; // update CoM a full timestep
+        // update orientations a full timestep
+        Matrix3 R; // represents a rotation about a principle axis
+        R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x * 1e4); // R1
+        applyRotation(R);
 
-	if ( isnan(force.x) || isnan(torque.x) ) { // NaN check
-		printf("Rigid Body force or torque was NaN!\n");
-		exit(-1);
-	}
+        R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y * 1e4); // R2
+        applyRotation(R);
+                        
+        R = Rz(    timestep * angularMomentum.z / t->inertia.z * 1e4); // R3
+        applyRotation(R);
+                        
+        R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y * 1e4); // R4
+        applyRotation(R);
 
-	if (startFinishAll == 0 || startFinishAll == 1) {
-		// propogate momenta by half step
-		momentum += 0.5f * timestep * force * impulse_to_momentum;
-		angularMomentum += 0.5f * timestep * (orientation.transpose()*torque) * impulse_to_momentum;
-	} else {
-		// propogate momenta by a full timestep
-		momentum += timestep * force * impulse_to_momentum;
-		angularMomentum += timestep * orientation.transpose()*torque * impulse_to_momentum;
-	}
-
-	DebugM(3, "  position before: " << position << "\n" << endi);
-
-	if (startFinishAll == 0 || startFinishAll == 2) {
-		// update positions
-		// trans = Vector(0); if (false) {
-		trans = timestep * momentum / t->mass;
-		position += trans; // update CoM a full timestep
-		// }
-
-		// update orientations a full timestep
-		Matrix3 R; // represents a rotation about a principle axis
-		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R1
-		applyRotation(R);
-
-		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R2
-		applyRotation(R);
-			
-		R = Rz(    timestep * angularMomentum.z / t->inertia.z ); // R3
-		applyRotation(R);
-			
-		R = Ry(0.5*timestep * angularMomentum.y / t->inertia.y ); // R4
-		applyRotation(R);
-
-		R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x ); // R5
-		applyRotation(R);		
-
-		// TODO make this periodic
-		// printf("det: %.12f\n", orientation.det());
- 		orientation = orientation.normalized();
-		// orientation = orientation/orientation.det();
-		// printf("det2: %.12f\n", orientation.det());
-		// orientation = orientation/orientation.det(); // TODO: see if this can be somehow eliminated (wasn't in original DLM algorithm...)
-	}
-}    
-
+        R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x * 1e4); // R5
+        applyRotation(R);               
+        // TODO make this periodic
+        // printf("det: %.12f\n", orientation.det());
+        orientation = orientation.normalized();
+        // orientation = orientation/orientation.det();
+        // printf("det2: %.12f\n", orientation.det());
+        // orientation = orientation/orientation.det(); // TODO: see if this can be somehow eliminated (wasn't in original DLM algorithm...)
+    }
+}
 /* Following:
 Brownian Dynamics Simulation of Rigid Particles of Arbitrary Shape in External Fields
 Miguel X. Fernandes, José García de la Torre
 */
-void RigidBody::integrate(int startFinishAll) {
-    if (startFinishAll == 1) return;
+
+//Chris original implementation for Brownian motion
+void RigidBody::integrate(int startFinishAll)
+{
+    //if (startFinishAll == 1) return;
 
     Matrix3 rot = Matrix3(1); // = *p_rot;
 
-    if ( isnan(force.x) || isnan(torque.x) ) { // NaN check
-	printf("Rigid Body force or torque was NaN!\n");
-	exit(-1);
+    if ( isnan(force.x) || isnan(torque.x) ) 
+    {
+        printf("Rigid Body force or torque was NaN!\n");
+        exit(-1);
     }
-    
-    float kT = 1.0f;		// temporary
-    Vector3 diffusion = kT / (t->transDamping*t->mass); // TODO: assign diffusion in config file, or elsewhere
-    Vector3 rotDiffusion = kT / (Vector3::element_mult(t->rotDamping,t->inertia));
+    //float Temp = 1;
+    Vector3 diffusion    = Temp / (t->transDamping*t->mass); // TODO: assign diffusion in config file, or elsewhere
+    //Vector3 diffusion    = Temp / (t->transDamping*t->mass);
+    Vector3 rotDiffusion = Temp / (Vector3::element_mult(t->rotDamping,t->inertia));
 
-    // update positions
-    // trans = Vector(0); if (false) {
-    Vector3 rando = getRandomGaussVector();
-    Vector3 offset = Vector3::element_mult( (diffusion / kT), force ) * timestep +
-	// diffGrad term
-	Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion*timestep), rando );
-
-    rando = getRandomGaussVector();
-    Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / kT) , torque * timestep) +
-	// diffGrad term
-	Vector3::element_mult( Vector3::element_sqrt( 2.0f * rotDiffusion*timestep), rando );
+    Vector3 rando  = getRandomGaussVector();
+    Vector3 offset = Vector3::element_mult( (diffusion / Temp), force ) * timestep  * 418.679994353 +
+                     Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep * 418.679994353), rando) ;
 
     position += offset;
 
-    // Consider whether a DLM-like decomposition of rotations is needed for time-reversibility
-    orientation = orientation *
-	(Rz(rotationOffset.z) * Ry(rotationOffset.y) * Rx(rotationOffset.x));
+    rando = getRandomGaussVector();
+    Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) * 418.679994353 +
+                             Vector3::element_mult( Vector3::element_sqrt( 2.0f * rotDiffusion * timestep * 418.679994353), rando );
 
-    // TODO make this periodic
-    // printf("det: %.12f\n", orientation.det());
+    // Consider whether a DLM-like decomposition of rotations is needed for time-reversibility
+    orientation = orientation * (Rz(rotationOffset.z * 0.5) * Ry(rotationOffset.y * 0.5) * Rx(rotationOffset.x)
+                              *  Ry(rotationOffset.y * 0.5) * Rz(rotationOffset.z * 0.5));
+    //orientation = orientation * Rz(rotationOffset.z) * Ry(rotationOffset.y) * Rx(rotationOffset.x);
     orientation = orientation.normalized();
-    // orientation = orientation/orientation.det();
-    // printf("det2: %.12f\n", orientation.det());
-    // orientation = orientation/orientation.det(); // TODO: see if this can be somehow eliminated (wasn't in original DLM algorithm...)
+}
+ 
+float RigidBody::Temperature()
+{
+    return (momentum.length2() / t->mass + 
+            angularMomentum.x * angularMomentum.x / t->inertia.x + 
+            angularMomentum.y * angularMomentum.y / t->inertia.y + 
+            angularMomentum.z * angularMomentum.z / t->inertia.z) * 0.50;
 }
 
 void RigidBody::applyRotation(const Matrix3& R) {
 	angularMomentum = R * angularMomentum;
-
 	// According to DLM, but rotations work the wrong way; I think DLM update is wrong
 	// orientation = orientation * R.transpose(); 
 
@@ -343,7 +327,7 @@ void RigidBody::applyRotation(const Matrix3& R) {
 	// Also works in statistical test
 	// Consistent with www.archer.ac.uk/documentation/white-papers/lammps-elba/lammps-ecse.pdf
 	orientation = orientation * R; 
-	
+        orientation.normalized();	
 }
 
 // Rotations about axes

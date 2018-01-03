@@ -26,20 +26,24 @@ CC_FLAGS += -DVERSION="\"$(VERSION)\""
 
 CC_FLAGS += -I$(CUDA_PATH)/include
 CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic # TODO: test on Mac OSX and other architectures
+ifeq ($(dbg),1)
+NV_FLAGS += -Xcompiler -rdynamic -lineinfo
+else
 NV_FLAGS += -lineinfo
+endif
 
 ifneq ($(DARWIN),)
     LIBRARY = $(CUDA_PATH)/lib
 else
     LIBRARY = $(CUDA_PATH)/lib64
 endif
-
+LIBRARY += -lgsl -lgslcblas
 # NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
 $(info $(NVCC))
 
 ## Find valid compute capabilities for this machine
-SMS ?= 30 35 37 50 52 60
+SMS ?= 30 35 37 50 52 60 61
 $(info Testing CUDA toolkit with compute capabilities SMS='$(SMS)')
 SMS := $(shell for sm in $(SMS); do $(NVCC) cuda-test.c -arch=sm_$$sm -o /dev/null &> /dev/null && echo $$sm; done)
 
@@ -66,8 +70,12 @@ CC_OBJ := $(patsubst %.cpp, %.o, $(CC_SRC))
 CU_OBJ := $(patsubst %.cu, %.o, $(CU_SRC))
 
 ### Targets
+ifeq ($(dbg),1)
+TARGET = arbd_dbg
+else
+# TARGET = arbd_lin_cubic
 TARGET = arbd
-
+endif
 all: $(TARGET)
 	@echo "Done ->" $(TARGET)
 

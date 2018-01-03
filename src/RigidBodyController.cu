@@ -59,6 +59,16 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 	initializeForcePairs();
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
+        //Boltzmann distribution
+        for (int i = 0; i < rigidBodyByType.size(); i++)
+        {
+            for (int j = 0; j < rigidBodyByType[i].size(); j++)
+            {
+                RigidBody& rb = rigidBodyByType[i][j];
+                // thermostat
+                rb.Boltzmann();
+            }
+        }
 }
 
 RigidBodyController::~RigidBodyController() {
@@ -236,11 +246,24 @@ void RigidBodyController::updateParticleLists(Vector3* pos_d) {
 	}
 }
 
+void RigidBodyController::clearForceAndTorque()
+{
+    // clear old forces
+    for (int i = 0; i < rigidBodyByType.size(); i++) 
+    {
+        for (int j = 0; j < rigidBodyByType[i].size(); j++) 
+        {
+            RigidBody& rb = rigidBodyByType[i][j];
+            rb.clearForce();
+            rb.clearTorque();
+        }
+    }
+}
 
 void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) {
 	if (s <= 1)
 		gpuErrchk( cudaProfilerStart() );
-		
+	
 	// Grid–particle forces
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
@@ -275,17 +298,53 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 	}
 }
 
-void RigidBodyController::integrate(int step) {
- 	// tell RBs to integrate
-	for (int i = 0; i < rigidBodyByType.size(); i++) {
-		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
-			RigidBody& rb = rigidBodyByType[i][j];
-			
-			// thermostat
-			rb.addLangevin( random->gaussian_vector(), random->gaussian_vector() );
-		}
-	}
+void RigidBodyController::SetRandomTorques()
+{
+    for (int i = 0; i < rigidBodyByType.size(); i++)
+    {
+        for (int j = 0; j < rigidBodyByType[i].size(); j++)
+        {
+            RigidBody& rb = rigidBodyByType[i][j];
+            rb.W1 = random->gaussian_vector();
+            rb.W2 = random->gaussian_vector();
+        }
+    }           
+}
 
+void RigidBodyController::AddLangevin()
+{
+    for (int i = 0; i < rigidBodyByType.size(); i++)
+    {
+        for (int j = 0; j < rigidBodyByType[i].size(); j++)
+        {
+            RigidBody& rb = rigidBodyByType[i][j];
+
+            //printf("%f %f %f\n",rb.W1.x,rb.W1.y,rb.W1.z);
+            //printf("%f %f %f\n",rb.W2.x,rb.W2.y,rb.W2.z);
+
+            rb.addLangevin(rb.W1,rb.W2);
+        }
+    }
+}
+
+void RigidBodyController::integrateDLM(int step) 
+{
+    // tell RBs to integrate
+    for (int i = 0; i < rigidBodyByType.size(); i++) 
+    {
+        for (int j = 0; j < rigidBodyByType[i].size(); j++) 
+        {
+            RigidBody& rb = rigidBodyByType[i][j];
+            rb.integrateDLM(step);
+        }
+    }
+}
+
+
+//Chris original part for Brownian motion
+void RigidBodyController::integrate(int step) 
+{
+ 	// tell RBs to integrate
 	if ( step % conf.outputPeriod == 0 ) { /* PRINT & INTEGRATE */
 		if (step == 0) {						// first step so only start this cycle
 			print(step);
@@ -330,15 +389,25 @@ void RigidBodyController::integrate(int step) {
 			}
 		}
 	}
+}
 
-	// clear old forces
-	for (int i = 0; i < rigidBodyByType.size(); i++) {
-		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
-			RigidBody& rb = rigidBodyByType[i][j];
-			rb.clearForce();
-			rb.clearTorque();
-		}
-	}
+float RigidBodyController::KineticEnergy()
+{
+    float e = 0.;
+    int num = 0;
+    for (int i = 0; i < rigidBodyByType.size(); i++) 
+    {
+        for (int j = 0; j < rigidBodyByType[i].size(); j++) 
+        {
+            RigidBody& rb = rigidBodyByType[i][j];
+            e += rb.Temperature();
+            num += 1;
+        }
+    }
+    if(num > 0)
+        return e / num;
+    else
+        return 0.;
 }
 
 // allocate and initialize an array of stream handles
@@ -571,6 +640,7 @@ void RigidBodyController::print(int step) {
 		}
 	}
 }
+
 void RigidBodyController::printLegend(std::ofstream &file) {
         file << "#$LABELS step RigidBodyKey"
 		 << " posX  posY  posZ"

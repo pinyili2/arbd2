@@ -552,6 +552,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         {
             // 'interparticleForce' - determines whether particles interact with each other
             gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+            RBC.clearForceAndTorque(); //Han-Yi Chou
 
             if (interparticleForce)
             {
@@ -604,6 +605,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }//if inter-particle force
             gpuErrchk(cudaDeviceSynchronize());
             RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
+            if(rigidbody_dynamic == String("Langevin"))
+            {
+                RBC.SetRandomTorques();
+                RBC.AddLangevin();
+            }
         }//if step == 1
 
         gpuErrchk(cudaDeviceSynchronize());
@@ -619,7 +625,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
             updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(),
                                                        part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
 
-	RBC.integrate(s);
+        if(rigidbody_dynamic == String("Langevin"))
+        {
+            RBC.integrateDLM(0);
+            RBC.integrateDLM(1);
+        }
+        else
+            RBC.integrate(s);
         gpuErrchk(cudaDeviceSynchronize());
 
         if (s % outputPeriod == 0)
@@ -753,6 +765,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
             LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
             //gpuErrchk(cudaDeviceSynchronize());
 
+        if(rigidbody_dynamic == String("Langevin"))
+        {
+            RBC.SetRandomTorques();
+            RBC.AddLangevin();
+            RBC.integrateDLM(2);
+            RBC.print(s);
+        }
 
         gpuErrchk(cudaDeviceSynchronize());
         if (s % outputPeriod == 0)
@@ -973,6 +992,7 @@ void GrandBrownTown::run() {
             {
                 // 'interparticleForce' - determines whether particles interact with each other
                 gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+                RBC.clearForceAndTorque(); //Han-Yi Chou
 
 		if (interparticleForce) 
                 {
@@ -1046,6 +1066,11 @@ void GrandBrownTown::run() {
 
 	        gpuErrchk(cudaDeviceSynchronize());
 		RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
+                if(rigidbody_dynamic == String("Langevin"))
+                {
+                    RBC.SetRandomTorques();
+                    RBC.AddLangevin();
+                }
 
             }//if step == 1
 
@@ -1064,7 +1089,13 @@ void GrandBrownTown::run() {
                                                            part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
 
 
-	    RBC.integrate(s);
+            if(rigidbody_dynamic == String("Langevin"))
+            {
+                RBC.integrateDLM(0);
+                RBC.integrateDLM(1);
+            }
+            else
+                RBC.integrate(s);
 
             gpuErrchk(cudaDeviceSynchronize());
 
@@ -1218,8 +1249,16 @@ void GrandBrownTown::run() {
 
            //gpuErrchk(cudaDeviceSynchronize());
 
-           gpuErrchk(cudaDeviceSynchronize());
+           if(rigidbody_dynamic == String("Langevin"))
+           {
+               RBC.SetRandomTorques();
+               RBC.AddLangevin();
+               RBC.integrateDLM(2);
+               RBC.print(s);
+           }
 
+           gpuErrchk(cudaDeviceSynchronize());
+ 
            if (s % outputPeriod == 0) 
            {
                 if(particle_dynamic == String("Langevin"))
