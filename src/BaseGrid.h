@@ -37,6 +37,8 @@ class ForceEnergy {
 public:
 	DEVICE ForceEnergy(Vector3 &f, float &e) :
 		f(f), e(e) {};
+        DEVICE ForceEnergy(float f, float e) :
+        f(f), e(e) {};
 	Vector3 f;
 	float e;
 };

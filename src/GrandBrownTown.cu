@@ -46,7 +46,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
                 if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
                 {
                     std::stringstream restart_file_p, out_momentum_prefix, out_force_prefix;
-                    restart_file_p << outArg << '.' << i << ".momentum.resart";
+                    restart_file_p << outArg << '.' << i << ".momentum.restart";
                     out_momentum_prefix << outArg << ".momentum." << i;
                     //out_force_prefix << outArg << ".force." << i;
 
@@ -1437,7 +1437,7 @@ void GrandBrownTown::writeRestart(int repID) const
    
 }
 
-
+/*the center is defined by the first pmf*/
 void GrandBrownTown::initialCondCen() {
 	for (int i = 0; i < num; i++)
 		pos[i] = part[ type[i] ].pmf->getCenter();

@@ -22,7 +22,7 @@ public:
     initSubgrids();
     initUniqueGrids();
   }
-  
+  OverlordGrid() {};  
   /*OverlordGrid(const char* systemDefFile) : BaseGrid(readDefFirst(systemDefFile)) {
     printf("size: %d\n", size);
     

@@ -29,9 +29,9 @@ class BrownianParticleType {
 	public:
 		BrownianParticleType(const String& name = "") :
 				name(name), num(0),
-				diffusion(0.0f), radius(1.0f), charge(0.0f), eps(0.0f), meanPmf(0.0f),
+				diffusion(0.0f), radius(1.0f), charge(0.0f), eps(0.0f), meanPmf(NULL),
 				reservoir(NULL), pmf(NULL), diffusionGrid(NULL),
-				forceXGrid(NULL), forceYGrid(NULL), forceZGrid(NULL) { }
+				forceXGrid(NULL), forceYGrid(NULL), forceZGrid(NULL), numPartGridFiles(-1) { }
 
 		BrownianParticleType(const BrownianParticleType& src) { copy(src); }
 
@@ -44,7 +44,7 @@ class BrownianParticleType {
 		// @param  boundries to crop to (x0, y0, z0) -> (x1, y1, z1);
 		//         whether to change the origin
 		// @return success of function (if false nothing was done)
-		bool crop(int x0, int y0, int z0, int x1, int y1, int z1, bool keep_origin);
+		//bool crop(int x0, int y0, int z0, int x1, int y1, int z1, bool keep_origin);
 
 public:
 		String name;
@@ -55,7 +55,9 @@ public:
 		float radius;
 		float charge;
 		float eps;
-		float meanPmf;
+		//float meanPmf;
+		float *meanPmf;
+                int   numPartGridFiles;
                 float mu; //for Nose-Hoover Langevin dynamics
 
 		Reservoir* reservoir;
@@ -66,7 +68,7 @@ public:
 		BaseGrid* forceZGrid;
 };
 
-
+/*
 // Spatially decomposes BrownianParticleTypes
 class TypeDecomposition {
 	private:
@@ -91,5 +93,5 @@ class TypeDecomposition {
 		int num_cells() const { return num_cells_; }
 		int num_parts() const { return num_parts_; }
 };
-
+*/
 #endif

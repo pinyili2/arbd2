@@ -43,7 +43,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	// tableAngle[0] stores the potential at angle_step
 	// tableAngle[1] stores the potential at angle_step * 2, etc.
 	// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table	
-	int home = int(floor(angle));
+	int home = int(floorf(angle));
         home =  (home >= a->size) ? (a->size)-1 : home; 
 	//assert(home >= 0);
 	//assert(home+1 < a->size);

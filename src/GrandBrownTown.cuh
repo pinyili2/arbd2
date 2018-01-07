@@ -97,9 +97,11 @@ __global__ void updateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* __re
 
 
 ////The kernel is for Nose-Hoover Langevin dynamics
-__global__ void updateKernelNoseHooverLangevin(Vector3* pos, Vector3* momentum, float* random, Vector3* __restrict__ forceInternal,
-                                  int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField,
-                                  int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas)
+__global__ void 
+updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ momentum, float* random, 
+                               Vector3* __restrict__ forceInternal, int type[], BrownianParticleType* part[], 
+                               float kT, BaseGrid* kTGrid, float electricField, int tGridLength, float timestep, 
+                               int num, BaseGrid* sys, Random* randoGen, int numReplicas)
 {
     const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (idx < num * numReplicas)
@@ -112,7 +114,13 @@ __global__ void updateKernelNoseHooverLangevin(Vector3* pos, Vector3* momentum, 
 
         const BrownianParticleType& pt = *part[t];
         Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-        ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
+        ForceEnergy fe(0.f, 0.f);
+        for(int i = 0; i < pt.numPartGridFiles; ++i)
+        {
+            ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            fe.f += tmp.f;
+        }
+        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
 
 #ifndef FORCEGRIDOFF
         // Add a force defined via 3D FORCE maps (not 3D potential maps)
@@ -183,8 +191,9 @@ __global__ void updateKernelNoseHooverLangevin(Vector3* pos, Vector3* momentum, 
 //which is not possible in GPU code.
 //Han-Yi Chou
 __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
-                                  int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField,
-                                  int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas)
+                                  int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
+                                  float electricField,int tGridLength, float timestep, int num, BaseGrid* sys, 
+                                  Random* randoGen, int numReplicas)
 {
     const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -198,7 +207,13 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
         const BrownianParticleType& pt = *part[t];
         Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
-        ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
+        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
+        ForceEnergy fe(0.f, 0.f);
+        for(int i = 0; i < pt.numPartGridFiles; ++i)
+        {
+            ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            fe.f += tmp.f;
+        }
 
 #ifndef FORCEGRIDOFF
         // Add a force defined via 3D FORCE maps (not 3D potential maps)
@@ -255,8 +270,9 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
 
 //update momentum in the last step of BAOAB integrator for the Langevin dynamics. Han-Yi Chou
 __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* __restrict__ forceInternal,
-                                      int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField,
-                                      int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas)
+                                      int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
+                                      float electricField, int tGridLength, float timestep, int num, 
+                                      BaseGrid* sys, Random* randoGen, int numReplicas)
 {
     const int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -269,7 +285,14 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         const BrownianParticleType& pt = *part[t];
         Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
-        ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
+        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
+        ForceEnergy fe(0.f, 0.f);
+        for(int i = 0; i < pt.numPartGridFiles; ++i)
+        {
+            ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            fe.f += tmp.f;
+        }
+
 #ifndef FORCEGRIDOFF
         // Add a force defined via 3D FORCE maps (not 3D potential maps)
         if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
@@ -353,12 +376,11 @@ __global__ void LastUpdateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* 
 
 //Update kernel for Brownian dynamics
 __global__
-void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
-									int type[], BrownianParticleType* part[],
-									float kT, BaseGrid* kTGrid,
-									float electricField, int tGridLength,
-									float timestep, int num, BaseGrid* sys,
-									Random* randoGen, int numReplicas) {
+void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[], 
+                  BrownianParticleType* part[],float kT, BaseGrid* kTGrid, float electricField, 
+                  int tGridLength, float timestep, int num, BaseGrid* sys,
+		  Random* randoGen, int numReplicas) 
+{
 	// Calculate this thread's ID
 	const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
         
@@ -377,7 +399,13 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 
 		// Compute PMF
 		// TODO: maybe make periodic and nonPeriodic versions of this kernel
-		ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(p);
+		//ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(p);
+		ForceEnergy fe(0.f, 0.f);
+                for(int i = 0; i < pt.numPartGridFiles; ++i)
+                {
+                    ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(p);
+                    fe.f += tmp.f;
+                }
 
 #ifndef FORCEGRIDOFF
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
@@ -414,8 +442,8 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 
 			Vector3 gridCenter = pt.diffusionGrid->origin +
 				pt.diffusionGrid->basis.transform( Vector3(0.5*pt.diffusionGrid->nx,
-												0.5*pt.diffusionGrid->ny,
-												0.5*pt.diffusionGrid->nz)); 
+									   0.5*pt.diffusionGrid->ny,
+									   0.5*pt.diffusionGrid->nz)); 
 			Vector3 p2 = p - gridCenter;
 			p2 = sys->wrapDiff( p2 ) + gridCenter;			
 			/* p2 = sys->wrap( p2 ); */
@@ -430,7 +458,8 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal,
 		// 	printf("force: "); force.print();
 		// }
 		
-		Vector3 tmp = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, num * numReplicas);
+		Vector3 tmp = step(p, kTlocal, force, diffusion, -diffGrad, timestep, sys, randoGen, 
+                                   num * numReplicas);
 		// assert( tmp.length() < 10000.0f );
 		pos[idx] = tmp;
 		

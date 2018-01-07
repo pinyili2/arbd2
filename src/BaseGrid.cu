@@ -146,7 +146,7 @@ BaseGrid BaseGrid::mult(const BaseGrid& g) {
 }
 
 BaseGrid& BaseGrid::operator=(const BaseGrid& g) {
-	delete[] val;
+	if(val != NULL) delete[] val;
 	val = NULL;
 	nx = g.nx;
 	ny = g.ny;
