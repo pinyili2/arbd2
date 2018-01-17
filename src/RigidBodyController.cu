@@ -125,12 +125,13 @@ bool RigidBodyController::loadRBCoordinates(const char* fileName) {
 		
 		delete[] tokenList;
 
-		i++;
-		if (i == imax) {
-			j++;
-			i=0;
-			if (j == jmax)
+		j++;
+		if (j == jmax) {
+			i++;
+			if (i == imax)
 				break;
+			j=0;
+			jmax = rigidBodyByType[i].size();
 		}
 	}
 	fclose(inp);
