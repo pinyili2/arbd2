@@ -390,7 +390,9 @@ public:
 	HOST DEVICE
 	Matrix3 inverse() const;
 
-	float det() const;
+        HOST DEVICE
+        float det() const;
+
         //Han-Yi Chou
 	HOST DEVICE inline Matrix3 normalized() const {
                 

@@ -77,7 +77,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
             if(particle_dynamic == String("NoseHooverLangevin"))
                 random = new float[num * numReplicas];
         }
-        printf("%d\n",__LINE__);
+        //printf("%d\n",__LINE__);
         //for debug
         //force = new Vector3[num * numReplicas];
 
@@ -531,7 +531,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
     gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
 
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
-
+    //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
     for (long int s = 1; s < steps; s++)
     {
@@ -608,11 +608,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
         else if(particle_dynamic == String("NoseHooverLangevin"))
             //kernel for Nose-Hoover Langevin dynamic
             updateKernelNoseHooverLangevin<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), 
-            internal -> getRan_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
+            internal -> getRan_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, 
+            randoGen_d, numReplicas);
         //For Brownian motion
         else
             updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(),
-                                                       part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
+                                                       part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, internal->getEnergy(), get_energy);
 
         if(rigidbody_dynamic == String("Langevin"))
         {
@@ -751,7 +752,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         gpuErrchk(cudaDeviceSynchronize());
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
-            LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
+            LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, internal->getEnergy(), get_energy);
             //gpuErrchk(cudaDeviceSynchronize());
 
         if(rigidbody_dynamic == String("Langevin"))
@@ -802,7 +803,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 wkf_timer_stop(timerS);
                 t = s * timestep;
                 // Simulation progress and statistics.
-                                   float percent = (100.0f * s) / steps;
+                float percent = (100.0f * s) / steps;
                 float msPerStep = wkf_timer_time(timerS) * 1000.0f / outputEnergyPeriod;
                 float nsPerDay = numReplicas * timestep / msPerStep * 864E5f;
 
@@ -820,7 +821,19 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
                     float e = KineticEnergy();
                     printf(" The kinetic energy is %f \n",e*(2.388458509e-1));
+                    std::fstream energy_file;
+                    energy_file.open("energy_config.txt", std::fstream::out | std::fstream::app);
+                    if(energy_file.is_open())
+                    {
+                        energy_file << "Kinetic Energy: " << e*num*0.5f*(2.388458509e-1) << " (kT) "<< std::endl;
+                        energy_file.close();
+                    }
+                    else
+                    {
+                        std::cout << "Error in opening energ files\n";
+                    }
                 }
+                
                 if(rigidbody_dynamic == String("Langevin"))
                 {
                     //gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));

@@ -13,7 +13,7 @@ void BrownianParticleType::clear() {
         if (meanPmf != NULL) delete []  meanPmf;
 	pmf = NULL, diffusionGrid = NULL;
 	forceXGrid = NULL, forceYGrid = NULL, forceZGrid = NULL;
-	reservoir = NULL; meanPmf = NULL;
+	reservoir = NULL, meanPmf = NULL;
 }
 
 void BrownianParticleType::copy(const BrownianParticleType& src) {

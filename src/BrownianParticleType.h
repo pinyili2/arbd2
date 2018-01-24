@@ -30,8 +30,8 @@ class BrownianParticleType {
 		BrownianParticleType(const String& name = "") :
 				name(name), num(0),
 				diffusion(0.0f), radius(1.0f), charge(0.0f), eps(0.0f), meanPmf(NULL),
-				reservoir(NULL), pmf(NULL), diffusionGrid(NULL),
-				forceXGrid(NULL), forceYGrid(NULL), forceZGrid(NULL), numPartGridFiles(-1) { }
+				numPartGridFiles(-1), reservoir(NULL), pmf(NULL), diffusionGrid(NULL),
+				forceXGrid(NULL), forceYGrid(NULL), forceZGrid(NULL){ }
 
 		BrownianParticleType(const BrownianParticleType& src) { copy(src); }
 

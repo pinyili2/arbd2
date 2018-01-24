@@ -1105,7 +1105,6 @@ int Configuration::readParameters(const char * config_file) {
                         {
                                 printf("The grid file name %s\n", value.val());
 				//partGridFile[currPart] = value;
-				cout << part[currPart].numPartGridFiles << endl;
 				stringToArray<String>(&value, part[currPart].numPartGridFiles, 
                                                              &partGridFile[currPart]);
                                 for(int i = 0; i < part[currPart].numPartGridFiles; ++i)

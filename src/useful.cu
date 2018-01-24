@@ -409,7 +409,6 @@ Matrix3::Matrix3(const float* d) {
 	ezz = d[8];	
 	setIsDiag();
 }	
-
 Matrix3 Matrix3::inverse() const {
 	Matrix3 m;
 	if (isDiag) {

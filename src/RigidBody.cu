@@ -231,6 +231,7 @@ void RigidBody::integrateDLM(int startFinishAll)
 {
     Vector3 trans; // = *p_trans;
     //Matrix3 rot = Matrix3(1); // = *p_rot;
+
     if ( isnan(force.x) || isnan(torque.x) ) 
     {   
         // NaN check

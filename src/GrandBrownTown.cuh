@@ -272,7 +272,7 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
 __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* __restrict__ forceInternal,
                                       int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
                                       float electricField, int tGridLength, float timestep, int num, 
-                                      BaseGrid* sys, Random* randoGen, int numReplicas)
+                                      BaseGrid* sys, Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy)
 {
     const int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -291,8 +291,10 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         {
             ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
             fe.f += tmp.f;
+            fe.e += tmp.e;
         }
-
+        if(get_energy)
+            energy[idx] += fe.e;
 #ifndef FORCEGRIDOFF
         // Add a force defined via 3D FORCE maps (not 3D potential maps)
         if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
@@ -379,7 +381,7 @@ __global__
 void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[], 
                   BrownianParticleType* part[],float kT, BaseGrid* kTGrid, float electricField, 
                   int tGridLength, float timestep, int num, BaseGrid* sys,
-		  Random* randoGen, int numReplicas) 
+		  Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy) 
 {
 	// Calculate this thread's ID
 	const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
@@ -405,8 +407,10 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                 {
                     ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(p);
                     fe.f += tmp.f;
+                    fe.e += tmp.e;
                 }
-
+                if(get_energy)
+                    energy[idx]+=fe.e;
 #ifndef FORCEGRIDOFF
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
 		if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(p);

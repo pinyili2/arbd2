@@ -125,13 +125,21 @@ bool RigidBodyController::loadRBCoordinates(const char* fileName) {
 		
 		delete[] tokenList;
 
-		i++;
-		if (i == imax) {
-			j++;
-			i=0;
-			if (j == jmax)
-				break;
-		}
+		//i++;
+		//if (i == imax) {
+		//	j++;
+		//	i=0;
+		//	if (j == jmax)
+		//		break;
+		//}
+                j++;
+		if (j == jmax) {
+			i++;
+			if (i == imax)
+ 				break;
+			j=0;
+			jmax = rigidBodyByType[i].size();
+                }
 	}
 	fclose(inp);
 	return true;
@@ -493,10 +501,8 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		*/
 		Matrix3 B1 = getBasis1(i);
 		Vector3 c = getOrigin1(i) - getOrigin2(i);
-		
 		Matrix3 B2 = getBasis2(i).inverse();
-
-		
+                
 		// RBTODO: get energy
 		if (!isPmf) {								/* pair of RBs */
 			computeGridGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3), s >>>
@@ -527,7 +533,6 @@ void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
 														cudaMemcpyDeviceToHost, s));
 	gpuErrchk(cudaMemcpyAsync(torques[i], torques_d[i], sizeof(Vector3)*nb,
 														cudaMemcpyDeviceToHost, s));
-	
 }
 void RigidBodyForcePair::processGPUForces() {
 	

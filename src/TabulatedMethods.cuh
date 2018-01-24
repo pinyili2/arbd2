@@ -3,7 +3,7 @@
 #define BD_PI 3.1415927f
 
 __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ a, const BaseGrid* __restrict__ sys, Vector3* force, const Vector3* __restrict__ pos,
-				const int& i, const int& j, const int& k) {
+				const int& i, const int& j, const int& k, float* energy, bool get_energy) {
 	    
 	    
 	// Particle's type and position
@@ -54,7 +54,14 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	// Linearly interpolate the potential	
 	float U0 = a->pot[home];
 	float dUdx = (a->pot[(((home+1)==(a->size)) ? (a->size)-1 : home+1)] - U0) * a->angle_step_inv;
-	// float energy = (dUdx * angle) + U0;
+        if(get_energy)
+        {
+	    float e = ((dUdx * angle) + U0)*0.3333333333;
+            atomicAdd( &energy[i], e);
+            atomicAdd( &energy[j], e);
+            atomicAdd( &energy[k], e);
+            
+        }
 	float sin = sqrtf(1.0f - cos*cos);
 	dUdx /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity 
 
@@ -73,7 +80,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 
 __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restrict__ d,
 				const BaseGrid* __restrict__ sys, Vector3* forces, const Vector3* __restrict__ pos,
-				const int& i, const int& j, const int& k, const int& l) {
+				const int& i, const int& j, const int& k, const int& l, float* energy, bool get_energy) {
 	const Vector3 posa = pos[i];
 	const Vector3 posb = pos[j];
 	const Vector3 posc = pos[k];
@@ -128,8 +135,14 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	// Linear interpolation
 	float U0 = d->pot[home];       // Potential
 	float dU = d->pot[home1] - U0; // Change in potential
-		
-	// energy = dU * t + U0;
+	if(get_energy)
+        {	
+	    float e_local = (dU * t + U0)*0.25f;
+            atomicAdd( &energy[i], e_local );
+            atomicAdd( &energy[j], e_local );
+            atomicAdd( &energy[k], e_local );
+            atomicAdd( &energy[l], e_local );
+        }
 	force = -dU * d->angle_step_inv;
 
 	// avoid singularity when one angle is straight 

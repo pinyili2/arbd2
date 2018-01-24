@@ -141,7 +141,10 @@ public:
 		return bondList_d;
 	}
 	
-
+        float* getEnergy()
+        {
+            return energies_d;
+        }
 	HOST DEVICE
 	static EnergyForce coulombForce(Vector3 r, float alpha,float start, float len);
 

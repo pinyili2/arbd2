@@ -2,7 +2,6 @@
 #include "ComputeGridGrid.cuh"
 #include "RigidBodyGrid.h"
 #include "CudaUtil.cuh"
-
 //RBTODO handle periodic boundaries
 //RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
 __global__
@@ -29,17 +28,14 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 
 		r_pos = basis_rho.transform( r_pos ) + origin_rho_minus_origin_u; /* real space */
 		const Vector3 u_ijk_float = basis_u_inv.transform( r_pos );
-
 		// RBTODO: Test for non-unit delta
 		/* Vector3 tmpf  = Vector3(0.0f); */
 		/* float tmpe = 0.0f; */
 		/* const ForceEnergy fe = ForceEnergy( tmpf, tmpe); */
 		const ForceEnergy fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
 		force[tid] = fe.f;
-		
 		const float r_val = rho->val[r_id]; /* maybe move to beginning of function?  */
 		force[tid] = basis_u_inv.transpose().transform( r_val*force[tid] ); /* transform to lab frame, with correct scaling factor */
-
 		// Calculate torque about origin_u in the lab frame
 		torque[tid] = r_pos.cross(force[tid]);
 	}
