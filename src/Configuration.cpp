@@ -6,6 +6,9 @@
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
+#include <iostream>
+using namespace std;
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -776,6 +779,9 @@ void Configuration::setDefaults() {
 	// Hidden parameters
 	// Might be parameters later
 	numCapFactor = 5;
+
+        ParticleInterpolationType = 0;
+        RigidBodyInterpolationType = 0;
 }
 
 int Configuration::readParameters(const char * config_file) {
@@ -925,7 +931,10 @@ int Configuration::readParameters(const char * config_file) {
                     RigidBodyDynamicType = value;
                 else if (param == String("ParticleLangevinIntegrator"))
                     ParticleLangevinIntegrator = value;
-
+                else if (param == String("ParticleInterpolationType"))
+                    ParticleInterpolationType = atoi(value.val());
+                else if (param == String("RigidBodyInterpolationType"))
+                    RigidBodyInterpolationType = atoi(value.val());
 		// PARTICLES
 		else if (param == String("particle")) {
 			part[++currPart] = BrownianParticleType(value);

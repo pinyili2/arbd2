@@ -6,6 +6,10 @@
 #include "Configuration.h"
 #include "ComputeGridGrid.cuh"
 
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+#include <gsl/gsl_math.h>
+
 #include "Debug.h"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -39,9 +43,11 @@ void RigidBody::init() {
 	const int& numGrids = t->numPotGrids;
 	numParticles = new int[numGrids];
 	particles_d = new int*[numGrids];
-	particleForces = new Vector3*[numGrids];
+	//particleForces = new Vector3*[numGrids];
+	particleForces = new ForceEnergy*[numGrids];
 	particleTorques = new Vector3*[numGrids];
-	particleForces_d = new Vector3*[numGrids];
+	//particleForces_d = new Vector3*[numGrids];
+	particleForces_d = new ForceEnergy*[numGrids];
 	particleTorques_d = new Vector3*[numGrids];
 	for (int i = 0; i < numGrids; ++i) {
 	    numParticles[i] = -1;
@@ -50,9 +56,11 @@ void RigidBody::init() {
 		if (n > 0) {
 		    // gpuErrchk(cudaMalloc( &particles_d[i], 0.5*sizeof(int)*n )); // not sure why 0.5 was here; prolly bug
 		        gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n )); // TODO: dynamically allocate memory as needed
-			particleForces[i] = new Vector3[nb];
+			//particleForces[i] = new Vector3[nb];
+                        particleForces[i] = new ForceEnergy[nb];
 			particleTorques[i] = new Vector3[nb];
-			gpuErrchk(cudaMalloc( &particleForces_d[i], sizeof(Vector3)*nb ));
+			//gpuErrchk(cudaMalloc( &particleForces_d[i], sizeof(Vector3)*nb ));
+			gpuErrchk(cudaMalloc( &particleForces_d[i], sizeof(ForceEnergy)*nb ));
 			gpuErrchk(cudaMalloc( &particleTorques_d[i], sizeof(Vector3)*nb ));
 		}
 	}
@@ -62,13 +70,19 @@ void RigidBody::init() {
 void RigidBody::Boltzmann()
 {
 
-    Vector3 rando = getRandomGaussVector();
-    momentum = sqrt(t->mass*Temp) * 2.046167135 * rando;
-    rando = getRandomGaussVector();
-    angularMomentum.x = sqrt(t->inertia.x*Temp) * 2.046167135 * rando.x;
-    angularMomentum.y = sqrt(t->inertia.y*Temp) * 2.046167135 * rando.y;
-    angularMomentum.z = sqrt(t->inertia.z*Temp) * 2.046167135 * rando.z;
+    gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
+    std::srand(time(NULL));
+    gsl_rng_set (gslcpp_rng, rand() % 100000);
 
+    double sigma[4] = { sqrt(t->mass*Temp) * 2.046167135,sqrt(t->inertia.x*Temp) * 2.046167135, sqrt(t->inertia.y*Temp) * 2.046167135, sqrt(t->inertia.z*Temp) * 2.046167135 };
+
+    //Vector3 rando = getRandomGaussVector();
+    momentum = Vector3(gsl_ran_gaussian(gslcpp_rng,sigma[0]),gsl_ran_gaussian(gslcpp_rng,sigma[0]), gsl_ran_gaussian(gslcpp_rng,sigma[0]));
+
+    angularMomentum.x = gsl_ran_gaussian(gslcpp_rng,sigma[1]);
+    angularMomentum.y = gsl_ran_gaussian(gslcpp_rng,sigma[2]);
+    angularMomentum.z = gsl_ran_gaussian(gslcpp_rng,sigma[3]);
+    printf("%f\n", Temp);
     printf("%f\n", Temperature());
 }
 
@@ -100,7 +114,10 @@ void RigidBody::addForce(Force f) {
 void RigidBody::addTorque(Force torq) {
 	torque += torq; 
 }
-
+void RigidBody::addEnergy(float e)
+{
+    energy += e;
+}
 void RigidBody::updateParticleList(Vector3* pos_d) {
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		numParticles[i] = 0;
@@ -131,7 +148,7 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 	}
 }
 
-void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s) {
+void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme) {
 	// Apply the force and torque on the rigid body, and forces on particles
 	
 	// RBTODO: performance: consolidate CUDA stream management
@@ -157,37 +174,44 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		// RBTODO: performance: Improve parellism here (use streams/events; overlap with other computations)
 		const int nb = (numParticles[i]/NUMTHREADS)+1;
 		
-		Vector3* forces = particleForces[i];
+		//Vector3* forces = particleForces[i];
+		ForceEnergy* forces = particleForces[i];
 		Vector3* torques = particleTorques[i];
-		Vector3* forces_d = particleForces_d[i];
+		//Vector3* forces_d = particleForces_d[i];
+		ForceEnergy* forces_d = particleForces_d[i];
 		Vector3* torques_d = particleTorques_d[i];
 
 		for (int k=0; k < nb; ++k) {
-			forces[k] = Vector3(0.0f);
+			//forces[k] = Vector3(0.0f);
+			forces[k] = ForceEnergy(0.f);
 			torques[k] = Vector3(0.0f);
 		}
-		gpuErrchk(cudaMemcpy(forces_d, forces, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
+		//gpuErrchk(cudaMemcpy(forces_d, forces, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
+		gpuErrchk(cudaMemcpy(forces_d, forces, sizeof(ForceEnergy)*nb, cudaMemcpyHostToDevice));
 		gpuErrchk(cudaMemcpy(torques_d, torques, sizeof(Vector3)*nb, cudaMemcpyHostToDevice));
 		
-		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3) >>>(
+		computePartGridForce<<< nb, NUMTHREADS,2*NUMTHREADS*sizeof(ForceEnergy)*nb >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
 			t->rawPotentialGrids_d[i],
-			B, c, forces_d, torques_d);
+			B, c, forces_d, torques_d, energy, get_energy, scheme);
 		
-		gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
+		//gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
+		gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(ForceEnergy)*nb, cudaMemcpyDeviceToHost));
 		gpuErrchk(cudaMemcpy(torques, torques_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
 
 		// Sum and apply forces and torques
-		Vector3 f = Vector3(0.0f);
+		//Vector3 f = Vector3(0.0f);
+		ForceEnergy f = ForceEnergy(0.f,0.f);
 		Vector3 torq = Vector3(0.0f);
 		for (int k = 0; k < nb; ++k) {
 			f = f + forces[k];
 			torq = torq + torques[k];
 		}
 		
-		torq = -torq + (getPosition()-c).cross( f ); 
-		addForce( -f );
+		torq = -torq + (getPosition()-c).cross( f.f ); 
+		addForce( -f.f );
 		addTorque( torq );
+                addEnergy( f.e );
 	}
 }
 
@@ -282,7 +306,7 @@ void RigidBody::integrate(int startFinishAll)
 {
     //if (startFinishAll == 1) return;
 
-    Matrix3 rot = Matrix3(1); // = *p_rot;
+    //Matrix3 rot = Matrix3(1); // = *p_rot;
 
     if ( isnan(force.x) || isnan(torque.x) ) 
     {
@@ -316,7 +340,7 @@ float RigidBody::Temperature()
     return (momentum.length2() / t->mass + 
             angularMomentum.x * angularMomentum.x / t->inertia.x + 
             angularMomentum.y * angularMomentum.y / t->inertia.y + 
-            angularMomentum.z * angularMomentum.z / t->inertia.z) * 0.50;
+            angularMomentum.z * angularMomentum.z / t->inertia.z) * 0.50 / Temp * (2.388458509e-1);
 }
 
 void RigidBody::applyRotation(const Matrix3& R) {

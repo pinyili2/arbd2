@@ -18,7 +18,7 @@
 #include "RigidBodyController.h"
 
 class Configuration;
-
+class ForceEnergy;
 
 typedef float BigReal;					/* strip this out later */
 typedef Vector3 Force;
@@ -40,9 +40,11 @@ class RigidBody { // host side representation of rigid bodies
 
 	HOST DEVICE void addForce(Force f); 
 	HOST DEVICE void addTorque(Force t);
+        HOST DEVICE void addEnergy(float e);
 	HOST DEVICE void addLangevin(Vector3 w1, Vector3 w2);
-	
-	HOST DEVICE inline void clearForce() { force = Force(0.0f); }
+        HOST inline void setKinetic(float e) { kinetic = e; };	
+	HOST DEVICE inline void clearForce() { force = Force(0.0f); energy = 0.f;}
+	//HOST DEVICE inline void clearForce() { force = ForceEnergy(0.f, 0.f); }
 	HOST DEVICE inline void clearTorque() { torque = Force(0.0f); }
 
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
@@ -61,6 +63,8 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE inline BigReal getMass() const { return t->mass; }
 	//HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
 	HOST DEVICE inline Vector3 getVelocity() const { return momentum; }
+        HOST DEVICE inline float getEnergy() const { return energy; }
+        HOST DEVICE inline float getKinetic() const { return kinetic; }
 	//HOST DEVICE inline Vector3 getAngularVelocity() const { 
 	//	return Vector3( angularMomentum.x / t->inertia.x,
 	//								 angularMomentum.y / t->inertia.y,
@@ -71,7 +75,7 @@ class RigidBody { // host side representation of rigid bodies
         }
 
 	void updateParticleList(Vector3* pos_d);
-	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s);
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme);
 	
 	
 	bool langevin;
@@ -110,14 +114,15 @@ private:
 	const RigidBodyType* t;
 	float timestep;					
 	Vector3 force;  // lab frame
-
+        float energy; //potential energy
+        float kinetic; 
 	bool isFirstStep; 
 	
 	int* numParticles;		  /* particles affected by potential grids */
 	int** particles_d;		 	
-	Vector3** particleForces;
+	ForceEnergy** particleForces;
 	Vector3** particleTorques;
-	Vector3** particleForces_d;
+	ForceEnergy** particleForces_d;
 	Vector3** particleTorques_d;
 	
 	

@@ -242,7 +242,8 @@ public:
 	// RigidBody parameters.
 	RigidBodyType* rigidBody;
 	int numRigidTypes;
-
+        int ParticleInterpolationType;
+        int RigidBodyInterpolationType;
 };
 
 #endif

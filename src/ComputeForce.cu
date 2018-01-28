@@ -6,7 +6,6 @@
 #include "ComputeForce.cuh"
 #include "Configuration.h"
 #include <cuda_profiler_api.h>
-#include <thrust/device_ptr.h>
 #include <fstream>
 #include <iostream>
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -754,7 +753,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	// Calculate the energy based on the array created by the kernel
 	// TODO: return energy
-	if (get_energy) 
+	/*if (get_energy) 
         {
             float e = 0.f;
 	    gpuErrchk(cudaDeviceSynchronize());
@@ -772,7 +771,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
                 std::cout << "Error in opening energ files\n";
             }
             energy = e;
-        }
+        }*/
 	return energy;
 }
 

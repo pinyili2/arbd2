@@ -35,10 +35,39 @@ public:
 
 class ForceEnergy {
 public:
-	DEVICE ForceEnergy(Vector3 &f, float &e) :
+        HOST DEVICE ForceEnergy() : f(0.f), e(0.f) {};
+	HOST DEVICE ForceEnergy(Vector3 &f, float &e) :
 		f(f), e(e) {};
-        DEVICE ForceEnergy(float f, float e) :
+        HOST DEVICE explicit ForceEnergy(float e) : f(e), e(e) {};
+        HOST DEVICE ForceEnergy(float f, float e) :
         f(f), e(e) {};
+        HOST DEVICE ForceEnergy(const ForceEnergy& src)
+        {
+            f = src.f;
+            e = src.e;
+        }
+        HOST DEVICE ForceEnergy& operator=(const ForceEnergy& src)
+        {
+            if(&src != this)
+            {
+                this->f = src.f;
+                this->e = src.e;
+            }
+            return *this;
+        }
+        HOST DEVICE ForceEnergy operator+(const ForceEnergy& src)
+        {
+            ForceEnergy fe;
+            fe.f = this->f + src.f;
+            fe.e = this->e + src.e;
+            return fe;
+        }
+        HOST DEVICE ForceEnergy& operator+=(ForceEnergy& src)
+        {
+            this->f += src.f;
+            this->e += src.e;
+            return *this; 
+        }
 	Vector3 f;
 	float e;
 };
@@ -877,13 +906,13 @@ public:
 
         //#define cubic
 	DEVICE inline ForceEnergy interpolateForceDLinearlyPeriodic(const Vector3& pos) const {
-                #ifdef cubic
-                return interpolateForceD(pos);
-                #elif defined(cubic_namd)
-                return interpolateForceDnamd(pos);
-                #else
+                //#ifdef cubic
+                //return interpolateForceD(pos);
+                //#elif defined(cubic_namd)
+                //return interpolateForceDnamd(pos);
+                //#else
                 return interpolateForceDLinearly(pos); 
-                #endif
+                //#endif
                 #if 0
  		const Vector3 l = basisInv.transform(pos - origin);
 

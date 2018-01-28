@@ -14,6 +14,7 @@
 class RigidBodyType;
 class RigidBody;
 class Configuration;
+class ForceEnergy;
 // class RandomCPU;
 #include "RandomCPU.h"
 
@@ -64,8 +65,10 @@ private:
 
 	bool isPmf;
 	
-	std::vector<Vector3*> forces;
-	std::vector<Vector3*> forces_d;
+	//std::vector<Vector3*> forces;
+	//std::vector<Vector3*> forces_d;
+	std::vector<ForceEnergy*> forces;
+        std::vector<ForceEnergy*> forces_d;
 	std::vector<Vector3*> torques;
 	std::vector<Vector3*> torques_d;
 
@@ -78,7 +81,7 @@ private:
 	static RigidBodyForcePair* lastRbForcePair;
 	static int lastRbGridID;
 	
-	void callGridForceKernel(int pairId, int s);
+	void callGridForceKernel(int pairId, int s,int scheme);
 	void retrieveForcesForGrid(const int i);
 	void processGPUForces();
 	Matrix3 getBasis1(const int i);
@@ -98,11 +101,12 @@ public:
         void SetRandomTorques();
 	void integrate(int step);
         void integrateDLM(int step);
-	void updateForces(Vector3* pos_d, Vector3* force_d, int s);
+	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme);
 	void updateParticleLists(Vector3* pos_d);
         void clearForceAndTorque(); 
-        float KineticEnergy();
+        void KineticEnergy();
         void print(int step);
+        void printEnergyData(std::fstream &file);
 private:
 	bool loadRBCoordinates(const char* fileName);
 	void initializeForcePairs();
@@ -133,6 +137,6 @@ private:
 	
 	std::vector< RigidBodyForcePair > forcePairs;
 
-	
+        float* rb_energy;	
 	
 };

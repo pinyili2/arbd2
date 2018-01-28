@@ -131,12 +131,12 @@ String operator+(String s1, String s2);
 //
 class MY_ALIGN(16) Vector3 {
 public:
-	HOST DEVICE inline Vector3() : x(0), y(0), z(0) {}
-	HOST DEVICE inline Vector3(float s):x(s), y(s), z(s) {}
-	HOST DEVICE inline Vector3(const Vector3& v):x(v.x), y(v.y), z(v.z) {}
-	HOST DEVICE inline Vector3(float x0, float y0, float z0) : x(x0), y(y0), z(z0) {}
-	HOST DEVICE inline Vector3(const float* d) : x(d[0]), y(d[1]), z(d[2]) {}
-             DEVICE inline Vector3(const float4 a) : x(a.x ), y(a.y ), z(a.z ) {}
+	HOST DEVICE inline Vector3() : x(0), y(0), z(0), w(0) {}
+	HOST DEVICE inline Vector3(float s):x(s), y(s), z(s), w(s) {}
+	HOST DEVICE inline Vector3(const Vector3& v):x(v.x), y(v.y), z(v.z), w(v.w)  {}
+	HOST DEVICE inline Vector3(float x0, float y0, float z0) : x(x0), y(y0), z(z0), w(0) {}
+	HOST DEVICE inline Vector3(const float* d) : x(d[0]), y(d[1]), z(d[2]), w(0) {}
+             DEVICE inline Vector3(const float4 a) : x(a.x ), y(a.y ), z(a.z ), w(a.w) {}
 
 	static Vector3 random(float s);
 

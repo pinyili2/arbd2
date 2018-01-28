@@ -101,9 +101,9 @@ __global__ void
 updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ momentum, float* random, 
                                Vector3* __restrict__ forceInternal, int type[], BrownianParticleType* part[], 
                                float kT, BaseGrid* kTGrid, float electricField, int tGridLength, float timestep, 
-                               int num, BaseGrid* sys, Random* randoGen, int numReplicas)
+                               int num, BaseGrid* sys, Random* randoGen, int numReplicas, int scheme)
 {
-    const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num * numReplicas)
     {
         int t = type[idx];
@@ -117,7 +117,11 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
         ForceEnergy fe(0.f, 0.f);
         for(int i = 0; i < pt.numPartGridFiles; ++i)
         {
-            ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            ForceEnergy tmp(0.f,0.f);
+            if(!scheme)
+                tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            else 
+                tmp = pt.pmf[i].interpolateForceD(r0);
             fe.f += tmp.f;
         }
         //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
@@ -193,9 +197,9 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
 __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
                                   int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
                                   float electricField,int tGridLength, float timestep, int num, BaseGrid* sys, 
-                                  Random* randoGen, int numReplicas)
+                                  Random* randoGen, int numReplicas, int scheme)
 {
-    const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < num * numReplicas)
     {
@@ -211,7 +215,11 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
         ForceEnergy fe(0.f, 0.f);
         for(int i = 0; i < pt.numPartGridFiles; ++i)
         {
-            ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            ForceEnergy tmp(0.f, 0.f);
+            if(!scheme)
+                tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            else
+                tmp = pt.pmf[i].interpolateForceD(r0);
             fe.f += tmp.f;
         }
 
@@ -224,7 +232,7 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
         Vector3 force = forceInternal[idx] + forceExternal + fe.f;
 #ifdef Debug
         forceInternal[idx] = -force;
-        #endif
+#endif
 
         // Get local kT value
         float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(r0); /* periodic */
@@ -272,7 +280,7 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
 __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* __restrict__ forceInternal,
                                       int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
                                       float electricField, int tGridLength, float timestep, int num, 
-                                      BaseGrid* sys, Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy)
+                                      BaseGrid* sys, Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy,int scheme)
 {
     const int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 
@@ -289,9 +297,14 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         ForceEnergy fe(0.f, 0.f);
         for(int i = 0; i < pt.numPartGridFiles; ++i)
         {
-            ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
-            fe.f += tmp.f;
-            fe.e += tmp.e;
+            ForceEnergy tmp(0.f, 0.f);
+            if(!scheme)
+                tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
+            else
+                tmp = pt.pmf[i].interpolateForceD(r0);
+
+            fe += tmp;
+            //fe.e += tmp.e;
         }
         if(get_energy)
             energy[idx] += fe.e;
@@ -304,7 +317,7 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         Vector3 force = forceInternal[idx] + forceExternal + fe.f;
 #ifdef Debug
         forceInternal[idx] = -force;
-        #endif
+#endif
 
         #ifdef MDSTEP
         force = Vector3(-r0.x, -r0.y, -r0.z);
@@ -381,14 +394,15 @@ __global__
 void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[], 
                   BrownianParticleType* part[],float kT, BaseGrid* kTGrid, float electricField, 
                   int tGridLength, float timestep, int num, BaseGrid* sys,
-		  Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy) 
+		  Random* randoGen, int numReplicas, float* energy, bool get_energy, int scheme) 
 {
 	// Calculate this thread's ID
 	const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
         
 	// TODO: Make this a grid-stride loop to make efficient reuse of RNG states 
 	// Loop over ALL particles in ALL replicas
-	if (idx < num * numReplicas) {
+	if (idx < num * numReplicas) 
+        {
 		const int t = type[idx];
 		Vector3   p = pos[idx];
 
@@ -405,12 +419,13 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
 		ForceEnergy fe(0.f, 0.f);
                 for(int i = 0; i < pt.numPartGridFiles; ++i)
                 {
-                    ForceEnergy tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(p);
-                    fe.f += tmp.f;
-                    fe.e += tmp.e;
+                    ForceEnergy tmp(0.f,0.f);
+                    if(!scheme)
+                        tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(p);
+                    else
+                        tmp = pt.pmf[i].interpolateForceD(p);
+                    fe += tmp;
                 }
-                if(get_energy)
-                    energy[idx]+=fe.e;
 #ifndef FORCEGRIDOFF
 		// Add a force defined via 3D FORCE maps (not 3D potential maps)
 		if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(p);
@@ -423,12 +438,10 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
 		//	  External:  electric field (now this is basically a constant vector)
 		//	  forceGrid: ADD force due to PMF or other potentials defined in 3D space
 		Vector3 force = forceInternal[idx] + forceExternal + fe.f;
-#ifdef Debug
-        forceInternal[idx] = -force;
-        #endif
+                #ifdef Debug
+                forceInternal[idx] = -force;
+                #endif
 
-		//if (idx == 0)
-			//forceInternal[idx] = force; // write it back out for force0 in run()
 
 		// Get local kT value
 		float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(p); /* periodic */
@@ -466,8 +479,19 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                                    num * numReplicas);
 		// assert( tmp.length() < 10000.0f );
 		pos[idx] = tmp;
-		
-			
+
+                if(get_energy)
+                {
+                    float en_local = 0.f;
+                    for(int i = 0; i < pt.numPartGridFiles; ++i)
+                    {
+                        if(!scheme)
+                            en_local += pt.pmf[i].interpolatePotentialLinearly(tmp);
+                        else
+                            en_local += pt.pmf[i].interpolatePotential(tmp);
+                    }
+                    energy[idx] += en_local;
+                }		
 	}
 }
 /*
