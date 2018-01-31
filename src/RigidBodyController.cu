@@ -20,7 +20,11 @@ inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) 
       if (abort) exit(code);
    }
 }
-
+// allocate and initialize an array of stream handles
+cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
+int RigidBodyForcePair::nextStreamID = 0;        /* used during stream init */
+int RigidBodyForcePair::lastRbGridID = -1; /* used to schedule kernel interaction */
+RigidBodyForcePair* RigidBodyForcePair::lastRbForcePair = NULL;
 /* #include <cuda.h> */
 /* #include <cuda_runtime.h> */
 /* #include <curand_kernel.h> */
@@ -292,7 +296,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, 
 	}
 	
 	// Grid–Grid forces
-	if ( (s % conf.rigidBodyGridGridPeriod) == 0 && forcePairs.size() > 0) {
+	if ( ((s % conf.rigidBodyGridGridPeriod) == 0 || s == 1 ) && forcePairs.size() > 0) {
 		for (int i=0; i < forcePairs.size(); i++) {
 			// TODO: performance: make this check occur less frequently
 			if (forcePairs[i].isWithinPairlistDist())
@@ -301,9 +305,11 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, 
 		
 		// each kernel call is followed by async memcpy for previous; now get last
 		RigidBodyForcePair* fp = RigidBodyForcePair::lastRbForcePair;
-		fp->retrieveForcesForGrid( fp->lastRbGridID );
-		fp->lastRbGridID = -1;
-
+                if(RigidBodyForcePair::lastRbGridID >= 0)
+                {
+		    fp->retrieveForcesForGrid( fp->lastRbGridID );
+		    fp->lastRbGridID = -1;
+                }
 		// stream sync was slower than device sync
 		/* for (int i = 0; i < NUMSTREAMS; i++) { */
 		/* 	const cudaStream_t &s = RigidBodyForcePair::stream[i]; */
@@ -448,12 +454,13 @@ void RigidBodyController::KineticEnergy()
     else
         return 0.;*/
 }
-
+#if 0
 // allocate and initialize an array of stream handles
 cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
 int RigidBodyForcePair::nextStreamID = 0;	 /* used during stream init */
 int RigidBodyForcePair::lastRbGridID = -1; /* used to schedule kernel interaction */
 RigidBodyForcePair* RigidBodyForcePair::lastRbForcePair = NULL;
+#endif
 
 void RigidBodyForcePair::createStreams() {
 	for (int i = 0; i < NUMSTREAMS; i++)
