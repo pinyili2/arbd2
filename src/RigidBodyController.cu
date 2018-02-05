@@ -284,8 +284,8 @@ void RigidBodyController::clearForceAndTorque()
 }
 
 void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme) {
-	if (s <= 1)
-		gpuErrchk( cudaProfilerStart() );
+	//if (s <= 1)
+		//gpuErrchk( cudaProfilerStart() );
 	
 	// Grid–particle forces
 	for (int i = 0; i < rigidBodyByType.size(); i++) {

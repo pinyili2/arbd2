@@ -436,12 +436,14 @@ bool ComputeForce::addDihedralPotential(String fileName, int ind, Dihedral dihed
 }
 
 void ComputeForce::decompose() {
-	gpuErrchk( cudaProfilerStart() );
+	//gpuErrchk( cudaProfilerStart() );
 
 	// Reset the cell decomposition.
-	if (decomp_d)
-		cudaFree(decomp_d);
-		
+	if (decomp_d != NULL)
+        {
+            cudaFree(decomp_d);
+            decomp_d = NULL;
+	}	
 	decomp.decompose_d(pos_d, num);
 	decomp_d = decomp.copyToCUDA();
 

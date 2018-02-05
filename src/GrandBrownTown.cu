@@ -36,7 +36,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
 	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
 	conf(c), RBC(RigidBodyController(c,outArg)) {
-        printf("%d\n",__LINE__);
+        //printf("%d\n",__LINE__);
         //Determine which dynamic. Han-Yi Chou
         particle_dynamic  = c.ParticleDynamicType;
         rigidbody_dynamic = c.RigidBodyDynamicType;
@@ -463,9 +463,9 @@ GrandBrownTown::~GrandBrownTown() {
 //Nose Hoover is now implement for particles.
 void GrandBrownTown::RunNoseHooverLangevin()
 {
-    printf("\n\n");
-    printf("Testing for Nose-Hoover Langevin dynamics\n");
-    Vector3 runningNetForce(0.0f);
+    //printf("\n\n");
+    //printf("Testing for Nose-Hoover Langevin dynamics\n");
+    //Vector3 runningNetForce(0.0f);
 
     //comment this out because this is the origin points Han-Yi Chou
     // Open the files for recording ionic currents
