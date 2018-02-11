@@ -35,7 +35,20 @@ cudaEvent_t START, STOP;
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
 	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
-	conf(c), RBC(RigidBodyController(c,outArg)) {
+	//conf(c), RBC(RigidBodyController(c,outArg)) {
+	conf(c){
+
+        gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
+        gsl_rng_set(gslcpp_rng, conf.seed);
+        RBC.resize(numReplicas);      
+        for(int i = 0; i < numReplicas; ++i)
+        {
+            unsigned long int seed = gsl_rng_get(gslcpp_rng);
+            RigidBodyController* rb = new RigidBodyController(c, outArg, seed, i);
+            RBC[i] = rb;
+        }
+        gsl_rng_free(gslcpp_rng);
+
         //printf("%d\n",__LINE__);
         //Determine which dynamic. Han-Yi Chou
         particle_dynamic  = c.ParticleDynamicType;
@@ -61,7 +74,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
                 {
                     std::stringstream restart_file_p, out_momentum_prefix, out_force_prefix;
                     restart_file_p << outArg << '.' << i << ".momentum.restart";
-                    out_momentum_prefix << outArg << ".momentum." << i;
+                    out_momentum_prefix << outArg << '.' << i << ".momentum";
                     //out_force_prefix << outArg << ".force." << i;
 
                     restartMomentumFiles.push_back(restart_file_p.str());//Han-Yi Chou
@@ -428,7 +441,12 @@ GrandBrownTown::~GrandBrownTown() {
             //curandDestroyGenerator(randoGen->generator);
             delete randoGen;
             gpuErrchk(cudaFree(randoGen_d));
-	
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            {
+                (*iter)->~RigidBodyController();
+                delete *iter;
+            }
+            RBC.clear();
 	// Auxillary objects
 	delete internal;
         internal = NULL;
@@ -463,10 +481,6 @@ GrandBrownTown::~GrandBrownTown() {
 //Nose Hoover is now implement for particles.
 void GrandBrownTown::RunNoseHooverLangevin()
 {
-    //printf("\n\n");
-    //printf("Testing for Nose-Hoover Langevin dynamics\n");
-    //Vector3 runningNetForce(0.0f);
-
     //comment this out because this is the origin points Han-Yi Chou
     // Open the files for recording ionic currents
     for (int repID = 0; repID < numReplicas; ++repID) 
@@ -534,7 +548,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
         // cudaSetDevice(0);
         internal->decompose();
         gpuErrchk(cudaDeviceSynchronize());
-        RBC.updateParticleLists( internal->getPos_d() );
+        for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
     }
 
     float t; // simulation time
@@ -558,7 +573,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
             // 'interparticleForce' - determines whether particles interact with each other
             gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
             gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas));
-            RBC.clearForceAndTorque(); //Han-Yi Chou
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                (*iter)->clearForceAndTorque(); //Han-Yi Chou
             
             if (interparticleForce)
             {
@@ -570,8 +586,9 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             if (s % decompPeriod == 0)
                             {
                                 // cudaSetDevice(0);
-                                internal -> decompose();
-                                RBC.updateParticleLists( internal->getPos_d() );
+                                 internal -> decompose();
+                                for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                                    (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
                             }
                             internal -> computeTabulated(get_energy);
                             break;
@@ -590,7 +607,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             {
                                 // cudaSetDevice(0);
                                 internal->decompose();
-                                RBC.updateParticleLists( internal->getPos_d() );
+                                for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter !=  RBC.end(); ++iter)
+                                    (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -610,11 +628,15 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
             }//if inter-particle force
             gpuErrchk(cudaDeviceSynchronize());
-            RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, internal->getEnergy(), get_energy, RigidBodyInterpolationType);
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                (*iter)->updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, internal->getEnergy(), get_energy, RigidBodyInterpolationType, sys, sys_d);
             if(rigidbody_dynamic == String("Langevin"))
             {
-                RBC.SetRandomTorques();
-                RBC.AddLangevin();
+                for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                {
+                    (*iter)->SetRandomTorques();
+                    (*iter)->AddLangevin();
+                }
             }
         }//if step == 1
 
@@ -635,12 +657,16 @@ void GrandBrownTown::RunNoseHooverLangevin()
 
         if(rigidbody_dynamic == String("Langevin"))
         {
-            RBC.integrateDLM(0);
-            RBC.integrateDLM(1);
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            {
+                (*iter)->integrateDLM(0);
+                (*iter)->integrateDLM(1);
+            }
         }
         else
         {
-            RBC.integrate(s);
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                (*iter)->integrate(s);
             //RBC.print(s);
         }
         gpuErrchk(cudaDeviceSynchronize());
@@ -717,8 +743,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
         }
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
-         
-        RBC.clearForceAndTorque();
+        for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter) 
+            (*iter)->clearForceAndTorque();
         gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
         if (interparticleForce)
         {
@@ -731,7 +757,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
                         if (s % decompPeriod == 0)
                         {
                             internal -> decompose();
-                            RBC.updateParticleLists( internal->getPos_d() );
+                            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                                (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
                         }
                         internal -> computeTabulated(get_energy);
                         break;
@@ -749,7 +776,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             if (s % decompPeriod == 0)
                             {
                                internal->decompose();
-                               RBC.updateParticleLists( internal->getPos_d() );
+                               for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                                   (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -769,7 +797,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
         }
         gpuErrchk(cudaDeviceSynchronize());
         //compute the force for rigid bodies
-        RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, internal->getEnergy(), get_energy, RigidBodyInterpolationType);
+        for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            (*iter)->updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, internal->getEnergy(), get_energy, RigidBodyInterpolationType, sys, sys_d);
         gpuErrchk(cudaDeviceSynchronize());
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
@@ -780,10 +809,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
 
         if(rigidbody_dynamic == String("Langevin"))
         {
-            RBC.SetRandomTorques();
-            RBC.AddLangevin();
-            RBC.integrateDLM(2);
-            RBC.print(s);
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            {
+                (*iter)->SetRandomTorques();
+                (*iter)->AddLangevin();
+                (*iter)->integrateDLM(2);
+                (*iter)->print(s);
+            }
         }
 
         if (s % outputPeriod == 0)
@@ -863,13 +895,27 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
                 
                 if(rigidbody_dynamic == String("Langevin"))
-                    RBC.KineticEnergy();
+                {
+                    for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                        (*iter)->KineticEnergy();
+                }
                 std::fstream rb_energy_file;
                 rb_energy_file.open("rb_energy_config.txt", std::fstream::out | std::fstream::app);
                 if(rb_energy_file.is_open())
                 {
-                    RBC.printEnergyData(rb_energy_file);
-                    energy_file.close();
+                    float k_tol = 0.f;
+                    float v_tol = 0.f;
+                    float (RigidBody::*func_ptr)();
+                    for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                    {
+                        func_ptr = &RigidBody::getKinetic;
+                        k_tol += (*iter)->getEnergy(func_ptr);
+                        func_ptr = &RigidBody::getEnergy;
+                        v_tol += (*iter)->getEnergy(func_ptr);
+                    }
+                    rb_energy_file << "Kinetic Energy "   << k_tol/numReplicas << " (kT)" << std::endl;
+                    rb_energy_file << "Potential Energy " << v_tol/numReplicas << " (kcal/mol)" << std::endl;
+                    rb_energy_file.close();
                 }
                 else
                 {

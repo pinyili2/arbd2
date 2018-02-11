@@ -19,7 +19,7 @@
 
 class Configuration;
 class ForceEnergy;
-
+class BaseGrid;
 typedef float BigReal;					/* strip this out later */
 typedef Vector3 Force;
 
@@ -63,8 +63,8 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE inline BigReal getMass() const { return t->mass; }
 	//HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
 	HOST DEVICE inline Vector3 getVelocity() const { return momentum; }
-        HOST DEVICE inline float getEnergy() const { return energy; }
-        HOST DEVICE inline float getKinetic() const { return kinetic; }
+        HOST float getEnergy() { return energy; }
+        HOST float getKinetic(){ return kinetic; }
 	//HOST DEVICE inline Vector3 getAngularVelocity() const { 
 	//	return Vector3( angularMomentum.x / t->inertia.x,
 	//								 angularMomentum.y / t->inertia.y,
@@ -74,8 +74,8 @@ class RigidBody { // host side representation of rigid bodies
               return Vector3( angularMomentum.x, angularMomentum.y, angularMomentum.z);
         }
 
-	void updateParticleList(Vector3* pos_d);
-	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme);
+	void updateParticleList(Vector3* pos_d, BaseGrid* sys_d);
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
 	
 	
 	bool langevin;
@@ -137,6 +137,6 @@ private:
 	HOST DEVICE inline Matrix3 Rz(BigReal t);
 	HOST DEVICE inline Matrix3 eulerToMatrix(const Vector3 e);
         float Temperature();
-        void  Boltzmann();
+        void  Boltzmann(unsigned long int);
 };
 

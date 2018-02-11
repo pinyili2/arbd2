@@ -67,12 +67,12 @@ void RigidBody::init() {
 }
 
 //Boltzmann distribution
-void RigidBody::Boltzmann()
+void RigidBody::Boltzmann(unsigned long int seed)
 {
 
     gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-    std::srand(time(NULL));
-    gsl_rng_set (gslcpp_rng, rand() % 100000);
+    //std::srand(time(NULL));
+    gsl_rng_set (gslcpp_rng, seed);
 
     double sigma[4] = { sqrt(t->mass*Temp) * 2.046167135,sqrt(t->inertia.x*Temp) * 2.046167135, sqrt(t->inertia.y*Temp) * 2.046167135, sqrt(t->inertia.z*Temp) * 2.046167135 };
 
@@ -84,6 +84,7 @@ void RigidBody::Boltzmann()
     angularMomentum.z = gsl_ran_gaussian(gslcpp_rng,sigma[3]);
     printf("%f\n", Temp);
     printf("%f\n", Temperature());
+    gsl_rng_free(gslcpp_rng);
 }
 
 RigidBody::~RigidBody() {
@@ -118,7 +119,7 @@ void RigidBody::addEnergy(float e)
 {
     energy += e;
 }
-void RigidBody::updateParticleList(Vector3* pos_d) {
+void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];
@@ -136,11 +137,11 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 #if __CUDA_ARCH__ >= 300
 			createPartlist<<<nb,NUMTHREADS>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
-							gridCenter + position, cutoff*cutoff);
+							gridCenter + position, cutoff*cutoff, sys_d);
 #else
 			createPartlist<<<nb,NUMTHREADS,NUMTHREADS/WARPSIZE>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
-							gridCenter + position, cutoff*cutoff);
+							gridCenter + position, cutoff*cutoff, sys_d);
 #endif			
 			gpuErrchk(cudaMemcpy(&numParticles[i], tmp_d, sizeof(int), cudaMemcpyDeviceToHost ));
 			gpuErrchk(cudaFree( tmp_d ));
@@ -148,7 +149,7 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 	}
 }
 
-void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme) {
+void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d) {
 	// Apply the force and torque on the rigid body, and forces on particles
 	
 	// RBTODO: performance: consolidate CUDA stream management
@@ -193,7 +194,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		computePartGridForce<<< nb, NUMTHREADS,2*NUMTHREADS*sizeof(ForceEnergy)*nb >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
 			t->rawPotentialGrids_d[i],
-			B, c, forces_d, torques_d, energy, get_energy, scheme);
+			B, c, forces_d, torques_d, energy, get_energy, scheme, sys_d);
 		
 		//gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(Vector3)*nb, cudaMemcpyDeviceToHost));
 		gpuErrchk(cudaMemcpy(forces, forces_d, sizeof(ForceEnergy)*nb, cudaMemcpyDeviceToHost));
@@ -207,8 +208,8 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 			f = f + forces[k];
 			torq = torq + torques[k];
 		}
-		
-		torq = -torq + (getPosition()-c).cross( f.f ); 
+	        //why the force points are at the origin of the potential?	
+		torq = -torq + (sys->wrapDiff(getPosition()-c)).cross( f.f ); 
 		addForce( -f.f );
 		addTorque( torq );
                 addEnergy( f.e );
@@ -323,7 +324,6 @@ void RigidBody::integrate(int startFinishAll)
                      Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep * 418.679994353), rando) ;
 
     position += offset;
-
     rando = getRandomGaussVector();
     Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) * 418.679994353 +
                              Vector3::element_mult( Vector3::element_sqrt( 2.0f * rotDiffusion * timestep * 418.679994353), rando );

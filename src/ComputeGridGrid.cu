@@ -6,7 +6,7 @@
 //RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
 __global__
 void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_origin_u,
-			ForceEnergy* retForce, Vector3 * retTorque, int scheme) 
+			ForceEnergy* retForce, Vector3 * retTorque, int scheme, BaseGrid* sys_d) 
 {
 
 	extern __shared__ ForceEnergy s[];
@@ -27,6 +27,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, cons
 		Vector3 r_pos= rho->getPosition(r_id); /* i,j,k value of voxel */
 
 		r_pos = basis_rho.transform( r_pos ) + origin_rho_minus_origin_u; /* real space */
+                r_pos = sys_d->wrapDiff(r_pos); /* TODO: wrap about center of RB, not origin of u */
 		const Vector3 u_ijk_float = basis_u_inv.transform( r_pos );
 		// RBTODO: Test for non-unit delta
 		/* Vector3 tmpf  = Vector3(0.0f); */
@@ -76,7 +77,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 				const int num, const int* __restrict__ particleIds, 
 				const RigidBodyGrid* __restrict__ u,
 				const Matrix3 basis_u_inv, const Vector3 origin_u,
-				ForceEnergy* __restrict__ retForce, Vector3* __restrict__ retTorque, float* __restrict__ energy, bool get_energy, int scheme) {
+				ForceEnergy* __restrict__ retForce, Vector3* __restrict__ retTorque, float* __restrict__ energy, bool get_energy, int scheme, BaseGrid* sys_d) {
 
 	extern __shared__ ForceEnergy s[];
 	ForceEnergy *force  = s;
@@ -89,7 +90,8 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	torque[tid] = ForceEnergy(0.f,0.f);
 	if (i < num) {
 		const int id = particleIds[i];
-		Vector3 p = pos[id] - origin_u;
+		//Vector3 p = pos[id] - origin_u;
+		Vector3 p = sys_d->wrapDiff(pos[id]-origin_u); /* TODO: wrap about RB center, not origin */
 		// TODO: wrap to center of u
 		const Vector3 u_ijk_float = basis_u_inv.transform( p );
 
@@ -134,14 +136,14 @@ __global__
 void createPartlist(const Vector3* __restrict__ pos,
 				const int numTypeParticles, const int* __restrict__ typeParticles_d,
 				int* numParticles_d, int* particles_d,
-				const Vector3 gridCenter, const float radius2) {
+				const Vector3 gridCenter, const float radius2, BaseGrid* sys_d) {
 	const int tid = threadIdx.x;
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
 	
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < numTypeParticles) {
 		int aid = typeParticles_d[i];
-		float dist = (pos[aid] - gridCenter).length2();
+		float dist = (sys_d->wrapDiff(pos[aid] - gridCenter)).length2();
 
 		if (dist <= radius2) {
 			int tmp = atomicAggInc(numParticles_d, warpLane);

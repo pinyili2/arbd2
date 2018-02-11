@@ -167,7 +167,7 @@ private:
 	float timeLast; 	// used with posLast
 	float minimumSep; 	// minimum separation allowed with placing new particles
 
-	RigidBodyController RBC;
+	std::vector<RigidBodyController*> RBC;
 	Vector3* rbPos; 		// rigid body positions
 	
 	// CUDA device variables

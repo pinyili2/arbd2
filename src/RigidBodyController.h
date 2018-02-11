@@ -6,6 +6,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "useful.h"
+#include "BaseGrid.h"
 
 #define NUMSTREAMS 8
 
@@ -46,7 +47,7 @@ public:
 	}	
 	~RigidBodyForcePair();
 
-	bool isWithinPairlistDist() const;	
+	bool isWithinPairlistDist(BaseGrid* sys) const;	
 
 private:
 	int initialize();
@@ -81,9 +82,9 @@ private:
 	static RigidBodyForcePair* lastRbForcePair;
 	static int lastRbGridID;
 	
-	void callGridForceKernel(int pairId, int s,int scheme);
+	void callGridForceKernel(int pairId, int s,int scheme, BaseGrid* sys_d);
 	void retrieveForcesForGrid(const int i);
-	void processGPUForces();
+	void processGPUForces(BaseGrid*);
 	Matrix3 getBasis1(const int i);
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
@@ -95,18 +96,19 @@ public:
 	/* DEVICE RigidBodyController(const NamdState *s, int reductionTag, SimParameters *sp); */
 	RigidBodyController();
         ~RigidBodyController();
-	RigidBodyController(const Configuration& c, const char* outArg);
+	RigidBodyController(const Configuration& c, const char* outArg, unsigned long int seed, int repID);
 
         void AddLangevin();
         void SetRandomTorques();
 	void integrate(int step);
         void integrateDLM(int step);
-	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme);
-	void updateParticleLists(Vector3* pos_d);
+	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
+	void updateParticleLists(Vector3* pos_d, BaseGrid* sys_d);
         void clearForceAndTorque(); 
         void KineticEnergy();
         void print(int step);
-        void printEnergyData(std::fstream &file);
+        //void printEnergyData(std::fstream &file);
+        float getEnergy(float (RigidBody::*get)());
 private:
 	bool loadRBCoordinates(const char* fileName);
 	void initializeForcePairs();
@@ -126,7 +128,7 @@ private:
 	std::ofstream trajFile;
 	
 	const Configuration& conf;
-	const char* outArg;
+	char outArg[128];
 	
 	RandomCPU* random;
 	/* RequireReduction *gridReduction; */
@@ -137,6 +139,6 @@ private:
 	
 	std::vector< RigidBodyForcePair > forcePairs;
 
-        float* rb_energy;	
+        //float* rb_energy;	
 	
 };
