@@ -8,7 +8,14 @@
 #include <thrust/device_ptr.h>
 #include <fstream>
 
-#ifndef gpuErrchk
+#ifdef _OPENMP
+#include <omp.h>
+//#else
+//typedef int omp_int_t;
+//inline omp_int_t omp_get_thread_num() { return 0; }
+//inline omp_int_t omp_get_max_threads() { return 1; }
+#endif
+
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
 	if (code != cudaSuccess) {
@@ -16,7 +23,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 	if (abort) exit(code);
 	}
 }
-#endif
 
 static void checkEnergyFiles()
 {
@@ -443,7 +449,7 @@ GrandBrownTown::~GrandBrownTown() {
             gpuErrchk(cudaFree(randoGen_d));
             for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
             {
-                (*iter)->~RigidBodyController();
+                //(*iter)->~RigidBodyController();
                 delete *iter;
             }
             RBC.clear();
@@ -548,8 +554,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
         // cudaSetDevice(0);
         internal->decompose();
         gpuErrchk(cudaDeviceSynchronize());
-        for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-            (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
+        #ifdef _OPENMP
+        omp_set_num_threads(4);
+        #endif
+        #pragma omp parallel for
+        for(int i = 0; i < numReplicas; ++i)
+            RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+        gpuErrchk(cudaDeviceSynchronize());
     }
 
     float t; // simulation time
@@ -573,8 +584,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
             // 'interparticleForce' - determines whether particles interact with each other
             gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
             gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas));
-            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                (*iter)->clearForceAndTorque(); //Han-Yi Chou
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for
+            for(int i = 0; i < numReplicas; ++i)
+                RBC[i]->clearForceAndTorque(); //Han-Yi Chou
             
             if (interparticleForce)
             {
@@ -587,8 +602,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             {
                                 // cudaSetDevice(0);
                                  internal -> decompose();
-                                for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                                    (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
+                                #ifdef _OPENMP
+                                omp_set_num_threads(4);
+                                #endif
+                                #pragma omp parallel for
+                                for(int i = 0; i < numReplicas; ++i)
+                                    RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                             }
                             internal -> computeTabulated(get_energy);
                             break;
@@ -607,8 +626,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             {
                                 // cudaSetDevice(0);
                                 internal->decompose();
-                                for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter !=  RBC.end(); ++iter)
-                                    (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
+                                #ifdef _OPENMP
+                                omp_set_num_threads(4);
+                                #endif
+                                #pragma omp parallel for
+                                for(int i = 0; i < numReplicas; ++i)
+                                    RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -628,14 +651,25 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
             }//if inter-particle force
             gpuErrchk(cudaDeviceSynchronize());
-            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                (*iter)->updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, internal->getEnergy(), get_energy, RigidBodyInterpolationType, sys, sys_d);
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for
+            for(int i = 0; i < numReplicas; ++i)
+                RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
+                                       RigidBodyInterpolationType, sys, sys_d);
+            gpuErrchk(cudaDeviceSynchronize());
+
             if(rigidbody_dynamic == String("Langevin"))
             {
-                for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                #ifdef _OPENMP
+                omp_set_num_threads(4);
+                #endif
+                #pragma omp parallel for
+                for(int i = 0; i < numReplicas; ++i)
                 {
-                    (*iter)->SetRandomTorques();
-                    (*iter)->AddLangevin();
+                    RBC[i]->SetRandomTorques();
+                    RBC[i]->AddLangevin();
                 }
             }
         }//if step == 1
@@ -657,17 +691,28 @@ void GrandBrownTown::RunNoseHooverLangevin()
 
         if(rigidbody_dynamic == String("Langevin"))
         {
-            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for
+            for(int i = 0; i < numReplicas; ++i)
             {
-                (*iter)->integrateDLM(0);
-                (*iter)->integrateDLM(1);
+                RBC[i]->integrateDLM(0);
+                RBC[i]->integrateDLM(1);
             }
         }
         else
         {
-            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                (*iter)->integrate(s);
-            //RBC.print(s);
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for ordered
+            for(int i = 0; i < numReplicas; ++i)
+            {
+                RBC[i]->integrate(s);
+                #pragma omp ordered
+                RBC[i]->print(s);
+            }
         }
         gpuErrchk(cudaDeviceSynchronize());
 
@@ -743,8 +788,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
         }
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
-        for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter) 
-            (*iter)->clearForceAndTorque();
+        #ifdef _OPENMP
+        omp_set_num_threads(4);
+        #endif
+        #pragma omp parallel for
+        for(int i = 0; i < numReplicas; ++i) 
+            RBC[i]->clearForceAndTorque();
         gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
         if (interparticleForce)
         {
@@ -757,8 +806,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                         if (s % decompPeriod == 0)
                         {
                             internal -> decompose();
-                            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                                (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
+                            #ifdef _OPENMP
+                            omp_set_num_threads(4);
+                            #endif
+                            #pragma omp parallel for
+                            for(int i = 0; i < numReplicas; ++i)
+                                RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                         }
                         internal -> computeTabulated(get_energy);
                         break;
@@ -776,8 +829,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             if (s % decompPeriod == 0)
                             {
                                internal->decompose();
-                               for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                                   (*iter)->updateParticleLists( internal->getPos_d(), sys_d);
+                               #ifdef _OPENMP
+                               omp_set_num_threads(4);
+                               #endif
+                               #pragma omp parallel for
+                               for(int i = 0; i < numReplicas; ++i)
+                                   RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -797,8 +854,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
         }
         gpuErrchk(cudaDeviceSynchronize());
         //compute the force for rigid bodies
-        for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-            (*iter)->updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, internal->getEnergy(), get_energy, RigidBodyInterpolationType, sys, sys_d);
+        #ifdef _OPENMP
+        omp_set_num_threads(4);
+        #endif
+        #pragma omp parallel for
+        for(int i = 0; i < numReplicas; ++i)
+            RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
+                                 RigidBodyInterpolationType, sys, sys_d);
         gpuErrchk(cudaDeviceSynchronize());
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
@@ -809,12 +871,17 @@ void GrandBrownTown::RunNoseHooverLangevin()
 
         if(rigidbody_dynamic == String("Langevin"))
         {
-            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for ordered
+            for(int i = 0; i < numReplicas; ++i)
             {
-                (*iter)->SetRandomTorques();
-                (*iter)->AddLangevin();
-                (*iter)->integrateDLM(2);
-                (*iter)->print(s);
+                RBC[i]->SetRandomTorques();
+                RBC[i]->AddLangevin();
+                RBC[i]->integrateDLM(2);
+                #pragma omp ordered
+                RBC[i]->print(s);
             }
         }
 
@@ -896,8 +963,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 
                 if(rigidbody_dynamic == String("Langevin"))
                 {
-                    for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
-                        (*iter)->KineticEnergy();
+                    #ifdef _OPENMP
+                    omp_set_num_threads(4);
+                    #endif
+                    #pragma omp parallel for
+                    for(int i = 0; i < numReplicas; ++i)
+                        RBC[i]->KineticEnergy();
                 }
                 std::fstream rb_energy_file;
                 rb_energy_file.open("rb_energy_config.txt", std::fstream::out | std::fstream::app);
@@ -906,12 +977,16 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     float k_tol = 0.f;
                     float v_tol = 0.f;
                     float (RigidBody::*func_ptr)();
-                    for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+                    #ifdef _OPENMP
+                    omp_set_num_threads(4);
+                    #endif
+                    #pragma omp parallel for private(func_ptr) reduction(+:k_tol,v_tol)
+                    for(int i = 0; i < numReplicas; ++i)
                     {
                         func_ptr = &RigidBody::getKinetic;
-                        k_tol += (*iter)->getEnergy(func_ptr);
+                        k_tol += RBC[i]->getEnergy(func_ptr);
                         func_ptr = &RigidBody::getEnergy;
-                        v_tol += (*iter)->getEnergy(func_ptr);
+                        v_tol += RBC[i]->getEnergy(func_ptr);
                     }
                     rb_energy_file << "Kinetic Energy "   << k_tol/numReplicas << " (kT)" << std::endl;
                     rb_energy_file << "Potential Energy " << v_tol/numReplicas << " (kcal/mol)" << std::endl;

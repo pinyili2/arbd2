@@ -4,10 +4,16 @@ INCLUDE = $(CUDA_PATH)/include
 
 
 ifeq ($(dbg),1)
-	NV_FLAGS += -g -G
-	EX_FLAGS = -g -O0 -m$(OS_SIZE)
+	NV_FLAGS += -g -G 
+	EX_FLAGS = -g -m$(OS_SIZE)
 else
+	NV_FLAGS = -Xptxas -O3
 	EX_FLAGS = -O3 -m$(OS_SIZE)
+endif
+
+ifeq ($(omp),1)
+	NV_FLAGS += -Xcompiler -fopenmp
+	CC_FLAGS += -fopenmp
 endif
 
 ## Determine the version; TODO add tags for versions
@@ -25,9 +31,9 @@ CC_FLAGS += -DVERSION="\"$(VERSION)\""
 
 
 CC_FLAGS += -I$(CUDA_PATH)/include
-CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic # TODO: test on Mac OSX and other architectures
+CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic# TODO: test on Mac OSX and other architectures
 ifeq ($(dbg),1)
-NV_FLAGS += -Xcompiler -rdynamic -lineinfo
+NV_FLAGS += -lineinfo
 else
 NV_FLAGS += -lineinfo
 endif
@@ -69,12 +75,14 @@ CC_OBJ := $(patsubst %.cpp, %.o, $(CC_SRC))
 CU_OBJ := $(patsubst %.cu, %.o, $(CU_SRC))
 
 ### Targets
-ifeq ($(dbg),1)
-TARGET = arbd_dbg
-else
-# TARGET = arbd_lin_cubic
 TARGET = arbd
+ifeq ($(dbg),1)
+TARGET = $(TARGET)_dbg
 endif
+ifeq ($(omp),1)
+TARGET = $(TARGET)_omp
+endif
+
 all: $(TARGET)
 	@echo "Done ->" $(TARGET)
 

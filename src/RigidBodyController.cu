@@ -401,7 +401,7 @@ void RigidBodyController::integrate(int step)
 					rb.integrate(1);	
 				}
 			}
-			print(step);
+			//print(step);
 
 			// start this cycle
 			/*for (int i = 0; i < rigidBodyByType.size(); i++) {
