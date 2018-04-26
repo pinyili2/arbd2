@@ -98,7 +98,7 @@ Multiple uses of these between \textit{particle} and \textit{rigidBody} keywords
 {The position of the corner of the simulation system.}
 
 \keyword{systemSize}{Three decimals}{Determined from first point-particle grid}
-{The size of the (orthonormal) simulation system.}
+{The size of the (orthonormal) simulation system. Please note that at this time, periodic boundaries are only used by point particles and not rigid body particles. For simulations employing rigid body particles, a confining ``gridFile'' is recommended. }
 
 \keyword{basis1}{Three decimals}{Determined from first point-particle grid}
 {The first basis vector for a possibly non-orthonormal simulation system. Overrides the systemSize parameter.}
@@ -198,11 +198,15 @@ Each line of the file should follow the format: \\ \noindent
 {The location-dependent diffusion coefficient for the particle in \AA$^2$/ns. The grid should span the entire system.}
 
 \keyword{gridFile}{Name of Dx file}{None}
-{The location-dependent environment potetnial affecting the preceding particle type in kcal/mol. The potential is nominally zero outside the boundary of the grid potential.}
+{The location-dependent environment potential affecting the preceding particle type in kcal/mol. The potential is nominally zero outside the boundary of the grid potential.}
 
 \keyword{gridFileScale}{Decimal}{1.0}
 {A scaling factor to apply to the ``gridFile'' potential.}
 
+\keyword{rigidBodyPotential}{Keyword}{None}
+{The location-dependent environment potential affecting the preceding particle type in kcal/mol. The potential is nominally zero outside the boundary of the grid potential.
+This option may be specified multiple times. See ``potentialGrid'' below  in the ``Rigid body particles'' section for additional details.
+}
 
 %% TODO: interpolation scheme
 
@@ -221,11 +225,38 @@ Each line of the file should follow the format: \\ \noindent
 %% \keyword{diffusionGridFile}{Name of Dx file}{None}
 %% {The location-dependent diffusion coefficient for the particle in \AA$^2$/ns. The grid should span the entire system.}
 
-\keyword{gridFile}{Name of Dx file}{None}
-{The location-dependent environment potetnial affecting the preceding particle type in kcal/mol. The potential is nominally zero outside the boundary of the grid potential.}
+\keyword{gridFile}{Key and name of Dx file}{None}
+{A 3-dimensional potential acting on the rigid body, specified in kcal/mol.
+The potential is associated with a user-specified key.
+Each voxel of a ``densityGrid'' in the rigid body using the same key will produce a force and torque due to the potential.
+The potential described by gridFile is fixed in space and can be considered an environement potential. 
+This option may be specified multiple times with different keys.
+}
 
-\keyword{gridFileScale}{Decimal}{1.0}
-{A scaling factor to apply to the ``gridFile'' potential.}
+\keyword{potentialGrid}{Key and name of Dx file}{None}
+{A 3-dimensional potential associated with the rigid body particle in kcal/mol.
+Any point particle that declares the same key through the ``rigidBodyPotential'' keyword will experience forces due to the potential.
+Similarly each voxel of a ``densityGrid'' in another rigid body using the same key will experience a force due to the potential.
+All forces applied by the potential are inverted and applied to the rigid body along with a corresponding torque.
+This option may be specified multiple times with different keys.
+}
+
+\keyword{densityGrid}{Key and name of Dx file}{None}
+{A 3-dimensional density associated with the rigid body particle. 
+Voxels of this density will experience forces and torques from ``gridFile'' potentials with the same key ascribed to the same rigid body and from ``potentialGrid'' potentials with the same key in different rigid body particles.
+This option may be specified multiple times with different keys.
+Please note that in the beta release of ARBD, the densityGrid is not scaled by the volume of each voxel. This behavior may change in the future.
+}
+
+\keyword{pmfScale}{Key and decimal}{1.0}
+{A scaling factor to apply to the ``gridFile'' potential of the same key.}
+
+\keyword{potentialGridScale}{Key and decimal}{1.0}
+{A scaling factor to apply to the ``potentialGrid'' of the same key.}
+
+\keyword{densityGridScale}{Key and decimal}{1.0}
+{A scaling factor to apply to the ``densityGrid'' of the same key.}
+
 
 
 \subsection{Coordinates}

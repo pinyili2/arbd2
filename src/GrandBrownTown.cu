@@ -1539,6 +1539,7 @@ void GrandBrownTown::newCurrent(int repID) const {
 // -----------------------------------------------------------------------------
 // Record the ionic current flowing through the entire system
 void GrandBrownTown::writeCurrent(int repID, float t) const {
+    return;
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	fprintf(out, "%.10g %.10g %d\n", 0.5f*(t+timeLast), current(t), num);
 	fclose(out);
@@ -1548,6 +1549,7 @@ void GrandBrownTown::writeCurrent(int repID, float t) const {
 // -----------------------------------------------------------------------------
 // Record the ionic current in a segment -segZ < z < segZ
 void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
+    return;
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	int i;
 	fprintf(out, "%.10g ", 0.5f * (t + timeLast));
