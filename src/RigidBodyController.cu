@@ -613,15 +613,18 @@ void RigidBodyForcePair::processGPUForces(BaseGrid* sys) {
 	
 	rb1->addForce( f );
 	rb1->addTorque( t );
-        rb1->addEnergy( energy );
- 
-	if (!isPmf) {
+        if(isPmf)
+            rb1->addEnergy( energy );
+	//if (!isPmf) {
+	else 
+        {
 		const Vector3 t2 = -t + sys->wrapDiff(rb2->getPosition()-rb1->getPosition()).cross( f );
 		rb2->addForce( -f );
 		rb2->addTorque( t2 );
-                rb2->addEnergy( energy );
+                rb1->addEnergy(energy*.5);
+                rb2->addEnergy(energy*.5);
 	}
-
+        
 	// printf("force: %s\n", f.toString().val());
 	// printf("torque: %s\n", t.toString().val());
 }
