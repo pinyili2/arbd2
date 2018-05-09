@@ -133,9 +133,12 @@ private:
 	Vector3* trans; // would have made these static, but
 	Matrix3* rot;  	// there are errors on rigidBody->integrate
 	std::vector< std::vector<RigidBody> > rigidBodyByType;
-	
 	std::vector< RigidBodyForcePair > forcePairs;
-
 	
+	Vector3* particleForces;
+	Vector3* particleForces_d;
+	std::vector<int> particleForceNumBlocks;
+	std::vector<int> particleForce_offset;
+	int totalParticleForceNumBlocks;
 	
 };

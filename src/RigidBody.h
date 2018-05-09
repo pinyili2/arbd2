@@ -39,6 +39,8 @@ class RigidBody { // host side representation of rigid bodies
 	/* HOST DEVICE RigidBody(RigidBodyType t); */
 	~RigidBody();
 
+	int appendNumParticleBlocks( std::vector<int>* blocks );
+
 	HOST DEVICE void addForce(Force f); 
 	HOST DEVICE void addTorque(Force t);
 	HOST DEVICE void addLangevin(Vector3 w1, Vector3 w2);
@@ -72,8 +74,8 @@ class RigidBody { // host side representation of rigid bodies
         }
 
 	void updateParticleList(Vector3* pos_d);
-	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s);
-	void retrieveGridParticleForces();
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, Vector3* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx);
+	void applyGridParticleForces(Vector3* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx);
 	
 	bool langevin;
 	Vector3 torque; // lab frame (except in integrate())
@@ -117,11 +119,7 @@ private:
 	
 	int* numParticles;		  /* particles affected by potential grids */
 	int** particles_d;		 	
-	Vector3** particleForces;
-	Vector3** particleTorques;
-	Vector3** particleForces_d;
-	Vector3** particleTorques_d;
-	
+	const cudaStream_t** particleForceStreams;
 	
 	/*–––––––––––––––––––––––––––––––––––––––––.
 	| units "kcal_mol/AA * ns" "(AA/ns) * amu" |

@@ -39,17 +39,14 @@ void RigidBody::init() {
 	const int& numGrids = t->numPotGrids;
 	numParticles = new int[numGrids];
 	particles_d = new int*[numGrids];
-	particleForces = new Vector3*[numGrids];
-	particleForces_d = new Vector3*[numGrids];
+	particleForceStreams = new const cudaStream_t*[numGrids];
+
 	for (int i = 0; i < numGrids; ++i) {
 	    numParticles[i] = -1;
 		const int& n = t->numParticles[i];
-		const int nb = (n/NUMTHREADS)+1; // max number of blocks
 		if (n > 0) {
 		    // gpuErrchk(cudaMalloc( &particles_d[i], 0.5*sizeof(int)*n )); // not sure why 0.5 was here; prolly bug
 		        gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n )); // TODO: dynamically allocate memory as needed
-			particleForces[i] = new Vector3[2*nb];
-			gpuErrchk(cudaMalloc( &particleForces_d[i], 2*sizeof(Vector3)*nb ));
 		}
 	}
 }
@@ -76,16 +73,28 @@ RigidBody::~RigidBody() {
 		const int& n = t->numParticles[i];
 		if (n > 0) {
 			gpuErrchk(cudaFree( particles_d[i] ));
-			delete[] particleForces[i];
-			gpuErrchk(cudaFree( particleForces_d[i] ));
 		}
 	}
 	if (numParticles != NULL) {
 		delete[] numParticles;
 		delete[] particles_d;
-		delete[] particleForces;
-		delete[] particleForces_d;
+		delete[] particleForceStreams;
 	}
+}
+
+int RigidBody::appendNumParticleBlocks( std::vector<int>* blocks ) {
+    int ret = 0;
+    const int& numGrids = t->numPotGrids;
+    for (int i = 0; i < numGrids; ++i) {
+	numParticles[i] = -1;
+	const int& n = t->numParticles[i];
+	const int nb = (n/NUMTHREADS)+1; // max number of blocks
+	if (n > 0) {
+	    blocks->push_back(nb);
+	    ret += nb;
+	}
+    }
+    return ret;
 }
 
 void RigidBody::addForce(Force f) { 
@@ -124,8 +133,7 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 		}
 	}
 }
-
-void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s) {
+void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, Vector3* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx) {
 	// Apply the force and torque on the rigid body, and forces on particles
 	
 	// RBTODO: performance: consolidate CUDA stream management
@@ -144,43 +152,38 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		  c': R.o + c
 		*/
 
+		const cudaStream_t& stream = gpuman.get_next_stream();
+		particleForceStreams[i] = &stream;
+
 		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
 		Matrix3 B = (getOrientation()*t->potentialGrids[i].getBasis()).inverse();
 		
 		// RBTODO: get energy
-		// RBTODO: performance: Improve parellism here (use streams/events; overlap with other computations)
-		const int nb = (numParticles[i]/NUMTHREADS)+1;
-		
-		Vector3* forcestorques = particleForces[i];
-		Vector3* forcestorques_d = particleForces_d[i];
-
-		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3) >>>(
+		const int nb = (numParticles[i]/NUMTHREADS)+1;		
+		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3), stream >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
 			t->rawPotentialGrids_d[i],
-			B, c, forcestorques_d);
-		
-		cudaMemcpyAsync(forcestorques, forcestorques_d, sizeof(Vector3)*2*nb, cudaMemcpyDeviceToHost);
+			B, c, forcestorques_d+forcestorques_offset[fto_idx++]);
 	}
 }
 
-void RigidBody::retrieveGridParticleForces() {
-	// RBTODO: performance: consolidate CUDA stream management
+void RigidBody::applyGridParticleForces(Vector3* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx) {
 	// loop over potential grids 
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		if (numParticles[i] <= 0) continue;
 		const int nb = (numParticles[i]/NUMTHREADS)+1;
-
-		Vector3* forcestorques = particleForces[i];
 		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
 
 		// Sum and apply forces and torques
 		Vector3 f = Vector3(0.0f);
 		Vector3 torq = Vector3(0.0f);
 		for (int k = 0; k < nb; ++k) {
-			f = f + forcestorques[2*k];
-			torq = torq + forcestorques[2*k+1];
+		    int j = forcestorques_offset[fto_idx]+2*k;
+			f = f + forcestorques[j];
+			torq = torq + forcestorques[j+1];
 		}
-		
+		++fto_idx;
+
 		torq = -torq + (getPosition()-c).cross( f ); 
 		addForce( -f );
 		addTorque( torq );

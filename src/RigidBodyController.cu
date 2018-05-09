@@ -5,6 +5,9 @@
 #include "RigidBodyGrid.h"
 #include "ComputeGridGrid.cuh"
 
+// #include "GPUManager.h"
+// GPUManager RigidBodyController::gpuman;
+
 #include <cuda_profiler_api.h>
 
 // #include <vector>
@@ -32,6 +35,8 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 
 	int numRB = 0;
 	// grow list of rbs
+
+
 	for (int i = 0; i < conf.numRigidTypes; i++) {			
 		conf.rigidBody[i].copyGridsToDevice();
 		numRB += conf.rigidBody[i].num;
@@ -46,17 +51,26 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* out
 				name.add( tmp );
 			}
 			RigidBody r(name, conf, conf.rigidBody[i], this);
+			int nb = r.appendNumParticleBlocks( &particleForceNumBlocks );
 			tmp.push_back( r );
 		}
 		rigidBodyByType.push_back(tmp);
 	}
+	
+	totalParticleForceNumBlocks = 0;
+	for (int i=0; i < particleForceNumBlocks.size(); ++i) {
+	    particleForce_offset.push_back(2*totalParticleForceNumBlocks);
+	    totalParticleForceNumBlocks += particleForceNumBlocks[i];
+	}
+
+	gpuErrchk(cudaMallocHost(&(particleForces), sizeof(Vector3) * 2*totalParticleForceNumBlocks))
+	gpuErrchk(cudaMalloc(&(particleForces_d), sizeof(Vector3) * 2*totalParticleForceNumBlocks))
 
 	if (conf.inputRBCoordinates.length() > 0)
 		loadRBCoordinates(conf.inputRBCoordinates.val());
 	
 	random = new RandomCPU(conf.seed + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
-	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 	initializeForcePairs();
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
         //Boltzmann distribution
@@ -265,18 +279,25 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 	if (s <= 1)
 		gpuErrchk( cudaProfilerStart() );
 	
-	// Grid–particle forces
+	// Grid–particle forces	
+	int pfo_idx = 0;
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
 			RigidBody& rb = rigidBodyByType[i][j];
-			rb.callGridParticleForceKernel( pos_d, force_d, s );
+			rb.callGridParticleForceKernel( pos_d, force_d, particleForces_d, particleForce_offset, pfo_idx );
 		}
 	}
 
+	// RBTODO: launch kernels ahead of time and sync using event and memcpyAsync 
+	gpuErrchk( cudaDeviceSynchronize() );
+	cudaMemcpy(particleForces, particleForces_d, sizeof(Vector3)*2*totalParticleForceNumBlocks, cudaMemcpyDeviceToHost);
+
+	pfo_idx=0;
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
 			RigidBody& rb = rigidBodyByType[i][j];
-			rb.retrieveGridParticleForces();
+			rb.applyGridParticleForces(particleForces, particleForce_offset, pfo_idx);
+;
 		}
 	}
 
@@ -284,8 +305,10 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 	if ( (s % conf.rigidBodyGridGridPeriod) == 0 && forcePairs.size() > 0) {
 		for (int i=0; i < forcePairs.size(); i++) {
 			// TODO: performance: make this check occur less frequently
-			if (forcePairs[i].isWithinPairlistDist())
+		    if (forcePairs[i].isWithinPairlistDist()) {
+			
 				forcePairs[i].callGridForceKernel(i,s);
+		    }
 		}
 		
 		// each kernel call is followed by async memcpy for previous; now get last
@@ -299,7 +322,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 		/* 	gpuErrchk(cudaStreamSynchronize( s ));  */
 		/* } */
 		gpuErrchk(cudaDeviceSynchronize());
-	
+
 		for (int i=0; i < forcePairs.size(); i++)
 			if (forcePairs[i].isWithinPairlistDist())
 				forcePairs[i].processGPUForces();
@@ -703,6 +726,8 @@ int RigidBodyForcePair::initialize() {
 
 		// allocate device memory for numBlocks of torque, etc.
     // printf("      Allocating device memory for forces/torques\n");
+		// gpuErrchk(cudaMallocHost(&(forces[i]), sizeof(Vector3) * nb));
+		// gpuErrchk(cudaMallocHost(&(torques[i]), sizeof(Vector3) * nb));
 		gpuErrchk(cudaMalloc(&(forces_d[i]), sizeof(Vector3) * nb));
 		gpuErrchk(cudaMalloc(&(torques_d[i]), sizeof(Vector3) * nb));
 	}
