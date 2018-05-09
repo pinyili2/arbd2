@@ -272,7 +272,14 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 			rb.callGridParticleForceKernel( pos_d, force_d, s );
 		}
 	}
-	
+
+	for (int i = 0; i < rigidBodyByType.size(); i++) {
+		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+			RigidBody& rb = rigidBodyByType[i][j];
+			rb.retrieveGridParticleForces();
+		}
+	}
+
 	// Grid–Grid forces
 	if ( (s % conf.rigidBodyGridGridPeriod) == 0 && forcePairs.size() > 0) {
 		for (int i=0; i < forcePairs.size(); i++) {

@@ -72,7 +72,7 @@ class RigidBody { // host side representation of rigid bodies
 
 	void updateParticleList(Vector3* pos_d);
 	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s);
-	
+	void retrieveGridParticleForces();
 	
 	bool langevin;
 	Vector3 torque; // lab frame (except in integrate())

@@ -7,7 +7,7 @@ ifeq ($(dbg),1)
 	NV_FLAGS += -g -G
 	EX_FLAGS = -g -O0 -m$(OS_SIZE)
 else
-	EX_FLAGS = -O3 -m$(OS_SIZE)
+	EX_FLAGS = -g -O3 -m$(OS_SIZE)
 endif
 
 ## Determine the version; TODO add tags for versions

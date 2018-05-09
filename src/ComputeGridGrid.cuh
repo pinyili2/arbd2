@@ -17,7 +17,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 				const int num, const int* __restrict__ particleIds,
 				const RigidBodyGrid* __restrict__ u,
 				const Matrix3 basis_u_inv, const Vector3 origin_u,
-				Vector3* __restrict__ retForce, Vector3* __restrict__ retTorque);
+				Vector3* __restrict__ retForceTorque);
 
 extern __global__
 void createPartlist(const Vector3* __restrict__ pos,
