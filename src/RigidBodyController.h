@@ -6,6 +6,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include "useful.h"
+#include "GPUManager.h"
 
 #define NUMSTREAMS 8
 
@@ -85,6 +86,8 @@ private:
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
 	Vector3 getOrigin2(const int i);
+
+	static GPUManager gpuman;
 };
 
 class RigidBodyController {

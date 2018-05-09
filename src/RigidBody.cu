@@ -54,6 +54,8 @@ void RigidBody::init() {
 	}
 }
 
+GPUManager RigidBody::gpuman = GPUManager();
+
 //Boltzmann distribution
 void RigidBody::Boltzmann()
 {

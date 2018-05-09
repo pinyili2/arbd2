@@ -6,6 +6,8 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+#define NUMSTREAMS 8
+
 // GPUs capable of Peer Access 
 // (Currently unused)
 struct GPUPeer {
@@ -22,7 +24,11 @@ private:
 	static int nGPUs;
 	static bool is_safe;
 
+    static void create_streams();
+
 public:	
+    static cudaStream_t* stream;
+    static int last_stream;
 	static std::vector<int> allGpus;
 	static std::vector<int> gpus;
 	static std::vector<cudaDeviceProp> properties;
@@ -49,11 +55,22 @@ public:
 	static void safe(bool make_safe);
 	
 	static int getInitialGPU();
-	
+
+        // 
+    inline const cudaStream_t& get_next_stream() {
+	if (last_stream == NUMSTREAMS-1) {
+	    last_stream = 0;
+	} else {
+            last_stream +=1;
+	}
+	return stream[last_stream];
+    };
+		
+
 	// Currently unused
 	static std::vector<GPUPeer> peers;
-	static std::vector<cudaStream_t> streams;
 	static std::vector<cudaEvent_t> events;
+       
 };
 
 #endif

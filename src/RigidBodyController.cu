@@ -481,7 +481,7 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 		const int nb = numBlocks[i];
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
-		const cudaStream_t &s = stream[streamID[i]];
+		const cudaStream_t &s = gpuman.stream[streamID[i]];
 
 		/*
 			ijk: index of grid value
@@ -528,7 +528,7 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 
 void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
 	// i: grid ID (less than numGrids)
-	const cudaStream_t &s = stream[streamID[i]];
+	const cudaStream_t &s = gpuman.stream[streamID[i]];
 	const int nb = numBlocks[i];
 
 	gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb,

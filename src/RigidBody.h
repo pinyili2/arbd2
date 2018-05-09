@@ -5,6 +5,7 @@
 
 #include "useful.h"
 #include "RandomCPU.h"		/* for BD integration; RBTODO: fix this */
+#include "GPUManager.h"
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -78,7 +79,8 @@ class RigidBody { // host side representation of rigid bodies
 	Vector3 torque; // lab frame (except in integrate())
         
 private:
-	
+	static GPUManager gpuman;
+
 	RigidBodyController* RBC;
 	inline Vector3 getRandomGaussVector() { 
 	    return RBC->getRandomGaussVector();

@@ -15,7 +15,7 @@ std::vector<GPUPeer> GPUManager::peers;
 
 // Currently unused
 std::vector<cudaDeviceProp> GPUManager::properties;
-std::vector<cudaStream_t> GPUManager::streams;
+// std::vector<cudaStream_t> GPUManager::streams;
 std::vector<cudaEvent_t> GPUManager::events;
 
 void GPUManager::init() {
@@ -94,6 +94,7 @@ void GPUManager::set(int gpu_id) {
 	gpu_id = gpu_id % (int) gpus.size();
 	cudaSetDevice(gpus[gpu_id]);
 	cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
+	create_streams();
 }
 
 int GPUManager::current() {
@@ -124,4 +125,14 @@ int GPUManager::getInitialGPU() {
 	    return i; 
     }
     return 0;
+}
+
+cudaStream_t *GPUManager::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
+int GPUManager::last_stream = -1;
+void GPUManager::create_streams() {
+    printf("Creating streams\n");
+	last_stream = -1;
+    	for (int i = 0; i < NUMSTREAMS; i++)
+	    gpuErrchk( cudaStreamCreate( &stream[i] ) );
+	// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
 }
