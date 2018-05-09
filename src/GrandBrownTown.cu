@@ -592,7 +592,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     }
                 }
             }//if inter-particle force
-            gpuErrchk(cudaDeviceSynchronize());
             RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
             if(rigidbody_dynamic == String("Langevin"))
             {
@@ -621,13 +620,14 @@ void GrandBrownTown::RunNoseHooverLangevin()
         }
         else
             RBC.integrate(s);
-        gpuErrchk(cudaDeviceSynchronize());
 
         if (s % outputPeriod == 0)
             // Copy particle positions back to CPU
+	    gpuErrchk(cudaDeviceSynchronize());
             gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
         if (imd_on && clientsock && s % outputPeriod == 0)
         {
+	    gpuErrchk(cudaDeviceSynchronize());
             float* coords = new float[num*3]; // TODO: move allocation out of run loop
             int* atomIds = new int[num]; // TODO: move allocation out of run loop
             int length;
@@ -1060,10 +1060,9 @@ void GrandBrownTown::run() {
                     RBC.SetRandomTorques();
                     RBC.AddLangevin();
                 }
-
+		gpuErrchk(cudaDeviceSynchronize());
             }//if step == 1
 
-            gpuErrchk(cudaDeviceSynchronize());
           
 	    //Han-Yi Chou
             //update the rigid body positions and orientation
@@ -1086,11 +1085,12 @@ void GrandBrownTown::run() {
             else
                 RBC.integrate(s);
 
-            gpuErrchk(cudaDeviceSynchronize());
 
-            if (s % outputPeriod == 0)
+            if (s % outputPeriod == 0) {
                 // Copy particle positions back to CPU
+		gpuErrchk(cudaDeviceSynchronize());
                 gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+	    }
 
             //compute again the new force with new positions.
             //reset the internal force, I hope. Han-Yi Chou
@@ -1225,13 +1225,12 @@ void GrandBrownTown::run() {
                     }
                 }
             }
-            gpuErrchk(cudaDeviceSynchronize());
 
             //compute the force for rigid bodies
             RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
             //Han-Yi Chou
             //For BAOAB, the last update is only to update the momentum
-            gpuErrchk(cudaDeviceSynchronize());
+            // gpuErrchk(cudaDeviceSynchronize());
 
             if(particle_dynamic == String("Langevin"))
                 LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
@@ -1245,13 +1244,12 @@ void GrandBrownTown::run() {
                RBC.integrateDLM(2);
                RBC.print(s);
            }
-
-           gpuErrchk(cudaDeviceSynchronize());
  
            if (s % outputPeriod == 0) 
            {
                 if(particle_dynamic == String("Langevin"))
                 {
+		    // TODO: make async
                     gpuErrchk(cudaMemcpy(momentum, internal ->  getMom_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
                     /*
                     gpuErrchk(cudaMemcpy(force, force_d, sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
