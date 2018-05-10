@@ -600,7 +600,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }//if step == 1
 
-        gpuErrchk(cudaDeviceSynchronize());
+        // gpuErrchk(cudaDeviceSynchronize());
 
         if(particle_dynamic == String("Langevin"))
             updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
@@ -621,10 +621,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
         else
             RBC.integrate(s);
 
-        if (s % outputPeriod == 0)
+        if (s % outputPeriod == 0) {
             // Copy particle positions back to CPU
 	    gpuErrchk(cudaDeviceSynchronize());
             gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+	}
         if (imd_on && clientsock && s % outputPeriod == 0)
         {
 	    gpuErrchk(cudaDeviceSynchronize());
@@ -697,7 +698,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
 
         RBC.clearForceAndTorque();
-        gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+        gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
         if (interparticleForce)
         {
             // 'tabulatedPotential' - determines whether interaction is described with tabulated potentials or formulas
@@ -745,10 +746,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
             }
         }
-        gpuErrchk(cudaDeviceSynchronize());
         //compute the force for rigid bodies
         RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
-        gpuErrchk(cudaDeviceSynchronize());
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
@@ -762,7 +761,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
             RBC.print(s);
         }
 
-        gpuErrchk(cudaDeviceSynchronize());
         if (s % outputPeriod == 0)
         {
             if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))

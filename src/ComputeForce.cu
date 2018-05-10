@@ -699,7 +699,6 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	// int nb = (1+(decomp.nCells.x * decomp.nCells.y * decomp.nCells.z)) * 75; /* RBTODO: number of pairLists */
 	const int nb = 800;
 	// printf("ComputeTabulated\n");
-	gpuErrchk(cudaDeviceSynchronize());
 
 	// RBTODO: get_energy
 	//if (get_energy)
