@@ -318,7 +318,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, 
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
 			RigidBody& rb = rigidBodyByType[i][j];
-			rb.applyGridParticleForces(particleForces, particleForce_offset, pfo_idx);
+			rb.applyGridParticleForces(sys, particleForces, particleForce_offset, pfo_idx);
 ;
 		}
 	}

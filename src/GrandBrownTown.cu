@@ -16,6 +16,7 @@
 //inline omp_int_t omp_get_max_threads() { return 1; }
 #endif
 
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
 	if (code != cudaSuccess) {
@@ -23,6 +24,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 	if (abort) exit(code);
 	}
 }
+#endif
 
 static void checkEnergyFiles()
 {
@@ -44,16 +46,12 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	//conf(c), RBC(RigidBodyController(c,outArg)) {
 	conf(c){
 
-        gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-        gsl_rng_set(gslcpp_rng, conf.seed);
         RBC.resize(numReplicas);      
         for(int i = 0; i < numReplicas; ++i)
         {
-            unsigned long int seed = gsl_rng_get(gslcpp_rng);
             RigidBodyController* rb = new RigidBodyController(c, outArg, seed, i);
             RBC[i] = rb;
         }
-        gsl_rng_free(gslcpp_rng);
 
         //printf("%d\n",__LINE__);
         //Determine which dynamic. Han-Yi Chou
@@ -698,6 +696,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }
         else
+	{
             #ifdef _OPENMP
             omp_set_num_threads(4);
             #endif
@@ -1618,6 +1617,7 @@ void GrandBrownTown::initialCond() {
 
 // A couple old routines for getting particle positions.
 Vector3 GrandBrownTown::findPos(int typ) {
+    // TODO: sum over grids
 	Vector3 r;
 	const BrownianParticleType& pt = part[typ];
 	do {
@@ -1625,7 +1625,7 @@ Vector3 GrandBrownTown::findPos(int typ) {
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
-	} while (pt.pmf->interpolatePotential(r) > pt.meanPmf);
+	} while (pt.pmf->interpolatePotential(r) > *pt.meanPmf);
 	return r;
 }
 
@@ -1638,7 +1638,7 @@ Vector3 GrandBrownTown::findPos(int typ, float minZ) {
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
-	} while (pt.pmf->interpolatePotential(r) > pt.meanPmf and fabs(r.z) > minZ);
+	} while (pt.pmf->interpolatePotential(r) > *pt.meanPmf and fabs(r.z) > minZ);
 	return r;
 }
 
@@ -1693,8 +1693,10 @@ void GrandBrownTown::InitNoseHooverBath(int N)
 // -----------------------------------------------------------------------------
 // Initialize file for recording ionic current
 void GrandBrownTown::newCurrent(int repID) const {
+    /*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "w");
 	fclose(out);
+    */
 }
 
 
@@ -1702,9 +1704,11 @@ void GrandBrownTown::newCurrent(int repID) const {
 // Record the ionic current flowing through the entire system
 void GrandBrownTown::writeCurrent(int repID, float t) const {
     return;
+    /*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	fprintf(out, "%.10g %.10g %d\n", 0.5f*(t+timeLast), current(t), num);
 	fclose(out);
+    */
 }
 
 
@@ -1712,6 +1716,7 @@ void GrandBrownTown::writeCurrent(int repID, float t) const {
 // Record the ionic current in a segment -segZ < z < segZ
 void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
     return;
+    /*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	int i;
 	fprintf(out, "%.10g ", 0.5f * (t + timeLast));
@@ -1719,6 +1724,7 @@ void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
 		fprintf(out, "%.10g ", currentSegment(t,segZ,i));
 	fprintf(out, "%d\n", num);
 	fclose(out);
+    */
 }
 
 

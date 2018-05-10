@@ -181,7 +181,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 	}
 }
 
-void RigidBody::applyGridParticleForces(ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx) {
+void RigidBody::applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx) {
 	// loop over potential grids 
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		if (numParticles[i] <= 0) continue;
@@ -195,7 +195,7 @@ void RigidBody::applyGridParticleForces(ForceEnergy* forcestorques, const std::v
 		for (int k = 0; k < nb; ++k) {
 		    int j = forcestorques_offset[fto_idx]+2*k;
 		    f = f + forcestorques[j];
-		    torq = torq + forcestorques[j+1];
+		    torq = torq + forcestorques[j+1].f;
 		}
 		++fto_idx;
 	        //why the force points are at the origin of the potential?	
