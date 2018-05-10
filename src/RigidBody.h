@@ -5,6 +5,7 @@
 
 #include "useful.h"
 #include "RandomCPU.h"		/* for BD integration; RBTODO: fix this */
+#include "GPUManager.h"
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -37,6 +38,8 @@ class RigidBody { // host side representation of rigid bodies
 	void init();
 	/* HOST DEVICE RigidBody(RigidBodyType t); */
 	~RigidBody();
+
+	int appendNumParticleBlocks( std::vector<int>* blocks );
 
 	HOST DEVICE void addForce(Force f); 
 	HOST DEVICE void addTorque(Force t);
@@ -75,14 +78,15 @@ class RigidBody { // host side representation of rigid bodies
         }
 
 	void updateParticleList(Vector3* pos_d, BaseGrid* sys_d);
-	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
-	
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, ForceEnergy* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx);
+	void applyGridParticleForces(ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx);
 	
 	bool langevin;
 	Vector3 torque; // lab frame (except in integrate())
         
 private:
-	
+	static GPUManager gpuman;
+
 	RigidBodyController* RBC;
 	inline Vector3 getRandomGaussVector() { 
 	    return RBC->getRandomGaussVector();
@@ -120,11 +124,7 @@ private:
 	
 	int* numParticles;		  /* particles affected by potential grids */
 	int** particles_d;		 	
-	ForceEnergy** particleForces;
-	Vector3** particleTorques;
-	ForceEnergy** particleForces_d;
-	Vector3** particleTorques_d;
-	
+	const cudaStream_t** particleForceStreams;
 	
 	/*–––––––––––––––––––––––––––––––––––––––––.
 	| units "kcal_mol/AA * ns" "(AA/ns) * amu" |

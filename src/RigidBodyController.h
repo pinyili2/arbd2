@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include "useful.h"
 #include "BaseGrid.h"
+#include "GPUManager.h"
 
 #define NUMSTREAMS 8
 
@@ -89,6 +90,8 @@ private:
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
 	Vector3 getOrigin2(const int i);
+
+	static GPUManager gpuman;
 };
 
 class RigidBodyController {
@@ -136,9 +139,12 @@ private:
 	Vector3* trans; // would have made these static, but
 	Matrix3* rot;  	// there are errors on rigidBody->integrate
 	std::vector< std::vector<RigidBody> > rigidBodyByType;
-	
 	std::vector< RigidBodyForcePair > forcePairs;
 
         //float* rb_energy;	
-	
+	ForceEnergy* particleForces;
+	ForceEnergy* particleForces_d;
+	std::vector<int> particleForceNumBlocks;
+	std::vector<int> particleForce_offset;
+	int totalParticleForceNumBlocks;
 };

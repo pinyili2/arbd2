@@ -78,7 +78,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 				const int num, const int* __restrict__ particleIds, 
 				const RigidBodyGrid* __restrict__ u,
 				const Matrix3 basis_u_inv, const Vector3 origin_u,
-				ForceEnergy* __restrict__ retForce, Vector3* __restrict__ retTorque, float* __restrict__ energy, bool get_energy, int scheme, BaseGrid* sys_d) {
+				ForceEnergy* __restrict__ retForceTorque, float* __restrict__ energy, bool get_energy, int scheme, BaseGrid* sys_d) {
 
 	extern __shared__ ForceEnergy s[];
 	ForceEnergy *force  = s;
@@ -128,8 +128,8 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	}
 	
 	if (tid == 0) {
-		retForce[blockIdx.x] = force[0];
-		retTorque[blockIdx.x] = torque[0].f;
+		retForceTorque[2*blockIdx.x] = force[0];
+		retForceTorque[2*blockIdx.x+1] = torque[0];
 	}
 }
 

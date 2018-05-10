@@ -1,6 +1,6 @@
-/===========================================================\
-| Atomic Resolution Brownian Dynamics (ARBD) - alpha Aug 4  |
-\===========================================================/
+/==========================================================\
+| Atomic Resolution Brownian Dynamics (ARBD) - beta Jan 18 |
+\==========================================================/
 
 Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
 nanomaterials that balances detail with computational efficiency.
@@ -27,7 +27,7 @@ If your CUDA toolkit is installed in a nonstandard location, you may specify
 that location using the CUDA_PATH environment variable. For example:
 make CUDA_PATH=/nonstandard/path/to/cuda
 
-Note that ARBD was developed using CUDA-8.0 and targets NVIDIA GPUs featuring
+Note that ARBD has been developed using CUDA-8.0 and targets NVIDIA GPUs featuring
 6.0 compute capability. The code should work with devices with compute capability >=2.0,
 but there are no guarantees.
 
@@ -84,6 +84,7 @@ as a part of the NIH Center for Macromolecular Modeling and Bioinformatics
 Please direct questions or problems to Chris.
 
 Christopher Maffeo <cmaffeo2@illinois.edu>
+Han-yi Chao
 Jeffrey Comer
 Max Belkin
 Emmanual Guzman
@@ -112,10 +113,6 @@ Terrance Howard
   cutoff
 
 -- Bugs --
-
-* Memory is sometimes freed incorrectly freed when the simulations
-  end, causing a seg-fault; the impact of this bug is mitigated
-  because output has already been written at this time
 
 * A large amount of GPU memory for pairlists is allocated statically,
   which may cause out-of-memory crashes in older hardware

@@ -727,7 +727,7 @@ void Configuration::setDefaults() {
 	numberFluctPeriod = 200;
 	interparticleForce = 1;
 	tabulatedPotential = 0;
-	fullLongRange = 1;
+	fullLongRange = 0;
 	//	kTGridFile = ""; // Commented out for an unknown reason
 	temperature = 295.0f;
 	temperatureGridFile = "";

@@ -143,6 +143,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
+GPUManager ComputeForce::gpuman = GPUManager();
 
 ComputeForce::~ComputeForce() {
 	delete[] tableEps;
@@ -700,7 +701,6 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	// int nb = (1+(decomp.nCells.x * decomp.nCells.y * decomp.nCells.z)) * 75; /* RBTODO: number of pairLists */
 	const int nb = 800;
 	// printf("ComputeTabulated\n");
-	gpuErrchk(cudaDeviceSynchronize());
 
 	// RBTODO: get_energy
 	if (get_energy)
@@ -717,8 +717,8 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	{
                 //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d,sizeof(Vector3)*num*numReplicas));
 		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
-		  computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1) >>>(forceInternal_d, pos_d, sys_d,
-						cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d);
+	    computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d, pos_d, sys_d,
+													cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d);
                   gpuKernelCheck();
                 //gpuErrchk(cudaUnbindTexture(PosTex));
 	}
@@ -733,24 +733,26 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	//computeTabulatedBonds <<<nb, numThreads>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d);
 	  //if(get_energy)
               //cudaMemset(bond_energy_d, 0, sizeof(float)*num);
-	    computeTabulatedBonds <<<nb, numThreads>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d, energies_d, get_energy);
+		computeTabulatedBonds <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d, energies_d, get_energy);
 	}
 
 	if (angleList_d != NULL && tableAngle_d != NULL)
         {
             //if(get_energy)
 		//computeTabulatedAngles<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
-		computeTabulatedAngles<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d, energies_d, get_energy);
+	    computeTabulatedAngles<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d, energies_d, get_energy);
         }
 	if (dihedralList_d != NULL && tableDihedral_d != NULL)
         {
             //if(get_energy)
 		//computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
-		computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, 
+	    computeTabulatedDihedrals<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, 
                 dihedralList_d, dihedralPotList_d, tableDihedral_d, energies_d, get_energy);
         }
+
+	// TODO: Sum energy
 	if (restraintIds_d != NULL )
-	    computeHarmonicRestraints<<<1, numThreads>>>(forceInternal_d, pos_d, sys_d, numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
+	    computeHarmonicRestraints<<<1, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
 	
 
 	// Calculate the energy based on the array created by the kernel

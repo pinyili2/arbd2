@@ -650,7 +650,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     }
                 }
             }//if inter-particle force
-            gpuErrchk(cudaDeviceSynchronize());
             #ifdef _OPENMP
             omp_set_num_threads(4);
             #endif
@@ -658,8 +657,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
             for(int i = 0; i < numReplicas; ++i)
                 RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                        RigidBodyInterpolationType, sys, sys_d);
-            gpuErrchk(cudaDeviceSynchronize());
-
             if(rigidbody_dynamic == String("Langevin"))
             {
                 #ifdef _OPENMP
@@ -674,8 +671,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }//if step == 1
 
-        gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas));
-        
+        gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas)); // TODO: make async
         if(particle_dynamic == String("Langevin"))
             updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
         else if(particle_dynamic == String("NoseHooverLangevin"))
@@ -702,7 +698,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }
         else
-        {
             #ifdef _OPENMP
             omp_set_num_threads(4);
             #endif
@@ -714,13 +709,15 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 RBC[i]->print(s);
             }
         }
-        gpuErrchk(cudaDeviceSynchronize());
 
-        if (s % outputPeriod == 0)
+        if (s % outputPeriod == 0) {
             // Copy particle positions back to CPU
+	    gpuErrchk(cudaDeviceSynchronize());
             gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+	}
         if (imd_on && clientsock && s % outputPeriod == 0)
         {
+	    gpuErrchk(cudaDeviceSynchronize());
             float* coords = new float[num*3]; // TODO: move allocation out of run loop
             int* atomIds = new int[num]; // TODO: move allocation out of run loop
             int length;
@@ -794,7 +791,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         #pragma omp parallel for
         for(int i = 0; i < numReplicas; ++i) 
             RBC[i]->clearForceAndTorque();
-        gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+        gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
         if (interparticleForce)
         {
             // 'tabulatedPotential' - determines whether interaction is described with tabulated potentials or formulas
@@ -852,7 +849,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
             }
         }
-        gpuErrchk(cudaDeviceSynchronize());
         //compute the force for rigid bodies
         #ifdef _OPENMP
         omp_set_num_threads(4);
@@ -861,7 +857,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
         for(int i = 0; i < numReplicas; ++i)
             RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                  RigidBodyInterpolationType, sys, sys_d);
-        gpuErrchk(cudaDeviceSynchronize());
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), 
@@ -1229,10 +1224,9 @@ void GrandBrownTown::run() {
                     RBC.SetRandomTorques();
                     RBC.AddLangevin();
                 }
-
+		gpuErrchk(cudaDeviceSynchronize());
             }//if step == 1
 
-            gpuErrchk(cudaDeviceSynchronize());
           
 	    //Han-Yi Chou
             //update the rigid body positions and orientation
@@ -1255,11 +1249,12 @@ void GrandBrownTown::run() {
             else
                 RBC.integrate(s);
 
-            gpuErrchk(cudaDeviceSynchronize());
 
-            if (s % outputPeriod == 0)
+            if (s % outputPeriod == 0) {
                 // Copy particle positions back to CPU
+		gpuErrchk(cudaDeviceSynchronize());
                 gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+	    }
 
             //compute again the new force with new positions.
             //reset the internal force, I hope. Han-Yi Chou
@@ -1394,13 +1389,12 @@ void GrandBrownTown::run() {
                     }
                 }
             }
-            gpuErrchk(cudaDeviceSynchronize());
 
             //compute the force for rigid bodies
             RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, RigidBodyInterpolationType);
             //Han-Yi Chou
             //For BAOAB, the last update is only to update the momentum
-            gpuErrchk(cudaDeviceSynchronize());
+            // gpuErrchk(cudaDeviceSynchronize());
 
             if(particle_dynamic == String("Langevin"))
                 LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
@@ -1414,13 +1408,12 @@ void GrandBrownTown::run() {
                RBC.integrateDLM(2);
                RBC.print(s);
            }
-
-           gpuErrchk(cudaDeviceSynchronize());
  
            if (s % outputPeriod == 0) 
            {
                 if(particle_dynamic == String("Langevin"))
                 {
+		    // TODO: make async
                     gpuErrchk(cudaMemcpy(momentum, internal ->  getMom_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
                     /*
                     gpuErrchk(cudaMemcpy(force, force_d, sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
@@ -1708,6 +1701,7 @@ void GrandBrownTown::newCurrent(int repID) const {
 // -----------------------------------------------------------------------------
 // Record the ionic current flowing through the entire system
 void GrandBrownTown::writeCurrent(int repID, float t) const {
+    return;
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	fprintf(out, "%.10g %.10g %d\n", 0.5f*(t+timeLast), current(t), num);
 	fclose(out);
@@ -1717,6 +1711,7 @@ void GrandBrownTown::writeCurrent(int repID, float t) const {
 // -----------------------------------------------------------------------------
 // Record the ionic current in a segment -segZ < z < segZ
 void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
+    return;
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	int i;
 	fprintf(out, "%.10g ", 0.5f * (t + timeLast));
