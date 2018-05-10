@@ -774,7 +774,6 @@ RigidBodyForcePair::~RigidBodyForcePair() {
 			gpuErrchk(cudaFree( forces_d[i] ));	
 			gpuErrchk(cudaFree( torques_d[i] ));
 		}
-		gpuErrchk(cudaDeviceSynchronize());
 	}
 	streamID.clear();
 	numBlocks.clear();

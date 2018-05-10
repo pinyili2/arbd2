@@ -25,6 +25,7 @@
 #include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
 #include "TabulatedDihedral.h"
+#include "GPUManager.h"
 
 #include <cstdio>
 // #include <cuda_runtime.h>
@@ -152,6 +153,8 @@ public:
 	static EnergyForce softcoreForce(Vector3 r, float eps, float rad6);
 
 private:
+	static GPUManager gpuman;
+
 	// Configuration* c;
 	int numReplicas;
 	int num;
