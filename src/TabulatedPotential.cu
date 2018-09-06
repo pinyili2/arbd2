@@ -57,7 +57,7 @@ TabulatedPotential::TabulatedPotential(const char* fileName) : fileName(fileName
 		
 		delete[] tokenList;
 	}
-	
+	fclose(inp);
 	init(r, v, count);
 	interpolate();
 	delete[] r;
