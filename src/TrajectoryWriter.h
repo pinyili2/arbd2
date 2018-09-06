@@ -214,11 +214,13 @@ public:
   }
 
   void newDcd(const Vector3* pos, const String* name) const {
+    /*  
     // Write a new pdb to store the atom names and such.
     char pdbFile[128];
     sprintf(pdbFile, "%s.pdb", fileName.val());
     newPdb(pdbFile, pos, name);
-    
+    */
+
     // Write first frame.
     appendDcd(pos);
   }
