@@ -34,9 +34,15 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
         {
 		std::stringstream curr_file, restart_file, out_prefix;
 
-		curr_file << outArg << '.' << i << ".curr";
-		restart_file   << outArg << '.' << i << ".restart";
-		out_prefix << outArg << '.' << i;
+		if (numReplicas > 1) {
+		    curr_file << outArg << '.' << i << ".curr";
+		    restart_file   << outArg << '.' << i << ".restart";
+		    out_prefix << outArg << '.' << i;
+		} else {
+		    curr_file << outArg << ".curr";
+		    restart_file   << outArg << ".restart";
+		    out_prefix << outArg;
+		}
 
                 outCurrFiles.push_back(curr_file.str());
                 restartFiles.push_back(restart_file.str());
