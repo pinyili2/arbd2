@@ -457,7 +457,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
     // Open the files for recording ionic currents
     for (int repID = 0; repID < numReplicas; ++repID) 
     {
-        newCurrent(repID);
+
         writers[repID]->newFile(pos + (repID * num), name, 0.0f, num); // 'pos + (repID*num)' == array-to-pointer decay
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             momentum_writers[repID]->newFile((momentum + repID * num), name, 0.0f, num); // 'pos + (repID*num)' == array-to-pointer decay
@@ -771,11 +771,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
             // Loop over all replicas
             for (int repID = 0; repID < numReplicas; ++repID)
             {
-                // *Analysis*: ionic current
-                if (currentSegmentZ <= 0.0f)
-                    writeCurrent(repID, t);
-                else
-                    writeCurrentSegment(repID, t, currentSegmentZ);
 
                 if (numberFluct == 1)
                     updateNameList(); // no need for it here if particles stay the same
@@ -888,7 +883,6 @@ void GrandBrownTown::run() {
 	
 	// Open the files for recording ionic currents
 	for (int repID = 0; repID < numReplicas; ++repID) {
-		newCurrent(repID);
 		writers[repID]->newFile(pos + (repID * num), name, 0.0f, num); // 'pos + (repID*num)' == array-to-pointer decay
 	}
         //Han-Yi Chou
@@ -1272,11 +1266,6 @@ void GrandBrownTown::run() {
 		// Loop over all replicas
 		for (int repID = 0; repID < numReplicas; ++repID) 
                 {
-		    // *Analysis*: ionic current
-		    if (currentSegmentZ <= 0.0f) 
-                        writeCurrent(repID, t);
-		    else 
-                        writeCurrentSegment(repID, t, currentSegmentZ);
 
                     if (numberFluct == 1) 
                         updateNameList(); // no need for it here if particles stay the same
@@ -1536,9 +1525,11 @@ void GrandBrownTown::newCurrent(int repID) const {
 // Record the ionic current flowing through the entire system
 void GrandBrownTown::writeCurrent(int repID, float t) const {
     return;
+/*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	fprintf(out, "%.10g %.10g %d\n", 0.5f*(t+timeLast), current(t), num);
 	fclose(out);
+*/
 }
 
 
@@ -1546,6 +1537,7 @@ void GrandBrownTown::writeCurrent(int repID, float t) const {
 // Record the ionic current in a segment -segZ < z < segZ
 void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
     return;
+/*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	int i;
 	fprintf(out, "%.10g ", 0.5f * (t + timeLast));
@@ -1553,6 +1545,7 @@ void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
 		fprintf(out, "%.10g ", currentSegment(t,segZ,i));
 	fprintf(out, "%d\n", num);
 	fclose(out);
+*/
 }
 
 

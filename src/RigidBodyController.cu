@@ -605,6 +605,7 @@ void RigidBodyForcePair::processGPUForces() {
 
 void RigidBodyController::print(int step) {
 	// modeled after outputExtendedData() in Controller.C
+    if (conf.numRigidTypes <= 0) return;
 	if ( step >= 0 ) {
 		// Write RIGID BODY trajectory file
 		if ( step % conf.outputPeriod == 0 ) {
