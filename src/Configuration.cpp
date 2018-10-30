@@ -36,6 +36,9 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
     // Read them from the restart file.
 	    // printf("restart file.\n");
 		num = countRestart(restartCoordinates.val());
+		if (copyReplicaCoordinates <= 0) {
+		    num /= simNum;
+		}
   } else {
     if (readPartsFromFile) readAtoms();
     if (numPartsFromFile > 0) {
