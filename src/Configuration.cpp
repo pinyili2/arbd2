@@ -1107,9 +1107,16 @@ void Configuration::readAtoms() {
 		// Legitimate ATOM input lines have 6 tokens: 
 		// ATOM | Index | Name | X-coord | Y-coord | Z-coord
 		// A line without exactly six tokens should be discarded.
-		if (numTokens != 6) {
-			printf("Warning: Invalid particle file line: %s\n", line);
-			return;
+                if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin")) {
+		    if (numTokens != 9) {
+			printf("Error: Invalid particle file line: %s\n", line);
+			exit(-1);
+		    }
+		} else {
+		    if (numTokens != 6) {
+			printf("Error: Invalid particle file line: %s\n", line);
+			exit(-1);
+		    }
 		}
 
 		// Ensure that this particle's type was defined in the config file.
