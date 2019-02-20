@@ -552,7 +552,8 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s) {
 void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
 	// i: grid ID (less than numGrids)
 	const cudaStream_t &s = gpuman.stream[streamID[i]];
-	const int nb = numBlocks[i];
+	// const int nb = numBlocks[i];
+	const int nb = 1;
 
 	gpuErrchk(cudaMemcpyAsync(forces[i], forces_d[i], sizeof(Vector3)*nb,
 														cudaMemcpyDeviceToHost, s));
@@ -567,7 +568,8 @@ void RigidBodyForcePair::processGPUForces() {
 	Vector3 t = Vector3(0.0f);
 
 	for (int i = 0; i < numGrids; i++) {
-		const int nb = numBlocks[i];
+	    // const int nb = numBlocks[i];
+	    const int nb = 1;
 
 		Vector3 tmpF = Vector3(0.0f);
 		Vector3 tmpT = Vector3(0.0f);
@@ -714,11 +716,12 @@ int RigidBodyForcePair::initialize() {
 	for (int i = 0; i < numGrids; i++) {
 		const int k1 = gridKeyId1[i];
 		const int sz = type1->rawDensityGrids[k1].getSize();
-		const int nb = sz / NUMTHREADS + ((sz % NUMTHREADS == 0) ? 0:1 );
+		int nb = sz / NUMTHREADS + ((sz % NUMTHREADS == 0) ? 0:1 );
 		streamID.push_back( nextStreamID % NUMSTREAMS );
 		nextStreamID++;
 
 		numBlocks.push_back(nb);
+		nb = 1;
 		forces.push_back( new Vector3[nb] );
 		torques.push_back( new Vector3[nb] );
 

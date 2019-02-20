@@ -59,8 +59,8 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	}
 
 	if (tid == 0) {
-		retForce[blockIdx.x] = force[0];
-		retTorque[blockIdx.x] = torque[0];
+		atomicAdd( retForce, force[0] ); // apply force to particle
+		atomicAdd( retTorque, torque[0] ); // apply force to particle
 	}
 }
 
