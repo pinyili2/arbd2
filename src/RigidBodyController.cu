@@ -322,7 +322,6 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 		/* 	gpuErrchk(cudaStreamSynchronize( s ));  */
 		/* } */
 		gpuErrchk(cudaDeviceSynchronize());
-
 		for (int i=0; i < forcePairs.size(); i++)
 			if (forcePairs[i].isOverlapping())
 				forcePairs[i].processGPUForces();
@@ -583,6 +582,10 @@ void RigidBodyForcePair::processGPUForces() {
 		//   so here we transform torque to be about rb1
 		Vector3 o2 = getOrigin2(i);
 		tmpT = tmpT - (rb1->getPosition() - o2).cross( tmpF ); 
+
+		// clear forces on GPU
+		gpuErrchk(cudaMemset((void*)(forces_d[i]),0,nb*sizeof(Vector3)));
+		gpuErrchk(cudaMemset((void*)(torques_d[i]),0,nb*sizeof(Vector3)));
 
 		// sum forces and torques
 		f = f + tmpF;
