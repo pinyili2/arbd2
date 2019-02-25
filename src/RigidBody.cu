@@ -280,6 +280,12 @@ Miguel X. Fernandes, José García de la Torre
 //Chris original implementation for Brownian motion
 void RigidBody::integrate(int startFinishAll)
 {
+    // UNITS
+    // Temp: kcal_mol
+    // t->transDamping: (kcal_mol/AA) / (amu AA/ns)
+    // t->mass: amu
+    // diffusion: AA**2/ns
+
     //if (startFinishAll == 1) return;
 
     Matrix3 rot = Matrix3(1); // = *p_rot;
@@ -295,14 +301,14 @@ void RigidBody::integrate(int startFinishAll)
     Vector3 rotDiffusion = Temp / (Vector3::element_mult(t->rotDamping,t->inertia));
 
     Vector3 rando  = getRandomGaussVector();
-    Vector3 offset = Vector3::element_mult( (diffusion / Temp), force ) * timestep  * 418.679994353 +
-                     Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep * 418.679994353), rando) ;
+    Vector3 offset = Vector3::element_mult( (diffusion / Temp), force ) * timestep +
+                     Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep), rando) ;
 
     position += offset;
 
     rando = getRandomGaussVector();
-    Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) * 418.679994353 +
-                             Vector3::element_mult( Vector3::element_sqrt( 2.0f * rotDiffusion * timestep * 418.679994353), rando );
+    Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) +
+                             Vector3::element_mult( Vector3::element_sqrt( 2.0f * rotDiffusion * timestep), rando );
 
     // Consider whether a DLM-like decomposition of rotations is needed for time-reversibility
     orientation = orientation * (Rz(rotationOffset.z * 0.5) * Ry(rotationOffset.y * 0.5) * Rx(rotationOffset.x)
