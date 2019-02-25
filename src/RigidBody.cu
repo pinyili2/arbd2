@@ -208,13 +208,13 @@ void RigidBody::applyGridParticleForces(Vector3* forcestorques, const std::vecto
 void RigidBody::addLangevin(Vector3 w1, Vector3 w2) 
 {
     Vector3 transForceCoeff = Vector3::element_sqrt( 2. * Temp * t->mass*t->transDamping / timestep );
-    Vector3  rotTorqueCoeff = Vector3::element_sqrt( 2. * Temp * Vector3::element_mult(t->inertia,t->rotDamping) / timestep );
+    Vector3  rotTorqueCoeff = Vector3::element_sqrt( 2. * Temp * Vector3::element_mult( t->inertia,t->rotDamping) / timestep );
 
-    Force f = Vector3::element_mult(transForceCoeff,w1) * 2.046167337 -
-              Vector3::element_mult(t->transDamping, orientation.transpose()*momentum) * 41867.999435; 
+    Force f = Vector3::element_mult(transForceCoeff,w1) -
+              Vector3::element_mult(t->transDamping, orientation.transpose()*momentum) * 10000;
     
-    Force torq = Vector3::element_mult(rotTorqueCoeff,w2) * 2.046167337 -
-                 Vector3::element_mult(t->rotDamping, angularMomentum) * 41867.999435;
+    Force torq = Vector3::element_mult(rotTorqueCoeff,w2) -
+                 Vector3::element_mult(t->rotDamping, angularMomentum) * 10000;
 
     f = orientation * f;
     torq = orientation * torq;
