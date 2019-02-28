@@ -301,10 +301,10 @@ void RigidBody::integrate(int startFinishAll)
     Vector3 rotDiffusion = Temp / (Vector3::element_mult(t->rotDamping,t->inertia));
 
     Vector3 rando  = getRandomGaussVector();
-    Vector3 offset = Vector3::element_mult( (diffusion / Temp), force ) * timestep +
+    Vector3 offset = Vector3::element_mult( (diffusion / Temp), orientation.transpose() * force ) * timestep +
                      Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep), rando) ;
 
-    position += offset;
+    position += orientation*offset;
 
     rando = getRandomGaussVector();
     Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) +
