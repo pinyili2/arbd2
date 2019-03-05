@@ -50,6 +50,8 @@ void RigidBody::init() {
 		    gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n )); // TODO: dynamically allocate memory as needed
 		}
 	    }
+	} else {
+	    numParticles = NULL;
 	}
 }
 
