@@ -335,12 +335,13 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
                         ex_pair = excludeMap[ai -repID * num];
                     }
 
-                    int currEx = ex_pair.x;
-                    int nextEx = (ex_pair.x >= 0) ? excludes[currEx].ind2 : -1;
-
                     //loop over neighbor directions
                     for(int idx = 0; idx < 27; ++idx)
                     {
+
+			int currEx = ex_pair.x;
+			int nextEx = (ex_pair.x >= 0) ? excludes[currEx].ind2 : -1;
+
                         int neighbor_cell = tex1Dfetch(NeighborsTex,idx+27*cellid_i);
 
                         if(neighbor_cell < 0)
