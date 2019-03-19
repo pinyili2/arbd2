@@ -700,11 +700,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 delete[] coords;
                 delete[] atomIds;
         }
+        RBC.clearForceAndTorque();
+
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
-
-        RBC.clearForceAndTorque();
-        gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+	else
+	    gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
         if (interparticleForce)
         {
             // 'tabulatedPotential' - determines whether interaction is described with tabulated potentials or formulas
