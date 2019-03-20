@@ -1814,7 +1814,11 @@ bool Configuration::loadCoordinates(const char* file_name) {
 	char line[STRLEN];
 	FILE* inp = fopen(file_name, "r");
 
-	if (inp == NULL) return false;
+	if (inp == NULL) {
+	    printf("ERROR: Could not open file for reading: %s\n", file_name);
+	    exit(-1);
+	    return false;
+	}
 
 	int count = 0;
 	while (fgets(line, STRLEN, inp) != NULL) {
