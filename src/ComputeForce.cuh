@@ -702,7 +702,7 @@ void computeKernel(Vector3 force[], Vector3 pos[], int type[],
 					int typej = -1;
 					for (int n = range.first; n < range.last; ++n) {
 						const int j = pairs[n].particle;
-						if (j < 0)
+//						if (j < 0)
 //							printf("%d -> pairs[%d].particle %d\n", i, n, j);
 						if (j == i) continue;
 						const int newj = type[j];
