@@ -305,7 +305,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 	if ( (s % conf.rigidBodyGridGridPeriod) == 0 && forcePairs.size() > 0) {
 		for (int i=0; i < forcePairs.size(); i++) {
 			// TODO: performance: make this check occur less frequently
-		    if (forcePairs[i].isWithinPairlistDist()) {
+		    if (forcePairs[i].isOverlapping()) {
 			
 				forcePairs[i].callGridForceKernel(i,s);
 		    }
@@ -324,7 +324,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s) 
 		gpuErrchk(cudaDeviceSynchronize());
 
 		for (int i=0; i < forcePairs.size(); i++)
-			if (forcePairs[i].isWithinPairlistDist())
+			if (forcePairs[i].isOverlapping())
 				forcePairs[i].processGPUForces();
 	}
 }
@@ -452,17 +452,17 @@ void RigidBodyForcePair::createStreams() {
 		gpuErrchk( cudaStreamCreate( &(stream[i]) ) );
 		// gpuErrchk( cudaStreamCreateWithFlags( &(stream[i]) , cudaStreamNonBlocking ) );
 }
-bool RigidBodyForcePair::isWithinPairlistDist() const {
+bool RigidBodyForcePair::isOverlapping() const {
 	if (isPmf) return true;
 	float pairlistDist = 2.0f; /* TODO: get from conf */
 	float rbDist = (rb1->getPosition() - rb2->getPosition()).length();
-		
+
 	for (int i = 0; i < gridKeyId1.size(); ++i) {
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
 		float d1 = type1->densityGrids[k1].getRadius() + type1->densityGrids[k1].getCenter().length();
 		float d2 = type2->potentialGrids[k2].getRadius() + type2->potentialGrids[k2].getCenter().length();
-		if (rbDist < d1+d2+pairlistDist) 
+		if (rbDist < d1+d2)
 			return true;
 	}
 	return false;

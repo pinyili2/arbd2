@@ -46,7 +46,7 @@ public:
 	}	
 	~RigidBodyForcePair();
 
-	bool isWithinPairlistDist() const;	
+	bool isOverlapping() const;
 
 private:
 	int initialize();
