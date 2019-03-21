@@ -9,12 +9,16 @@
 #include "Configuration.h"
 #include "GPUManager.h"
 
+#include "SignalManager.h"
+
 // using namespace std;
 using std::max;
 
 const unsigned int kIMDPort = 71992;
 
 int main(int argc, char* argv[]) {
+    SignalManager::manage_segfault();
+
 	if (argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
 		// --help
 		printf("Usage: %s [OPTIONS [ARGS]] CONFIGFILE OUTPUT [SEED]\n", argv[0]);

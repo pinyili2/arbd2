@@ -21,7 +21,7 @@ else
 	VERSION:=unknown (not compiled in a git repository)
 endif
 endif
-CC_FLAGS += -DVERSION="\"$(VERSION)\""
+CC_FLAGS += -DVERSION="\"$(VERSION)\"" -DSIGNAL
 
 
 CC_FLAGS += -I$(CUDA_PATH)/include
