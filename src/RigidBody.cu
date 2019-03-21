@@ -37,17 +37,19 @@ void RigidBody::init() {
 
 	// Memory allocation for forces between particles and grids 
 	const int& numGrids = t->numPotGrids;
-	numParticles = new int[numGrids];
-	particles_d = new int*[numGrids];
-	particleForceStreams = new const cudaStream_t*[numGrids];
+	if (numGrids > 0) {
+	    numParticles = new int[numGrids];
+	    particles_d = new int*[numGrids];
+	    particleForceStreams = new const cudaStream_t*[numGrids];
 
-	for (int i = 0; i < numGrids; ++i) {
-	    numParticles[i] = -1;
+	    for (int i = 0; i < numGrids; ++i) {
+		numParticles[i] = -1;
 		const int& n = t->numParticles[i];
 		if (n > 0) {
 		    // gpuErrchk(cudaMalloc( &particles_d[i], 0.5*sizeof(int)*n )); // not sure why 0.5 was here; prolly bug
-		        gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n )); // TODO: dynamically allocate memory as needed
+		    gpuErrchk(cudaMalloc( &particles_d[i], sizeof(int)*n )); // TODO: dynamically allocate memory as needed
 		}
+	    }
 	}
 }
 

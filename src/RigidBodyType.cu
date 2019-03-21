@@ -201,21 +201,27 @@ void RigidBodyType::freeGridFromDevice(RigidBodyGrid* ptr_d) {
 
 void RigidBodyType::copyGridsToDevice() {
 	int ng = numDenGrids;
-	rawDensityGrids_d = new RigidBodyGrid*[ng];
-	for (int gid = 0; gid < ng; gid++)
+	if (ng > 0) {
+	    rawDensityGrids_d = new RigidBodyGrid*[ng];
+	    for (int gid = 0; gid < ng; gid++)
 		copyGridToDevice(rawDensityGrids_d[gid], rawDensityGrids[gid]);
+	}
 
 	ng = numPotGrids;
-	rawPotentialGrids_d = new RigidBodyGrid*[ng];
-	for (int gid = 0; gid < ng; gid++)
+	if (ng > 0) {
+	    rawPotentialGrids_d = new RigidBodyGrid*[ng];
+	    for (int gid = 0; gid < ng; gid++)
 		copyGridToDevice(rawPotentialGrids_d[gid], rawPotentialGrids[gid]);
+	}
 
 	ng = numPmfs;
-	rawPmfs_d = new RigidBodyGrid*[ng];
-	for (int gid = 0; gid < ng; gid++) {
+	if (ng > 0) {
+	    rawPmfs_d = new RigidBodyGrid*[ng];
+	    for (int gid = 0; gid < ng; gid++) {
 		//RigidBodyGrid tmp = RigidBodyGrid(rawPmfs[gid]);
 		//copyGridToDevice(rawPmfs_d[gid], &tmp);
 		copyGridToDevice(rawPmfs_d[gid], RigidBodyGrid(rawPmfs[gid]));
+	    }
 	}
 }
 
@@ -257,6 +263,8 @@ void RigidBodyType::updateRaw() {
 void RigidBodyType::initializeParticleLists() {
 	updateRaw();			   
 
+	if (numPotGrids < 1) return;
+
 	numParticles = new int[numPotGrids];
 	particles = new int*[numPotGrids];
 	particles_d = new int*[numPotGrids];
@@ -265,8 +273,9 @@ void RigidBodyType::initializeParticleLists() {
 	for (int i = 0; i < numPotGrids; ++i) {
 		String& gridName = potentialGridKeys[i];
 		numParticles[i] = 0;
-		
-		// Loop over particle types to count the number of particles
+
+		// Count the particles interacting with potential grid i
+		// Loop over particle types
 		for (int j = 0; j < conf->numParts; ++j) {
 			// Loop over rigid body grid names associated with particle type
 			const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
@@ -277,36 +286,40 @@ void RigidBodyType::initializeParticleLists() {
 			}
 		}
 
-		// allocate array of particle ids for the potential grid 
-		particles[i] = new int[numParticles[i]];
-		int pid = 0;
+		if (numParticles[i] > 0) {
+
+		    // allocate array of particle ids for the potential grid 
+		    particles[i] = new int[numParticles[i]];
+		    int pid = 0;
 		
-		// Loop over particle types to count the number of particles
-		for (int j = 0; j < conf->numParts; ++j) {
+		    // Loop over particle types to count the number of particles
+		    for (int j = 0; j < conf->numParts; ++j) {
 
 			// Build temporary id array of type j particles
 			int tmp[conf->numPartsOfType[j]];
 			int currId = 0;
 			for (int aid = 0; aid < conf->num; ++aid) {
-				if (conf->type[aid] == j)
-					tmp[currId++] = aid;
+			    if (conf->type[aid] == j)
+				tmp[currId++] = aid;
 			}
+			if (currId == 0) continue;
 
 			// Loop over rigid body grid names associated with particle type
 			const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
 			for (int k = 0; k < gridNames.size(); ++k) {
-				if (gridNames[k] == gridName) {
-					// Copy type j particles to particles[i]
-					memcpy( &(particles[i][pid]), tmp, sizeof(int)*currId );
-					assert(currId == conf->numPartsOfType[j]);
-					pid += conf->numPartsOfType[j];
-				}
+			    if (gridNames[k] == gridName) {
+				// Copy type j particles to particles[i]
+				memcpy( &(particles[i][pid]), tmp, sizeof(int)*currId );
+				assert(currId == conf->numPartsOfType[j]);
+				pid += conf->numPartsOfType[j];
+			    }
 			}
+		    }
+
+		    // Initialize device data
+		    size_t sz = sizeof(int) * numParticles[i];
+		    gpuErrchk(cudaMalloc( &(particles_d[i]), sz ));
+		    gpuErrchk(cudaMemcpyAsync( particles_d[i], particles[i], sz, cudaMemcpyHostToDevice));
 		}
-	
-		// Initialize device data
-		size_t sz = sizeof(int*) * numParticles[i];
-		gpuErrchk(cudaMalloc( &(particles_d[i]), sz ));
-		gpuErrchk(cudaMemcpyAsync( particles_d[i], particles[i], sz, cudaMemcpyHostToDevice));
 	}
 }
