@@ -96,7 +96,7 @@ private:
 
         //Compute the kinetic energy in general. Han-Yi Chou
         float KineticEnergy();
-        float RotKineticEnergy();
+        //float RotKineticEnergy();
 
         //Initialize the Nose-Hoover auxilliary variables
         void InitNoseHooverBath(int N);
@@ -167,7 +167,7 @@ private:
 	float timeLast; 	// used with posLast
 	float minimumSep; 	// minimum separation allowed with placing new particles
 
-	RigidBodyController RBC;
+	std::vector<RigidBodyController*> RBC;
 	Vector3* rbPos; 		// rigid body positions
 	
 	// CUDA device variables
@@ -269,7 +269,8 @@ private:
         String particle_dynamic;
         String rigidbody_dynamic;
         String particle_langevin_integrator;
-
+        int ParticleInterpolationType;
+        int RigidBodyInterpolationType;
 	void updateNameList();
 
 	void remember(float t);

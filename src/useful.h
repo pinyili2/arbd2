@@ -131,12 +131,12 @@ String operator+(String s1, String s2);
 //
 class MY_ALIGN(16) Vector3 {
 public:
-	HOST DEVICE inline Vector3() : x(0), y(0), z(0) {}
-	HOST DEVICE inline Vector3(float s):x(s), y(s), z(s) {}
-	HOST DEVICE inline Vector3(const Vector3& v):x(v.x), y(v.y), z(v.z) {}
-	HOST DEVICE inline Vector3(float x0, float y0, float z0) : x(x0), y(y0), z(z0) {}
-	HOST DEVICE inline Vector3(const float* d) : x(d[0]), y(d[1]), z(d[2]) {}
-             DEVICE inline Vector3(const float4 a) : x(a.x ), y(a.y ), z(a.z ) {}
+	HOST DEVICE inline Vector3() : x(0), y(0), z(0), w(0) {}
+	HOST DEVICE inline Vector3(float s):x(s), y(s), z(s), w(s) {}
+	HOST DEVICE inline Vector3(const Vector3& v):x(v.x), y(v.y), z(v.z), w(v.w)  {}
+	HOST DEVICE inline Vector3(float x0, float y0, float z0) : x(x0), y(y0), z(z0), w(0) {}
+	HOST DEVICE inline Vector3(const float* d) : x(d[0]), y(d[1]), z(d[2]), w(0) {}
+             DEVICE inline Vector3(const float4 a) : x(a.x ), y(a.y ), z(a.z ), w(a.w) {}
 
 	static Vector3 random(float s);
 
@@ -390,7 +390,9 @@ public:
 	HOST DEVICE
 	Matrix3 inverse() const;
 
-	float det() const;
+        HOST DEVICE
+        float det() const;
+
         //Han-Yi Chou
 	HOST DEVICE inline Matrix3 normalized() const {
                 
@@ -490,4 +492,44 @@ public:
 	int num, maxnum;
 	int* lis;
 };
+
+class ForceEnergy {
+public:
+        HOST DEVICE ForceEnergy() : f(0.f), e(0.f) {};
+	HOST DEVICE ForceEnergy(Vector3 &f, float &e) :
+		f(f), e(e) {};
+        HOST DEVICE explicit ForceEnergy(float e) : f(e), e(e) {};
+        HOST DEVICE ForceEnergy(float f, float e) :
+        f(f), e(e) {};
+        HOST DEVICE ForceEnergy(const ForceEnergy& src)
+        {
+            f = src.f;
+            e = src.e;
+        }
+        HOST DEVICE ForceEnergy& operator=(const ForceEnergy& src)
+        {
+            if(&src != this)
+            {
+                this->f = src.f;
+                this->e = src.e;
+            }
+            return *this;
+        }
+        HOST DEVICE ForceEnergy operator+(const ForceEnergy& src)
+        {
+            ForceEnergy fe;
+            fe.f = this->f + src.f;
+            fe.e = this->e + src.e;
+            return fe;
+        }
+        HOST DEVICE ForceEnergy& operator+=(ForceEnergy& src)
+        {
+            this->f += src.f;
+            this->e += src.e;
+            return *this; 
+        }
+	Vector3 f;
+	float e;
+};
+
 #endif

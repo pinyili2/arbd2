@@ -5,6 +5,16 @@
 #include "BrownParticlesKernel.h"
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
+#include <thrust/device_ptr.h>
+#include <fstream>
+
+#ifdef _OPENMP
+#include <omp.h>
+//#else
+//typedef int omp_int_t;
+//inline omp_int_t omp_get_thread_num() { return 0; }
+//inline omp_int_t omp_get_max_threads() { return 1; }
+#endif
 
 #ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -16,6 +26,16 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 #endif
 
+static void checkEnergyFiles()
+{
+    std::ifstream part_ifile("energy_config.txt");
+    std::ifstream rb_ifile("rb_energy_config.txt");
+    if(part_ifile.good())
+        rename("energy_config.txt","energy_config.txt.BAK");
+    if(rb_ifile.good())
+        rename("rb_energy_config.txt","rb_energy_config.txt.BAK");
+}
+
 bool GrandBrownTown::DEBUG;
 
 cudaEvent_t START, STOP;
@@ -23,11 +43,22 @@ cudaEvent_t START, STOP;
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
 	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
-	conf(c), RBC(RigidBodyController(c,outArg)) {
-        printf("%d\n",__LINE__);
+	//conf(c), RBC(RigidBodyController(c,outArg)) {
+	conf(c){
+
+        RBC.resize(numReplicas);      
+        for(int i = 0; i < numReplicas; ++i)
+        {
+            RigidBodyController* rb = new RigidBodyController(c, outArg, seed, i);
+            RBC[i] = rb;
+        }
+
+        //printf("%d\n",__LINE__);
         //Determine which dynamic. Han-Yi Chou
         particle_dynamic  = c.ParticleDynamicType;
         rigidbody_dynamic = c.RigidBodyDynamicType;
+        ParticleInterpolationType = c.ParticleInterpolationType;
+        RigidBodyInterpolationType = c.RigidBodyInterpolationType;
         //particle_langevin_integrator = c.ParticleLangevinIntegrator;
         printf("%d\n",__LINE__);
 	for (int i = 0; i < numReplicas; ++i) 
@@ -52,8 +83,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
                 if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
                 {
                     std::stringstream restart_file_p, out_momentum_prefix, out_force_prefix;
-                    restart_file_p << outArg << '.' << i << ".momentum.resart";
-                    out_momentum_prefix << outArg << ".momentum." << i;
+                    restart_file_p << outArg << '.' << i << ".momentum.restart";
+                    out_momentum_prefix << outArg << '.' << i << ".momentum";
                     //out_force_prefix << outArg << ".force." << i;
 
                     restartMomentumFiles.push_back(restart_file_p.str());//Han-Yi Chou
@@ -83,7 +114,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
             if(particle_dynamic == String("NoseHooverLangevin"))
                 random = new float[num * numReplicas];
         }
-        printf("%d\n",__LINE__);
+        //printf("%d\n",__LINE__);
         //for debug
         //force = new Vector3[num * numReplicas];
 
@@ -420,7 +451,12 @@ GrandBrownTown::~GrandBrownTown() {
             //curandDestroyGenerator(randoGen->generator);
             delete randoGen;
             gpuErrchk(cudaFree(randoGen_d));
-	
+            for(std::vector<RigidBodyController*>::iterator iter = RBC.begin(); iter != RBC.end(); ++iter)
+            {
+                //(*iter)->~RigidBodyController();
+                delete *iter;
+            }
+            RBC.clear();
 	// Auxillary objects
 	delete internal;
         internal = NULL;
@@ -455,10 +491,6 @@ GrandBrownTown::~GrandBrownTown() {
 //Nose Hoover is now implement for particles.
 void GrandBrownTown::RunNoseHooverLangevin()
 {
-    printf("\n\n");
-    printf("Testing for Nose-Hoover Langevin dynamics\n");
-    Vector3 runningNetForce(0.0f);
-
     //comment this out because this is the origin points Han-Yi Chou
     // Open the files for recording ionic currents
     for (int repID = 0; repID < numReplicas; ++repID) 
@@ -526,7 +558,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
         // cudaSetDevice(0);
         internal->decompose();
         gpuErrchk(cudaDeviceSynchronize());
-        RBC.updateParticleLists( internal->getPos_d() );
+        #ifdef _OPENMP
+        omp_set_num_threads(4);
+        #endif
+        #pragma omp parallel for
+        for(int i = 0; i < numReplicas; ++i)
+            RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+        gpuErrchk(cudaDeviceSynchronize());
     }
 
     float t; // simulation time
@@ -536,8 +574,10 @@ void GrandBrownTown::RunNoseHooverLangevin()
     Vector3 *force_d;
     gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
 
-    printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
+    checkEnergyFiles();
 
+    printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
+    //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
     for (long int s = 1; s < steps; s++)
     {
@@ -547,8 +587,14 @@ void GrandBrownTown::RunNoseHooverLangevin()
         {
             // 'interparticleForce' - determines whether particles interact with each other
             gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
-            RBC.clearForceAndTorque(); //Han-Yi Chou
-
+            gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas));
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for
+            for(int i = 0; i < numReplicas; ++i)
+                RBC[i]->clearForceAndTorque(); //Han-Yi Chou
+            
             if (interparticleForce)
             {
                 if (tabulatedPotential)
@@ -559,8 +605,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             if (s % decompPeriod == 0)
                             {
                                 // cudaSetDevice(0);
-                                internal -> decompose();
-                                RBC.updateParticleLists( internal->getPos_d() );
+                                 internal -> decompose();
+                                #ifdef _OPENMP
+                                omp_set_num_threads(4);
+                                #endif
+                                #pragma omp parallel for
+                                for(int i = 0; i < numReplicas; ++i)
+                                    RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                             }
                             internal -> computeTabulated(get_energy);
                             break;
@@ -579,7 +630,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             {
                                 // cudaSetDevice(0);
                                 internal->decompose();
-                                RBC.updateParticleLists( internal->getPos_d() );
+                                #ifdef _OPENMP
+                                omp_set_num_threads(4);
+                                #endif
+                                #pragma omp parallel for
+                                for(int i = 0; i < numReplicas; ++i)
+                                    RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -598,34 +654,66 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     }
                 }
             }//if inter-particle force
-            RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for
+            for(int i = 0; i < numReplicas; ++i)
+                RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
+                                       RigidBodyInterpolationType, sys, sys_d);
             if(rigidbody_dynamic == String("Langevin"))
             {
-                RBC.SetRandomTorques();
-                RBC.AddLangevin();
+                #ifdef _OPENMP
+                omp_set_num_threads(4);
+                #endif
+                #pragma omp parallel for
+                for(int i = 0; i < numReplicas; ++i)
+                {
+                    RBC[i]->SetRandomTorques();
+                    RBC[i]->AddLangevin();
+                }
             }
         }//if step == 1
 
-        // gpuErrchk(cudaDeviceSynchronize());
-
+        gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas)); // TODO: make async
         if(particle_dynamic == String("Langevin"))
-            updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
+            updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
         else if(particle_dynamic == String("NoseHooverLangevin"))
             //kernel for Nose-Hoover Langevin dynamic
             updateKernelNoseHooverLangevin<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), 
-            internal -> getRan_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
-        //For Brownian motion
+            internal -> getRan_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, 
+            randoGen_d, numReplicas, ParticleInterpolationType);
+        ////For Brownian motion
         else
             updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(),
-                                                       part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
+                                                       part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, 
+                                                       internal->getEnergy(), get_energy, ParticleInterpolationType);
 
         if(rigidbody_dynamic == String("Langevin"))
         {
-            RBC.integrateDLM(0);
-            RBC.integrateDLM(1);
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for
+            for(int i = 0; i < numReplicas; ++i)
+            {
+                RBC[i]->integrateDLM(0);
+                RBC[i]->integrateDLM(1);
+            }
         }
         else
-            RBC.integrate(s);
+	{
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for ordered
+            for(int i = 0; i < numReplicas; ++i)
+            {
+                RBC[i]->integrate(s);
+                #pragma omp ordered
+                RBC[i]->print(s);
+            }
+        }
 
         if (s % outputPeriod == 0) {
             // Copy particle positions back to CPU
@@ -700,12 +788,19 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 delete[] coords;
                 delete[] atomIds;
         }
-        RBC.clearForceAndTorque();
 
+        #ifdef _OPENMP
+        omp_set_num_threads(4);
+        #endif
+        #pragma omp parallel for
+        for(int i = 0; i < numReplicas; ++i) 
+            RBC[i]->clearForceAndTorque();
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
-	else
-	    gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+	else {
+            gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+    	}
+
         if (interparticleForce)
         {
             // 'tabulatedPotential' - determines whether interaction is described with tabulated potentials or formulas
@@ -717,7 +812,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                         if (s % decompPeriod == 0)
                         {
                             internal -> decompose();
-                            RBC.updateParticleLists( internal->getPos_d() );
+                            #ifdef _OPENMP
+                            omp_set_num_threads(4);
+                            #endif
+                            #pragma omp parallel for
+                            for(int i = 0; i < numReplicas; ++i)
+                                RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                         }
                         internal -> computeTabulated(get_energy);
                         break;
@@ -735,7 +835,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             if (s % decompPeriod == 0)
                             {
                                internal->decompose();
-                               RBC.updateParticleLists( internal->getPos_d() );
+                               #ifdef _OPENMP
+                               omp_set_num_threads(4);
+                               #endif
+                               #pragma omp parallel for
+                               for(int i = 0; i < numReplicas; ++i)
+                                   RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -754,18 +859,34 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }
         //compute the force for rigid bodies
-        RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
+        #ifdef _OPENMP
+        omp_set_num_threads(4);
+        #endif
+        #pragma omp parallel for
+        for(int i = 0; i < numReplicas; ++i)
+            RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
+                                 RigidBodyInterpolationType, sys, sys_d);
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
-            LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
+            LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), 
+            internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, internal->getEnergy(), get_energy, 
+            ParticleInterpolationType);
             //gpuErrchk(cudaDeviceSynchronize());
 
         if(rigidbody_dynamic == String("Langevin"))
         {
-            RBC.SetRandomTorques();
-            RBC.AddLangevin();
-            RBC.integrateDLM(2);
-            RBC.print(s);
+            #ifdef _OPENMP
+            omp_set_num_threads(4);
+            #endif
+            #pragma omp parallel for ordered
+            for(int i = 0; i < numReplicas; ++i)
+            {
+                RBC[i]->SetRandomTorques();
+                RBC[i]->AddLangevin();
+                RBC[i]->integrateDLM(2);
+                #pragma omp ordered
+                RBC[i]->print(s);
+            }
         }
 
         if (s % outputPeriod == 0)
@@ -802,7 +923,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 wkf_timer_stop(timerS);
                 t = s * timestep;
                 // Simulation progress and statistics.
-                                   float percent = (100.0f * s) / steps;
+                float percent = (100.0f * s) / steps;
                 float msPerStep = wkf_timer_time(timerS) * 1000.0f / outputEnergyPeriod;
                 float nsPerDay = numReplicas * timestep / msPerStep * 864E5f;
 
@@ -811,21 +932,68 @@ void GrandBrownTown::RunNoseHooverLangevin()
 
                 // Do the output
                 printf("\rStep %ld [%.2f%% complete | %.3f ms/step | %.3f ns/day]",s, percent, msPerStep, nsPerDay);
+        //}
+        //if (get_energy)
+        //{
 
                 // Copy positions from GPU to CPU.
-                gpuErrchk(cudaMemcpy(pos, internal->getPos_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
+                //gpuErrchk(cudaMemcpy(pos, internal->getPos_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
+                float e = 0.f;
+                float V = 0.f;
+                thrust::device_ptr<float> en_d(internal->getEnergy());
+                V = (thrust::reduce(en_d, en_d+num*numReplicas)) / numReplicas;
                 if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
                 {
-                    //gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
                     gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
-                    float e = KineticEnergy();
-                    printf(" The kinetic energy is %f \n",e*(2.388458509e-1));
+                    e = KineticEnergy();
+                }   
+                std::fstream energy_file;
+                energy_file.open("energy_config.txt", std::fstream::out | std::fstream::app);
+                if(energy_file.is_open())
+                {
+                    energy_file << "Kinetic Energy: " << e*num*0.5f*(2.388458509e-1) << " (kT) "<< std::endl;
+                    energy_file << "Potential Energy: " << V << " (kcal/mol) " << std::endl;
+                    energy_file.close();
                 }
+                else
+                {
+                    std::cout << "Error in opening energ files\n";
+                }
+                
                 if(rigidbody_dynamic == String("Langevin"))
                 {
-                    //gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
-                    float e = RotKineticEnergy();
-                    printf(" The Rotational kinetic energy is %f \n",e*(2.388458509e-1));
+                    #ifdef _OPENMP
+                    omp_set_num_threads(4);
+                    #endif
+                    #pragma omp parallel for
+                    for(int i = 0; i < numReplicas; ++i)
+                        RBC[i]->KineticEnergy();
+                }
+                std::fstream rb_energy_file;
+                rb_energy_file.open("rb_energy_config.txt", std::fstream::out | std::fstream::app);
+                if(rb_energy_file.is_open())
+                {
+                    float k_tol = 0.f;
+                    float v_tol = 0.f;
+                    float (RigidBody::*func_ptr)();
+                    #ifdef _OPENMP
+                    omp_set_num_threads(4);
+                    #endif
+                    #pragma omp parallel for private(func_ptr) reduction(+:k_tol,v_tol)
+                    for(int i = 0; i < numReplicas; ++i)
+                    {
+                        func_ptr = &RigidBody::getKinetic;
+                        k_tol += RBC[i]->getEnergy(func_ptr);
+                        func_ptr = &RigidBody::getEnergy;
+                        v_tol += RBC[i]->getEnergy(func_ptr);
+                    }
+                    rb_energy_file << "Kinetic Energy "   << k_tol/numReplicas << " (kT)" << std::endl;
+                    rb_energy_file << "Potential Energy " << v_tol/numReplicas << " (kcal/mol)" << std::endl;
+                    rb_energy_file.close();
+                }
+                else
+                {
+                    std::cout << "Error in opening rb energy files\n"; 
                 }
 
                 // Write restart files for each replica.
@@ -1053,7 +1221,7 @@ void GrandBrownTown::run() {
 		}//if inter-particle force
 
 	        gpuErrchk(cudaDeviceSynchronize());
-		RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
+		RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, RigidBodyInterpolationType);
                 if(rigidbody_dynamic == String("Langevin"))
                 {
                     RBC.SetRandomTorques();
@@ -1226,7 +1394,7 @@ void GrandBrownTown::run() {
             }
 
             //compute the force for rigid bodies
-            RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s);
+            RBC.updateForces(internal->getPos_d(), internal->getForceInternal_d(), s, RigidBodyInterpolationType);
             //Han-Yi Chou
             //For BAOAB, the last update is only to update the momentum
             // gpuErrchk(cudaDeviceSynchronize());
@@ -1429,7 +1597,7 @@ void GrandBrownTown::writeRestart(int repID) const
    
 }
 
-
+/*the center is defined by the first pmf*/
 void GrandBrownTown::initialCondCen() {
 	for (int i = 0; i < num; i++)
 		pos[i] = part[ type[i] ].pmf->getCenter();
@@ -1448,6 +1616,7 @@ void GrandBrownTown::initialCond() {
 
 // A couple old routines for getting particle positions.
 Vector3 GrandBrownTown::findPos(int typ) {
+    // TODO: sum over grids
 	Vector3 r;
 	const BrownianParticleType& pt = part[typ];
 	do {
@@ -1455,7 +1624,7 @@ Vector3 GrandBrownTown::findPos(int typ) {
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
-	} while (pt.pmf->interpolatePotential(r) > pt.meanPmf);
+	} while (pt.pmf->interpolatePotential(r) > *pt.meanPmf);
 	return r;
 }
 
@@ -1468,7 +1637,7 @@ Vector3 GrandBrownTown::findPos(int typ, float minZ) {
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
-	} while (pt.pmf->interpolatePotential(r) > pt.meanPmf and fabs(r.z) > minZ);
+	} while (pt.pmf->interpolatePotential(r) > *pt.meanPmf and fabs(r.z) > minZ);
 	return r;
 }
 
@@ -1494,14 +1663,14 @@ float GrandBrownTown::KineticEnergy()
 
     return 2. * particle_energy / kT / num / numReplicas; //In the unit of 0.5kT
 }
-
-float GrandBrownTown::RotKineticEnergy()
+/*
+void GrandBrownTown::RotKineticEnergy()
 {
-    float e = RBC.KineticEnergy();
+    RBC.KineticEnergy();
 
     return 2. * e / numReplicas / kT; //In the unit of 0.5kT
 }
-
+*/
 void GrandBrownTown::InitNoseHooverBath(int N)
 {
     printf("Entering Nose-Hoover Langevin\n");
@@ -1523,8 +1692,10 @@ void GrandBrownTown::InitNoseHooverBath(int N)
 // -----------------------------------------------------------------------------
 // Initialize file for recording ionic current
 void GrandBrownTown::newCurrent(int repID) const {
+    /*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "w");
 	fclose(out);
+    */
 }
 
 
@@ -1532,11 +1703,11 @@ void GrandBrownTown::newCurrent(int repID) const {
 // Record the ionic current flowing through the entire system
 void GrandBrownTown::writeCurrent(int repID, float t) const {
     return;
-/*
+    /*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	fprintf(out, "%.10g %.10g %d\n", 0.5f*(t+timeLast), current(t), num);
 	fclose(out);
-*/
+    */
 }
 
 
@@ -1544,7 +1715,7 @@ void GrandBrownTown::writeCurrent(int repID, float t) const {
 // Record the ionic current in a segment -segZ < z < segZ
 void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
     return;
-/*
+    /*
 	FILE* out = fopen(outCurrFiles[repID].c_str(), "a");
 	int i;
 	fprintf(out, "%.10g ", 0.5f * (t + timeLast));
@@ -1552,7 +1723,7 @@ void GrandBrownTown::writeCurrentSegment(int repID, float t, float segZ) const {
 		fprintf(out, "%.10g ", currentSegment(t,segZ,i));
 	fprintf(out, "%d\n", num);
 	fclose(out);
-*/
+    */
 }
 
 

@@ -201,8 +201,11 @@ public:
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
 	bool readRestraintsFromFile;
-	String* partGridFile;
-	float* partGridFileScale;
+	//String* partGridFile;
+	String **partGridFile;
+	//float* partGridFileScale;
+	float **partGridFileScale;
+        //int *numPartGridFiles;
 	std::vector< std::vector<String> > partRigidBodyGrid;
 	String* partDiffusionGridFile;
 	String* partForceXGridFile;
@@ -239,7 +242,8 @@ public:
 	// RigidBody parameters.
 	RigidBodyType* rigidBody;
 	int numRigidTypes;
-
+        int ParticleInterpolationType;
+        int RigidBodyInterpolationType;
 };
 
 #endif

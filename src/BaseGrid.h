@@ -33,14 +33,6 @@ public:
   float v[3][3][3];
 };
 
-class ForceEnergy {
-public:
-	DEVICE ForceEnergy(Vector3 &f, float &e) :
-		f(f), e(e) {};
-	Vector3 f;
-	float e;
-};
-
 class BaseGrid {
   friend class SparseGrid;
  
@@ -875,13 +867,13 @@ public:
 
         //#define cubic
 	DEVICE inline ForceEnergy interpolateForceDLinearlyPeriodic(const Vector3& pos) const {
-                #ifdef cubic
-                return interpolateForceD(pos);
-                #elif defined(cubic_namd)
-                return interpolateForceDnamd(pos);
-                #else
+                //#ifdef cubic
+                //return interpolateForceD(pos);
+                //#elif defined(cubic_namd)
+                //return interpolateForceDnamd(pos);
+                //#else
                 return interpolateForceDLinearly(pos); 
-                #endif
+                //#endif
                 #if 0
  		const Vector3 l = basisInv.transform(pos - origin);
 

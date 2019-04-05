@@ -6,6 +6,10 @@
 #include "Configuration.h"
 #include "ComputeGridGrid.cuh"
 
+#include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
+#include <gsl/gsl_math.h>
+
 #include "Debug.h"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -58,17 +62,24 @@ void RigidBody::init() {
 GPUManager RigidBody::gpuman = GPUManager();
 
 //Boltzmann distribution
-void RigidBody::Boltzmann()
+void RigidBody::Boltzmann(unsigned long int seed)
 {
 
-    Vector3 rando = getRandomGaussVector();
-    momentum = sqrt(t->mass*Temp) * 2.046167135 * rando;
-    rando = getRandomGaussVector();
-    angularMomentum.x = sqrt(t->inertia.x*Temp) * 2.046167135 * rando.x;
-    angularMomentum.y = sqrt(t->inertia.y*Temp) * 2.046167135 * rando.y;
-    angularMomentum.z = sqrt(t->inertia.z*Temp) * 2.046167135 * rando.z;
+    gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
+    //std::srand(time(NULL));
+    gsl_rng_set (gslcpp_rng, seed);
 
+    double sigma[4] = { sqrt(t->mass*Temp) * 2.046167135,sqrt(t->inertia.x*Temp) * 2.046167135, sqrt(t->inertia.y*Temp) * 2.046167135, sqrt(t->inertia.z*Temp) * 2.046167135 };
+
+    //Vector3 rando = getRandomGaussVector();
+    momentum = Vector3(gsl_ran_gaussian(gslcpp_rng,sigma[0]),gsl_ran_gaussian(gslcpp_rng,sigma[0]), gsl_ran_gaussian(gslcpp_rng,sigma[0]));
+
+    angularMomentum.x = gsl_ran_gaussian(gslcpp_rng,sigma[1]);
+    angularMomentum.y = gsl_ran_gaussian(gslcpp_rng,sigma[2]);
+    angularMomentum.z = gsl_ran_gaussian(gslcpp_rng,sigma[3]);
+    printf("%f\n", Temp);
     printf("%f\n", Temperature());
+    gsl_rng_free(gslcpp_rng);
 }
 
 RigidBody::~RigidBody() {
@@ -107,8 +118,11 @@ void RigidBody::addForce(Force f) {
 void RigidBody::addTorque(Force torq) {
 	torque += torq; 
 }
-
-void RigidBody::updateParticleList(Vector3* pos_d) {
+void RigidBody::addEnergy(float e)
+{
+    energy += e;
+}
+void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];
@@ -126,18 +140,19 @@ void RigidBody::updateParticleList(Vector3* pos_d) {
 #if __CUDA_ARCH__ >= 300
 			createPartlist<<<nb,NUMTHREADS>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
-							gridCenter + position, cutoff*cutoff);
+							gridCenter + position, cutoff*cutoff, sys_d);
 #else
 			createPartlist<<<nb,NUMTHREADS,NUMTHREADS/WARPSIZE>>>(pos_d, tnp, t->particles_d[i],
 							tmp_d, particles_d[i],
-							gridCenter + position, cutoff*cutoff);
+							gridCenter + position, cutoff*cutoff, sys_d);
 #endif			
 			gpuErrchk(cudaMemcpy(&numParticles[i], tmp_d, sizeof(int), cudaMemcpyDeviceToHost ));
 			gpuErrchk(cudaFree( tmp_d ));
 		}
 	}
 }
-void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, Vector3* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx) {
+
+void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, ForceEnergy* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx) {
 	// Apply the force and torque on the rigid body, and forces on particles
 	
 	// RBTODO: performance: consolidate CUDA stream management
@@ -162,16 +177,15 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, Ve
 		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
 		Matrix3 B = (getOrientation()*t->potentialGrids[i].getBasis()).inverse();
 		
-		// RBTODO: get energy
 		const int nb = (numParticles[i]/NUMTHREADS)+1;		
-		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(Vector3), stream >>>(
+		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(ForceEnergy), stream >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
 			t->rawPotentialGrids_d[i],
-			B, c, forcestorques_d+forcestorques_offset[fto_idx++]);
+			B, c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
 	}
 }
 
-void RigidBody::applyGridParticleForces(Vector3* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx) {
+void RigidBody::applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx) {
 	// loop over potential grids 
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		if (numParticles[i] <= 0) continue;
@@ -179,18 +193,20 @@ void RigidBody::applyGridParticleForces(Vector3* forcestorques, const std::vecto
 		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
 
 		// Sum and apply forces and torques
-		Vector3 f = Vector3(0.0f);
+		//Vector3 f = Vector3(0.0f);
+		ForceEnergy f = ForceEnergy(0.f,0.f);
 		Vector3 torq = Vector3(0.0f);
 		for (int k = 0; k < nb; ++k) {
 		    int j = forcestorques_offset[fto_idx]+2*k;
-			f = f + forcestorques[j];
-			torq = torq + forcestorques[j+1];
+		    f = f + forcestorques[j];
+		    torq = torq + forcestorques[j+1].f;
 		}
 		++fto_idx;
-
-		torq = -torq + (getPosition()-c).cross( f ); 
-		addForce( -f );
+	        //why the force points are at the origin of the potential?	
+		torq = -torq + (sys->wrapDiff(getPosition()-c)).cross( f.f ); 
+		addForce( -f.f );
 		addTorque( torq );
+                addEnergy( f.e );
 	}
 }
 
@@ -234,6 +250,7 @@ void RigidBody::integrateDLM(int startFinishAll)
 {
     Vector3 trans; // = *p_trans;
     //Matrix3 rot = Matrix3(1); // = *p_rot;
+
     if ( isnan(force.x) || isnan(torque.x) ) 
     {   
         // NaN check
@@ -290,7 +307,7 @@ void RigidBody::integrate(int startFinishAll)
 
     //if (startFinishAll == 1) return;
 
-    Matrix3 rot = Matrix3(1); // = *p_rot;
+    //Matrix3 rot = Matrix3(1); // = *p_rot;
 
     if ( isnan(force.x) || isnan(torque.x) ) 
     {
@@ -324,7 +341,7 @@ float RigidBody::Temperature()
     return (momentum.length2() / t->mass + 
             angularMomentum.x * angularMomentum.x / t->inertia.x + 
             angularMomentum.y * angularMomentum.y / t->inertia.y + 
-            angularMomentum.z * angularMomentum.z / t->inertia.z) * 0.50;
+            angularMomentum.z * angularMomentum.z / t->inertia.z) * 0.50 / Temp * (2.388458509e-1);
 }
 
 void RigidBody::applyRotation(const Matrix3& R) {

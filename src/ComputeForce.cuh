@@ -988,10 +988,14 @@ void computeAngles(Vector3 force[], Vector3 pos[],
 }
 
 // TODO: add kernels for energy calculations
-__global__ void computeTabulatedBonds(Vector3* force,
-				Vector3* __restrict__ pos,
-				BaseGrid* __restrict__ sys,
-				int numBonds, int3* __restrict__ bondList_d, TabulatedPotential** tableBond) {
+//__global__ void computeTabulatedBonds(Vector3* force,
+//				Vector3* __restrict__ pos,
+//				BaseGrid* __restrict__ sys,
+//				int numBonds, int3* __restrict__ bondList_d, TabulatedPotential** tableBond) {
+__global__
+void computeTabulatedBonds(Vector3* force, Vector3* __restrict__ pos, BaseGrid* __restrict__ sys, 
+int numBonds, int3* __restrict__ bondList_d, TabulatedPotential** tableBond, float* energy, bool get_energy)
+{
 	// Loop over ALL bonds in ALL replicas
 	for (int bid = threadIdx.x+blockIdx.x*blockDim.x; bid<numBonds; bid+=blockDim.x*gridDim.x) {
 		// Initialize interaction energy (per particle)
@@ -1004,17 +1008,19 @@ __global__ void computeTabulatedBonds(Vector3* force,
 		// wrapping this value if necessary
 		const Vector3 dr = sys->wrapDiff(pos[j] - pos[i]);
 
-		Vector3 force_local = tableBond[ bondList_d[bid].z ]->computef(dr,dr.length2());
-			
-		atomicAdd( &force[i], force_local );
-		atomicAdd( &force[j], -force_local );
-		
-		// if (get_energy)
-		// {
-		// 	//TODO: clarification on energy computation needed, consider changing.
-		// 	atomicAdd( &g_energies[i], energy_local);
-		// 	//atomicAdd( &g_energies[j], energy_local);
-		// }
+		//Vector3 force_local = tableBond[ bondList_d[bid].z ]->computef(dr,dr.length2());
+	        EnergyForce fe_local = tableBond[ bondList_d[bid].z ]->compute(dr,dr.length2());	
+		//atomicAdd( &force[i], force_local );
+		//atomicAdd( &force[j], -force_local );
+		atomicAdd( &force[i], fe_local.f );
+                atomicAdd( &force[j], -fe_local.f );
+
+		if (get_energy)
+		{
+		 	//TODO: clarification on energy computation needed, consider changing.
+		 	atomicAdd( &energy[i], fe_local.e*0.5f);
+		        atomicAdd( &energy[j], fe_local.e*0.5f);
+		}
 	}
 }
 
@@ -1022,11 +1028,11 @@ __global__
 void computeTabulatedAngles(Vector3* force,
 				Vector3* __restrict__ pos,
 				BaseGrid* __restrict__ sys,
-				int numAngles, int4* __restrict__ angleList_d, TabulatedAnglePotential** tableAngle) {
+				int numAngles, int4* __restrict__ angleList_d, TabulatedAnglePotential** tableAngle, float* energy, bool get_energy) {
 	// Loop over ALL angles in ALL replicas
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numAngles; i+=blockDim.x*gridDim.x) {
 		int4& ids = angleList_d[i];
-		computeAngle(tableAngle[ ids.w ], sys, force, pos, ids.x, ids.y, ids.z);
+		computeAngle(tableAngle[ ids.w ], sys, force, pos, ids.x, ids.y, ids.z, energy, get_energy);
 	// if (get_energy)
 	// {
 	//     //TODO: clarification on energy computation needed, consider changing.
@@ -1129,7 +1135,7 @@ __global__
 void computeTabulatedDihedrals(Vector3* force, const Vector3* __restrict__ pos,
 			       const BaseGrid* __restrict__ sys,
 			       int numDihedrals, const int4* const __restrict__ dihedralList_d,
-			       const int* __restrict__ dihedralPotList_d, TabulatedDihedralPotential** tableDihedral) {
+			       const int* __restrict__ dihedralPotList_d, TabulatedDihedralPotential** tableDihedral, float* energy, bool get_energy) {
 
 	// int currDihedral = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
 
@@ -1137,7 +1143,7 @@ void computeTabulatedDihedrals(Vector3* force, const Vector3* __restrict__ pos,
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numDihedrals; i+=blockDim.x*gridDim.x) {
 		const int4& ids = dihedralList_d[i];
 		const int& id = dihedralPotList_d[i];
-		computeDihedral(tableDihedral[ id ], sys, force, pos, ids.x, ids.y, ids.z, ids.w);
+		computeDihedral(tableDihedral[ id ], sys, force, pos, ids.x, ids.y, ids.z, ids.w, energy, get_energy);
 
 	// if (get_energy)
 	// {

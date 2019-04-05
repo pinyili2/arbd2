@@ -243,13 +243,13 @@ DEVICE ForceEnergy RigidBodyGrid::interpolateForceD(const Vector3 l) const {
 	
 	return ForceEnergy(f,e);
 }
-#define cubic
+//#define cubic
 DEVICE ForceEnergy RigidBodyGrid::interpolateForceDLinearly(const Vector3& l) const {
-#ifdef cubic
-return interpolateForceD(l);
-#elif defined(cubic_namd)
-return interpolateForceDnamd(l);
-#else
+//#ifdef cubic
+//return interpolateForceD(l);
+//#elif defined(cubic_namd)
+//return interpolateForceDnamd(l);
+//#else
 	// Find the home node.
 	const int homeX = int(floor(l.x));
 	const int homeY = int(floor(l.y));
@@ -293,7 +293,7 @@ return interpolateForceDnamd(l);
 	f.z = -      (g3[2][1] - g3[2][0]);
 	float e = wz * (g3[2][1] - g3[2][0]) + g3[2][0];
 	return ForceEnergy(f,e);
-#endif
+//#endif
 }
 DEVICE ForceEnergy RigidBodyGrid::interpolateForceDnamd(const Vector3& l) const
 {

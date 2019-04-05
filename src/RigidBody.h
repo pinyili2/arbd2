@@ -19,8 +19,7 @@
 #include "RigidBodyController.h"
 
 class Configuration;
-
-
+class BaseGrid;
 typedef float BigReal;					/* strip this out later */
 typedef Vector3 Force;
 
@@ -43,9 +42,11 @@ class RigidBody { // host side representation of rigid bodies
 
 	HOST DEVICE void addForce(Force f); 
 	HOST DEVICE void addTorque(Force t);
+        HOST DEVICE void addEnergy(float e);
 	HOST DEVICE void addLangevin(Vector3 w1, Vector3 w2);
-	
-	HOST DEVICE inline void clearForce() { force = Force(0.0f); }
+        HOST inline void setKinetic(float e) { kinetic = e; };	
+	HOST DEVICE inline void clearForce() { force = Force(0.0f); energy = 0.f;}
+	//HOST DEVICE inline void clearForce() { force = ForceEnergy(0.f, 0.f); }
 	HOST DEVICE inline void clearTorque() { torque = Force(0.0f); }
 
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
@@ -64,6 +65,8 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE inline BigReal getMass() const { return t->mass; }
 	//HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
 	HOST DEVICE inline Vector3 getVelocity() const { return momentum; }
+        HOST float getEnergy() { return energy; }
+        HOST float getKinetic(){ return kinetic; }
 	//HOST DEVICE inline Vector3 getAngularVelocity() const { 
 	//	return Vector3( angularMomentum.x / t->inertia.x,
 	//								 angularMomentum.y / t->inertia.y,
@@ -73,9 +76,9 @@ class RigidBody { // host side representation of rigid bodies
               return Vector3( angularMomentum.x, angularMomentum.y, angularMomentum.z);
         }
 
-	void updateParticleList(Vector3* pos_d);
-	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, Vector3* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx);
-	void applyGridParticleForces(Vector3* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx);
+	void updateParticleList(Vector3* pos_d, BaseGrid* sys_d);
+	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, ForceEnergy* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx);
+	void applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx);
 	
 	bool langevin;
 	Vector3 torque; // lab frame (except in integrate())
@@ -114,7 +117,8 @@ private:
 	const RigidBodyType* t;
 	float timestep;					
 	Vector3 force;  // lab frame
-
+        float energy; //potential energy
+        float kinetic; 
 	bool isFirstStep; 
 	
 	int* numParticles;		  /* particles affected by potential grids */
@@ -132,6 +136,6 @@ private:
 	HOST DEVICE inline Matrix3 Rz(BigReal t);
 	HOST DEVICE inline Matrix3 eulerToMatrix(const Vector3 e);
         float Temperature();
-        void  Boltzmann();
+        void  Boltzmann(unsigned long int);
 };
 

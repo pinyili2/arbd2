@@ -125,9 +125,12 @@ public:
 	HOST DEVICE
 	inline int getCellID(const Vector3 &r0) const {
 		const Vector3 r = r0 - origin;
-		const int x = int(r.x / cutoff);
-		const int y = int(r.y / cutoff);
-		const int z = int(r.z / cutoff);
+		//const int x = int(r.x / cutoff);
+		//const int y = int(r.y / cutoff);
+		//const int z = int(r.z / cutoff);
+		const int x = floorf(r.x / cutoff);
+                const int y = floorf(r.y / cutoff);
+                const int z = floorf(r.z / cutoff);
 		return getCellID(x, y, z, nCells);
 	}
 
@@ -135,9 +138,12 @@ public:
 	static inline int getCellID(const Vector3& r0, const Vector3& origin,
 															float cutoff, int3 nCells) {
 		const Vector3 r = r0 - origin;
-		const int x = int(r.x / cutoff);
-		const int y = int(r.y / cutoff);
-		const int z = int(r.z / cutoff);
+		//const int x = int(r.x / cutoff);
+		//const int y = int(r.y / cutoff);
+		//const int z = int(r.z / cutoff);
+		const int x = floorf(r.x / cutoff);
+                const int y = floorf(r.y / cutoff);
+                const int z = floorf(r.z / cutoff);
 		return getCellID(x, y, z, nCells);
 	}
 

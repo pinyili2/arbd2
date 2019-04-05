@@ -2,25 +2,24 @@
 #include "ComputeGridGrid.cuh"
 #include "RigidBodyGrid.h"
 #include "CudaUtil.cuh"
-
 //RBTODO handle periodic boundaries
 //RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
 __global__
-void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
-													const Matrix3 basis_rho, const Matrix3 basis_u_inv,
-													const Vector3 origin_rho_minus_origin_u,
-													Vector3 * retForce, Vector3 * retTorque) {
+void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_origin_u,
+			ForceEnergy* retForce, Vector3 * retTorque, int scheme, BaseGrid* sys_d) 
+{
 
-	extern __shared__ Vector3 s[];
-	Vector3 *force = s;
-	Vector3 *torque = &s[NUMTHREADS];
+	extern __shared__ ForceEnergy s[];
+	ForceEnergy *force = s;
+	//Vector3 *torque = &s[NUMTHREADS];
+        ForceEnergy *torque = &s[NUMTHREADS];
 
   // RBTODO: http://devblogs.nvidia.com/parallelforall/cuda-pro-tip-write-flexible-kernels-grid-stride-loops
 	const int tid = threadIdx.x;
 	const int r_id = blockIdx.x * blockDim.x + threadIdx.x;
 
-	force[tid] = Vector3(0.0f);
-	torque[tid] = Vector3(0.0f);
+	force[tid] = ForceEnergy(0.f,0.f);
+	torque[tid] = ForceEnergy(0.f,0.f);
 	if (r_id < rho->getSize()) { // skip threads with nothing to do
 		// RBTODO: reduce registers used;
 		//   commenting out interpolateForceD still uses ~40 registers
@@ -28,20 +27,27 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 		Vector3 r_pos= rho->getPosition(r_id); /* i,j,k value of voxel */
 
 		r_pos = basis_rho.transform( r_pos ) + origin_rho_minus_origin_u; /* real space */
+                r_pos = sys_d->wrapDiff(r_pos); /* TODO: wrap about center of RB, not origin of u */
 		const Vector3 u_ijk_float = basis_u_inv.transform( r_pos );
-
 		// RBTODO: Test for non-unit delta
 		/* Vector3 tmpf  = Vector3(0.0f); */
 		/* float tmpe = 0.0f; */
 		/* const ForceEnergy fe = ForceEnergy( tmpf, tmpe); */
-		const ForceEnergy fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
-		force[tid] = fe.f;
-		
-		const float r_val = rho->val[r_id]; /* maybe move to beginning of function?  */
-		force[tid] = basis_u_inv.transpose().transform( r_val*force[tid] ); /* transform to lab frame, with correct scaling factor */
 
+                ForceEnergy fe;
+                if(!scheme)
+		    fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
+                else
+                    fe = u->interpolateForceD( u_ijk_float );
+
+		force[tid] = fe;
+                //force[tid].e = fe.e;
+
+		const float r_val = rho->val[r_id]; /* maybe move to beginning of function?  */
+		force[tid].f = basis_u_inv.transpose().transform( r_val*(force[tid].f) ); /* transform to lab frame, with correct scaling factor */
+                force[tid].e = r_val;
 		// Calculate torque about origin_u in the lab frame
-		torque[tid] = r_pos.cross(force[tid]);
+		torque[tid].f = r_pos.cross(force[tid].f);
 	}
 
 	// Reduce force and torques
@@ -52,6 +58,8 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 	for (int offset = blockDim.x/2; offset > 0; offset >>= 1) {
 		if (tid < offset) {
 			int oid = tid + offset;
+                        //if(get_energy)
+                            //force[tid].e = force[tid].e + force[oid].e;
 			force[tid] = force[tid] + force[oid];
 			torque[tid] = torque[tid] + torque[oid];
 		}
@@ -60,7 +68,7 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u,
 
 	if (tid == 0) {
 		atomicAdd( retForce, force[0] ); // apply force to particle
-		atomicAdd( retTorque, torque[0] ); // apply force to particle
+		atomicAdd( retTorque, torque[0].f ); // apply force to particle
 	}
 }
 
@@ -69,29 +77,39 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 				const int num, const int* __restrict__ particleIds, 
 				const RigidBodyGrid* __restrict__ u,
 				const Matrix3 basis_u_inv, const Vector3 origin_u,
-			  Vector3* __restrict__ retForceTorque) {
+				ForceEnergy* __restrict__ retForceTorque, float* __restrict__ energy, bool get_energy, int scheme, BaseGrid* sys_d) {
 
-	extern __shared__ Vector3 s[];
-	Vector3 *force = s;
-	Vector3 *torque = &s[NUMTHREADS];
+	extern __shared__ ForceEnergy s[];
+	ForceEnergy *force  = s;
+	ForceEnergy *torque = &s[NUMTHREADS];
   	
 	const int tid = threadIdx.x;
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 
-	force[tid] = Vector3(0.0f);
-	torque[tid] = Vector3(0.0f);
+	force[tid]  = ForceEnergy(0.f, 0.f);
+	torque[tid] = ForceEnergy(0.f,0.f);
 	if (i < num) {
-		const int& id = particleIds[i];
-		Vector3 p = pos[id] - origin_u;
+		const int id = particleIds[i];
+		//Vector3 p = pos[id] - origin_u;
+		Vector3 p = sys_d->wrapDiff(pos[id]-origin_u); /* TODO: wrap about RB center, not origin */
 		// TODO: wrap to center of u
 		const Vector3 u_ijk_float = basis_u_inv.transform( p );
-		const ForceEnergy fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
-		force[tid] = fe.f;
-		force[tid] = basis_u_inv.transpose().transform( force[tid] ); /* transform to lab frame */
-		atomicAdd( &particleForce[id], force[tid] ); // apply force to particle
+
+                ForceEnergy fe;
+                if(!scheme)                       
+		    fe = u->interpolateForceDLinearly( u_ijk_float ); /* in coord frame of u */
+                else
+                    fe = u->interpolateForceD( u_ijk_float );
+                
+		force[tid] = fe;
+                //force[tid].e = fe.e;
+                if(get_energy)
+                    atomicAdd(&energy[id], fe.e);
+		force[tid].f = basis_u_inv.transpose().transform( force[tid].f ); /* transform to lab frame */
+		atomicAdd( &particleForce[id], force[tid].f ); // apply force to particle
 		
 		// Calculate torque about origin_u in the lab frame
-		torque[tid] = p.cross(force[tid]);				// RBTODO: test sign
+		torque[tid].f = p.cross(force[tid].f);				// RBTODO: test sign
 	}
 
 	// Reduce force and torques
@@ -100,6 +118,8 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	for (int offset = blockDim.x/2; offset > 0; offset >>= 1) {
 		if (tid < offset) {
 			int oid = tid + offset;
+                        //if(get_energy)
+                            //force[tid].e = force[tid].e + force[oid].e;
 			force[tid] = force[tid] + force[oid];
 			torque[tid] = torque[tid] + torque[oid];
 		}
@@ -116,14 +136,14 @@ __global__
 void createPartlist(const Vector3* __restrict__ pos,
 				const int numTypeParticles, const int* __restrict__ typeParticles_d,
 				int* numParticles_d, int* particles_d,
-				const Vector3 gridCenter, const float radius2) {
+				const Vector3 gridCenter, const float radius2, BaseGrid* sys_d) {
 	const int tid = threadIdx.x;
 	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
 	
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < numTypeParticles) {
 		int aid = typeParticles_d[i];
-		float dist = (pos[aid] - gridCenter).length2();
+		float dist = (sys_d->wrapDiff(pos[aid] - gridCenter)).length2();
 
 		if (dist <= radius2) {
 			int tmp = atomicAggInc(numParticles_d, warpLane);

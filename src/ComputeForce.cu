@@ -6,8 +6,8 @@
 #include "ComputeForce.cuh"
 #include "Configuration.h"
 #include <cuda_profiler_api.h>
-
-
+#include <fstream>
+#include <iostream>
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -121,7 +121,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
                 gpuErrchk(cudaBindTexture(0, pairTabPotTypeTex, pairTabPotType_d, sizeof(int)*maxPairs)); //Han-Yi
 
                 //Han-Yi Chou
-                size_t nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
+                int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
                 //int* nCells_dev;
                 int3 *Cells_dev;
 
@@ -130,7 +130,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
                 gpuErrchk(cudaMalloc(&Cells_dev,sizeof(int3)));
                 //gpuErrchk(cudaMemcpy(nCells_dev,&nCells,1,cudaMemcpyHostToDevice);
                 gpuErrchk(cudaMemcpy(Cells_dev,&(decomp.nCells),sizeof(int3),cudaMemcpyHostToDevice));
-                createNeighborsList<<<1,64>>>(Cells_dev,CellNeighborsList);
+                createNeighborsList<<<256,256>>>(Cells_dev,CellNeighborsList);
                 gpuErrchk(cudaFree(Cells_dev));
                 cudaBindTexture(0, NeighborsTex, CellNeighborsList, 27*nCells*sizeof(int));
 	}
@@ -139,8 +139,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	gridSize =  num / NUM_THREADS + 1;
 
 	// Create and allocate the energy arrays
-	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * num));
-	
+	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * num * numReplicas));
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
@@ -438,12 +437,14 @@ bool ComputeForce::addDihedralPotential(String fileName, int ind, Dihedral dihed
 }
 
 void ComputeForce::decompose() {
-	gpuErrchk( cudaProfilerStart() );
+	//gpuErrchk( cudaProfilerStart() );
 
 	// Reset the cell decomposition.
-	if (decomp_d)
-		cudaFree(decomp_d);
-		
+	if (decomp_d != NULL)
+        {
+            cudaFree(decomp_d);
+            decomp_d = NULL;
+	}	
 	decomp.decompose_d(pos_d, num);
 	decomp_d = decomp.copyToCUDA();
 
@@ -702,11 +703,12 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	// printf("ComputeTabulated\n");
 
 	// RBTODO: get_energy
-	//if (get_energy)
-	if (false) 
+	if (get_energy)
+	//if (false) 
 	{
-		clearEnergies<<< nb, numThreads >>>(energies_d,num);
-		gpuErrchk(cudaDeviceSynchronize());
+		//clearEnergies<<< nb, numThreads >>>(energies_d,num);
+		//gpuErrchk(cudaDeviceSynchronize());
+		cudaMemset((void*)energies_d, 0, sizeof(float)*num*numReplicas);
 		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
 						cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d, energies_d);
 	}
@@ -728,27 +730,52 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	{
 	    //computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap_d, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
-	    computeTabulatedBonds <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d);
+	//computeTabulatedBonds <<<nb, numThreads>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d);
+	  //if(get_energy)
+              //cudaMemset(bond_energy_d, 0, sizeof(float)*num);
+		computeTabulatedBonds <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d, energies_d, get_energy);
 	}
 
 	if (angleList_d != NULL && tableAngle_d != NULL)
-	    computeTabulatedAngles<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
-
+        {
+            //if(get_energy)
+		//computeTabulatedAngles<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
+	    computeTabulatedAngles<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d, energies_d, get_energy);
+        }
 	if (dihedralList_d != NULL && tableDihedral_d != NULL)
-	    computeTabulatedDihedrals<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
+        {
+            //if(get_energy)
+		//computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
+	    computeTabulatedDihedrals<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, 
+                dihedralList_d, dihedralPotList_d, tableDihedral_d, energies_d, get_energy);
+        }
 
+	// TODO: Sum energy
 	if (restraintIds_d != NULL )
 	    computeHarmonicRestraints<<<1, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
 	
 
 	// Calculate the energy based on the array created by the kernel
 	// TODO: return energy
-	// if (get_energy) {
-	// 	gpuErrchk(cudaDeviceSynchronize());
-	// 	thrust::device_ptr<float> en_d(energies_d);
-	// 	energy = thrust::reduce(en_d, en_d + num);
-	// }
-
+	/*if (get_energy) 
+        {
+            float e = 0.f;
+	    gpuErrchk(cudaDeviceSynchronize());
+	    thrust::device_ptr<float> en_d(energies_d);
+	    e = (thrust::reduce(en_d, en_d+num*numReplicas)) / numReplicas;
+            std::fstream energy_file;
+            energy_file.open("energy_config.txt", std::fstream::out | std::fstream::app);
+            if(energy_file.is_open())
+            {
+                energy_file << "Configuation Energy: "  << e << " kcal/mol " << std::endl;
+                energy_file.close();
+            }
+            else
+            {
+                std::cout << "Error in opening energ files\n";
+            }
+            energy = e;
+        }*/
 	return energy;
 }
 

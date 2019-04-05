@@ -4,15 +4,16 @@
 // BrownianParticleType Implementations //
 //////////////////////////////////////////
 void BrownianParticleType::clear() {
-	if (pmf != NULL) delete pmf;
+	if (pmf != NULL) delete [] pmf;
 	if (diffusionGrid != NULL) delete diffusionGrid;
 	if (forceXGrid != NULL) delete forceXGrid;
 	if (forceYGrid != NULL) delete forceYGrid;
 	if (forceZGrid != NULL) delete forceZGrid;
 	if (reservoir != NULL) delete reservoir;
+        if (meanPmf != NULL) delete []  meanPmf;
 	pmf = NULL, diffusionGrid = NULL;
 	forceXGrid = NULL, forceYGrid = NULL, forceZGrid = NULL;
-	reservoir = NULL;
+	reservoir = NULL, meanPmf = NULL;
 }
 
 void BrownianParticleType::copy(const BrownianParticleType& src) {
@@ -23,10 +24,23 @@ void BrownianParticleType::copy(const BrownianParticleType& src) {
 	charge = src.charge;
 	radius = src.radius;
 	eps = src.eps;
+        pmf = src.pmf;
 	meanPmf = src.meanPmf;
+        numPartGridFiles = src.numPartGridFiles;
         //Han-Yi Chou
         transDamping = src.transDamping;
         mu = src.mu;
+        diffusionGrid = NULL;
+        forceXGrid = NULL, forceYGrid = NULL, forceZGrid = NULL;
+        reservoir = NULL;
+        //if (src.pmf != NULL) pmf = new BaseGrid(*src.pmf);
+        if (src.diffusionGrid != NULL) diffusionGrid = new BaseGrid(*src.diffusionGrid);
+        if (src.forceXGrid != NULL) forceXGrid = new BaseGrid(*src.forceXGrid);
+        if (src.forceYGrid != NULL) forceYGrid = new BaseGrid(*src.forceYGrid);
+        if (src.forceZGrid != NULL) forceZGrid = new BaseGrid(*src.forceZGrid);
+        if (src.reservoir != NULL) reservoir = new Reservoir(*src.reservoir);
+
+        /*
 	pmf = NULL, diffusionGrid = NULL;
 	forceXGrid = NULL, forceYGrid = NULL, forceZGrid = NULL;
 	reservoir = NULL;
@@ -35,15 +49,18 @@ void BrownianParticleType::copy(const BrownianParticleType& src) {
 	if (src.forceXGrid != NULL) forceXGrid = new BaseGrid(*src.forceXGrid);
 	if (src.forceYGrid != NULL) forceYGrid = new BaseGrid(*src.forceYGrid);
 	if (src.forceZGrid != NULL) forceZGrid = new BaseGrid(*src.forceZGrid);
-	if (src.reservoir != NULL) reservoir = new Reservoir(*src.reservoir);
+	if (src.reservoir != NULL) reservoir = new Reservoir(*src.reservoir);*/
 }
 
 BrownianParticleType& BrownianParticleType::operator=(const BrownianParticleType& src) {
-	clear();
-	copy(src);
+        if(&src != this)
+        {
+	    clear();
+	    copy(src);
+        }
 	return *this;
 }
-
+/*
 bool BrownianParticleType::crop(int x0, int y0, int z0,
 																int x1, int y1, int z1, bool keep_origin) {
 	bool success = true;
@@ -104,7 +121,8 @@ bool BrownianParticleType::crop(int x0, int y0, int z0,
 		
 	return success;
 }
-
+*/
+/*
 ///////////////////////////////////////
 // TypeDecomposition Implementations //
 ///////////////////////////////////////
@@ -146,3 +164,4 @@ const BrownianParticleType* TypeDecomposition::at(size_t i) const {
 	}
 	return parts_[i];
 }
+*/

@@ -81,3 +81,7 @@ __device__ inline void atomicAdd(Vector3* address, const Vector3 val) {
 	atomicAdd( &(address->y), val.y);
 	atomicAdd( &(address->z), val.z);
 }
+__device__ inline void atomicAdd(ForceEnergy* address, const ForceEnergy val) {
+    atomicAdd( &(address->f), val.f );
+    atomicAdd( &(address->e), val.e);
+}
