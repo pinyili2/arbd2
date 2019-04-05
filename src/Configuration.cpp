@@ -1119,8 +1119,12 @@ int Configuration::readParameters(const char * config_file) {
 				//partGridFile[currPart] = value;
 				stringToArray<String>(&value, part[currPart].numPartGridFiles, 
                                                              &partGridFile[currPart]);
-                                for(int i = 0; i < part[currPart].numPartGridFiles; ++i)
+				partGridFileScale[currPart] = new float[part[currPart].numPartGridFiles];
+                                for(int i = 0; i < part[currPart].numPartGridFiles; ++i) {
                                     printf("%s ", partGridFile[currPart]->val());
+				    partGridFileScale[currPart][i] = 1.0f;
+				}
+
                         }
 			else if (currPartClass == partClassRB)
 				rigidBody[currRB].addPMF(value);
