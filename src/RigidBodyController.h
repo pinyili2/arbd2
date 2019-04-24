@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include "useful.h"
 #include "BaseGrid.h"
+#include "RigidBodyGrid.h"
 #include "GPUManager.h"
 
 #define NUMSTREAMS 8
@@ -126,6 +127,9 @@ public:
 	    return random->gaussian_vector();
 	}
 	/* RequireReduction *gridReduction; */
+
+	BaseGrid* grids;
+	RigidBodyGrid* grids_d;
 	
 private:
 	std::ofstream trajFile;
@@ -140,6 +144,9 @@ private:
 	Matrix3* rot;  	// there are errors on rigidBody->integrate
 	std::vector< std::vector<RigidBody> > rigidBodyByType;
 	std::vector< RigidBodyForcePair > forcePairs;
+
+	void construct_grids();
+	void destruct_grids();
 
         //float* rb_energy;	
 	ForceEnergy* particleForces;

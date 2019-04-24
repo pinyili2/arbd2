@@ -127,9 +127,10 @@ void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
 		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];
 		if (tnp > 0) {
-			Vector3 gridCenter = t->potentialGrids[i].getCenter();
+		    int idx = t->potential_grid_idx[i];
+			Vector3 gridCenter = t->RBC->grids[idx].getCenter();
 			float cutoff = gridCenter.length();
-			cutoff += t->potentialGrids[i].getRadius();
+			cutoff += t->RBC->grids[idx].getRadius();
 			cutoff += c->pairlistDistance; 
 		   
 			int* tmp_d;
@@ -174,13 +175,15 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		const cudaStream_t& stream = gpuman.get_next_stream();
 		particleForceStreams[i] = &stream;
 
-		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
-		Matrix3 B = (getOrientation()*t->potentialGrids[i].getBasis()).inverse();
+		int idx = t->potential_grid_idx[i];
+
+		Vector3 c =  getOrientation()*t->RBC->grids[idx].getOrigin() + getPosition();
+		Matrix3 B = (getOrientation()*t->RBC->grids[idx].getBasis()).inverse();
 		
 		const int nb = (numParticles[i]/NUMTHREADS)+1;		
 		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(ForceEnergy), stream >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
-			t->rawPotentialGrids_d[i],
+			&t->RBC->grids_d[idx],
 			B, c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
 	}
 }
@@ -190,7 +193,8 @@ void RigidBody::applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorque
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		if (numParticles[i] <= 0) continue;
 		const int nb = (numParticles[i]/NUMTHREADS)+1;
-		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
+		int idx = t->potential_grid_idx[i];
+		Vector3 c =  getOrientation()*t->RBC->grids[idx].getOrigin() + getPosition();
 
 		// Sum and apply forces and torques
 		//Vector3 f = Vector3(0.0f);

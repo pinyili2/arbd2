@@ -16,6 +16,7 @@ class Reservoir;
 class BaseGrid;
 class RigidBodyGrid;
 class Configuration;
+class RigidBodyController;
 
 class RigidBodyType {
 	
@@ -31,16 +32,8 @@ private:
 	void clear();
 	// void copy(const RigidBodyType& src);
 
-	void addGrid(String s, std::vector<String> &keys, std::vector<BaseGrid> &grids);
+	void addGrid(String s, std::vector<String> &keys);
 	void addScaleFactor(String s, std::vector<String> &keys, std::vector<float> &vals);
-	void applyScaleFactors();
-	void applyScaleFactor(
-		const std::vector<String> &scaleKeys, const std::vector<float> &scaleFactors,
-		const std::vector<String> &gridKeys, std::vector<BaseGrid> &grids);
-
-	void updateRaw();
-	void copyGridToDevice(RigidBodyGrid*& ptr_d, RigidBodyGrid g);
-	void freeGridFromDevice(RigidBodyGrid* ptr_d);
 	
 public:
 	/* RigidBodyType& operator=(const RigidBodyType& src); */
@@ -82,10 +75,6 @@ public:
 	std::vector<String> densityGridKeys;
 	std::vector<String> pmfKeys;
 
-	std::vector<BaseGrid> potentialGrids;
-	std::vector<BaseGrid> densityGrids;
-	std::vector<BaseGrid> pmfs;
-
 	std::vector<String> potentialGridScaleKeys;
 	std::vector<String> densityGridScaleKeys;
 	std::vector<String> pmfScaleKeys;
@@ -106,18 +95,27 @@ public:
 	int** particles_d;		 	
 
 
-	RigidBodyGrid* rawPotentialGrids;
-	RigidBodyGrid* rawDensityGrids;
-	BaseGrid* rawPmfs;
-	Matrix3* rawPotentialBases;
-	Matrix3* rawDensityBases;
-	Vector3* rawPotentialOrigins;
-	Vector3* rawDensityOrigins;		
+	/* RigidBodyGrid* rawPotentialGrids; */
+	/* RigidBodyGrid* rawDensityGrids; */
+	/* BaseGrid* rawPmfs; */
+	/* Matrix3* rawPotentialBases; */
+	/* Matrix3* rawDensityBases; */
+	/* Vector3* rawPotentialOrigins; */
+	/* Vector3* rawDensityOrigins;		 */
 
 	
 	// device pointers
-	RigidBodyGrid** rawPotentialGrids_d;
-	RigidBodyGrid** rawDensityGrids_d;
-	RigidBodyGrid** rawPmfs_d;
+	/* RigidBodyGrid** rawPotentialGrids_d; */
+	/* RigidBodyGrid** rawDensityGrids_d; */
+	/* RigidBodyGrid** rawPmfs_d; */
+
+	size_t* potential_grid_idx;
+	size_t* density_grid_idx;
+	size_t* pmf_grid_idx;
+
+	size_t* potential_grid_idx_d;
+	size_t* density_grid_idx_d;
+	size_t* pmf_grid_idx_d;
 	
+	RigidBodyController* RBC;
 };

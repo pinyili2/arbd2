@@ -41,6 +41,7 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
         strcat(outArg, str);
 
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
+	construct_grids();
 	for (int i = 0; i < conf.numRigidTypes; i++)
 		conf.rigidBody[i].initializeParticleLists();
 
@@ -49,7 +50,6 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 
 
 	for (int i = 0; i < conf.numRigidTypes; i++) {			
-		conf.rigidBody[i].copyGridsToDevice();
 		numRB += conf.rigidBody[i].num;
 		std::vector<RigidBody> tmp;
 		// RBTODO: change conf.rigidBody to conf.rigidBodyType
@@ -57,9 +57,9 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 		for (int j = 0; j < jmax; j++) {
 			String name = conf.rigidBody[i].name;
 			if (jmax > 1) {
-				char tmp[128];
-				snprintf(tmp, 128, "#%d", j);
-				name.add( tmp );
+			    char stmp[128];
+			    snprintf(stmp, 128, "#%d", j);
+			    name.add( stmp );
 			}
 			RigidBody r(name, conf, conf.rigidBody[i], this);
 			int nb = r.appendNumParticleBlocks( &particleForceNumBlocks );
@@ -102,6 +102,173 @@ RigidBodyController::~RigidBodyController() {
 		rigidBodyByType[i].clear();
 	rigidBodyByType.clear();
 	delete random;
+}
+
+struct GridKey {
+    String name;
+    float scale;
+    GridKey(const String& name, const float& scale) :
+	name(name), scale(scale) { }
+
+    bool operator==(const GridKey& o) const { return name == o.name && scale == o.scale; }
+};
+
+void RigidBodyController::construct_grids() {
+    // typedef std::tuple<String, float> GridKey;
+    
+    // Build dictionary to reuse grids across all types, first finding scale factors
+    std::vector<GridKey> all_keys;
+    std::vector<GridKey>::iterator itr;
+
+    for (int t_idx = 0; t_idx < conf.numRigidTypes; ++t_idx)
+    {
+	// TODO: don't duplicate the code below three times
+	RigidBodyType& t = conf.rigidBody[t_idx];
+	t.RBC = this;
+
+	t.potential_grid_idx = new size_t[t.numPotGrids]; // TODO; don't allocate here
+	t.density_grid_idx = new size_t[t.numDenGrids]; // TODO; don't allocate here
+	t.pmf_grid_idx = new size_t[t.numPmfs]; // TODO; don't allocate here
+	for (int i = 0; i < t.potentialGridKeys.size(); ++i)
+	{
+
+	    String& name = t.potentialGridKeys[i];
+	    float scale = 1.0f;
+	    for (int j = 0; j < t.potentialGridScaleKeys.size(); ++j)
+	    {
+		if (name == t.potentialGridScaleKeys[j])
+		    scale = t.potentialGridScale[j];
+	    }
+
+	    GridKey key = GridKey(name, scale);
+	    int key_idx = -1;
+	    // Find key if it exists
+	    itr = std::find(all_keys.begin(), all_keys.end(), key);
+	    if (itr == all_keys.end())
+	    {
+		key_idx = all_keys.size();
+		all_keys.push_back( key );
+	    }
+	    else 
+	    {
+		key_idx = std::distance(all_keys.begin(), itr);
+	    }
+
+	    // Assign index into all_keys to RigidBodyType
+	    t.potential_grid_idx[i] = key_idx;
+
+	}
+
+	// Density
+	for (int i = 0; i < t.densityGridKeys.size(); ++i)
+	{
+
+	    String& name = t.densityGridKeys[i];
+	    float scale = 1.0f;
+	    for (int j = 0; j < t.densityGridScaleKeys.size(); ++j)
+	    {
+		if (name == t.densityGridScaleKeys[j])
+		    scale = t.densityGridScale[j];
+	    }
+
+	    GridKey key = GridKey(name, scale);
+	    int key_idx = -1;
+	    // Find key if it exists
+	    itr = std::find(all_keys.begin(), all_keys.end(), key);
+	    if (itr == all_keys.end())
+	    {
+		key_idx = all_keys.size();
+		all_keys.push_back( key );
+	    }
+	    else 
+	    {
+		key_idx = std::distance(all_keys.begin(), itr);
+	    }
+
+	    // Assign index into all_keys to RigidBodyType
+	    t.density_grid_idx[i] = key_idx;
+	}
+
+	//PMF	
+	for (int i = 0; i < t.pmfKeys.size(); ++i)
+	{
+
+	    String& name = t.pmfKeys[i];
+	    float scale = 1.0f;
+	    for (int j = 0; j < t.pmfScaleKeys.size(); ++j)
+	    {
+		if (name == t.pmfScaleKeys[j])
+		    scale = t.pmfScale[j];
+	    }
+
+	    GridKey key = GridKey(name, scale);
+	    int key_idx = -1;
+	    // Find key if it exists
+	    itr = std::find(all_keys.begin(), all_keys.end(), key);
+	    if (itr == all_keys.end())
+	    {
+		key_idx = all_keys.size();
+		all_keys.push_back( key );
+	    }
+	    else 
+	    {
+		key_idx = std::distance(all_keys.begin(), itr);
+	    }
+
+	    // Assign index into all_keys to RigidBodyType
+	    t.pmf_grid_idx[i] = key_idx;
+	}
+	
+	// TODO: have RBType manage this allocation
+	gpuErrchk(cudaMalloc(&t.potential_grid_idx_d, sizeof(size_t)*t.numPotGrids ));
+	gpuErrchk(cudaMalloc(&t.density_grid_idx_d, sizeof(size_t)*t.numDenGrids ));
+	gpuErrchk(cudaMalloc(&t.pmf_grid_idx_d, sizeof(size_t)*t.numPmfs ));
+
+	gpuErrchk(cudaMemcpy(t.potential_grid_idx_d, t.potential_grid_idx, sizeof(size_t)*t.numPotGrids, cudaMemcpyHostToDevice ));
+	gpuErrchk(cudaMemcpy(t.density_grid_idx_d, t.density_grid_idx, sizeof(size_t)*t.numDenGrids, cudaMemcpyHostToDevice ));
+	gpuErrchk(cudaMemcpy(t.pmf_grid_idx_d, t.density_grid_idx, sizeof(size_t)*t.numPmfs, cudaMemcpyHostToDevice ));
+	
+
+    }
+    
+    // Store grids 
+    grids = new BaseGrid[all_keys.size()];
+    gpuErrchk(cudaMalloc( &grids_d, sizeof(RigidBodyGrid)*all_keys.size() ));
+    
+    // Read and scale grids, then copy to GPU
+    for (size_t i = 0; i < all_keys.size(); ++i)
+    {
+	GridKey& key = all_keys[i];
+	BaseGrid& g = grids[i];
+	g = BaseGrid(key.name);
+	g.scale(key.scale);
+
+	// Copy to GPU, starting with grid data
+	float* tmp1;
+	float* tmp2;
+	size_t sz = sizeof(float) * g.getSize();
+	gpuErrchk(cudaMalloc( &tmp1, sz)); 
+	gpuErrchk(cudaMemcpy( tmp1, g.val, sz, cudaMemcpyHostToDevice));
+
+	// Set grid pointer to device 
+	tmp2 = g.val;
+	g.val = tmp1;
+
+	// Copy grid
+	sz = sizeof(RigidBodyGrid);
+	// gpuErrchk(cudaMalloc(&ptr_d, sz));
+	gpuErrchk(cudaMemcpy(&grids_d[i], &g, sz, cudaMemcpyHostToDevice));
+
+	// Restore pointer
+	g.val = tmp2;
+	tmp1 = NULL;
+	tmp2 = NULL;	// probably unnecessary
+    }
+}	
+
+void RigidBodyController::destruct_grids() {
+    // TODO
+
 }
 
 bool RigidBodyController::loadRBCoordinates(const char* fileName) {
@@ -502,8 +669,8 @@ bool RigidBodyForcePair::isOverlapping(BaseGrid* sys) const {
 	for (int i = 0; i < gridKeyId1.size(); ++i) {
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
-		float d1 = type1->densityGrids[k1].getRadius() + type1->densityGrids[k1].getCenter().length();
-		float d2 = type2->potentialGrids[k2].getRadius() + type2->potentialGrids[k2].getCenter().length();
+		float d1 = type1->RBC->grids[k1].getRadius() + type1->RBC->grids[k1].getCenter().length();
+		float d2 = type2->RBC->grids[k2].getRadius() + type2->RBC->grids[k2].getCenter().length();
 		if (rbDist < d1+d2)
 			return true;
 	}
@@ -511,25 +678,27 @@ bool RigidBodyForcePair::isOverlapping(BaseGrid* sys) const {
 }
 Vector3 RigidBodyForcePair::getOrigin1(const int i) {
 	const int k1 = gridKeyId1[i];
-	return rb1->transformBodyToLab( type1->densityGrids[k1].getOrigin() );
+	return rb1->transformBodyToLab( type1->RBC->grids[k1].getOrigin() );
 }
 Vector3 RigidBodyForcePair::getOrigin2(const int i) {
 	const int k2 = gridKeyId2[i];
+	Vector3 o = type2->RBC->grids[k2].getOrigin();
 	if (!isPmf)
-		return rb2->transformBodyToLab( type2->potentialGrids[k2].getOrigin() );
+	    return rb2->transformBodyToLab( o );
 	else
-		return type2->rawPmfs[k2].getOrigin();
+	    return o;
 }		
 Matrix3 RigidBodyForcePair::getBasis1(const int i) {
 	const int k1 = gridKeyId1[i];
-	return rb1->getOrientation()*type1->densityGrids[k1].getBasis();
+	return rb1->getOrientation()*type1->RBC->grids[k1].getBasis();
 }
 Matrix3 RigidBodyForcePair::getBasis2(const int i) {
 	const int k2 = gridKeyId2[i];
+	Matrix3 b = type2->RBC->grids[k2].getBasis();
 	if (!isPmf)
-		return rb2->getOrientation()*type2->potentialGrids[k2].getBasis();
+	    return rb2->getOrientation()*b;
 	else
-		return type2->rawPmfs[k2].getBasis();
+	    return b;
 }
 
 // RBTODO: bundle several rigidbodypair evaluations in single kernel call
@@ -572,12 +741,12 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s, int scheme, Base
 		// RBTODO: get energy
 		if (!isPmf) {								/* pair of RBs */
 			computeGridGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
-				(type1->rawDensityGrids_d[k1], type2->rawPotentialGrids_d[k2],
+				(&type1->RBC->grids_d[k1], &type2->RBC->grids_d[k2],
 				 B1, B2, c,
 				 forces_d[i], torques_d[i], scheme, sys_d);
 		} else {										/* RB with a PMF */
 			computeGridGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
-				(type1->rawDensityGrids_d[k1], type2->rawPmfs_d[k2],
+				(&type1->RBC->grids_d[k1], &type2->RBC->grids_d[k2],
 				 B1, B2, c,
 				 forces_d[i], torques_d[i], scheme, sys_d);
 		}
@@ -805,7 +974,7 @@ int RigidBodyForcePair::initialize() {
 	// allocate memory for forces/torques
 	for (int i = 0; i < numGrids; i++) {
 		const int k1 = gridKeyId1[i];
-		const int sz = type1->rawDensityGrids[k1].getSize();
+		const int sz = type1->RBC->grids[k1].getSize();
 		int nb = sz / NUMTHREADS + ((sz % NUMTHREADS == 0) ? 0:1 );
 		streamID.push_back( nextStreamID % NUMSTREAMS );
 		nextStreamID++;
