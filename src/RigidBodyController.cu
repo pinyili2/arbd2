@@ -82,7 +82,7 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 	
 	random = new RandomCPU(conf.seed + repID + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
-	initializeForcePairs();
+	initializeForcePairs();	// Must run after construct_grids()
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 
         //Boltzmann distribution
@@ -117,7 +117,7 @@ void RigidBodyController::construct_grids() {
     // typedef std::tuple<String, float> GridKey;
     
     // Build dictionary to reuse grids across all types, first finding scale factors
-    std::vector<GridKey> all_keys;
+    std::vector<GridKey> all_files;
     std::vector<GridKey>::iterator itr;
 
     for (int t_idx = 0; t_idx < conf.numRigidTypes; ++t_idx)
@@ -129,10 +129,10 @@ void RigidBodyController::construct_grids() {
 	t.potential_grid_idx = new size_t[t.numPotGrids]; // TODO; don't allocate here
 	t.density_grid_idx = new size_t[t.numDenGrids]; // TODO; don't allocate here
 	t.pmf_grid_idx = new size_t[t.numPmfs]; // TODO; don't allocate here
-	for (int i = 0; i < t.potentialGridKeys.size(); ++i)
+	for (int i = 0; i < t.potentialGridFiles.size(); ++i)
 	{
 
-	    String& name = t.potentialGridKeys[i];
+	    String& name = t.potentialGridFiles[i];
 	    float scale = 1.0f;
 	    for (int j = 0; j < t.potentialGridScaleKeys.size(); ++j)
 	    {
@@ -143,27 +143,27 @@ void RigidBodyController::construct_grids() {
 	    GridKey key = GridKey(name, scale);
 	    int key_idx = -1;
 	    // Find key if it exists
-	    itr = std::find(all_keys.begin(), all_keys.end(), key);
-	    if (itr == all_keys.end())
+	    itr = std::find(all_files.begin(), all_files.end(), key);
+	    if (itr == all_files.end())
 	    {
-		key_idx = all_keys.size();
-		all_keys.push_back( key );
+		key_idx = all_files.size();
+		all_files.push_back( key );
 	    }
 	    else 
 	    {
-		key_idx = std::distance(all_keys.begin(), itr);
+		key_idx = std::distance(all_files.begin(), itr);
 	    }
 
-	    // Assign index into all_keys to RigidBodyType
+	    // Assign index into all_files to RigidBodyType
 	    t.potential_grid_idx[i] = key_idx;
 
 	}
 
 	// Density
-	for (int i = 0; i < t.densityGridKeys.size(); ++i)
+	for (int i = 0; i < t.densityGridFiles.size(); ++i)
 	{
 
-	    String& name = t.densityGridKeys[i];
+	    String& name = t.densityGridFiles[i];
 	    float scale = 1.0f;
 	    for (int j = 0; j < t.densityGridScaleKeys.size(); ++j)
 	    {
@@ -174,26 +174,26 @@ void RigidBodyController::construct_grids() {
 	    GridKey key = GridKey(name, scale);
 	    int key_idx = -1;
 	    // Find key if it exists
-	    itr = std::find(all_keys.begin(), all_keys.end(), key);
-	    if (itr == all_keys.end())
+	    itr = std::find(all_files.begin(), all_files.end(), key);
+	    if (itr == all_files.end())
 	    {
-		key_idx = all_keys.size();
-		all_keys.push_back( key );
+		key_idx = all_files.size();
+		all_files.push_back( key );
 	    }
 	    else 
 	    {
-		key_idx = std::distance(all_keys.begin(), itr);
+		key_idx = std::distance(all_files.begin(), itr);
 	    }
 
-	    // Assign index into all_keys to RigidBodyType
+	    // Assign index into all_files to RigidBodyType
 	    t.density_grid_idx[i] = key_idx;
 	}
 
 	//PMF	
-	for (int i = 0; i < t.pmfKeys.size(); ++i)
+	for (int i = 0; i < t.pmfFiles.size(); ++i)
 	{
 
-	    String& name = t.pmfKeys[i];
+	    String& name = t.pmfFiles[i];
 	    float scale = 1.0f;
 	    for (int j = 0; j < t.pmfScaleKeys.size(); ++j)
 	    {
@@ -204,18 +204,18 @@ void RigidBodyController::construct_grids() {
 	    GridKey key = GridKey(name, scale);
 	    int key_idx = -1;
 	    // Find key if it exists
-	    itr = std::find(all_keys.begin(), all_keys.end(), key);
-	    if (itr == all_keys.end())
+	    itr = std::find(all_files.begin(), all_files.end(), key);
+	    if (itr == all_files.end())
 	    {
-		key_idx = all_keys.size();
-		all_keys.push_back( key );
+		key_idx = all_files.size();
+		all_files.push_back( key );
 	    }
 	    else 
 	    {
-		key_idx = std::distance(all_keys.begin(), itr);
+		key_idx = std::distance(all_files.begin(), itr);
 	    }
 
-	    // Assign index into all_keys to RigidBodyType
+	    // Assign index into all_files to RigidBodyType
 	    t.pmf_grid_idx[i] = key_idx;
 	}
 	
@@ -232,27 +232,32 @@ void RigidBodyController::construct_grids() {
     }
     
     // Store grids 
-    grids = new BaseGrid[all_keys.size()];
-    gpuErrchk(cudaMalloc( &grids_d, sizeof(RigidBodyGrid)*all_keys.size() ));
+    grids = new BaseGrid[all_files.size()];
+    gpuErrchk(cudaMalloc( &grids_d, sizeof(RigidBodyGrid)*all_files.size() ));
     
     // Read and scale grids, then copy to GPU
-    for (size_t i = 0; i < all_keys.size(); ++i)
+    for (size_t i = 0; i < all_files.size(); ++i)
     {
-	GridKey& key = all_keys[i];
-	BaseGrid& g = grids[i];
-	g = BaseGrid(key.name);
-	g.scale(key.scale);
+	GridKey& key = all_files[i];
+	BaseGrid& g0 = grids[i];
+	g0 = BaseGrid(key.name);
+	g0.scale(key.scale);
 
+	RigidBodyGrid g = RigidBodyGrid();
+	g.nx = g0.nx;
+	g.ny = g0.ny;
+	g.nz = g0.nz;
+	g.size = g0.size;
+	g.val = g0.val;
+	   
 	// Copy to GPU, starting with grid data
-	float* tmp1;
-	float* tmp2;
+	float* tmp;
 	size_t sz = sizeof(float) * g.getSize();
-	gpuErrchk(cudaMalloc( &tmp1, sz)); 
-	gpuErrchk(cudaMemcpy( tmp1, g.val, sz, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc( &tmp, sz)); 
+	gpuErrchk(cudaMemcpy( tmp, g.val, sz, cudaMemcpyHostToDevice));
 
 	// Set grid pointer to device 
-	tmp2 = g.val;
-	g.val = tmp1;
+	g.val = tmp;
 
 	// Copy grid
 	sz = sizeof(RigidBodyGrid);
@@ -260,9 +265,8 @@ void RigidBodyController::construct_grids() {
 	gpuErrchk(cudaMemcpy(&grids_d[i], &g, sz, cudaMemcpyHostToDevice));
 
 	// Restore pointer
-	g.val = tmp2;
-	tmp1 = NULL;
-	tmp2 = NULL;	// probably unnecessary
+	g.val = NULL;
+	tmp = NULL;
     }
 }	
 
@@ -372,8 +376,8 @@ void RigidBodyController::initializeForcePairs() {
 				    //	keys1[k1].printInline(); printf(":"); keys2[k2].print();
 					
 					if ( keys1[k1] == keys2[k2] ) {
-						gridKeyId1.push_back(k1);
-						gridKeyId2.push_back(k2);
+						gridKeyId1.push_back( t1.density_grid_idx[k1] );
+						gridKeyId2.push_back( t2.potential_grid_idx[k2] );
 						paired = true;
 					}
 				}
@@ -415,9 +419,9 @@ void RigidBodyController::initializeForcePairs() {
 		for(int k1 = 0; k1 < keys1.size(); k1++) {
 			for(int k2 = 0; k2 < keys2.size(); k2++) {
 				if ( keys1[k1] == keys2[k2] ) {
-					gridKeyId1.push_back(k1);
-					gridKeyId2.push_back(k2);
-					paired = true;
+				    gridKeyId1.push_back( t1.density_grid_idx[k1] );
+				    gridKeyId2.push_back( t1.pmf_grid_idx[k2] );
+				    paired = true;
 				}
 			}
 		}	

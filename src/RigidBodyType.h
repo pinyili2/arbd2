@@ -32,7 +32,7 @@ private:
 	void clear();
 	// void copy(const RigidBodyType& src);
 
-	void addGrid(String s, std::vector<String> &keys);
+	void addGrid(String s, std::vector<String> &keys, std::vector<String> &files);
 	void addScaleFactor(String s, std::vector<String> &keys, std::vector<float> &vals);
 	
 public:
@@ -74,6 +74,10 @@ public:
 	std::vector<String> potentialGridKeys;
 	std::vector<String> densityGridKeys;
 	std::vector<String> pmfKeys;
+
+	std::vector<String> potentialGridFiles;
+	std::vector<String> densityGridFiles;
+	std::vector<String> pmfFiles;
 
 	std::vector<String> potentialGridScaleKeys;
 	std::vector<String> densityGridScaleKeys;

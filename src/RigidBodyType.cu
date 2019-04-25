@@ -79,7 +79,7 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 
 }
 	
-void RigidBodyType::addGrid(String s, std::vector<String> &keys) {
+void RigidBodyType::addGrid(String s, std::vector<String> &keys, std::vector<String> &files) {
 	// tokenize and return
 	int numTokens = s.tokenCount();
 	if (numTokens != 2) {
@@ -88,17 +88,18 @@ void RigidBodyType::addGrid(String s, std::vector<String> &keys) {
 	}
 	String* token = new String[numTokens];
 	s.tokenize(token);
-	String key = token[0];
-	keys.push_back( key );
+	keys.push_back( String(token[0]) );
+	files.push_back( String(token[1]) );
+	delete[] token;
 }
 void RigidBodyType::addPotentialGrid(String s) {
-	addGrid(s, potentialGridKeys);
+    addGrid(s, potentialGridKeys, potentialGridFiles);
 }
 void RigidBodyType::addDensityGrid(String s) {
-	addGrid(s, densityGridKeys);
+    addGrid(s, densityGridKeys, potentialGridFiles);
 }
 void RigidBodyType::addPMF(String s) {
-	addGrid(s, pmfKeys);
+    addGrid(s, pmfKeys, potentialGridFiles);
 }
 
 void RigidBodyType::addScaleFactor(String s, std::vector<String> &keys, std::vector<float> &vals) {
@@ -114,6 +115,7 @@ void RigidBodyType::addScaleFactor(String s, std::vector<String> &keys, std::vec
 	float v = (float) strtod(token[1], NULL);
 	keys.push_back( key );
 	vals.push_back( v );
+	delete[] token;
 }
 void RigidBodyType::scalePotentialGrid(String s) {
     addScaleFactor(s, potentialGridScaleKeys, potentialGridScale);
