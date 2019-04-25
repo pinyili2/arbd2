@@ -126,22 +126,27 @@ void RigidBodyController::construct_grids() {
 	RigidBodyType& t = conf.rigidBody[t_idx];
 	t.RBC = this;
 
+	t.numPotGrids = t.potentialGridFiles.size();
+	t.numDenGrids = t.densityGridFiles.size();
+	t.numPmfs = t.pmfFiles.size();
+
 	t.potential_grid_idx = new size_t[t.numPotGrids]; // TODO; don't allocate here
 	t.density_grid_idx = new size_t[t.numDenGrids]; // TODO; don't allocate here
 	t.pmf_grid_idx = new size_t[t.numPmfs]; // TODO; don't allocate here
-	for (int i = 0; i < t.potentialGridFiles.size(); ++i)
+	for (size_t i = 0; i < t.potentialGridFiles.size(); ++i)
 	{
 
-	    String& name = t.potentialGridFiles[i];
+	    String& filename = t.potentialGridFiles[i];
+	    String& name = t.potentialGridKeys[i];
 	    float scale = 1.0f;
-	    for (int j = 0; j < t.potentialGridScaleKeys.size(); ++j)
+	    for (size_t j = 0; j < t.potentialGridScaleKeys.size(); ++j)
 	    {
 		if (name == t.potentialGridScaleKeys[j])
 		    scale = t.potentialGridScale[j];
 	    }
 
-	    GridKey key = GridKey(name, scale);
-	    int key_idx = -1;
+	    GridKey key = GridKey(filename, scale);
+	    size_t key_idx;
 	    // Find key if it exists
 	    itr = std::find(all_files.begin(), all_files.end(), key);
 	    if (itr == all_files.end())
@@ -160,19 +165,20 @@ void RigidBodyController::construct_grids() {
 	}
 
 	// Density
-	for (int i = 0; i < t.densityGridFiles.size(); ++i)
+	for (size_t i = 0; i < t.densityGridFiles.size(); ++i)
 	{
 
-	    String& name = t.densityGridFiles[i];
+	    String& filename = t.densityGridFiles[i];
+	    String& name = t.densityGridKeys[i];
 	    float scale = 1.0f;
-	    for (int j = 0; j < t.densityGridScaleKeys.size(); ++j)
+	    for (size_t j = 0; j < t.densityGridScaleKeys.size(); ++j)
 	    {
 		if (name == t.densityGridScaleKeys[j])
 		    scale = t.densityGridScale[j];
 	    }
 
-	    GridKey key = GridKey(name, scale);
-	    int key_idx = -1;
+	    GridKey key = GridKey(filename, scale);
+	    size_t key_idx;
 	    // Find key if it exists
 	    itr = std::find(all_files.begin(), all_files.end(), key);
 	    if (itr == all_files.end())
@@ -190,19 +196,20 @@ void RigidBodyController::construct_grids() {
 	}
 
 	//PMF	
-	for (int i = 0; i < t.pmfFiles.size(); ++i)
+	for (size_t i = 0; i < t.pmfFiles.size(); ++i)
 	{
 
-	    String& name = t.pmfFiles[i];
+	    String& filename = t.pmfFiles[i];
+	    String& name = t.pmfKeys[i];
 	    float scale = 1.0f;
-	    for (int j = 0; j < t.pmfScaleKeys.size(); ++j)
+	    for (size_t j = 0; j < t.pmfScaleKeys.size(); ++j)
 	    {
 		if (name == t.pmfScaleKeys[j])
 		    scale = t.pmfScale[j];
 	    }
 
-	    GridKey key = GridKey(name, scale);
-	    int key_idx = -1;
+	    GridKey key = GridKey(filename, scale);
+	    size_t key_idx;
 	    // Find key if it exists
 	    itr = std::find(all_files.begin(), all_files.end(), key);
 	    if (itr == all_files.end())
@@ -226,8 +233,7 @@ void RigidBodyController::construct_grids() {
 
 	gpuErrchk(cudaMemcpy(t.potential_grid_idx_d, t.potential_grid_idx, sizeof(size_t)*t.numPotGrids, cudaMemcpyHostToDevice ));
 	gpuErrchk(cudaMemcpy(t.density_grid_idx_d, t.density_grid_idx, sizeof(size_t)*t.numDenGrids, cudaMemcpyHostToDevice ));
-	gpuErrchk(cudaMemcpy(t.pmf_grid_idx_d, t.density_grid_idx, sizeof(size_t)*t.numPmfs, cudaMemcpyHostToDevice ));
-	
+	gpuErrchk(cudaMemcpy(t.pmf_grid_idx_d, t.pmf_grid_idx, sizeof(size_t)*t.numPmfs, cudaMemcpyHostToDevice ));
 
     }
     

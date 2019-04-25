@@ -175,7 +175,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		const cudaStream_t& stream = gpuman.get_next_stream();
 		particleForceStreams[i] = &stream;
 
-		int idx = t->potential_grid_idx[i];
+		size_t idx = t->potential_grid_idx[i];
 
 		Vector3 c =  getOrientation()*t->RBC->grids[idx].getOrigin() + getPosition();
 		Matrix3 B = (getOrientation()*t->RBC->grids[idx].getBasis()).inverse();
@@ -183,7 +183,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		const int nb = (numParticles[i]/NUMTHREADS)+1;		
 		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(ForceEnergy), stream >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
-			&t->RBC->grids_d[idx],
+			t->RBC->grids_d+idx,
 			B, c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
 	}
 }

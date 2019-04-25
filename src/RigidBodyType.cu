@@ -96,10 +96,10 @@ void RigidBodyType::addPotentialGrid(String s) {
     addGrid(s, potentialGridKeys, potentialGridFiles);
 }
 void RigidBodyType::addDensityGrid(String s) {
-    addGrid(s, densityGridKeys, potentialGridFiles);
+    addGrid(s, densityGridKeys, densityGridFiles);
 }
 void RigidBodyType::addPMF(String s) {
-    addGrid(s, pmfKeys, potentialGridFiles);
+    addGrid(s, pmfKeys, pmfFiles);
 }
 
 void RigidBodyType::addScaleFactor(String s, std::vector<String> &keys, std::vector<float> &vals) {
