@@ -250,7 +250,7 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2)
 	| rigid body molecular dynamics. JCP 107. (1997)                            |
 	| http://jcp.aip.org/resource/1/jcpsa6/v107/i15/p5840_s1                    |
 	\==========================================================================*/
-void RigidBody::integrateDLM(int startFinishAll) 
+void RigidBody::integrateDLM(BaseGrid* sys, int startFinishAll) 
 {
     Vector3 trans; // = *p_trans;
     //Matrix3 rot = Matrix3(1); // = *p_rot;
@@ -271,6 +271,8 @@ void RigidBody::integrateDLM(int startFinishAll)
     else if (startFinishAll == 1)
     {
         position += timestep * momentum / t->mass * 1e4; // update CoM a full timestep
+	position = sys->wrap( position );
+
         // update orientations a full timestep
         Matrix3 R; // represents a rotation about a principle axis
         R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x * 1e4); // R1
@@ -301,7 +303,7 @@ Miguel X. Fernandes, José García de la Torre
 */
 
 //Chris original implementation for Brownian motion
-void RigidBody::integrate(int startFinishAll)
+void RigidBody::integrate(BaseGrid* sys, int startFinishAll)
 {
     // UNITS
     // Temp: kcal_mol
@@ -328,6 +330,7 @@ void RigidBody::integrate(int startFinishAll)
                      Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep), rando) ;
 
     position += orientation*offset;
+    position = sys->wrap( position );
 
     rando = getRandomGaussVector();
     Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) +

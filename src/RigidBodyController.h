@@ -104,8 +104,8 @@ public:
 
         void AddLangevin();
         void SetRandomTorques();
-	void integrate(int step);
-        void integrateDLM(int step);
+	void integrate(BaseGrid* sys, int step);
+        void integrateDLM(BaseGrid* sys, int step);
 	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
 	void updateParticleLists(Vector3* pos_d, BaseGrid* sys_d);
         void clearForceAndTorque(); 

@@ -557,7 +557,7 @@ void RigidBodyController::AddLangevin()
     }
 }
 
-void RigidBodyController::integrateDLM(int step) 
+void RigidBodyController::integrateDLM(BaseGrid* sys, int step) 
 {
     // tell RBs to integrate
     for (int i = 0; i < rigidBodyByType.size(); i++) 
@@ -565,14 +565,14 @@ void RigidBodyController::integrateDLM(int step)
         for (int j = 0; j < rigidBodyByType[i].size(); j++) 
         {
             RigidBody& rb = rigidBodyByType[i][j];
-            rb.integrateDLM(step);
+            rb.integrateDLM(sys, step);
         }
     }
 }
 
 
 //Chris original part for Brownian motion
-void RigidBodyController::integrate(int step) 
+void RigidBodyController::integrate(BaseGrid* sys, int step) 
 {
  	// tell RBs to integrate
 	if ( step % conf.outputPeriod == 0 ) 
@@ -585,7 +585,7 @@ void RigidBodyController::integrate(int step)
 				for (int j = 0; j < rigidBodyByType[i].size(); j++)
                                 {
 					RigidBody& rb = rigidBodyByType[i][j];
-					rb.integrate(0);	
+					rb.integrate(sys, 0);	
 				}
 			}
 		} 
@@ -596,7 +596,7 @@ void RigidBodyController::integrate(int step)
 				for (int j = 0; j < rigidBodyByType[i].size(); j++)
                                 {
 					RigidBody& rb = rigidBodyByType[i][j];
-					rb.integrate(1);	
+					rb.integrate(sys, 1);	
 				}
 			}
 			//print(step);
@@ -605,7 +605,7 @@ void RigidBodyController::integrate(int step)
 			/*for (int i = 0; i < rigidBodyByType.size(); i++) {
 				for (int j = 0; j < rigidBodyByType[i].size(); j++) {
 					RigidBody& rb = rigidBodyByType[i][j];
-					rb.integrate(0);	
+					rb.integrate(sys, 0);	
 				}
 			}*/
 		}
@@ -620,7 +620,7 @@ void RigidBodyController::integrate(int step)
 				for (int j = 0; j < rigidBodyByType[i].size(); j++)
                                 {
 					RigidBody& rb = rigidBodyByType[i][j];
-					rb.integrate(0);	
+					rb.integrate(sys, 0);	
 				}
 			}
 		} 
@@ -631,7 +631,7 @@ void RigidBodyController::integrate(int step)
 				for (int j = 0; j < rigidBodyByType[i].size(); j++)
                                 {
 					RigidBody& rb = rigidBodyByType[i][j];
-					rb.integrate(2);	
+					rb.integrate(sys, 2);	
 				}
 			}
 		}

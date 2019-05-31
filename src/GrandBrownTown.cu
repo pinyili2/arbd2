@@ -697,8 +697,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
             #pragma omp parallel for
             for(int i = 0; i < numReplicas; ++i)
             {
-                RBC[i]->integrateDLM(0);
-                RBC[i]->integrateDLM(1);
+                RBC[i]->integrateDLM(sys, 0);
+                RBC[i]->integrateDLM(sys, 1);
             }
         }
         else
@@ -709,7 +709,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             #pragma omp parallel for ordered
             for(int i = 0; i < numReplicas; ++i)
             {
-                RBC[i]->integrate(s);
+                RBC[i]->integrate(sys, s);
                 #pragma omp ordered
                 RBC[i]->print(s);
             }
@@ -883,7 +883,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             {
                 RBC[i]->SetRandomTorques();
                 RBC[i]->AddLangevin();
-                RBC[i]->integrateDLM(2);
+                RBC[i]->integrateDLM(sys, 2);
                 #pragma omp ordered
                 RBC[i]->print(s);
             }
@@ -1234,7 +1234,7 @@ void GrandBrownTown::run() {
 	    //Han-Yi Chou
             //update the rigid body positions and orientation
             //So far only brownian dynamics is used
-            //RBC.integrate(s);
+            //RBC.integrate(sys, s);
 
 	    if(particle_dynamic == String("Langevin"))
                 updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas);
@@ -1246,11 +1246,11 @@ void GrandBrownTown::run() {
 
             if(rigidbody_dynamic == String("Langevin"))
             {
-                RBC.integrateDLM(0);
-                RBC.integrateDLM(1);
+                RBC.integrateDLM(sys,0);
+                RBC.integrateDLM(sys,1);
             }
             else
-                RBC.integrate(s);
+                RBC.integrate(sys,s);
 
 
             if (s % outputPeriod == 0) {
@@ -1408,7 +1408,7 @@ void GrandBrownTown::run() {
            {
                RBC.SetRandomTorques();
                RBC.AddLangevin();
-               RBC.integrateDLM(2);
+               RBC.integrateDLM(sys,2);
                RBC.print(s);
            }
  

@@ -51,8 +51,8 @@ class RigidBody { // host side representation of rigid bodies
 
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
 	// HOST DEVICE void integrate(Vector3& old_trans, Matrix3& old_rot, int startFinishAll);
-	void integrateDLM(int startFinishAll);
-	void integrate(int startFinishAll);	
+	void integrateDLM(BaseGrid* sys, int startFinishAll);
+	void integrate(BaseGrid* sys, int startFinishAll);	
 
 	// HOST DEVICE inline String getKey() const { return key; }
 	// HOST DEVICE inline String getKey() const { return t->name; }
