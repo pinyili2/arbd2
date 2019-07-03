@@ -1,8 +1,6 @@
 #include "CudaUtil.cuh"
 
-#if __CUDA_ARCH__ >= 300
-__device__ int warp_bcast(int v, int leader) {return __shfl(v, leader); }
-#else
+/*#if __CUDA_ARCH__ < 300
 volatile extern __shared__ int sh[];
 __device__ int warp_bcast(int v, int leader) {
 	// WARNING: might not be safe to call in divergent branches 
@@ -12,8 +10,20 @@ __device__ int warp_bcast(int v, int leader) {
 		sh[tid/WARPSIZE] = v;
 	return sh[tid/WARPSIZE];		
 }	
-#endif
+#elif __CUDA_ARCH__ < 700
+__device__ int warp_bcast(int v, int leader) {return __shfl(v, leader); }
+#else*/
+//__device__ int warp_bcast(int v, int leader, int srcLane) {return __shfl_sync(v, leader, srcLane); }
+__inline__ __device__ uint __lanemask_lt()
+{
+    uint mask;
+    asm( "mov.u32 %0, %lanemask_lt;" : "=r"( mask ) );
+    return mask;
+}
+//#endif
 
+
+/*#if __CUDA_ARCH__ < 700
 __device__ int atomicAggInc(int *ctr, int warpLane) {
 	// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
 	int mask = __ballot(1);
@@ -23,10 +33,22 @@ __device__ int atomicAggInc(int *ctr, int warpLane) {
 	if ( warpLane == leader )
 		res = atomicAdd(ctr, __popc(mask));
 	res = warp_bcast(res,leader);
-
 	return res + __popc( mask & ((1 << warpLane) - 1) );
 }
-
+#else*/
+__device__ int atomicAggInc(int *ctr, int warpLane) 
+{
+    unsigned int active = __activemask();
+    int leader = __ffs(active) - 1;
+    int change = __popc(active);
+    unsigned int rank = __popc(active & __lanemask_lt());
+    int warp_res;
+    if(rank == 0)
+        warp_res = atomicAdd(ctr, change);
+    warp_res = __shfl_sync(active, warp_res, leader);
+    return warp_res + rank;
+}
+//#endif
 __global__
 void reduceVector(const int num, Vector3* __restrict__ vector, Vector3* netVector) {
 	extern __shared__ Vector3 blockVector[];
