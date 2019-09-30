@@ -847,11 +847,11 @@ __global__ void computeTabulatedEnergyKernel(Vector3* force, const Vector3* __re
 		
 		if (tablePot[ind] != NULL && d2 <= cutoff2) { 
 			EnergyForce fe = tablePot[ind]->compute(dr,d2);
-			atomicAdd( &force[ai], -fe.f );
-			atomicAdd( &force[aj],  fe.f );
+			atomicAdd( &force[ai],  fe.f );
+			atomicAdd( &force[aj], -fe.f );
 			// RBTODO: reduce energies
-			atomicAdd( &(g_energies[ai]), fe.e );
-			atomicAdd( &(g_energies[aj]), fe.e );
+			atomicAdd( &(g_energies[ai]), fe.e*0.5f );
+			atomicAdd( &(g_energies[aj]), fe.e*0.5f );
 		}
 	}
 }
