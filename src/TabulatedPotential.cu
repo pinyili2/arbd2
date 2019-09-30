@@ -97,6 +97,10 @@ TabulatedPotential::~TabulatedPotential() {
 
 int TabulatedPotential::countValueLines(const char* fileName) {
 	FILE* inp = fopen(fileName, "r");
+	if (inp == NULL) {
+		printf("TabulatedPotential::countValueLines Could not open file '%s'\n", fileName);
+		exit(-1);
+	}
 	char line[256];
 	int count = 0;
 
