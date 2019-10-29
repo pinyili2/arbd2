@@ -64,7 +64,7 @@ $(foreach SM,$(SMS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM
 $(foreach SM,$(SMPTXS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)) )
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
-LD_FLAGS = -L$(LIBRARY) -lgsl -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
+LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
 
 ### Sources
 CC_SRC := $(wildcard *.cpp)
