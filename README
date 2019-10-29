@@ -1,5 +1,5 @@
 /==========================================================\
-| Atomic Resolution Brownian Dynamics (ARBD) - beta Jan 18 |
+| Atomic Resolution Brownian Dynamics (ARBD) - beta Oct 19 |
 \==========================================================/
 
 Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
@@ -96,17 +96,7 @@ Terrance Howard
 | Outstanding issues |
 \====================/
 
--- Features disabled during port to GPUs --
-
-* Energy calculations are currently disabled
-
-* Constant chemical potential simulations
-
 -- Not implemented --
-
-* Periodic boundaries are not handled by rigid body objects, so
-  simulations using these should only be performed for effectively
-  infinite systems
 
 * There are no checks to ensure that pairlists are recalculated before
   particles further than the pairlist distance move to within the
