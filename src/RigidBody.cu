@@ -184,7 +184,7 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(ForceEnergy), stream >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
 			t->RBC->grids_d+idx,
-			B, c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
+			B, getPosition(), c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
 	}
 }
 

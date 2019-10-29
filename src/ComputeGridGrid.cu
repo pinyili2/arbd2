@@ -76,7 +76,7 @@ __global__
 void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForce,
 				const int num, const int* __restrict__ particleIds, 
 				const RigidBodyGrid* __restrict__ u,
-				const Matrix3 basis_u_inv, const Vector3 origin_u,
+				const Matrix3 basis_u_inv, const Vector3 center_u, const Vector3 origin_u,
 				ForceEnergy* __restrict__ retForceTorque, float* __restrict__ energy, bool get_energy, int scheme, BaseGrid* sys_d) {
 
 	extern __shared__ ForceEnergy s[];
@@ -90,9 +90,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	torque[tid] = ForceEnergy(0.f,0.f);
 	if (i < num) {
 		const int id = particleIds[i];
-		//Vector3 p = pos[id] - origin_u;
-		Vector3 p = sys_d->wrapDiff(pos[id]-origin_u); /* TODO: wrap about RB center, not origin */
-		// TODO: wrap to center of u
+		Vector3 p = sys_d->wrapDiff(pos[id]-center_u) + center_u - origin_u
 		const Vector3 u_ijk_float = basis_u_inv.transform( p );
 
                 ForceEnergy fe;
