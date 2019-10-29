@@ -91,6 +91,8 @@ private:
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
 	Vector3 getOrigin2(const int i);
+	Vector3 getCenter2(const int i);
+
 
 	static GPUManager gpuman;
 };

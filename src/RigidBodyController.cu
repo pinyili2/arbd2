@@ -698,6 +698,16 @@ Vector3 RigidBodyForcePair::getOrigin2(const int i) {
 	else
 	    return o;
 }		
+Vector3 RigidBodyForcePair::getCenter2(const int i) {
+    Vector3 c;
+    if (!isPmf)
+	c = rb2->getPosition();
+    else {
+	const int k2 = gridKeyId2[i];
+	Vector3 o = type2->RBC->grids[k2].getCenter();
+    }
+    return c;
+}
 Matrix3 RigidBodyForcePair::getBasis1(const int i) {
 	const int k1 = gridKeyId1[i];
 	return rb1->getOrientation()*type1->RBC->grids[k1].getBasis();
@@ -745,20 +755,21 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s, int scheme, Base
 	  	`––––––––––––––––––./
 		*/
 		Matrix3 B1 = getBasis1(i);
-		Vector3 c = getOrigin1(i) - getOrigin2(i);
+		// Vector3 c = getOrigin1(i) - getOrigin2(i);
+		Vector3 center_u = getCenter2(i);
 		Matrix3 B2 = getBasis2(i).inverse();
                 
 		// RBTODO: get energy
 		if (!isPmf) {								/* pair of RBs */
 			computeGridGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
 				(&type1->RBC->grids_d[k1], &type2->RBC->grids_d[k2],
-				 B1, B2, c,
+				 B1, B2, getOrigin1(i) - center_u, center_u - getOrigin2(i),
 				 forces_d[i], torques_d[i], scheme, sys_d);
 		} else {										/* RB with a PMF */
-			computeGridGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
+			computePmfGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
 				(&type1->RBC->grids_d[k1], &type2->RBC->grids_d[k2],
-				 B1, B2, c,
-				 forces_d[i], torques_d[i], scheme, sys_d);
+				 B1, B2, getOrigin1(i) - center_u,
+				 forces_d[i], torques_d[i], scheme);
 		}
 		// retrieveForcesForGrid(i); // this is slower than approach below, unsure why
 		
