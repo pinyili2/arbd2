@@ -6,10 +6,6 @@
 #include "Configuration.h"
 #include "ComputeGridGrid.cuh"
 
-#include <gsl/gsl_rng.h>
-#include <gsl/gsl_randist.h>
-#include <gsl/gsl_math.h>
-
 #include "Debug.h"
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -65,21 +61,15 @@ GPUManager RigidBody::gpuman = GPUManager();
 void RigidBody::Boltzmann(unsigned long int seed)
 {
 
-    gsl_rng *gslcpp_rng = gsl_rng_alloc(gsl_rng_default);
-    //std::srand(time(NULL));
-    gsl_rng_set (gslcpp_rng, seed);
-
     double sigma[4] = { sqrt(t->mass*Temp) * 2.046167135,sqrt(t->inertia.x*Temp) * 2.046167135, sqrt(t->inertia.y*Temp) * 2.046167135, sqrt(t->inertia.z*Temp) * 2.046167135 };
 
-    //Vector3 rando = getRandomGaussVector();
-    momentum = Vector3(gsl_ran_gaussian(gslcpp_rng,sigma[0]),gsl_ran_gaussian(gslcpp_rng,sigma[0]), gsl_ran_gaussian(gslcpp_rng,sigma[0]));
-
-    angularMomentum.x = gsl_ran_gaussian(gslcpp_rng,sigma[1]);
-    angularMomentum.y = gsl_ran_gaussian(gslcpp_rng,sigma[2]);
-    angularMomentum.z = gsl_ran_gaussian(gslcpp_rng,sigma[3]);
+    momentum = sigma[0]*getRandomGaussVector();
+    angularMomentum = getRandomGaussVector();
+    angularMomentum.x *= sigma[1];
+    angularMomentum.y *= sigma[2];
+    angularMomentum.z *= sigma[3];
     printf("%f\n", Temp);
     printf("%f\n", Temperature());
-    gsl_rng_free(gslcpp_rng);
 }
 
 RigidBody::~RigidBody() {

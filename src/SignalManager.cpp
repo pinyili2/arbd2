@@ -15,7 +15,7 @@ void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret)
     int i, trace_size = 0;
     ucontext_t *uc = (ucontext_t *) secret;
     //write to stdout for now
-    fprintf(stdout, "Segmentation fault identified, faulty address is %p, from %p", info->si_addr, uc->uc_mcontext.gregs[MY_REG_RIP]);
+    fprintf(stdout, "Segmentation fault identified, faulty address is %p, from %p", info->si_addr, (void *) uc->uc_mcontext.gregs[MY_REG_RIP]);
 
     trace_size = backtrace(trace, 16);
     /* overwrite sigaction with caller's address */

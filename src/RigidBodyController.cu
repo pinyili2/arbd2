@@ -497,7 +497,7 @@ void RigidBodyForcePair::createStreams() {
 }
 bool RigidBodyForcePair::isOverlapping(BaseGrid* sys) const {
 	if (isPmf) return true;
-	float pairlistDist = 2.0f; /* TODO: get from conf */
+	// float pairlistDist = 2.0f; /* TODO: get from conf */
 	float rbDist = sys->wrapDiff((rb1->getPosition() - rb2->getPosition())).length();
 	for (int i = 0; i < gridKeyId1.size(); ++i) {
 		const int k1 = gridKeyId1[i];

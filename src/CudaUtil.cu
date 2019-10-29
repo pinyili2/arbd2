@@ -26,7 +26,7 @@ __inline__ __device__ uint __lanemask_lt()
 /*#if __CUDA_ARCH__ < 700
 __device__ int atomicAggInc(int *ctr, int warpLane) {
 	// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
-	int mask = __ballot(1);
+	int mask = __ballot_sync(1);
 	int leader = __ffs(mask)-1;
 
 	int res;
