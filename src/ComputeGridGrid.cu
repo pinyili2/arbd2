@@ -5,16 +5,7 @@
 //RBTODO handle periodic boundaries
 //RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
 
-class BasePositionTransformer {
-    /*
-      Abstract class providing for transforming positions around a RB
-      center or not, allowing common_computeGridGridForce to be used
-      for both RB Grid-Grid and Grid-PMF
-    */
-public:
-    __device__ inline virtual Vector3 operator() (Vector3 pos) const { return Vector3(); }
-};
-class GridPositionTransformer : public BasePositionTransformer {
+class GridPositionTransformer {
 public:
     __device__ GridPositionTransformer(const Vector3 o, const Vector3 c, BaseGrid* s) :
 	o(o), c(c), s(s) { }
@@ -26,7 +17,8 @@ private:
     const Vector3 c;
     const BaseGrid* s;
 };
-class PmfPositionTransformer : public BasePositionTransformer {
+//class PmfPositionTransformer : public BasePositionTransformer {
+class PmfPositionTransformer {
 public:
     __device__ PmfPositionTransformer(const Vector3 o) : o(o) { }
     __device__ inline Vector3 operator() (Vector3 pos) const {
@@ -36,9 +28,9 @@ private:
     const Vector3 o;
 };
 
-
+template <typename T>
 __device__
-inline void common_computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const BasePositionTransformer transformer,
+inline void common_computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const T& transformer,
 					ForceEnergy* retForce, Vector3 * retTorque, int scheme)
 {
 
@@ -109,16 +101,16 @@ __global__
 void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_center_u, const Vector3 center_u_minus_origin_u,
 			ForceEnergy* retForce, Vector3 * retTorque, int scheme, BaseGrid* sys_d)
 {
-    BasePositionTransformer transformer = GridPositionTransformer(origin_rho_minus_center_u, center_u_minus_origin_u, sys_d);
-    common_computeGridGridForce(rho, u, basis_rho, basis_u_inv, transformer, retForce, retTorque, scheme);
+    GridPositionTransformer transformer = GridPositionTransformer(origin_rho_minus_center_u, center_u_minus_origin_u, sys_d);
+    common_computeGridGridForce<GridPositionTransformer>(rho, u, basis_rho, basis_u_inv, transformer, retForce, retTorque, scheme);
 }
 
 __global__
 void computePmfGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_origin_u,
 			 ForceEnergy* retForce, Vector3 * retTorque, int scheme)
 {
-    BasePositionTransformer transformer = PmfPositionTransformer(origin_rho_minus_origin_u);
-    common_computeGridGridForce(rho, u, basis_rho, basis_u_inv, transformer, retForce, retTorque, scheme);
+    PmfPositionTransformer transformer = PmfPositionTransformer(origin_rho_minus_origin_u);
+    common_computeGridGridForce<PmfPositionTransformer>(rho, u, basis_rho, basis_u_inv, transformer, retForce, retTorque, scheme);
 }
 
 __global__

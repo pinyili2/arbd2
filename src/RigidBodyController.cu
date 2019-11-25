@@ -766,10 +766,10 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s, int scheme, Base
 				 B1, B2, getOrigin1(i) - center_u, center_u - getOrigin2(i),
 				 forces_d[i], torques_d[i], scheme, sys_d);
 		} else {										/* RB with a PMF */
-			computePmfGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
+			computeGridGridForce<<< nb, NUMTHREADS, 2*sizeof(ForceEnergy)*NUMTHREADS, s>>>
 				(&type1->RBC->grids_d[k1], &type2->RBC->grids_d[k2],
-				 B1, B2, getOrigin1(i) - center_u,
-				 forces_d[i], torques_d[i], scheme);
+				 B1, B2, getOrigin1(i) - center_u, center_u-getOrigin2(i),
+				 forces_d[i], torques_d[i], scheme, sys_d);
 		}
 		// retrieveForcesForGrid(i); // this is slower than approach below, unsure why
 		
