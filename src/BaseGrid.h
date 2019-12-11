@@ -21,6 +21,18 @@
 #include <ctime>
 // #include <cuda.h>
 
+enum BoundaryCondition { dirichlet, neumann, periodic };
+enum InterpolationOrder { linear = 1, cubic = 3 };
+
+#define INTERPOLATE_FORCE(result, function, boundary_condition, args) \
+switch (boundary_condition) { \
+case dirichlet: \
+    result = function<dirichlet>(args); break; \
+case neumann: \
+    result = function<neumann>(args); break; \
+case periodic: \
+    result = function<periodic>(args); break; \
+}
 
 // using namespace std;
 
@@ -500,6 +512,7 @@ public:
 	
 	}
 
+	template <BoundaryCondition bc>
 	DEVICE inline ForceEnergy interpolateForceDLinearly(const Vector3& pos) const {
  		const Vector3 l = basisInv.transform(pos - origin);
 
@@ -512,6 +525,13 @@ public:
 		const float wy = l.y - homeY;	
 		const float wz = l.z - homeZ;
 
+		if (bc == neumann) {
+		    if (homeX < -1 || homeX >= nx+1 ||
+		    	homeY < -1 || homeY >= ny+1 ||
+		    	homeZ < -1 || homeZ >= nz+1)
+		    	return ForceEnergy();
+		}
+
 		float v[2][2][2];
 		for (int iz = 0; iz < 2; iz++) {
 			int jz = (iz + homeZ);
@@ -519,9 +539,31 @@ public:
 				int jy = (iy + homeY);
 				for (int ix = 0; ix < 2; ix++) {
 					int jx = (ix + homeX);
-					int ind = jz + jy*nz + jx*nz*ny;
-					v[ix][iy][iz] = jz < 0 || jz >= nz || jy < 0 || jy >= ny || jx < 0 || jx >= nx ?
+					int ind;
+					switch (bc) {
+					case dirichlet:
+					    ind = jz + jy*nz + jx*nz*ny;
+					    v[ix][iy][iz] = 
+						jz < 0 || jz >= nz ||
+						jy < 0 || jy >= ny ||
+						jx < 0 || jx >= nx ?
 						0 : val[ind];
+					    break;
+					case neumann:
+					    ind =
+						(jz < 0 ? 0 : jz >= nz ? nz-1 : jz) +
+						(jy < 0 ? 0 : jy >= ny ? ny-1 : jy)*nz + 
+						(jx < 0 ? 0 : jx >= nx ? nx-1 : jx)*nz*ny;
+					    v[ix][iy][iz] = val[ind];
+					    break;
+					case periodic:
+					    ind =
+						(jz < 0 ? nz-1 : jz >= nz ? 0 : jz) +
+						(jy < 0 ? ny-1 : jy >= ny ? 0 : jy)*nz + 
+						(jx < 0 ? nx-1 : jx >= nx ? 0 : jx)*nz*ny;
+					    v[ix][iy][iz] = val[ind];
+					    break;
+					}
 				}
 			}
 		}
@@ -864,71 +906,6 @@ public:
            int j = iz + nz * (iy + ny * ix);
            return val[j];*/
         }
-
-        //#define cubic
-	DEVICE inline ForceEnergy interpolateForceDLinearlyPeriodic(const Vector3& pos) const {
-                //#ifdef cubic
-                //return interpolateForceD(pos);
-                //#elif defined(cubic_namd)
-                //return interpolateForceDnamd(pos);
-                //#else
-                return interpolateForceDLinearly(pos); 
-                //#endif
-                #if 0
- 		const Vector3 l = basisInv.transform(pos - origin);
-
-		// Find the home node.
-		const int homeX = int(floor(l.x));
-		const int homeY = int(floor(l.y));
-		const int homeZ = int(floor(l.z));
-
-		const float wx = l.x - homeX;
-		const float wy = l.y - homeY;	
-		const float wz = l.z - homeZ;
-
-		float v[2][2][2];
-		for (int iz = 0; iz < 2; iz++) {
-			int jz = (iz + homeZ);
-			jz = (jz < 0) ? nz-1 : jz;
-			jz = (jz >= nz) ? 0 : jz;
-			for (int iy = 0; iy < 2; iy++) {
-				int jy = (iy + homeY);
-				jy = (jy < 0) ? ny-1 : jy;
-				jy = (jy >= ny) ? 0 : jy;
-				for (int ix = 0; ix < 2; ix++) {
-					int jx = (ix + homeX);
-					jx = (jx < 0) ? nx-1 : jx;
-					jx = (jx >= nx) ? 0 : jx;	 
-					int ind = jz + jy*nz + jx*nz*ny;
-					v[ix][iy][iz] = val[ind];
-					// printf("%d %d %d: %d %f\n",ix,iy,iz,ind,val[ind]); looks OK
-				}
-			}
-		}
-
-		float g3[3][2];
-		for (int iz = 0; iz < 2; iz++) {
-			float g2[2][2];
-			for (int iy = 0; iy < 2; iy++) {
-				g2[0][iy] = (v[1][iy][iz] - v[0][iy][iz]); /* f.x */
-				g2[1][iy] = wx * (v[1][iy][iz] - v[0][iy][iz]) + v[0][iy][iz]; /* f.y & f.z */
-			}
-			// Mix along y.
-			g3[0][iz] = wy * (g2[0][1] - g2[0][0]) + g2[0][0];
-			g3[1][iz] = (g2[1][1] - g2[1][0]);
-			g3[2][iz] = wy * (g2[1][1] - g2[1][0]) + g2[1][0];
-		}
-		// Mix along z.
-		Vector3 f;
-		f.x = -(wz * (g3[0][1] - g3[0][0]) + g3[0][0]);
-		f.y = -(wz * (g3[1][1] - g3[1][0]) + g3[1][0]);
-		f.z = -      (g3[2][1] - g3[2][0]);
-
-		f = basisInv.transpose().transform(f);
-		float e = wz * (g3[2][1] - g3[2][0]) + g3[2][0];
-		return ForceEnergy(f,e);
-                #endif
-	}
 
   inline virtual Vector3 interpolateForce(Vector3 pos) const {
 		Vector3 f;

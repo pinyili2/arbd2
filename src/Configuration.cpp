@@ -599,18 +599,28 @@ void Configuration::copyToCUDA() {
 	
 	for (int i = 0; i < numParts; i++) 
         {
-		BaseGrid *pmf = NULL, *diffusionGrid = NULL;
+	        BaseGrid *pmf = NULL, *diffusionGrid = NULL;
 		BrownianParticleType *b = new BrownianParticleType(part[i]);
 		// Copy PMF
 		if (part[i].pmf != NULL) 
                 {
-                    float *tmp;
-                    gpuErrchk(cudaMalloc(&pmf, sizeof(BaseGrid)*part[i].numPartGridFiles));
-                    gpuErrchk(cudaMalloc(&tmp, sizeof(float)*part[i].numPartGridFiles));
-                    gpuErrchk(cudaMemcpy(tmp, part[i].meanPmf, sizeof(float)*part[i].numPartGridFiles, 
-                              cudaMemcpyHostToDevice));
-                    b->meanPmf = tmp;
+		    {
+			float *tmp;
+			gpuErrchk(cudaMalloc(&tmp, sizeof(float)*part[i].numPartGridFiles));
+			gpuErrchk(cudaMemcpy(tmp, part[i].meanPmf, sizeof(float)*part[i].numPartGridFiles, 
+					     cudaMemcpyHostToDevice));
+			b->meanPmf = tmp;
+		    }
 
+		    {
+			BoundaryCondition *tmp;
+			size_t s = sizeof(BoundaryCondition)*part[i].numPartGridFiles;
+			gpuErrchk(cudaMalloc(&tmp, s));
+			gpuErrchk(cudaMemcpy(tmp, part[i].pmf_boundary_conditions, s, cudaMemcpyHostToDevice));
+			b->pmf_boundary_conditions = tmp;
+		    }
+
+		    gpuErrchk(cudaMalloc(&pmf, sizeof(BaseGrid)*part[i].numPartGridFiles));
                     for(int j = 0; j < part[i].numPartGridFiles; ++j)
                     { 
                         float *val = NULL;
@@ -626,6 +636,7 @@ void Configuration::copyToCUDA() {
                     
 		}
 		b->pmf = pmf;
+
 		// Copy the diffusion grid
 		if (part[i].diffusionGrid != NULL) {
 			float *val = NULL;
@@ -1049,6 +1060,27 @@ int Configuration::readParameters(const char * config_file) {
 			//partGridFileScale[currPart] = (float) strtod(value.val(), NULL);
 			  stringToArray<float>(&value, part[currPart].numPartGridFiles, 
                                                       &partGridFileScale[currPart]);
+		} else if (param == String("gridFileBoundaryConditions")) {
+		    register size_t num = value.tokenCount();
+		    String *tokens  = new String[num];
+		    BoundaryCondition *data = new BoundaryCondition[num];
+		    value.tokenize(tokens);
+		    for(size_t i = 0; i < num; ++i) {
+			tokens[i].lower();
+			if (tokens[i] == "dirichlet")
+			    data[i] = dirichlet;
+			else if (tokens[i] == "neumann")
+			    data[i] = neumann;
+			else if (tokens[i] == "periodic")
+			    data[i] = periodic;
+			else {
+			    fprintf(stderr,"WARNING: Unrecognized gridFile boundary condition \"%s\". Using Dirichlet.\n", tokens[i].val() );
+			    data[i] = dirichlet;
+			}
+		    }
+		    delete[] tokens;
+		    part[currPart].pmf_boundary_conditions = data;
+		    
 		} else if (param == String("rigidBodyPotential")) {
 			partRigidBodyGrid[currPart].push_back(value);
 		}
@@ -1119,12 +1151,22 @@ int Configuration::readParameters(const char * config_file) {
 				//partGridFile[currPart] = value;
 				stringToArray<String>(&value, part[currPart].numPartGridFiles, 
                                                              &partGridFile[currPart]);
-				partGridFileScale[currPart] = new float[part[currPart].numPartGridFiles];
-                                for(int i = 0; i < part[currPart].numPartGridFiles; ++i) {
+				const int& num = part[currPart].numPartGridFiles;
+				partGridFileScale[currPart] = new float[num];
+                                for(int i = 0; i < num; ++i) {
                                     printf("%s ", partGridFile[currPart]->val());
 				    partGridFileScale[currPart][i] = 1.0f;
 				}
 
+				// Set default boundary conditions for grids
+				BoundaryCondition *bc = part[currPart].pmf_boundary_conditions;
+				if (bc == NULL) {
+				    bc = new BoundaryCondition[num];
+				    for(int i = 0; i < num; ++i) {
+					bc[i] = dirichlet;
+				    }
+				    part[currPart].pmf_boundary_conditions = bc;
+				}
                         }
 			else if (currPartClass == partClassRB)
 				rigidBody[currRB].addPMF(value);

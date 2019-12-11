@@ -30,7 +30,8 @@ class BrownianParticleType {
 		BrownianParticleType(const String& name = "") :
 				name(name), num(0),
 				diffusion(0.0f), radius(1.0f), charge(0.0f), eps(0.0f), meanPmf(NULL),
-				numPartGridFiles(-1), reservoir(NULL), pmf(NULL), diffusionGrid(NULL),
+				numPartGridFiles(-1), reservoir(NULL), pmf(NULL), pmf_boundary_conditions(NULL),
+				diffusionGrid(NULL),
 				forceXGrid(NULL), forceYGrid(NULL), forceZGrid(NULL){ }
 
 		BrownianParticleType(const BrownianParticleType& src) { copy(src); }
@@ -62,6 +63,7 @@ public:
 
 		Reservoir* reservoir;
 		BaseGrid* pmf;
+		BoundaryCondition* pmf_boundary_conditions;
 		BaseGrid* diffusionGrid;
 		BaseGrid* forceXGrid;
 		BaseGrid* forceYGrid;
