@@ -123,16 +123,17 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
                 //Han-Yi Chou
                 int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
                 //int* nCells_dev;
-                int3 *Cells_dev;
-
-                gpuErrchk(cudaMalloc(&CellNeighborsList,sizeof(int)*27*nCells));
-                //gpuErrchk(cudaMalloc(&nCells_dev,sizeof(int)));
-                gpuErrchk(cudaMalloc(&Cells_dev,sizeof(int3)));
-                //gpuErrchk(cudaMemcpy(nCells_dev,&nCells,1,cudaMemcpyHostToDevice);
-                gpuErrchk(cudaMemcpy(Cells_dev,&(decomp.nCells),sizeof(int3),cudaMemcpyHostToDevice));
-                createNeighborsList<<<256,256>>>(Cells_dev,CellNeighborsList);
-                gpuErrchk(cudaFree(Cells_dev));
-                cudaBindTexture(0, NeighborsTex, CellNeighborsList, 27*nCells*sizeof(int));
+		if (nCells < MAX_CELLS_FOR_CELLNEIGHBORLIST) {
+		    int3 *Cells_dev;
+		    gpuErrchk(cudaMalloc(&CellNeighborsList,sizeof(int)*27*nCells));
+		    //gpuErrchk(cudaMalloc(&nCells_dev,sizeof(int)));
+		    gpuErrchk(cudaMalloc(&Cells_dev,sizeof(int3)));
+		    //gpuErrchk(cudaMemcpy(nCells_dev,&nCells,1,cudaMemcpyHostToDevice);
+		    gpuErrchk(cudaMemcpy(Cells_dev,&(decomp.nCells),sizeof(int3),cudaMemcpyHostToDevice));
+		    createNeighborsList<<<256,256>>>(Cells_dev,CellNeighborsList);
+		    gpuErrchk(cudaFree(Cells_dev));
+		    cudaBindTexture(0, NeighborsTex, CellNeighborsList, 27*nCells*sizeof(int));
+		}
 	}
 	
 	//Calculate the number of blocks the grid should contain

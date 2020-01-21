@@ -8,6 +8,9 @@
 #include "TabulatedMethods.cuh"
 
 #define BD_PI 3.1415927f
+
+#define MAX_CELLS_FOR_CELLNEIGHBORLIST 1<<25
+
 texture<int,    1, cudaReadModeElementType>      NeighborsTex;
 texture<int,    1, cudaReadModeElementType> pairTabPotTypeTex;
 texture<int2,   1, cudaReadModeElementType>      pairListsTex;
@@ -234,6 +237,35 @@ int getExSum() {
     return tmp;
 }
 //
+__device__
+int computeCellNeighbor( const int3 cells, const int3 cell_idx, const int dx, const int dy, const int dz )
+{
+    int idx = cell_idx.x;
+    int idy = cell_idx.y;
+    int idz = cell_idx.z;
+
+    int u = idx + dx;
+    int v = idy + dy;
+    int w = idz + dz;
+
+    int nID;
+    if (cells.x == 1 and u != 0) nID = -1;
+    else if (cells.y == 1 and v != 0) nID =  -1;
+    else if (cells.z == 1 and w != 0) nID = -1;
+    else if (cells.x == 2 and (u < 0 || u > 1)) nID = -1;
+    else if (cells.y == 2 and (v < 0 || v > 1)) nID = -1;
+    else if (cells.z == 2 and (w < 0 || w > 1)) nID = -1;
+    else
+    {
+	u = (u + cells.x) % cells.x;
+	v = (v + cells.y) % cells.y;
+	w = (w + cells.z) % cells.z;
+	nID = w + cells.z * (v + cells.y * u);
+    }
+
+    return nID;
+}
+
 __global__ 
 void createNeighborsList(const int3 *Cells,int* __restrict__ CellNeighborsList)
 {
@@ -254,25 +286,7 @@ void createNeighborsList(const int3 *Cells,int* __restrict__ CellNeighborsList)
             for (int dy = -1; dy <= 1; ++dy) {
                 for (int dz = -1; dz <= 1; ++dz) {
 
-                    int u = idx + dx;
-                    int v = idy + dy;
-                    int w = idz + dz;
-
-                    if (cells.x == 1 and u != 0) nID = -1;
-                    else if (cells.y == 1 and v != 0) nID =  -1;
-                    else if (cells.z == 1 and w != 0) nID = -1;
-                    else if (cells.x == 2 and (u < 0 || u > 1)) nID = -1;
-                    else if (cells.y == 2 and (v < 0 || v > 1)) nID = -1;
-                    else if (cells.z == 2 and (w < 0 || w > 1)) nID = -1;
-                    else 
-                    {
-                        u = (u + cells.x) % cells.x;
-                        v = (v + cells.y) % cells.y;
-                        w = (w + cells.z) % cells.z;
- 
-                        nID = w + cells.z * (v + cells.y * u);
-                    }
-
+		    nID = computeCellNeighbor( cells, make_int3(idx,idy,idz), dx, dy, dz );
                     CellNeighborsList[size_t(count+27*cID)] = nID;
                     ++count;
                     //__syncthreads();
@@ -342,7 +356,20 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
 			int currEx = ex_pair.x;
 			int nextEx = (ex_pair.x >= 0) ? excludes[currEx].ind2 : -1;
 
-                        int neighbor_cell = tex1Dfetch(NeighborsTex,idx+27*cellid_i);
+			int neighbor_cell;
+			if (nCells < MAX_CELLS_FOR_CELLNEIGHBORLIST) {
+			    neighbor_cell = tex1Dfetch(NeighborsTex,idx+27*cellid_i);
+			} else {
+			    int3 cells = decomp->nCells;
+			    int3 cell_idx = make_int3(cellid_i %  cells.z,
+						      cellid_i /  cells.z % cells.y,
+						      cellid_i / (cells.z * cells.y));
+
+			    int dz = (idx % 3) - 1;
+			    int dy = ((idx/3) % 3) - 1;
+			    int dx = ((idx/9) % 3) - 1;
+			    neighbor_cell = computeCellNeighbor( decomp->nCells, cell_idx, dx, dy, dz );
+			}
 
                         if(neighbor_cell < 0)
                         {
