@@ -118,9 +118,10 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
         for(int i = 0; i < pt.numPartGridFiles; ++i)
         {
             ForceEnergy tmp(0.f,0.f);
-            if(!scheme)
-                tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
-            else 
+            if(!scheme) {
+		const BoundaryCondition& bc = pt.pmf_boundary_conditions[i];
+		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
+	    } else 
                 tmp = pt.pmf[i].interpolateForceD(r0);
             fe.f += tmp.f;
         }
@@ -170,7 +171,7 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
             p2 = sys->wrapDiff( p2 ) + gridCenter;
             ForceEnergy diff;
             if(!scheme)
-                diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
+                diff = pt.diffusionGrid->interpolateForceDLinearly<periodic>(p2);
             else
                 diff = pt.diffusionGrid->interpolateForceD(p2);
             gamma = Vector3(kTlocal / (mass * diff.e));
@@ -233,9 +234,10 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
         for(int i = 0; i < pt.numPartGridFiles; ++i)
         {
             ForceEnergy tmp(0.f, 0.f);
-            if(!scheme)
-                tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
-            else
+            if(!scheme) {
+		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
+		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
+	    } else 
                 tmp = pt.pmf[i].interpolateForceD(r0);
             fe.f += tmp.f;
         }
@@ -282,7 +284,7 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
             p2 = sys->wrapDiff( p2 ) + gridCenter;
             ForceEnergy diff;
             if(!scheme)
-                diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
+                diff = pt.diffusionGrid->interpolateForceDLinearly<periodic>(p2);
             else
                 diff = pt.diffusionGrid->interpolateForceD(p2);
             gamma = Vector3(kTlocal / (mass * diff.e));
@@ -332,9 +334,10 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         for(int i = 0; i < pt.numPartGridFiles; ++i)
         {
             ForceEnergy tmp(0.f, 0.f);
-            if(!scheme)
-                tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(r0);
-            else
+            if(!scheme) {
+		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
+		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
+	    } else 
                 tmp = pt.pmf[i].interpolateForceD(r0);
 
             fe += tmp;
@@ -463,9 +466,10 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                 for(int i = 0; i < pt.numPartGridFiles; ++i)
                 {
                     ForceEnergy tmp(0.f,0.f);
-                    if(!scheme)
-                        tmp = pt.pmf[i].interpolateForceDLinearlyPeriodic(p);
-                    else
+		    if(!scheme) {
+			BoundaryCondition bc = pt.pmf_boundary_conditions[i];
+			INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, p)
+		    } else 
                         tmp = pt.pmf[i].interpolateForceD(p);
                     fe += tmp;
                 }
@@ -525,7 +529,7 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
 			/* printf("atom %d: ps2: %f %f %f\n", idx, p2.x, p2.y, p2.z); */
                         ForceEnergy diff;
                         if(!scheme)	
-			    diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
+			    diff = pt.diffusionGrid->interpolateForceDLinearly<periodic>(p2);
                         else
                             diff = pt.diffusionGrid->interpolateForceD(p2);
 			diffusion = diff.e;
@@ -607,15 +611,15 @@ __global__ void devicePrint(RigidBodyType* rb[]) {
 	// printf("Device printing\n");
 	int i = 0;
 	printf("RigidBodyType %d: numGrids = %d\n", i, rb[i]->numPotGrids);
-	printf("  RigidBodyType %d: potGrid: %p\n", i, rb[i]->rawPotentialGrids);
-	int j = 0;
-	printf("  RigidBodyType %d: potGrid[%d]: %p\n", i, j, &(rb[i]->rawPotentialGrids[j]));
-	printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, j, rb[i]->rawPotentialGrids[j].getSize());
+	// printf("  RigidBodyType %d: potGrid: %p\n", i, rb[i]->rawPotentialGrids);
+	// int j = 0;
+	// printf("  RigidBodyType %d: potGrid[%d]: %p\n", i, j, &(rb[i]->rawPotentialGrids[j]));
+	// printf("  RigidBodyType %d: potGrid[%d] size: %d\n", i, j, rb[i]->rawPotentialGrids[j].getSize());
 	// BaseGrid g = rb[i]->rawPotentialGrids[j];
 	// for (int k = 0; k < rb[i]->rawPotentialGrids[j].size(); k++)
-	for (int k = 0; k < rb[i]->rawPotentialGrids[j].getSize(); k++)
-		printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
-					 i, j, k, rb[i]->rawPotentialGrids[j].val[k]);
+	// for (int k = 0; k < rb[i]->rawPotentialGrids[j].getSize(); k++)
+	// 	printf("    rbType_d[%d]->potGrid[%d].val[%d]: %g\n",
+	// 				 i, j, k, rb[i]->rawPotentialGrids[j].val[k]);
 	// i, j, k, rb[i]->rawPotentialGrids[j]).val[k];
 	
 }

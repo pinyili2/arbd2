@@ -7,6 +7,7 @@
 #include <cuda_runtime.h>
 #include "useful.h"
 #include "BaseGrid.h"
+#include "RigidBodyGrid.h"
 #include "GPUManager.h"
 
 #define NUMSTREAMS 8
@@ -90,6 +91,8 @@ private:
 	Matrix3 getBasis2(const int i);
 	Vector3 getOrigin1(const int i);
 	Vector3 getOrigin2(const int i);
+	Vector3 getCenter2(const int i);
+
 
 	static GPUManager gpuman;
 };
@@ -103,8 +106,8 @@ public:
 
         void AddLangevin();
         void SetRandomTorques();
-	void integrate(int step);
-        void integrateDLM(int step);
+	void integrate(BaseGrid* sys, int step);
+        void integrateDLM(BaseGrid* sys, int step);
 	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
 	void updateParticleLists(Vector3* pos_d, BaseGrid* sys_d);
         void clearForceAndTorque(); 
@@ -126,6 +129,9 @@ public:
 	    return random->gaussian_vector();
 	}
 	/* RequireReduction *gridReduction; */
+
+	BaseGrid* grids;
+	RigidBodyGrid* grids_d;
 	
 private:
 	std::ofstream trajFile;
@@ -140,6 +146,9 @@ private:
 	Matrix3* rot;  	// there are errors on rigidBody->integrate
 	std::vector< std::vector<RigidBody> > rigidBodyByType;
 	std::vector< RigidBodyForcePair > forcePairs;
+
+	void construct_grids();
+	void destruct_grids();
 
         //float* rb_energy;	
 	ForceEnergy* particleForces;

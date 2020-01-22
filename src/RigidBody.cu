@@ -117,9 +117,10 @@ void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
 		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];
 		if (tnp > 0) {
-			Vector3 gridCenter = t->potentialGrids[i].getCenter();
+		    int idx = t->potential_grid_idx[i];
+			Vector3 gridCenter = t->RBC->grids[idx].getCenter();
 			float cutoff = gridCenter.length();
-			cutoff += t->potentialGrids[i].getRadius();
+			cutoff += t->RBC->grids[idx].getRadius();
 			cutoff += c->pairlistDistance; 
 		   
 			int* tmp_d;
@@ -164,14 +165,16 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 		const cudaStream_t& stream = gpuman.get_next_stream();
 		particleForceStreams[i] = &stream;
 
-		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
-		Matrix3 B = (getOrientation()*t->potentialGrids[i].getBasis()).inverse();
+		size_t idx = t->potential_grid_idx[i];
+
+		Vector3 c =  getOrientation()*t->RBC->grids[idx].getOrigin() + getPosition();
+		Matrix3 B = (getOrientation()*t->RBC->grids[idx].getBasis()).inverse();
 		
 		const int nb = (numParticles[i]/NUMTHREADS)+1;		
 		computePartGridForce<<< nb, NUMTHREADS, NUMTHREADS*2*sizeof(ForceEnergy), stream >>>(
 			pos_d, force_d, numParticles[i], particles_d[i],
-			t->rawPotentialGrids_d[i],
-			B, c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
+			t->RBC->grids_d+idx,
+			B, getPosition(), c, forcestorques_d+forcestorques_offset[fto_idx++], energy, get_energy, scheme, sys_d);
 	}
 }
 
@@ -180,7 +183,8 @@ void RigidBody::applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorque
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		if (numParticles[i] <= 0) continue;
 		const int nb = (numParticles[i]/NUMTHREADS)+1;
-		Vector3 c =  getOrientation()*t->potentialGrids[i].getOrigin() + getPosition();
+		int idx = t->potential_grid_idx[i];
+		Vector3 c =  getOrientation()*t->RBC->grids[idx].getOrigin() + getPosition();
 
 		// Sum and apply forces and torques
 		//Vector3 f = Vector3(0.0f);
@@ -236,7 +240,7 @@ void RigidBody::addLangevin(Vector3 w1, Vector3 w2)
 	| rigid body molecular dynamics. JCP 107. (1997)                            |
 	| http://jcp.aip.org/resource/1/jcpsa6/v107/i15/p5840_s1                    |
 	\==========================================================================*/
-void RigidBody::integrateDLM(int startFinishAll) 
+void RigidBody::integrateDLM(BaseGrid* sys, int startFinishAll) 
 {
     Vector3 trans; // = *p_trans;
     //Matrix3 rot = Matrix3(1); // = *p_rot;
@@ -257,6 +261,8 @@ void RigidBody::integrateDLM(int startFinishAll)
     else if (startFinishAll == 1)
     {
         position += timestep * momentum / t->mass * 1e4; // update CoM a full timestep
+	position = sys->wrap( position );
+
         // update orientations a full timestep
         Matrix3 R; // represents a rotation about a principle axis
         R = Rx(0.5*timestep * angularMomentum.x / t->inertia.x * 1e4); // R1
@@ -287,7 +293,7 @@ Miguel X. Fernandes, José García de la Torre
 */
 
 //Chris original implementation for Brownian motion
-void RigidBody::integrate(int startFinishAll)
+void RigidBody::integrate(BaseGrid* sys, int startFinishAll)
 {
     // UNITS
     // Temp: kcal_mol
@@ -314,6 +320,7 @@ void RigidBody::integrate(int startFinishAll)
                      Vector3::element_mult( Vector3::element_sqrt( 2.0f * diffusion * timestep), rando) ;
 
     position += orientation*offset;
+    position = sys->wrap( position );
 
     rando = getRandomGaussVector();
     Vector3 rotationOffset = Vector3::element_mult( (rotDiffusion / Temp) , orientation.transpose() * torque * timestep) +

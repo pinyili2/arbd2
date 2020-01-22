@@ -1,6 +1,11 @@
 #include "CudaUtil.cuh"
+#include <cuda_runtime_api.h>
 
-/*#if __CUDA_ARCH__ < 300
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION < 9000)
+
+#if __CUDA_ARCH__ < 300
 volatile extern __shared__ int sh[];
 __device__ int warp_bcast(int v, int leader) {
 	// WARNING: might not be safe to call in divergent branches 
@@ -12,21 +17,13 @@ __device__ int warp_bcast(int v, int leader) {
 }	
 #elif __CUDA_ARCH__ < 700
 __device__ int warp_bcast(int v, int leader) {return __shfl(v, leader); }
-#else*/
-//__device__ int warp_bcast(int v, int leader, int srcLane) {return __shfl_sync(v, leader, srcLane); }
-__inline__ __device__ uint __lanemask_lt()
-{
-    uint mask;
-    asm( "mov.u32 %0, %lanemask_lt;" : "=r"( mask ) );
-    return mask;
-}
-//#endif
+#else
+__device__ int warp_bcast(int v, int leader) {return __shfl_sync(v, leader); }
+#endif
 
-
-/*#if __CUDA_ARCH__ < 700
 __device__ int atomicAggInc(int *ctr, int warpLane) {
 	// https://devblogs.nvidia.com/parallelforall/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
-	int mask = __ballot_sync(1);
+	int mask = __ballot(1);
 	int leader = __ffs(mask)-1;
 
 	int res;
@@ -35,10 +32,16 @@ __device__ int atomicAggInc(int *ctr, int warpLane) {
 	res = warp_bcast(res,leader);
 	return res + __popc( mask & ((1 << warpLane) - 1) );
 }
-#else*/
+#else
+__inline__ __device__ uint __lanemask_lt()
+{
+    uint mask;
+    asm( "mov.u32 %0, %lanemask_lt;" : "=r"( mask ) );
+    return mask;
+}
 __device__ int atomicAggInc(int *ctr, int warpLane) 
 {
-    unsigned int active = __activemask();
+    unsigned int active = __ballot_sync(0xFFFFFFFF, 1);
     int leader = __ffs(active) - 1;
     int change = __popc(active);
     unsigned int rank = __popc(active & __lanemask_lt());
@@ -48,7 +51,8 @@ __device__ int atomicAggInc(int *ctr, int warpLane)
     warp_res = __shfl_sync(active, warp_res, leader);
     return warp_res + rank;
 }
-//#endif
+#endif
+
 __global__
 void reduceVector(const int num, Vector3* __restrict__ vector, Vector3* netVector) {
 	extern __shared__ Vector3 blockVector[];

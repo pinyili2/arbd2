@@ -4,9 +4,34 @@
 #include "CudaUtil.cuh"
 //RBTODO handle periodic boundaries
 //RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
-__global__
-void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_origin_u,
-			ForceEnergy* retForce, Vector3 * retTorque, int scheme, BaseGrid* sys_d) 
+
+class GridPositionTransformer {
+public:
+    __device__ GridPositionTransformer(const Vector3 o, const Vector3 c, BaseGrid* s) :
+	o(o), c(c), s(s) { }
+    __device__ inline Vector3 operator() (Vector3 pos) const {
+	return s->wrapDiff(pos + o) + c;
+    }
+private:
+    const Vector3 o;
+    const Vector3 c;
+    const BaseGrid* s;
+};
+//class PmfPositionTransformer : public BasePositionTransformer {
+class PmfPositionTransformer {
+public:
+    __device__ PmfPositionTransformer(const Vector3 o) : o(o) { }
+    __device__ inline Vector3 operator() (Vector3 pos) const {
+	return pos + o;
+    }
+private:
+    const Vector3 o;
+};
+
+template <typename T>
+__device__
+inline void common_computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const T& transformer,
+					ForceEnergy* retForce, Vector3 * retTorque, int scheme)
 {
 
 	extern __shared__ ForceEnergy s[];
@@ -24,10 +49,10 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, cons
 		// RBTODO: reduce registers used;
 		//   commenting out interpolateForceD still uses ~40 registers
 		//   -- the innocuous-looking fn below is responsible; consumes ~17 registers!
-		Vector3 r_pos= rho->getPosition(r_id); /* i,j,k value of voxel */
+	    Vector3 r_pos= rho->getPosition(r_id); /* i,j,k value of voxel */
 
-		r_pos = basis_rho.transform( r_pos ) + origin_rho_minus_origin_u; /* real space */
-                r_pos = sys_d->wrapDiff(r_pos); /* TODO: wrap about center of RB, not origin of u */
+	    r_pos = basis_rho.transform( r_pos );
+	    r_pos = transformer(r_pos);
 		const Vector3 u_ijk_float = basis_u_inv.transform( r_pos );
 		// RBTODO: Test for non-unit delta
 		/* Vector3 tmpf  = Vector3(0.0f); */
@@ -73,10 +98,26 @@ void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, cons
 }
 
 __global__
+void computeGridGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_center_u, const Vector3 center_u_minus_origin_u,
+			ForceEnergy* retForce, Vector3 * retTorque, int scheme, BaseGrid* sys_d)
+{
+    GridPositionTransformer transformer = GridPositionTransformer(origin_rho_minus_center_u, center_u_minus_origin_u, sys_d);
+    common_computeGridGridForce<GridPositionTransformer>(rho, u, basis_rho, basis_u_inv, transformer, retForce, retTorque, scheme);
+}
+
+__global__
+void computePmfGridForce(const RigidBodyGrid* rho, const RigidBodyGrid* u, const Matrix3 basis_rho, const Matrix3 basis_u_inv, const Vector3 origin_rho_minus_origin_u,
+			 ForceEnergy* retForce, Vector3 * retTorque, int scheme)
+{
+    PmfPositionTransformer transformer = PmfPositionTransformer(origin_rho_minus_origin_u);
+    common_computeGridGridForce<PmfPositionTransformer>(rho, u, basis_rho, basis_u_inv, transformer, retForce, retTorque, scheme);
+}
+
+__global__
 void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForce,
 				const int num, const int* __restrict__ particleIds, 
 				const RigidBodyGrid* __restrict__ u,
-				const Matrix3 basis_u_inv, const Vector3 origin_u,
+				const Matrix3 basis_u_inv, const Vector3 center_u, const Vector3 origin_u,
 				ForceEnergy* __restrict__ retForceTorque, float* __restrict__ energy, bool get_energy, int scheme, BaseGrid* sys_d) {
 
 	extern __shared__ ForceEnergy s[];
@@ -90,9 +131,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	torque[tid] = ForceEnergy(0.f,0.f);
 	if (i < num) {
 		const int id = particleIds[i];
-		//Vector3 p = pos[id] - origin_u;
-		Vector3 p = sys_d->wrapDiff(pos[id]-origin_u); /* TODO: wrap about RB center, not origin */
-		// TODO: wrap to center of u
+		Vector3 p = sys_d->wrapDiff(pos[id]-center_u) + center_u - origin_u;
 		const Vector3 u_ijk_float = basis_u_inv.transform( p );
 
                 ForceEnergy fe;
