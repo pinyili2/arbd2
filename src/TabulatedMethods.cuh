@@ -56,7 +56,7 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	float dUdx = (a->pot[(((home+1)==(a->size)) ? (a->size)-1 : home+1)] - U0) * a->angle_step_inv;
         if(get_energy)
         {
-	    float e = ((dUdx * angle) + U0)*0.3333333333;
+	    float e = ((dUdx * (angle-home)) + U0)*0.3333333333;
             atomicAdd( &energy[i], e);
             atomicAdd( &energy[j], e);
             atomicAdd( &energy[k], e);
