@@ -865,6 +865,28 @@ void computeTabulatedAngles(Vector3* force,
 	}
 }
 
+__global__
+void computeTabulatedBondAngles(Vector3* force,
+				Vector3* __restrict__ pos,
+				BaseGrid* __restrict__ sys,
+				int numBondAngles, int2* __restrict__ bondAngleList_d, TabulatedAnglePotential** tableAngle,
+				TabulatedPotential** tableBond,
+				float* energy, bool get_energy) {
+	// Loop over ALL angles in ALL replicas
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numBondAngles; i+=blockDim.x*gridDim.x) {
+		int atom1 = bondAngleList_d[3*i  ].x;
+		int atom2 = bondAngleList_d[3*i  ].y;
+		int atom3 = bondAngleList_d[3*i+1].x;
+
+		int angleInd = bondAngleList_d[3*i+1].y;
+		int bondInd1 = bondAngleList_d[3*i+2].x;
+		int bondInd2 = bondAngleList_d[3*i+2].y;
+
+		computeBondAngle(tableAngle[ angleInd ], tableBond[ bondInd1 ], tableBond[ bondInd2 ], sys, force, pos, atom1, atom2, atom3, energy, get_energy);
+	}
+}
+
+
 
 __global__
 void computeDihedrals(Vector3 force[], Vector3 pos[],

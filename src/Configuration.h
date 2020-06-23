@@ -48,6 +48,7 @@ class Configuration {
 		bool operator()(const Exclude& lhs, const Exclude& rhs);
 		bool operator()(const Angle& lhs, const Angle& rhs);
 		bool operator()(const Dihedral& lhs, const Dihedral& rhs);
+		bool operator()(const BondAngle& lhs, const BondAngle& rhs);
 	};
 
 	void setDefaults();
@@ -64,12 +65,15 @@ class Configuration {
 	void buildExcludeMap();
 	void readDihedrals();
 	void readRestraints();
+	void readBondAngles();
 
 
 	bool readTableFile(const String& value, int currTab);
 	bool readBondFile(const String& value, int currBond);
 	bool readAngleFile(const String& value, int currAngle);
 	bool readDihedralFile(const String& value, int currDihedral);
+
+	bool readBondAngleFile(const String& value, const String& bondfile1, const String& bondfile2, int currBondAngle);
 
 	// Given the numbers of each particle, populate the type list.
 	void populate();
@@ -201,6 +205,7 @@ public:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+	int numBondAngles;
 	int numRestraints;
 	int* numPartsOfType;
 	String partFile;
@@ -209,12 +214,14 @@ public:
 	String angleFile;
 	String dihedralFile;
 	String restraintFile;
+	String bondAngleFile;
 	bool readPartsFromFile;
 	bool readGroupSitesFromFile;
 	bool readBondsFromFile;
 	bool readExcludesFromFile;
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
+	bool readBondAnglesFromFile;
 	bool readRestraintsFromFile;
 	//String* partGridFile;
 	String **partGridFile;
@@ -253,6 +260,8 @@ public:
 	Dihedral* dihedrals;
 	String* dihedralTableFile;
 	int numTabDihedralFiles;
+
+	BondAngle* bondAngles;
 
 	Restraint* restraints;
 

@@ -275,6 +275,10 @@ private:
 	int4 *dihedralList;
 	int  *dihedralPotList;
 
+	int numBondAngles;
+	BondAngle* bondAngles;
+	int2 *bondAngleList;
+
         //Han-Yi Chou
         String particle_dynamic;
         String rigidbody_dynamic;
