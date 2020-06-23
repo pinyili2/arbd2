@@ -80,7 +80,7 @@ public:
 		Vector3 force = (du/(d*dr))*r;
 		return EnergyForce(energy,force);
 	}
-  HOST DEVICE inline EnergyForce compute(Vector3 r, float d) {
+  HOST DEVICE inline EnergyForce compute(const Vector3 r, float d) const {
 		d = sqrt(d);
 		// float d = r.length();
 		float w = (d - r0)/dr;
@@ -98,7 +98,7 @@ public:
 		Vector3 force = (du/(d*dr))*r;
 		return EnergyForce(energy,force);
 	}
-  HOST DEVICE inline Vector3 computef(Vector3 r, float d) {
+  HOST DEVICE inline Vector3 computef(const Vector3 r, float d) const {
 		d = sqrt(d);
 		// float d = r.length();
 		// RBTODO: precompute so that initial blocks are zero; reduce computation here

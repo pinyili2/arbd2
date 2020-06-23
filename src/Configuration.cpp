@@ -227,6 +227,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readAnglesFromFile) readAngles();
 	if (readDihedralsFromFile) readDihedrals();
 	if (readRestraintsFromFile) readRestraints();
+	if (readBondAnglesFromFile) readBondAngles();
 
 	if (temperatureGridFile.length() != 0) {
 		printf("\nFound temperature grid file: %s\n", temperatureGridFile.val());
@@ -560,6 +561,7 @@ Configuration::~Configuration() {
 	if (excludeMap != NULL) delete[] excludeMap;
 	if (angles != NULL) delete[] angles;
 	if (dihedrals != NULL) delete[] dihedrals;
+	if (bondAngles != NULL) delete[] bondAngles;
 
 	delete[] numPartsOfType;
 	  
@@ -779,6 +781,10 @@ void Configuration::setDefaults() {
 	numDihedrals = 0;
 	dihedrals = NULL;
 	numTabDihedralFiles = 0;
+
+	readBondAnglesFromFile = false;
+	numBondAngles = 0;
+	bondAngles = NULL;
 
 	readRestraintsFromFile = false;
 	numRestraints = 0;
@@ -1019,6 +1025,13 @@ int Configuration::readParameters(const char * config_file) {
 			} else {
 				angleFile = value;
 				readAnglesFromFile = true;
+			}
+		} else if (param == String("inputBondAngles")) {
+			if (readBondAnglesFromFile) {
+				printf("WARNING: More than one angle file specified. Ignoring new angle file.\n");
+			} else {
+			        bondAngleFile = value;
+				readBondAnglesFromFile = true;
 			}
 		} else if (param == String("tabulatedAngleFile")) {
 			if (numTabAngleFiles >= atfcap) {
@@ -1415,7 +1428,7 @@ void Configuration::readBonds() {
 		      
 		String s(line);
 		int numTokens = s.tokenCount();
-		      
+
 		// Break the line down into pieces (tokens) so we can process them individually
 		String* tokenList = new String[numTokens];
 		s.tokenize(tokenList);
@@ -1730,6 +1743,68 @@ void Configuration::readDihedrals() {
 
 	// for(int i = 0; i < numDihedrals; i++)
 	// 	dihedrals[i].print();
+}
+
+void Configuration::readBondAngles() {
+	FILE* inp = fopen(bondAngleFile.val(), "r");
+	char line[256];
+	int capacity = 256;
+	numBondAngles = 0;
+	bondAngles = new BondAngle[capacity];
+
+	// If the angle file cannot be found, exit the program
+	if (inp == NULL) {
+		printf("WARNING: Could not open `%s'.\n", bondAngleFile.val());
+		printf("This simulation will not use angles.\n");
+		return;
+	}
+
+	while(fgets(line, 256, inp)) {
+		if (line[0] == '#') continue;
+		String s(line);
+		int numTokens = s.tokenCount();
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		// Legitimate BONDANGLE inputs have 7 tokens
+		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | ANGLE_FILENAME | BOND_FILENAME1 | BOND_FILENAME2
+		// Any angle input line without exactly 5 tokens should be discarded
+		if (numTokens != 7) {
+			printf("WARNING: Invalid bond_angle input line: %s\n", line);
+			continue;
+		}
+
+		// Discard any empty line
+		if (tokenList == NULL)
+			continue;
+
+		int ind1 = atoi(tokenList[1].val());
+		int ind2 = atoi(tokenList[2].val());
+		int ind3 = atoi(tokenList[3].val());
+		String file_name1 = tokenList[4];
+		String file_name2 = tokenList[5];
+		String file_name3 = tokenList[6];
+		//printf("file_name %s\n", file_name.val());
+		if (ind1 >= num or ind2 >= num or ind3 >= num)
+			continue;
+
+		if (numBondAngles >= capacity) {
+			BondAngle* temp = bondAngles;
+			capacity *= 2;
+			bondAngles = new BondAngle[capacity];
+			for (int i = 0; i < numBondAngles; i++)
+				bondAngles[i] = temp[i];
+			delete[] temp;
+		}
+
+		BondAngle a(ind1, ind2, ind3, file_name1, file_name2, file_name3);
+		bondAngles[numBondAngles++] = a;
+		delete[] tokenList;
+	}
+	std::sort(bondAngles, bondAngles + numBondAngles, compare());
+
+	// for(int i = 0; i < numAngles; i++)
+	// 	angles[i].print();
 }
 
 void Configuration::readRestraints() {
@@ -2330,4 +2405,14 @@ bool Configuration::compare::operator()(const Dihedral& lhs, const Dihedral& rhs
 	if (diff != 0) 
 		return lhs.ind3 < rhs.ind3;
 	return lhs.ind4 < rhs.ind4;
+}
+
+bool Configuration::compare::operator()(const BondAngle& lhs, const BondAngle& rhs) {
+	int diff = lhs.ind1 - rhs.ind1;
+	if (diff != 0)
+		return lhs.ind1 < rhs.ind1;
+	diff = lhs.ind2 - rhs.ind2;
+	if (diff != 0)
+		return lhs.ind2 < rhs.ind2;
+	return lhs.ind3 < rhs.ind3;
 }

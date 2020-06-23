@@ -46,8 +46,8 @@ public:
 	void makeTables(const BrownianParticleType* part);
 
 	bool addTabulatedPotential(String fileName, int type0, int type1);
-	bool addBondPotential(String fileName, int ind, Bond* bonds);
-	bool addAnglePotential(String fileName, int ind, Angle* angles);
+	bool addBondPotential(String fileName, int ind, Bond* bonds, BondAngle* bondAngles);
+	bool addAnglePotential(String fileName, int ind, Angle* angles, BondAngle* bondAngles);
 	bool addDihedralPotential(String fileName, int ind, Dihedral* dihedrals);
 
 	void decompose();
@@ -75,12 +75,12 @@ public:
 	
 	//MLog: new copy function to allocate memory required by ComputeForce class.
 	void copyToCUDA(Vector3* forceInternal, Vector3* pos);
-	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints);
+	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles);
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom);
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
 	// void createBondList(int3 *bondList);
-	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList);
+	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int2 *bondAngleList);
 	    
 	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
 	Vector3* getPos_d()
@@ -169,6 +169,7 @@ private:
 	int numTabAngleFiles;
 	int numDihedrals;
 	int numTabDihedralFiles;
+
 	float *tableEps, *tableRad6, *tableAlpha;
 	TabulatedPotential **tablePot;
 	TabulatedPotential **tableBond;
@@ -218,6 +219,10 @@ private:
 
 	Angle* angles_d;
 	Dihedral* dihedrals_d;
+
+	int numBondAngles;
+	BondAngle* bondAngles_d;
+	int2* bondAngleList_d;
 
 	int3* bondList_d;
 	int4* angleList_d;

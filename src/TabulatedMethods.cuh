@@ -77,6 +77,88 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	atomicAdd( &force[k], force3 );
 }
 
+__device__ inline void computeBondAngle(const TabulatedAnglePotential* __restrict__ a,
+					const TabulatedPotential* __restrict__ b1, const TabulatedPotential* __restrict__ b2,
+					const BaseGrid* __restrict__ sys, Vector3* force, const Vector3* __restrict__ pos,
+					const int& i, const int& j, const int& k, float* energy, bool get_energy) {
+
+	// Particle's type and position
+	Vector3 posa = pos[i];
+	Vector3 posb = pos[j];
+	Vector3 posc = pos[k];
+
+	// The vectors between each pair of particles
+	const Vector3 ab = sys->wrapDiff(posa - posb);
+	const Vector3 bc = sys->wrapDiff(posb - posc);
+	const Vector3 ac = sys->wrapDiff(posc - posa);
+
+	// Find the distance between each pair of particles
+	float distab = ab.length2();
+	float distbc = bc.length2();
+	EnergyForce fe_b1 = b1->compute(ab,distab);
+	EnergyForce fe_b2 = b2->compute(bc,distbc);
+
+	const float distac2 = ac.length2();
+
+	// Find the cosine of the angle we want - <ABC
+	float cos = (distab + distbc - distac2);
+
+	distab = 1.0f/sqrt(distab); //TODO: test other functiosn
+	distbc = 1.0f/sqrt(distbc);
+	cos *= 0.5f * distbc * distab;
+
+	// If the cosine is illegitimate, set it to 1 or -1 so that acos won't fail
+	if (cos < -1.0f) cos = -1.0f;
+	if (cos > 1.0f) cos = 1.0f;
+
+	// Find the sine while we're at it.
+
+	// Now we can use the cosine to find the actual angle (in radians)
+	float angle = acos(cos);
+
+	// transform angle to units of tabulated array index
+	angle *= a->angle_step_inv;
+
+	// tableAngle[0] stores the potential at angle_step
+	// tableAngle[1] stores the potential at angle_step * 2, etc.
+	// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table
+	int home = int(floorf(angle));
+        home =  (home >= a->size) ? (a->size)-1 : home;
+	//assert(home >= 0);
+	//assert(home+1 < a->size);
+
+	// // Make angle the distance from [0,1) from the first index in the potential array index
+	// angle -= home;
+
+	// Linearly interpolate the potential
+	float U0 = a->pot[home];
+	float dUdx = (a->pot[(((home+1)==(a->size)) ? (a->size)-1 : home+1)] - U0) * a->angle_step_inv;
+	float a_e = (dUdx * (angle-home)) + U0;
+        if(get_energy)
+        {
+	    float e =  a_e * fe_b1.e * fe_b2.e * 0.3333333333f;
+            atomicAdd( &energy[i], e);
+            atomicAdd( &energy[j], e);
+            atomicAdd( &energy[k], e);
+        }
+	float sin = sqrtf(1.0f - cos*cos);
+	dUdx /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity
+
+	// Calculate the forces
+	Vector3 force1 = -(dUdx*distab) * (ab * (cos*distab) + bc * distbc); // force on particle 1
+	Vector3 force3 = (dUdx*distbc) * (bc * (cos*distbc) + ab * distab); // force on particle 3
+
+	force1 = (force1 * fe_b1.e - a_e * fe_b1.f) * fe_b2.e;
+	force3 = (force3 * fe_b2.e + a_e * fe_b2.f) * fe_b1.e;
+
+	// assert( force1.length() < 10000.0f );
+	// assert( force3.length() < 10000.0f );
+
+	atomicAdd( &force[i], force1 );
+	atomicAdd( &force[j], -(force1 + force3) );
+	atomicAdd( &force[k], force3 );
+}
+
 
 __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restrict__ d,
 				const BaseGrid* __restrict__ sys, Vector3* forces, const Vector3* __restrict__ pos,
