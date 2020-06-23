@@ -136,6 +136,8 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		}
 	}
 	
+	restraintIds_d = NULL;
+
 	//Calculate the number of blocks the grid should contain
 	gridSize =  num / NUM_THREADS + 1;
 
