@@ -869,20 +869,21 @@ __global__
 void computeTabulatedBondAngles(Vector3* force,
 				Vector3* __restrict__ pos,
 				BaseGrid* __restrict__ sys,
-				int numBondAngles, int2* __restrict__ bondAngleList_d, TabulatedAnglePotential** tableAngle,
+				int numBondAngles, int4* __restrict__ bondAngleList_d, TabulatedAnglePotential** tableAngle,
 				TabulatedPotential** tableBond,
 				float* energy, bool get_energy) {
 	// Loop over ALL angles in ALL replicas
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numBondAngles; i+=blockDim.x*gridDim.x) {
-		int atom1 = bondAngleList_d[3*i  ].x;
-		int atom2 = bondAngleList_d[3*i  ].y;
-		int atom3 = bondAngleList_d[3*i+1].x;
+		int atom1 = bondAngleList_d[2*i].x;
+		int atom2 = bondAngleList_d[2*i].y;
+		int atom3 = bondAngleList_d[2*i].z;
+		int atom4 = bondAngleList_d[2*i].w;
 
-		int angleInd = bondAngleList_d[3*i+1].y;
-		int bondInd1 = bondAngleList_d[3*i+2].x;
-		int bondInd2 = bondAngleList_d[3*i+2].y;
+		int angleInd1 = bondAngleList_d[2*i+1].x;
+		int bondInd   = bondAngleList_d[2*i+1].y;
+		int angleInd2 = bondAngleList_d[2*i+1].z;
 
-		computeBondAngle(tableAngle[ angleInd ], tableBond[ bondInd1 ], tableBond[ bondInd2 ], sys, force, pos, atom1, atom2, atom3, energy, get_energy);
+		computeBondAngle(tableAngle[ angleInd1 ], tableBond[ bondInd ], tableAngle[ angleInd2 ], sys, force, pos, atom1, atom2, atom3, atom4, energy, get_energy);
 	}
 }
 

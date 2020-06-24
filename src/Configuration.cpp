@@ -1962,7 +1962,7 @@ void Configuration::readBondAngles() {
 		// Legitimate BONDANGLE inputs have 7 tokens
 		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | ANGLE_FILENAME | BOND_FILENAME1 | BOND_FILENAME2
 		// Any angle input line without exactly 5 tokens should be discarded
-		if (numTokens != 7) {
+		if (numTokens != 8) {
 			printf("WARNING: Invalid bond_angle input line: %s\n", line);
 			continue;
 		}
@@ -1974,11 +1974,12 @@ void Configuration::readBondAngles() {
 		int ind1 = atoi(tokenList[1].val());
 		int ind2 = atoi(tokenList[2].val());
 		int ind3 = atoi(tokenList[3].val());
-		String file_name1 = tokenList[4];
-		String file_name2 = tokenList[5];
-		String file_name3 = tokenList[6];
+		int ind4 = atoi(tokenList[4].val());
+		String file_name1 = tokenList[5];
+		String file_name2 = tokenList[6];
+		String file_name3 = tokenList[7];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num or ind2 >= num or ind3 >= num)
+		if (ind1 >= num or ind2 >= num or ind3 >= num or ind4 >= num)
 			continue;
 
 		if (numBondAngles >= capacity) {
@@ -1990,7 +1991,7 @@ void Configuration::readBondAngles() {
 			delete[] temp;
 		}
 
-		BondAngle a(ind1, ind2, ind3, file_name1, file_name2, file_name3);
+		BondAngle a(ind1, ind2, ind3, ind4, file_name1, file_name2, file_name3);
 		bondAngles[numBondAngles++] = a;
 		delete[] tokenList;
 	}
@@ -2607,5 +2608,8 @@ bool Configuration::compare::operator()(const BondAngle& lhs, const BondAngle& r
 	diff = lhs.ind2 - rhs.ind2;
 	if (diff != 0)
 		return lhs.ind2 < rhs.ind2;
-	return lhs.ind3 < rhs.ind3;
+	diff = lhs.ind3 - rhs.ind3;
+	if (diff != 0) 
+		return lhs.ind3 < rhs.ind3;
+	return lhs.ind4 < rhs.ind4;
 }
