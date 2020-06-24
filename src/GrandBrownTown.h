@@ -267,7 +267,7 @@ private:
 
 	int numBondAngles;
 	BondAngle* bondAngles;
-	int2 *bondAngleList;
+	int4 *bondAngleList;
 
         //Han-Yi Chou
         String particle_dynamic;

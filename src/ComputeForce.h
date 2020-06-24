@@ -80,7 +80,7 @@ public:
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
 	// void createBondList(int3 *bondList);
-	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int2 *bondAngleList);
+	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *bondAngleList);
 	    
 	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
 	Vector3* getPos_d()
@@ -222,7 +222,7 @@ private:
 
 	int numBondAngles;
 	BondAngle* bondAngles_d;
-	int2* bondAngleList_d;
+	int4* bondAngleList_d;
 
 	int3* bondList_d;
 	int4* angleList_d;

@@ -360,25 +360,25 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	}
 
 	if (numBondAngles > 0) {
-	bondAngleList = new int2[ (numBondAngles*3) * numReplicas ];
+	bondAngleList = new int4[ (numBondAngles*2) * numReplicas ];
 	for(int k = 0 ; k < numReplicas; k++) {
 	    for(int i = 0; i < numBondAngles; ++i) {
 			if (bondAngles[i].tabFileIndex1 == -1) {
-				fprintf(stderr,"Error: bondanglefile '%s' was not read with tabulatedAngleFile command.\n", bondAngles[i].angleFileName.val());
+				fprintf(stderr,"Error: bondanglefile '%s' was not read with tabulatedAngleFile command.\n", bondAngles[i].angleFileName1.val());
 				exit(1);
 			}
 			if (bondAngles[i].tabFileIndex2 == -1) {
-				fprintf(stderr,"Error: bondanglefile1 '%s' was not read with tabulatedBondFile command.\n", bondAngles[i].bondFileName1.val());
+				fprintf(stderr,"Error: bondanglefile1 '%s' was not read with tabulatedBondFile command.\n", bondAngles[i].bondFileName.val());
 				exit(1);
 			}
 			if (bondAngles[i].tabFileIndex3 == -1) {
-				fprintf(stderr,"Error: bondanglefile2 '%s' was not read with tabulatedBondFile command.\n", bondAngles[i].bondFileName2.val());
+				fprintf(stderr,"Error: bondanglefile2 '%s' was not read with tabulatedBondFile command.\n", bondAngles[i].angleFileName2.val());
 				exit(1);
 			}
 			int idx = i+k*numBondAngles;
-			bondAngleList[idx*3]   = make_int2( bondAngles[i].ind1+k*num, bondAngles[i].ind2+k*num );
-			bondAngleList[idx*3+1] = make_int2( bondAngles[i].ind3+k*num, bondAngles[i].tabFileIndex1 );
-			bondAngleList[idx*3+2] = make_int2( bondAngles[i].tabFileIndex2, bondAngles[i].tabFileIndex3 );
+			bondAngleList[idx*2]   = make_int4( bondAngles[i].ind1+k*num, bondAngles[i].ind2+k*num,
+							    bondAngles[i].ind3+k*num, bondAngles[i].ind4+k*num );
+			bondAngleList[idx*2+1] = make_int4( bondAngles[i].tabFileIndex1, bondAngles[i].tabFileIndex2, bondAngles[i].tabFileIndex3, -1 );
 	    }
 	}
 	}

@@ -344,10 +344,8 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], Bond
 
 	for (int i = 0; i < numBondAngles; i++)
 	{
-	    if (bondAngles[i].bondFileName1 == fileName)
+	    if (bondAngles[i].bondFileName == fileName)
 		bondAngles[i].tabFileIndex2 = ind;
-	    if (bondAngles[i].bondFileName2 == fileName)
-		bondAngles[i].tabFileIndex3 = ind;
 	}
 
 	gpuErrchk(cudaMemcpyAsync(bonds_d, bonds, sizeof(Bond) * numBonds, cudaMemcpyHostToDevice));
@@ -407,10 +405,12 @@ bool ComputeForce::addAnglePotential(String fileName, int ind, Angle* angles, Bo
 		if (angles[i].fileName == fileName)
 			angles[i].tabFileIndex = ind;
 
-	for (int i = 0; i < numBondAngles; i++)
-		if (bondAngles[i].angleFileName == fileName)
-			bondAngles[i].tabFileIndex1 = ind;
-
+	for (int i = 0; i < numBondAngles; i++) {
+	    if (bondAngles[i].angleFileName1 == fileName)
+		bondAngles[i].tabFileIndex1 = ind;
+	    if (bondAngles[i].angleFileName2 == fileName)
+		bondAngles[i].tabFileIndex3 = ind;
+	}
 	gpuErrchk(cudaMemcpy(angles_d, angles, sizeof(Angle) * numAngles,
 			cudaMemcpyHostToDevice));
 	return true;
@@ -986,7 +986,7 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 // 	}
 // }
 
-void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int2* bondAngleList) {
+void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4* bondAngleList) {
 
 	
 	size_t size;
@@ -1014,7 +1014,7 @@ void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *d
 	}
 
 	if (numBondAngles > 0) {
-	    size = 3*numBondAngles * numReplicas * sizeof(int2);
+	    size = 2*numBondAngles * numReplicas * sizeof(int4);
 	    gpuErrchk( cudaMalloc( &bondAngleList_d, size ) );
 	    gpuErrchk( cudaMemcpyAsync( bondAngleList_d, bondAngleList, size, cudaMemcpyHostToDevice) );
 	}
