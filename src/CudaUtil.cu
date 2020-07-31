@@ -41,7 +41,8 @@ __inline__ __device__ uint __lanemask_lt()
 }
 __device__ int atomicAggInc(int *ctr, int warpLane) 
 {
-    unsigned int active = __ballot_sync(0xFFFFFFFF, 1);
+    // unsigned int active = __ballot_sync(0xFFFFFFFF, 1);
+    unsigned int active = __activemask();
     int leader = __ffs(active) - 1;
     int change = __popc(active);
     unsigned int rank = __popc(active & __lanemask_lt());
