@@ -26,16 +26,6 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 #endif
 
-static void checkEnergyFiles()
-{
-    std::ifstream part_ifile("energy_config.txt");
-    std::ifstream rb_ifile("rb_energy_config.txt");
-    if(part_ifile.good())
-        rename("energy_config.txt","energy_config.txt.BAK");
-    if(rb_ifile.good())
-        rename("rb_energy_config.txt","rb_energy_config.txt.BAK");
-}
-
 bool GrandBrownTown::DEBUG;
 
 cudaEvent_t START, STOP;
@@ -574,8 +564,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
     Vector3 *force_d;
     gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
 
-    checkEnergyFiles();
-
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
     //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
@@ -948,7 +936,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     e = KineticEnergy();
                 }   
                 std::fstream energy_file;
-                energy_file.open("energy_config.txt", std::fstream::out | std::fstream::app);
+                energy_file.open( (outFilePrefixes[0]+".energy.dat").c_str(), std::fstream::out | std::fstream::app);
                 if(energy_file.is_open())
                 {
                     energy_file << "Kinetic Energy: " << e*num*0.5f*(2.388458509e-1) << " (kT) "<< std::endl;
@@ -957,7 +945,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
                 else
                 {
-                    std::cout << "Error in opening energ files\n";
+                    std::cout << "Error in opening energy files\n";
                 }
                 
                 if(rigidbody_dynamic == String("Langevin"))
@@ -970,7 +958,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                         RBC[i]->KineticEnergy();
                 }
                 std::fstream rb_energy_file;
-                rb_energy_file.open("rb_energy_config.txt", std::fstream::out | std::fstream::app);
+                rb_energy_file.open( (outFilePrefixes[0]+".rb_energy.dat").c_str(), std::fstream::out | std::fstream::app);
                 if(rb_energy_file.is_open())
                 {
                     float k_tol = 0.f;
