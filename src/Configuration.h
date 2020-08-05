@@ -24,6 +24,7 @@
 #include "TrajectoryWriter.h"
 #include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
+#include "CrossPotential.h"
 #include "GPUManager.h"
 #include "RigidBodyType.h"
 #include "RigidBody.h"
@@ -48,6 +49,7 @@ class Configuration {
 		bool operator()(const Angle& lhs, const Angle& rhs);
 		bool operator()(const Dihedral& lhs, const Dihedral& rhs);
 		bool operator()(const BondAngle& lhs, const BondAngle& rhs);
+		bool operator()(const CrossPotentialConf& lhs, const CrossPotentialConf& rhs);
 	};
 
 	void setDefaults();
@@ -243,6 +245,15 @@ public:
 	BondAngle* bondAngles;
 
 	Restraint* restraints;
+
+	void readCrossPotentials();
+	String crossPotentialFile;
+	int numCrossPotentials;
+	bool readCrossPotentialsFromFile;
+        CrossPotentialConf* crossPotentials;
+        // boost::unordered_map<String, unsigned int> simple_potential_ids;
+	XpotMap simple_potential_ids;
+        std::vector<SimplePotential> simple_potentials;
 
         //Han-Yi Chou
         String ParticleDynamicType;

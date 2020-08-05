@@ -4,7 +4,9 @@
 #define NEW
 #pragma once
 #include <cassert>
+
 #include "CudaUtil.cuh"
+
 #include "TabulatedMethods.cuh"
 
 #define BD_PI 3.1415927f
@@ -1091,6 +1093,68 @@ void computeTabulatedBondAngles(Vector3* force,
 	}
 }
 
+__global__
+void computeCrossPotentials(Vector3* force,
+			    Vector3* __restrict__ pos,
+			    BaseGrid* __restrict__ sys,
+			    int numCrossPotentials,
+			    int* __restrict__ crossPotentialParticles,
+			    SimplePotential* __restrict__ potentialList,
+			    uint2* __restrict__ crossPotential_list,
+			    unsigned short* __restrict__ numCrossed,
+			    float* energy, bool get_energy) {
+    /*
+      crossPotential_list[i].x : index of first potential in potentialList for i_th crossPotential
+      crossPotential_list[i].y : index of first atom in crossPotentialParticles for i_th crossPotential
+
+      for three potentials, angle, bond, angle, we would have the following atomic indices in crossPotentialParticles:
+        pot1 : crossPotential_list[i].y, crossPotential_list[i].y + 1 , crossPotential_list[i].y + 2
+        pot2 : crossPotential_list[i].y + 3, crossPotential_list[i].y + 4
+	and
+        pot3 : crossPotential_list[i].y + 5, crossPotential_list[i].y + 6, crossPotential_list[i].y + 7
+    */
+
+    // CRAPPY NAIVE IMPLEMENTATION
+#define MAX_XPOTS 4
+    float2 energy_and_deriv[MAX_XPOTS];
+    float tmp_force;
+
+    for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numCrossPotentials; i+=blockDim.x*gridDim.x) {
+	unsigned short num_pots = numCrossed[i];
+
+	unsigned int part_idx = crossPotential_list[i].y;
+#pragma unroll
+	for (unsigned short int j = 0; j < MAX_XPOTS; ++j) {
+	    if (j == num_pots) break;
+	    SimplePotential& p = potentialList[ crossPotential_list[i].x + j ];
+
+	    // Hidden branch divergence in compute_value => sort potentials by type before running kernel
+	    float tmp = p.compute_value(pos,sys, &crossPotentialParticles[part_idx]);
+	    energy_and_deriv[j] = p.compute_energy_and_deriv(tmp);
+	    part_idx += p.type==BOND? 2: p.type==ANGLE? 3: 4;
+	}
+
+	part_idx = crossPotential_list[i].y;
+#pragma unroll
+	for (unsigned short int j = 0; j < MAX_XPOTS; ++j) {
+	    if (j == num_pots) break;
+	    tmp_force = energy_and_deriv[j].y;
+#pragma unroll
+	    for (unsigned short int k = 0; k < MAX_XPOTS; ++k) {
+		if (k == num_pots) break;
+		if (j == k) continue;
+		tmp_force *= energy_and_deriv[k].x;
+	    }
+	    if (tmp_force == 0) continue;
+
+	    // TODO add energy
+	    // TODO make it work with replicas
+	    SimplePotential& p = potentialList[ crossPotential_list[i].x + j ];
+	    p.apply_force(pos,sys, force, &crossPotentialParticles[part_idx], tmp_force);
+	    part_idx += p.type==BOND? 2: p.type==ANGLE? 3: 4;
+	}
+    }
+}
 
 
 __global__

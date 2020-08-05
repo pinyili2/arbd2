@@ -191,4 +191,72 @@ void TabulatedPotential::interpolate() {
 	}
 	e0 = v3[n-1] + v2[n-1] + v1[n-1] + v0[n-1];
 }
+
+int countValueLines(const char* fileName) {
+	FILE* inp = fopen(fileName, "r");
+	if (inp == NULL) {
+		printf("SimplePotential::countValueLines Could not open file '%s'\n", fileName);
+		exit(-1);
+	}
+	char line[256];
+	int count = 0;
+
+	while (fgets(line, 256, inp) != NULL) {
+		// Ignore comments.
+		int len = strlen(line);
+		if (line[0] == '#') continue;
+		if (len < 2) continue;
+		count++;
+	}
+	fclose(inp);
+	return count;
+}
  
+SimplePotential::SimplePotential(const char* filename, SimplePotentialType type) : type(type) {
+	FILE* inp = fopen(filename, "r");
+	if (inp == NULL) {
+		printf("SimplePotential::SimplePotential Could not open file '%s'\n", filename);
+		exit(-1);
+	}
+	
+	char line[256];
+	
+	size = (unsigned int) countValueLines(filename);
+	float* r = new float[size];
+	pot = new float[size];
+	
+	int count = 0;
+	while (fgets(line, 256, inp) != NULL) {
+		// Ignore comments.
+		int len = strlen(line);
+		if (line[0] == '#') continue;
+		if (len < 2) continue;
+		
+		String s(line);
+		int numTokens = s.tokenCount();
+		if (numTokens != 2) {
+			printf("SimplePotential::SimplePotential Invalid tabulated potential file line: %s\n", line);
+			exit(-1);
+		}
+		
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+		if (tokenList == NULL) {
+			printf("SimplePotential::SimplePotential Invalid tabulated potential file line: %s\n", line);
+			exit(-1);
+		}
+		r[count] = (float) strtod(tokenList[0], NULL);
+		pot[count] = (float) strtod(tokenList[1], NULL);
+		count++;
+		
+		delete[] tokenList;
+	}
+	fclose(inp);
+
+	if (type == BOND) {
+	    step_inv = (size-1.0f) / (r[size-1]-r[0]);
+	} else {
+	    step_inv = 57.29578f * (size-1.0f) / (r[size-1]-r[0]);
+	}
+	delete[] r;
+}
