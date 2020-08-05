@@ -260,9 +260,9 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	 //			    fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
 	 //			    numDihedrals, numTabDihedralFiles, c.pairlistDistance, numReplicas);
 	internal = new ComputeForce(c, numReplicas);
-	
+
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
-	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints, c.bondAngles );
+	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints, c.bondAngles, c.simple_potential_ids, c.simple_potentials, c.crossPotentials );
 	if (numGroupSites > 0) init_cuda_group_sites();
 
 	// TODO: check for duplicate potentials 

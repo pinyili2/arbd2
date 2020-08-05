@@ -2,6 +2,7 @@
 #include "Angle.h"
 #include "Dihedral.h"
 #include "Restraint.h"
+#include "CrossPotential.h"
 #include <cmath>
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
@@ -272,6 +273,8 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readDihedralsFromFile) readDihedrals();
 	if (readRestraintsFromFile) readRestraints();
 	if (readBondAnglesFromFile) readBondAngles();
+	if (readCrossPotentialsFromFile) readCrossPotentials();
+
 
 	if (temperatureGridFile.length() != 0) {
 		printf("\nFound temperature grid file: %s\n", temperatureGridFile.val());
@@ -632,6 +635,7 @@ Configuration::~Configuration() {
 	if (angles != NULL) delete[] angles;
 	if (dihedrals != NULL) delete[] dihedrals;
 	if (bondAngles != NULL) delete[] bondAngles;
+	if (crossPotentials != NULL) delete[] crossPotentials;
 
 	delete[] numPartsOfType;
 	  
@@ -866,6 +870,10 @@ void Configuration::setDefaults() {
 	readBondAnglesFromFile = false;
 	numBondAngles = 0;
 	bondAngles = NULL;
+
+	readCrossPotentialsFromFile = false;
+	numCrossPotentials = 0;
+	
 
 	readRestraintsFromFile = false;
 	numRestraints = 0;
@@ -1134,6 +1142,13 @@ int Configuration::readParameters(const char * config_file) {
 			} else {
 			        bondAngleFile = value;
 				readBondAnglesFromFile = true;
+			}
+		} else if (param == String("inputCrossPotentials")) {
+			if (readBondAnglesFromFile) {
+				printf("WARNING: More than one cross potential file specified. Ignoring new file.\n");
+			} else {
+			        crossPotentialFile = value;
+				readCrossPotentialsFromFile = true;
 			}
 		} else if (param == String("tabulatedAngleFile")) {
 			if (numTabAngleFiles >= atfcap) {
@@ -2001,6 +2016,98 @@ void Configuration::readBondAngles() {
 	// 	angles[i].print();
 }
 
+void Configuration::readCrossPotentials() {
+	FILE* inp = fopen(crossPotentialFile.val(), "r");
+	char line[256];
+	int capacity = 256;
+	numCrossPotentials = 0;
+	crossPotentials = new CrossPotentialConf[capacity];
+
+	// If the angle file cannot be found, exit the program
+	if (inp == NULL) {
+		printf("WARNING: Could not open `%s'.\n", crossPotentialFile.val());
+		printf("This simulation will not use cross potentials.\n");
+		return;
+	}
+	printf("DEBUG: READING CROSSPOT FILE\n");
+	std::vector<std::vector<int>> indices;
+	std::vector<int> tmp;
+	std::vector<String> pot_names;
+
+	while(fgets(line, 256, inp)) {
+		if (line[0] == '#') continue;
+		String s(line);
+		int numTokens = s.tokenCount();
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		indices.clear();
+		tmp.clear();
+		pot_names.clear();		    
+
+		printf("\rDEBUG: reading line %d",numCrossPotentials+1);
+
+		// Legitimate CrossPotential inputs have at least 7 tokens
+		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | POT_FILENAME1 | INDEX4 | INDEX5 | POT_FILENAME2 ...
+		if (numTokens < 7) {
+		    printf("WARNING: Invalid cross potential input line (too few tokens %d): %s\n", numTokens, line);
+			continue;
+		}
+
+		// Discard any empty line
+		if (tokenList == NULL)
+			continue;
+
+		for (int i = 1; i < numTokens; ++i) {
+		    char *end;
+		    // printf("DEBUG: Working on token %d '%s'\n", i, tokenList[i].val());
+		    int index = (int) strtol(tokenList[i].val(), &end, 10);
+		    if (tokenList[i].val() == end || *end != '\0' || errno == ERANGE) {
+			indices.push_back(tmp);
+			String& n = tokenList[i];
+			pot_names.push_back( n );
+			if ( simple_potential_ids.find(n) == simple_potential_ids.end() ) {
+			    // Could not find fileName in dictionary, so read and add it
+			    unsigned int s = tmp.size();
+			    if (s < 2 || s > 4) {
+				printf("WARNING: Invalid cross potential input line (indices of potential %d == %d): %s\n", i, s, line);
+				continue;
+			    }
+
+			    simple_potential_ids[n] = simple_potentials.size();
+			    SimplePotentialType t = s==2? BOND: s==3? ANGLE: DIHEDRAL;
+			    simple_potentials.push_back( SimplePotential(n.val(), t) );
+			}
+			tmp.clear();
+		    } else {
+			if (index >= num) {
+			    continue;
+			}
+			tmp.push_back(index);
+		    }
+		}
+
+		if (numCrossPotentials >= capacity) {
+			CrossPotentialConf* temp = crossPotentials;
+			capacity *= 2;
+			crossPotentials = new CrossPotentialConf[capacity];
+			for (int i = 0; i < numCrossPotentials; i++)
+				crossPotentials[i] = temp[i];
+			delete[] temp;
+		}
+
+		CrossPotentialConf a(indices, pot_names);
+		crossPotentials[numCrossPotentials++] = a;
+		delete[] tokenList;
+	}
+	printf("\nDEBUG: Sorting\n");
+	std::sort(crossPotentials, crossPotentials + numCrossPotentials, compare());
+
+	// for(int i = 0; i < numAngles; i++)
+	// 	angles[i].print();
+}
+
+
 void Configuration::readRestraints() {
 	FILE* inp = fopen(restraintFile.val(), "r");
 	char line[256];
@@ -2612,4 +2719,22 @@ bool Configuration::compare::operator()(const BondAngle& lhs, const BondAngle& r
 	if (diff != 0) 
 		return lhs.ind3 < rhs.ind3;
 	return lhs.ind4 < rhs.ind4;
+}
+
+bool Configuration::compare::operator()(const CrossPotentialConf& lhs, const CrossPotentialConf& rhs) {
+    int diff = rhs.indices.size() - lhs.indices.size();
+    if (diff != 0) return diff > 0;
+
+    for (unsigned int i = 0; i < lhs.indices.size(); ++i) {
+	diff = rhs.indices[i].size() - lhs.indices[i].size();
+	if (diff != 0) return diff > 0;
+    }
+
+    for (unsigned int i = 0; i < lhs.indices.size(); ++i) {
+	for (unsigned int j = 0; j < lhs.indices[i].size(); ++j) {
+	    diff = rhs.indices[i][j] - lhs.indices[i][j];
+	    if (diff != 0) return diff > 0;
+	}
+    }
+    return true;
 }
