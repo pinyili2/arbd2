@@ -49,8 +49,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
     numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints),
-    numBondAngles(c.numBondAngles),
-    numCrossPotentials(c.numCrossPotentials),
+    numBondAngles(c.numBondAngles), numProductPotentials(c.numProductPotentials),
     numGroupSites(c.numGroupSites),
     numReplicas(numReplicas) {
 
@@ -236,7 +235,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	
 	restraintIds_d = NULL;
 	bondAngleList_d = NULL;
-	cross_potential_list_d = NULL;
+	product_potential_list_d = NULL;
 
 	//Calculate the number of blocks the grid should contain
 	gridSize =  (num+num_rb_attached_particles) / NUM_THREADS + 1;
@@ -731,9 +730,9 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	//Mlog: the commented function doesn't use bondList, uncomment for testing.
 	//if(bondMap_d != NULL && tableBond_d != NULL)
 
-	if(cross_potential_list_d != NULL && cross_potentials_d != NULL)
+	if(product_potential_list_d != NULL && product_potentials_d != NULL)
 	{
-	    computeCrossPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numCrossPotentials, cross_potential_particles_d, cross_potentials_d, cross_potential_list_d, numCrossed_d, energies_d, get_energy);
+	    computeProductPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numProductPotentials, product_potential_particles_d, product_potentials_d, product_potential_list_d, productCount_d, energies_d, get_energy);
 	}
 
 	if(bondAngleList_d != NULL && tableBond_d != NULL && tableAngle_d != NULL)
@@ -892,7 +891,7 @@ void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 	gpuErrchk(cudaMemcpy(forceInternal_d[0], f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 }
 
-void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles, const XpotMap simple_potential_map, const std::vector<SimplePotential> simple_potentials, const CrossPotentialConf* const cross_potential_confs)
+void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles, const XpotMap simple_potential_map, const std::vector<SimplePotential> simple_potentials, const ProductPotentialConf* const product_potential_confs)
 {
     assert(simNum == numReplicas); // Not sure why we have both of these things
     int tot_num_with_rb = (num+num_rb_attached_particles) * simNum;
@@ -994,66 +993,66 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 
 	}
 	
-	if (numCrossPotentials > 0) {
+	if (numProductPotentials > 0) {
 	    // Count particles
 	    int n_pots = 0;
 	    int n_particles = 0;
-	    for (int i=0; i < numCrossPotentials; ++i) {
-		const CrossPotentialConf& c = cross_potential_confs[i];
+	    for (int i=0; i < numProductPotentials; ++i) {
+		const ProductPotentialConf& c = product_potential_confs[i];
 		n_pots += c.indices.size();
 		for (int j=0; j < c.indices.size(); ++j) {
 		    n_particles += c.indices[j].size();
 		}
 	    }
-	    // printf("DEBUG: Found %d particles participating in %d potentials forming %d crossPotentials\n",
-	    // 	   n_particles, n_pots, numCrossPotentials);
+	    // printf("DEBUG: Found %d particles participating in %d potentials forming %d productPotentials\n",
+	    // 	   n_particles, n_pots, numProductPotentials);
 
-	    // Build crossPotentialLists on host
+	    // Build productPotentialLists on host
 	    int *particle_list = new int[n_particles];
-	    SimplePotential *cross_potentials = new SimplePotential[n_pots];
-	    uint2 *cross_potential_list = new uint2[numCrossPotentials];
-	    unsigned short *numCrossed = new unsigned short[numCrossPotentials];
+	    SimplePotential *product_potentials = new SimplePotential[n_pots];
+	    uint2 *product_potential_list = new uint2[numProductPotentials];
+	    unsigned short *productCount = new unsigned short[numProductPotentials];
 
 	    n_particles = 0;
 	    n_pots = 0;
-	    for (int i=0; i < numCrossPotentials; ++i) {
-		const CrossPotentialConf& c = cross_potential_confs[i];
-		cross_potential_list[i] = make_uint2( n_pots, n_particles );
+	    for (int i=0; i < numProductPotentials; ++i) {
+		const ProductPotentialConf& c = product_potential_confs[i];
+		product_potential_list[i] = make_uint2( n_pots, n_particles );
 
 		for (int j=0; j < c.indices.size(); ++j) {
 		    unsigned int sp_i = simple_potential_map.at(c.potential_names[j]);
-		    cross_potentials[n_pots] = simple_potentials[sp_i];
-		    cross_potentials[n_pots++].pot = simple_potential_pots_d[sp_i];
+		    product_potentials[n_pots] = simple_potentials[sp_i];
+		    product_potentials[n_pots++].pot = simple_potential_pots_d[sp_i];
 		    for (int k=0; k < c.indices[j].size(); ++k) {
 			particle_list[n_particles++] = c.indices[j][k];
 		    }
 		}
-		numCrossed[i] = c.indices.size();
+		productCount[i] = c.indices.size();
 	    }
 
 	    // Copy to device
 	    size_t sz = sizeof(int)*n_particles;
-	    gpuErrchk(cudaMalloc(&cross_potential_particles_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(cross_potential_particles_d, particle_list, sz,
+	    gpuErrchk(cudaMalloc(&product_potential_particles_d, sz));
+	    gpuErrchk(cudaMemcpyAsync(product_potential_particles_d, particle_list, sz,
 	    				  cudaMemcpyHostToDevice));
 	    sz = sizeof(SimplePotential)*n_pots;
-	    gpuErrchk(cudaMalloc(&cross_potentials_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(cross_potentials_d, cross_potentials, sz,
+	    gpuErrchk(cudaMalloc(&product_potentials_d, sz));
+	    gpuErrchk(cudaMemcpyAsync(product_potentials_d, product_potentials, sz,
 	    				  cudaMemcpyHostToDevice));
-	    sz = sizeof(uint2)*numCrossPotentials;
-	    gpuErrchk(cudaMalloc(&cross_potential_list_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(cross_potential_list_d, cross_potential_list, sz,
+	    sz = sizeof(uint2)*numProductPotentials;
+	    gpuErrchk(cudaMalloc(&product_potential_list_d, sz));
+	    gpuErrchk(cudaMemcpyAsync(product_potential_list_d, product_potential_list, sz,
 	    				  cudaMemcpyHostToDevice));
-	    sz = sizeof(unsigned short)*numCrossPotentials;
-	    gpuErrchk(cudaMalloc(&numCrossed_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(numCrossed_d, numCrossed, sz,
+	    sz = sizeof(unsigned short)*numProductPotentials;
+	    gpuErrchk(cudaMalloc(&productCount_d, sz));
+	    gpuErrchk(cudaMemcpyAsync(productCount_d, productCount, sz,
 	    				  cudaMemcpyHostToDevice));
 
 	    // Clean up
 	    delete[] particle_list;
-	    delete[] cross_potentials;
-	    delete[] cross_potential_list;
-	    delete[] numCrossed;
+	    delete[] product_potentials;
+	    delete[] product_potential_list;
+	    delete[] productCount;
 	}
 
 	gpuErrchk(cudaDeviceSynchronize());
