@@ -2,7 +2,7 @@
 #include "Angle.h"
 #include "Dihedral.h"
 #include "Restraint.h"
-#include "CrossPotential.h"
+#include "ProductPotential.h"
 #include <cmath>
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
@@ -229,7 +229,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readDihedralsFromFile) readDihedrals();
 	if (readRestraintsFromFile) readRestraints();
 	if (readBondAnglesFromFile) readBondAngles();
-	if (readCrossPotentialsFromFile) readCrossPotentials();
+	if (readProductPotentialsFromFile) readProductPotentials();
 
 
 	if (temperatureGridFile.length() != 0) {
@@ -565,7 +565,7 @@ Configuration::~Configuration() {
 	if (angles != NULL) delete[] angles;
 	if (dihedrals != NULL) delete[] dihedrals;
 	if (bondAngles != NULL) delete[] bondAngles;
-	if (crossPotentials != NULL) delete[] crossPotentials;
+	if (productPotentials != NULL) delete[] productPotentials;
 
 	delete[] numPartsOfType;
 	  
@@ -790,8 +790,8 @@ void Configuration::setDefaults() {
 	numBondAngles = 0;
 	bondAngles = NULL;
 
-	readCrossPotentialsFromFile = false;
-	numCrossPotentials = 0;
+	readProductPotentialsFromFile = false;
+	numProductPotentials = 0;
 	
 
 	readRestraintsFromFile = false;
@@ -1041,12 +1041,12 @@ int Configuration::readParameters(const char * config_file) {
 			        bondAngleFile = value;
 				readBondAnglesFromFile = true;
 			}
-		} else if (param == String("inputCrossPotentials")) {
+		} else if (param == String("inputProductPotentials")) {
 			if (readBondAnglesFromFile) {
-				printf("WARNING: More than one cross potential file specified. Ignoring new file.\n");
+				printf("WARNING: More than one product potential file specified. Ignoring new file.\n");
 			} else {
-			        crossPotentialFile = value;
-				readCrossPotentialsFromFile = true;
+			        productPotentialFile = value;
+				readProductPotentialsFromFile = true;
 			}
 		} else if (param == String("tabulatedAngleFile")) {
 			if (numTabAngleFiles >= atfcap) {
@@ -1823,20 +1823,20 @@ void Configuration::readBondAngles() {
 	// 	angles[i].print();
 }
 
-void Configuration::readCrossPotentials() {
-	FILE* inp = fopen(crossPotentialFile.val(), "r");
+void Configuration::readProductPotentials() {
+	FILE* inp = fopen(productPotentialFile.val(), "r");
 	char line[256];
 	int capacity = 256;
-	numCrossPotentials = 0;
-	crossPotentials = new CrossPotentialConf[capacity];
+	numProductPotentials = 0;
+	productPotentials = new ProductPotentialConf[capacity];
 
 	// If the angle file cannot be found, exit the program
 	if (inp == NULL) {
-		printf("WARNING: Could not open `%s'.\n", crossPotentialFile.val());
-		printf("This simulation will not use cross potentials.\n");
+		printf("WARNING: Could not open `%s'.\n", productPotentialFile.val());
+		printf("This simulation will not use product potentials.\n");
 		return;
 	}
-	printf("DEBUG: READING CROSSPOT FILE\n");
+	printf("DEBUG: READING PRODUCT POTENTAL FILE\n");
 	std::vector<std::vector<int>> indices;
 	std::vector<int> tmp;
 	std::vector<String> pot_names;
@@ -1852,12 +1852,12 @@ void Configuration::readCrossPotentials() {
 		tmp.clear();
 		pot_names.clear();		    
 
-		printf("\rDEBUG: reading line %d",numCrossPotentials+1);
+		printf("\rDEBUG: reading line %d",numProductPotentials+1);
 
-		// Legitimate CrossPotential inputs have at least 7 tokens
+		// Legitimate ProductPotential inputs have at least 7 tokens
 		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | POT_FILENAME1 | INDEX4 | INDEX5 | POT_FILENAME2 ...
 		if (numTokens < 7) {
-		    printf("WARNING: Invalid cross potential input line (too few tokens %d): %s\n", numTokens, line);
+		    printf("WARNING: Invalid product potential input line (too few tokens %d): %s\n", numTokens, line);
 			continue;
 		}
 
@@ -1877,7 +1877,7 @@ void Configuration::readCrossPotentials() {
 			    // Could not find fileName in dictionary, so read and add it
 			    unsigned int s = tmp.size();
 			    if (s < 2 || s > 4) {
-				printf("WARNING: Invalid cross potential input line (indices of potential %d == %d): %s\n", i, s, line);
+				printf("WARNING: Invalid product potential input line (indices of potential %d == %d): %s\n", i, s, line);
 				continue;
 			    }
 
@@ -1894,21 +1894,21 @@ void Configuration::readCrossPotentials() {
 		    }
 		}
 
-		if (numCrossPotentials >= capacity) {
-			CrossPotentialConf* temp = crossPotentials;
+		if (numProductPotentials >= capacity) {
+			ProductPotentialConf* temp = productPotentials;
 			capacity *= 2;
-			crossPotentials = new CrossPotentialConf[capacity];
-			for (int i = 0; i < numCrossPotentials; i++)
-				crossPotentials[i] = temp[i];
+			productPotentials = new ProductPotentialConf[capacity];
+			for (int i = 0; i < numProductPotentials; i++)
+				productPotentials[i] = temp[i];
 			delete[] temp;
 		}
 
-		CrossPotentialConf a(indices, pot_names);
-		crossPotentials[numCrossPotentials++] = a;
+		ProductPotentialConf a(indices, pot_names);
+		productPotentials[numProductPotentials++] = a;
 		delete[] tokenList;
 	}
 	printf("\nDEBUG: Sorting\n");
-	std::sort(crossPotentials, crossPotentials + numCrossPotentials, compare());
+	std::sort(productPotentials, productPotentials + numProductPotentials, compare());
 
 	// for(int i = 0; i < numAngles; i++)
 	// 	angles[i].print();
@@ -2528,7 +2528,7 @@ bool Configuration::compare::operator()(const BondAngle& lhs, const BondAngle& r
 	return lhs.ind4 < rhs.ind4;
 }
 
-bool Configuration::compare::operator()(const CrossPotentialConf& lhs, const CrossPotentialConf& rhs) {
+bool Configuration::compare::operator()(const ProductPotentialConf& lhs, const ProductPotentialConf& rhs) {
     int diff = rhs.indices.size() - lhs.indices.size();
     if (diff != 0) return diff > 0;
 

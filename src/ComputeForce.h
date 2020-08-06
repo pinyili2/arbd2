@@ -24,7 +24,7 @@
 #include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
 #include "TabulatedDihedral.h"
-#include "CrossPotential.h"
+#include "ProductPotential.h"
 #include "GPUManager.h"
 
 // #include <map>
@@ -90,7 +90,7 @@ public:
 	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles,
 			const XpotMap simple_potential_map,
 			const std::vector<SimplePotential> simple_potentials,
-			const CrossPotentialConf* const cross_potential_confs);
+			const ProductPotentialConf* const product_potential_confs);
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom);
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
@@ -239,14 +239,13 @@ private:
 	BondAngle* bondAngles_d;
 	int4* bondAngleList_d;
 
-    int numCrossPotentials;
+    int numProductPotentials;
     float** simple_potential_pots_d;
     SimplePotential* simple_potentials_d;
-    int* cross_potential_particles_d;
-    SimplePotential* cross_potentials_d;
-    uint2* cross_potential_list_d;
-    // ushort4* cross_potential_particle_counts_d;
-    unsigned short* numCrossed_d;
+    int* product_potential_particles_d;
+    SimplePotential* product_potentials_d;
+    uint2* product_potential_list_d;
+    unsigned short* productCount_d;
 
 	int3* bondList_d;
 	int4* angleList_d;
