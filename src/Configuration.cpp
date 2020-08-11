@@ -1855,7 +1855,7 @@ void Configuration::readProductPotentials() {
 		printf("\rDEBUG: reading line %d",numProductPotentials+1);
 
 		// Legitimate ProductPotential inputs have at least 7 tokens
-		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | POT_FILENAME1 | INDEX4 | INDEX5 | POT_FILENAME2 ...
+		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | [TYPE1] | POT_FILENAME1 | INDEX4 | INDEX5 | [TYPE2] POT_FILENAME2 ...
 		if (numTokens < 7) {
 		    printf("WARNING: Invalid product potential input line (too few tokens %d): %s\n", numTokens, line);
 			continue;
@@ -1865,27 +1865,44 @@ void Configuration::readProductPotentials() {
 		if (tokenList == NULL)
 			continue;
 
+		SimplePotentialType type = BOND; // initialize to suppress warning
+		bool type_specified = false;
 		for (int i = 1; i < numTokens; ++i) {
 		    char *end;
 		    // printf("DEBUG: Working on token %d '%s'\n", i, tokenList[i].val());
+
+		    // Try to convert token to integer
 		    int index = (int) strtol(tokenList[i].val(), &end, 10);
 		    if (tokenList[i].val() == end || *end != '\0' || errno == ERANGE) {
-			indices.push_back(tmp);
-			String& n = tokenList[i];
-			pot_names.push_back( n );
-			if ( simple_potential_ids.find(n) == simple_potential_ids.end() ) {
-			    // Could not find fileName in dictionary, so read and add it
-			    unsigned int s = tmp.size();
-			    if (s < 2 || s > 4) {
-				printf("WARNING: Invalid product potential input line (indices of potential %d == %d): %s\n", i, s, line);
-				continue;
-			    }
+			// Failed to convert token to integer; therefore it must be a potential name or type
 
-			    simple_potential_ids[n] = simple_potentials.size();
-			    SimplePotentialType t = s==2? BOND: s==3? ANGLE: DIHEDRAL;
-			    simple_potentials.push_back( SimplePotential(n.val(), t) );
+			// Try to match a type
+			String n = tokenList[i];
+			n.lower();
+			if (n == "bond") { type = DIHEDRAL; type_specified = true; }
+			else if (n == "angle")  { type = DIHEDRAL; type_specified = true; }
+			else if (n == "dihedral")  { type = DIHEDRAL; type_specified = true; }
+			else if (n == "vecangle") { type = VECANGLE; type_specified = true; }
+			else { // Not a type, therefore a path to a potential
+			    n = tokenList[i];
+			    indices.push_back(tmp);
+			    pot_names.push_back( n );
+			    // TODO: Key should be tuple of (type,n)
+			    if ( simple_potential_ids.find(n) == simple_potential_ids.end() ) {
+				// Could not find fileName in dictionary, so read and add it
+				unsigned int s = tmp.size();
+				if (s < 2 || s > 4) {
+				    printf("WARNING: Invalid product potential input line (indices of potential %d == %d): %s\n", i, s, line);
+				    continue;
+				}
+				simple_potential_ids[n] = simple_potentials.size();
+				if (not type_specified) type = s==2? BOND: s==3? ANGLE: DIHEDRAL;
+				simple_potentials.push_back( SimplePotential(n.val(), type) );
+			    }
+			    tmp.clear();
+			    type_specified = false;
+
 			}
-			tmp.clear();
 		    } else {
 			if (index >= num) {
 			    continue;

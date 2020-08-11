@@ -165,7 +165,7 @@ public:
 /* } */
 
 
-enum SimplePotentialType { UNSET, BOND, ANGLE, DIHEDRAL };
+enum SimplePotentialType { UNSET, BOND, ANGLE, DIHEDRAL, VECANGLE };
 // enum PotentialTypeAtoms { bond=2, angle=3, dihedral=4 };
 
 
@@ -208,6 +208,8 @@ public:
 	    val = compute_angle(pos, sys, particles[0], particles[1], particles[2]);
 	else if (type == DIHEDRAL)
 	    val = compute_dihedral(pos, sys, particles[0], particles[1], particles[2], particles[3]);
+	else if (type == VECANGLE)
+	    val = compute_vecangle(pos, sys, particles[0], particles[1], particles[2], particles[3]);
 	return val;
     }
 
@@ -233,18 +235,25 @@ public:
 	const Vector3 ab = sys->wrapDiff(pos[j] - pos[i]);
 	const Vector3 bc = sys->wrapDiff(pos[k] - pos[j]);
 	const Vector3 ac = sys->wrapDiff(pos[k] - pos[i]);
+	return compute_angle( ab.length2(), bc.length2(), ac.length2() );
+    }
 
-	// Find the distance between each pair of particles
-	float distab = ab.length2();
-	float distbc = bc.length2();
-	const float distac2 = ac.length2();
+    HOST DEVICE inline float compute_vecangle(const Vector3* __restrict__ pos,
+					      const BaseGrid* __restrict__ sys,
+					      int i, int j, int k, int l) const {
+	const Vector3 ab = sys->wrapDiff(pos[j] - pos[i]);
+	const Vector3 bc = sys->wrapDiff(pos[l] - pos[k]);
+	const Vector3 ac = bc+ab;
+	return compute_angle( ab.length2(), bc.length2(), ac.length2() );
+    }
 
+    HOST DEVICE inline float compute_angle(float distab2, float distbc2, float distac2) const {
 	// Find the cosine of the angle we want - <ABC
-	float cos = (distab + distbc - distac2);
+	float cos = (distab2 + distbc2 - distac2);
 
-	distab = 1.0f/sqrt(distab); //TODO: test other functions
-	distbc = 1.0f/sqrt(distbc);
-	cos *= 0.5f * distbc * distab;
+	distab2 = 1.0f/sqrt(distab2); //TODO: test other functions
+	distbc2 = 1.0f/sqrt(distbc2);
+	cos *= 0.5f * distbc2 * distab2;
 
 	// If the cosine is illegitimate, set it to 1 or -1 so that acos won't fail
 	if (cos < -1.0f) cos = -1.0f;
@@ -296,6 +305,9 @@ public:
 	else if (type == DIHEDRAL)
 	    apply_dihedral_force(pos, sys, forces, particles[0], particles[1],
 				 particles[2], particles[3], energy_deriv);
+	else if (type == VECANGLE)
+	    apply_vecangle_force(pos, sys, forces, particles[0], particles[1],
+				 particles[2], particles[3], energy_deriv);
     }
 
     __device__ inline void apply_bond_force(const Vector3* __restrict__ pos,
@@ -310,20 +322,18 @@ public:
 #endif
     }
 
-    DEVICE inline void apply_angle_force(const Vector3* __restrict__ pos,
-					 const BaseGrid* __restrict__ sys,
-					 Vector3* __restrict__ force,
-					 int i, int j, int k, float energy_deriv) const {
+    struct TwoVector3 {
+	Vector3 v1;
+	Vector3 v2;
+    };
 
-#ifdef __CUDA_ARCH__
-	const Vector3 ab = -sys->wrapDiff(pos[j] - pos[i]);
-	const Vector3 bc = -sys->wrapDiff(pos[k] - pos[j]);
-	const Vector3 ac = sys->wrapDiff(pos[k] - pos[i]);
-
+    DEVICE inline TwoVector3 get_angle_force(const Vector3& ab,
+					     const Vector3& bc,
+					     float energy_deriv) const {
 	// Find the distance between each pair of particles
 	float distab = ab.length2();
 	float distbc = bc.length2();
-	const float distac2 = ac.length2();
+	const float distac2 = (ab+bc).length2();
 
 	// Find the cosine of the angle we want - <ABC
 	float cos = (distab + distbc - distac2);
@@ -340,12 +350,27 @@ public:
 	energy_deriv /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity
 
 	// Calculate the forces
-	Vector3 force1 = -(energy_deriv*distab) * (ab * (cos*distab) + bc * distbc); // force on particle 1
-	Vector3 force3 = (energy_deriv*distbc) * (bc * (cos*distbc) + ab * distab); // force on particle 3
+	TwoVector3 force;
+	force.v1 = (energy_deriv*distab) * (ab * (cos*distab) + bc * distbc); // force on 1st particle
+	force.v2 = -(energy_deriv*distbc) * (bc * (cos*distbc) + ab * distab); // force on last particle
+	return force;
+    }
 
-	atomicAdd( &force[i], force1 );
-	atomicAdd( &force[j], -(force1 + force3) );
-	atomicAdd( &force[k], force3 );
+    DEVICE inline void apply_angle_force(const Vector3* __restrict__ pos,
+					 const BaseGrid* __restrict__ sys,
+					 Vector3* __restrict__ force,
+					 int i, int j, int k, float energy_deriv) const {
+
+#ifdef __CUDA_ARCH__
+	const Vector3 ab = sys->wrapDiff(pos[j] - pos[i]);
+	const Vector3 bc = sys->wrapDiff(pos[k] - pos[j]);
+	// const Vector3 ac = sys->wrapDiff(pos[k] - pos[i]);
+
+	TwoVector3 f = get_angle_force(ab,bc, energy_deriv);
+
+	atomicAdd( &force[i], f.v1 );
+	atomicAdd( &force[j], -(f.v1 + f.v2) );
+	atomicAdd( &force[k], f.v2 );
 #endif
     }
 
@@ -389,6 +414,26 @@ public:
 	atomicAdd( &force[l], -f3 );
 #endif
     }
+    DEVICE inline void apply_vecangle_force(const Vector3* __restrict__ pos,
+					    const BaseGrid* __restrict__ sys,
+					    Vector3* __restrict__ force,
+					    int i, int j, int k, int l, float energy_deriv) const {
+
+#ifdef __CUDA_ARCH__
+
+	const Vector3 ab = -sys->wrapDiff(pos[j] - pos[i]);
+	const Vector3 bc = -sys->wrapDiff(pos[k] - pos[j]);
+	// const Vector3 ac = sys->wrapDiff(pos[k] - pos[i]);
+
+	TwoVector3 f = get_angle_force(ab,bc, energy_deriv);
+
+	atomicAdd( &force[i], f.v1 );
+	atomicAdd( &force[j], -f.v1 );
+	atomicAdd( &force[k], -f.v2 );
+	atomicAdd( &force[l], f.v2 );
+#endif
+    }
+
 };
 
 #endif
