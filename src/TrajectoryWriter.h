@@ -50,16 +50,16 @@ private:
     float pi = 4.0f*atan(1.0f);
 
     unitCell[0] = box.ex().length();
-    unitCell[1] = box.ey().length();
-    unitCell[2] = box.ez().length();
+    unitCell[2] = box.ey().length();
+    unitCell[5] = box.ez().length();
     
     float bc = box.ey().dot(box.ez());
     float ac = box.ex().dot(box.ez());
     float ab = box.ex().dot(box.ey());
 
-    unitCell[3] = acos(bc/unitCell[1]/unitCell[2])/pi*180.0f;
-    unitCell[4] = acos(ac/unitCell[0]/unitCell[2])/pi*180.0f;
-    unitCell[5] = acos(ab/unitCell[0]/unitCell[1])/pi*180.0f;
+    unitCell[1] = bc/unitCell[0]/unitCell[2]/pi*180.0f;
+    unitCell[3] = ac/unitCell[0]/unitCell[5]/pi*180.0f;
+    unitCell[4] = ab/unitCell[0]/unitCell[1]/pi*180.0f;
   }
 
 public:
