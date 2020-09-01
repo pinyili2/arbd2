@@ -1147,12 +1147,12 @@ void computeProductPotentials(Vector3* force,
 		if (j == k) continue;
 		tmp_force *= energy_and_deriv[k].x;
 	    }
-	    if (tmp_force == 0) continue;
-
-	    // TODO add energy
-	    // TODO make it work with replicas
 	    SimplePotential& p = potentialList[ productPotential_list[i].x + j ];
-	    p.apply_force(pos,sys, force, &productPotentialParticles[part_idx], tmp_force);
+	    if (tmp_force != 0) {
+		// TODO add energy
+		// TODO make it work with replicas
+		p.apply_force(pos,sys, force, &productPotentialParticles[part_idx], tmp_force);
+	    }
 	    part_idx += p.type==BOND? 2: p.type==ANGLE? 3: 4;
 	}
     }
