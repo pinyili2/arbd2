@@ -258,7 +258,7 @@ public:
     HOST DEVICE inline float2 compute_energy_and_deriv(float value) {
 	float2 ret;
 	if (type == DIHEDRAL) {
-	    ret = linearly_interpolate<true>(value, BD_PI);
+	    ret = linearly_interpolate<true>(value, -BD_PI);
 	} else {
 	    ret = linearly_interpolate<false>(value);
 	}
@@ -327,7 +327,14 @@ public:
 	int home = int( floorf(w) );
 	w = w - home;
 	// if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
-	if (home < 0 || (home >= size && !is_periodic)) return make_float2(0.0f,0.0f);
+	if (home < 0) {
+	    if (is_periodic) home += size;
+	    else return make_float2(pot[0],0.0f);
+	}
+	else if (home >= size) {
+	    if (is_periodic) home -= size;
+	    else return make_float2(pot[size-1],0.0f);
+	}
 
 	float u0 = pot[home];
 	float du = home+1 < size ? pot[home+1]-u0 : is_periodic ? pot[0]-u0 : 0;
@@ -390,6 +397,9 @@ public:
 
 	float sin = sqrtf(1.0f - cos*cos);
 	energy_deriv /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity
+	if (abs(sin) < 1e-3) {
+	    printf("BAD ANGLE: sin, cos, energy_deriv, distab, distbc, distac2: (%f %f %f %f %f)\n",
+		   sin,cos,energy_deriv,distab,distbc);	}
 
 	// Calculate the forces
 	TwoVector3 force;
@@ -397,6 +407,37 @@ public:
 	force.v2 = -(energy_deriv*distbc) * (bc * (cos*distbc) + ab * distab); // force on last particle
 	return force;
     }
+
+    // DEVICE inline TwoVector3 get_angle_force(const Vector3& ab,
+    // 					     const Vector3& bc,
+    // 					     float energy_deriv) const {
+    // 	// Find the distance between each pair of particles
+    // 	float distab = ab.length2();
+    // 	float distbc = bc.length2();
+
+    // 	float pre = distab*distbc - pow(ab.dot(bc),2);
+    // 	// if (pre < 1e-6) {
+    // 	//     pre = 1e-3;
+    // 	//     printf("BAD ANGLE: pre, energy_deriv, distab, distbc, ab.dot(bc): (%f %f %f %f %f)\n",
+    // 	// 	   pre,energy_deriv,distab,distbc,ab.dot(bc));	
+    // 	// } else pre = sqrt(pre);
+    // 	// if (distab == distbc) {
+    // 	//     printf("GOOD ANGLE: pre, energy_deriv, distab, distbc, ab.dot(bc): (%f %f %f %f %f)\n",
+    // 	// 	   pre,energy_deriv,distab,distbc,ab.dot(bc));	
+    // 	// }
+	    
+    // 	pre = pre > 1e-6 ? sqrt(pre) : 1e-3;
+    // 	energy_deriv /= pre;
+
+    // 	TwoVector3 force;
+    // 	//force.v1 = energy_deriv * Vector3::element_mult( 1-Vector3::element_mult(ab,ab)/distab, bc);
+    // 	//force.v2 = energy_deriv * Vector3::element_mult( 1-Vector3::element_mult(bc,bc)/distbc, ab);
+
+    // 	Vector3 abbc = Vector3::element_mult(-ab,bc);
+    // 	force.v1 = -energy_deriv * (bc-Vector3::element_mult(abbc, -ab/distab));
+    // 	force.v2 = -energy_deriv * (-ab-Vector3::element_mult(abbc, bc/distbc));
+    // 	return force;
+    // }
 
     DEVICE inline void apply_angle_force(const Vector3* __restrict__ pos,
 					 const BaseGrid* __restrict__ sys,
@@ -434,7 +475,7 @@ public:
 
 	// return -atan2(sin_phi,cos_phi);
 	Vector3 f1, f2, f3; // forces
-	float distbc = bc.length2();
+	float distbc = bc.length();
 
 	f1 = -distbc * crossABC.rLength2() * crossABC;
 	f3 = -distbc * crossBCD.rLength2() * crossBCD;
