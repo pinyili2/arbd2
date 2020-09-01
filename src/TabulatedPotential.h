@@ -398,11 +398,11 @@ public:
 	f3 = -distbc * crossBCD.rLength2() * crossBCD;
 	f2 = -(ab.dot(bc) * bc.rLength2()) * f1 - (bc.dot(cd) * bc.rLength2()) * f3;
 
-	energy_deriv = (ab.length2()*bc.length2()*crossABC.rLength2() > 100.0f || bc.length2()*cd.length2()*crossBCD.rLength2() > 100.0f) ? 0.0f : energy_deriv;
-	if ( energy_deriv > 1000.0f )
-	    energy_deriv = 1000.0f;
-	if ( energy_deriv < -1000.0f )
-	    energy_deriv = -1000.0f;
+	// energy_deriv = (ab.length2()*bc.length2()*crossABC.rLength2() > 100.0f || bc.length2()*cd.length2()*crossBCD.rLength2() > 100.0f) ? 0.0f : energy_deriv;
+	/* if ( energy_deriv > 1000.0f ) */
+	/*     energy_deriv = 1000.0f; */
+	/* if ( energy_deriv < -1000.0f ) */
+	/*     energy_deriv = -1000.0f; */
 
 	f1 *= energy_deriv;
 	f2 *= energy_deriv;
