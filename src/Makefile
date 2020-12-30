@@ -4,7 +4,7 @@ INCLUDE = $(CUDA_PATH)/include
 
 
 ifeq ($(dbg),1)
-	NV_FLAGS += -g -G 
+	NV_FLAGS += -g -G -O0
 	EX_FLAGS = -g -m$(OS_SIZE)
 else
 	NV_FLAGS = -Xptxas -O3
@@ -31,7 +31,7 @@ CC_FLAGS += -DVERSION="\"$(VERSION)\"" -DSIGNAL
 
 
 CC_FLAGS += -I$(CUDA_PATH)/include
-CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic# TODO: test on Mac OSX and other architectures
+CC_FLAGS += -Wall -Wno-write-strings -std=c++14 -pedantic# TODO: test on Mac OSX and other architectures
 ifeq ($(dbg),1)
 NV_FLAGS += -lineinfo
 else

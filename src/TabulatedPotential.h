@@ -282,20 +282,21 @@ public:
     template <bool is_periodic>
 	HOST DEVICE inline float2 linearly_interpolate(float x, float start=0.0f) const {
 	float w = (x - start) * step_inv;
-	int home = int( floorf(w) );
-	w = w - home;
+	int signed_home = int( floorf(w) );
+	w = w - signed_home;
 	// if (home < 0) return EnergyForce(v0[0], Vector3(0.0f));
-	if (home < 0) {
-	    if (is_periodic) home += size;
+	if (signed_home < 0) {
+	    if (is_periodic) signed_home += size;
 	    else return make_float2(pot[0],0.0f);
 	}
-	else if (home >= size) {
+	unsigned int home = signed_home;
+	if (home >= size) {
 	    if (is_periodic) home -= size;
 	    else return make_float2(pot[size-1],0.0f);
 	}
 
 	float u0 = pot[home];
-	float du = home+1 < size ? pot[home+1]-u0 : is_periodic ? pot[0]-u0 : 0;
+	float du = ((unsigned int) home+1) < size ? pot[home+1]-u0 : is_periodic ? pot[0]-u0 : 0;
 
 	return make_float2(du*w+u0, du*step_inv);
     }

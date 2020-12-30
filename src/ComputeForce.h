@@ -218,17 +218,23 @@ private:
 	// Pairlists
 	float pairlistdist2;
 	int2 *pairLists_d;
+	cudaTextureObject_t pairLists_tex;
+
 	int *pairTabPotType_d;
+	cudaTextureObject_t pairTabPotType_tex;
 
 	int *numPairs_d;
 
         //Han-Yi Chou
         int *CellNeighborsList;	
 	//MLog: List of variables that need to be moved over to ComputeForce class. Members of this list will be set to static to avoid large alterations in working code, thereby allowing us to access these variables easily.
+	cudaTextureObject_t neighbors_tex;
+
 	//BrownianParticleType* part;
 	//float electricConst;
 	//int fullLongRange;
 	Vector3* pos_d;
+	cudaTextureObject_t pos_tex;
         Vector3* mom_d;
         float*   ran_d;
 	Vector3* forceInternal_d;
