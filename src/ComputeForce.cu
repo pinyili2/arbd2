@@ -1017,42 +1017,48 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 	    // 	   n_particles, n_pots, numProductPotentials);
 
 	    // Build productPotentialLists on host
-	    int *particle_list = new int[n_particles];
+	    int *particle_list = new int[n_particles*numReplicas];
 	    SimplePotential *product_potentials = new SimplePotential[n_pots];
-	    uint2 *product_potential_list = new uint2[numProductPotentials];
-	    unsigned short *productCount = new unsigned short[numProductPotentials];
+	    uint2 *product_potential_list = new uint2[numProductPotentials*numReplicas];
+	    unsigned short *productCount = new unsigned short[numProductPotentials*numReplicas];
 
 	    n_particles = 0;
-	    n_pots = 0;
-	    for (int i=0; i < numProductPotentials; ++i) {
-		const ProductPotentialConf& c = product_potential_confs[i];
-		product_potential_list[i] = make_uint2( n_pots, n_particles );
+	    
+	    for (unsigned int r=0; r < numReplicas; ++r) {
+		n_pots = 0;
+		for (int i=0; i < numProductPotentials; ++i) {
+		    const ProductPotentialConf& c = product_potential_confs[i];
+		    product_potential_list[i+r*numProductPotentials] = make_uint2( n_pots, n_particles );
 
-		for (int j=0; j < c.indices.size(); ++j) {
-		    unsigned int sp_i = simple_potential_map.at(c.potential_names[j]);
-		    product_potentials[n_pots] = simple_potentials[sp_i];
-		    product_potentials[n_pots++].pot = simple_potential_pots_d[sp_i];
-		    for (int k=0; k < c.indices[j].size(); ++k) {
-			particle_list[n_particles++] = c.indices[j][k];
+		    for (int j=0; j < c.indices.size(); ++j) {
+			if (r == 0) {
+			    unsigned int sp_i = simple_potential_map.at(c.potential_names[j]);
+			    product_potentials[n_pots] = simple_potentials[sp_i];
+			    product_potentials[n_pots].pot = simple_potential_pots_d[sp_i];
+			}
+			++n_pots;
+			for (int k=0; k < c.indices[j].size(); ++k) {
+			    particle_list[n_particles++] = c.indices[j][k]+r*num;
+			}
 		    }
+		    productCount[i+r*numProductPotentials] = c.indices.size();
 		}
-		productCount[i] = c.indices.size();
 	    }
 
 	    // Copy to device
-	    size_t sz = sizeof(int)*n_particles;
+	    size_t sz = n_particles*numReplicas * sizeof(int);
 	    gpuErrchk(cudaMalloc(&product_potential_particles_d, sz));
 	    gpuErrchk(cudaMemcpyAsync(product_potential_particles_d, particle_list, sz,
 	    				  cudaMemcpyHostToDevice));
-	    sz = sizeof(SimplePotential)*n_pots;
+	    sz = n_pots * sizeof(SimplePotential);
 	    gpuErrchk(cudaMalloc(&product_potentials_d, sz));
 	    gpuErrchk(cudaMemcpyAsync(product_potentials_d, product_potentials, sz,
 	    				  cudaMemcpyHostToDevice));
-	    sz = sizeof(uint2)*numProductPotentials;
+	    sz = numProductPotentials*numReplicas * sizeof(uint2);
 	    gpuErrchk(cudaMalloc(&product_potential_list_d, sz));
 	    gpuErrchk(cudaMemcpyAsync(product_potential_list_d, product_potential_list, sz,
 	    				  cudaMemcpyHostToDevice));
-	    sz = sizeof(unsigned short)*numProductPotentials;
+	    sz = numProductPotentials*numReplicas * sizeof(unsigned short);
 	    gpuErrchk(cudaMalloc(&productCount_d, sz));
 	    gpuErrchk(cudaMemcpyAsync(productCount_d, productCount, sz,
 	    				  cudaMemcpyHostToDevice));
