@@ -2,9 +2,18 @@
 #include "useful.h"
 #define WARPSIZE 32
 
-
 extern __device__ int warp_bcast(int v, int leader);
+
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION < 9000)
 extern __device__ int atomicAggInc(int *ctr, int warpLane);
+#else
+__device__ inline int atomicAggInc(int *ctr, int warpLane) {
+    return atomicAdd(ctr, 1);
+}
+#endif
+
 extern __global__
 void reduceVector(const int num, Vector3* __restrict__ vector, Vector3* netVector);
 

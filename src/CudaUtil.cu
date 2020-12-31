@@ -32,26 +32,6 @@ __device__ int atomicAggInc(int *ctr, int warpLane) {
 	res = warp_bcast(res,leader);
 	return res + __popc( mask & ((1 << warpLane) - 1) );
 }
-#else
-__inline__ __device__ uint __lanemask_lt()
-{
-    uint mask;
-    asm( "mov.u32 %0, %lanemask_lt;" : "=r"( mask ) );
-    return mask;
-}
-__device__ int atomicAggInc(int *ctr, int warpLane) 
-{
-    // unsigned int active = __ballot_sync(0xFFFFFFFF, 1);
-    unsigned int active = __activemask();
-    int leader = __ffs(active) - 1;
-    int change = __popc(active);
-    unsigned int rank = __popc(active & __lanemask_lt());
-    int warp_res;
-    if(rank == 0)
-        warp_res = atomicAdd(ctr, change);
-    warp_res = __shfl_sync(active, warp_res, leader);
-    return warp_res + rank;
-}
 #endif
 
 __global__
