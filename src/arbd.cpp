@@ -45,6 +45,7 @@ int main(int argc, char* argv[]) {
 	} else if (argc == 2 && (strcmp(argv[1], "--info") == 0)) {
 		// --info
 		GPUManager::load_info();
+		printf("Returning\n");
 		// size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
 		return 0;
 	} else if (argc < 3) {
@@ -59,7 +60,7 @@ int main(int argc, char* argv[]) {
 	GPUManager::init();
 
 	size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
-	int gpuID = -1;
+	std::vector<unsigned int> gpuIDs;
 	
 	bool debug = false, safe = false;
 	int replicas = 1;
@@ -79,14 +80,27 @@ int main(int argc, char* argv[]) {
 			num_flags++;
 
 		} else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gpu") == 0) {
-			unsigned int arg_val = atoi(argv[pos + 1]);
-			safe = false;
-			gpuID = arg_val;
-			num_flags += 2;
+		    String argval(argv[pos+1]);
+		    int nTokens = argval.tokenCount(',');
+		    String* tokens = new String[nTokens];
+		    argval.tokenize(tokens,',');
+		    for (int i = 0; i < 0; ++i) {
+			unsigned int arg_val = atoi(tokens[i].val());
 			if (arg_val < 0 || arg_val > n_gpus) {
-				printf("ERROR: Invalid argument given to %s\n", arg);
+			    printf("ERROR: Invalid argument given to %s: %s\n", arg, tokens[i].val());
 				return 1;
 			}
+			std::vector<unsigned int>::iterator it;
+			it = std::find(gpuIDs.begin(), gpuIDs.end(), arg_val);
+			if (it != gpuIDs.end()) {
+			    printf("WARNING: ignoring repeated GPU ID %d\n", arg_val);
+			} else {
+			    gpuIDs.push_back(arg_val);
+			}
+		    }
+		    delete[] tokens;
+		    safe = false;
+		    num_flags += 2;
 			
 		} else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--replicas") == 0) {
 			int arg_val = atoi(argv[pos + 1]);
@@ -127,23 +141,18 @@ int main(int argc, char* argv[]) {
 	}
 
 	GPUManager::safe(safe);
-	if (gpuID == -1)
-	    gpuID = GPUManager::getInitialGPU();
+	if (gpuIDs.size() == 0)
+	    gpuIDs.push_back( GPUManager::getInitialGPU() );
+
+	GPUManager::select_gpus(gpuIDs);
 
 	Configuration config(configFile, replicas, debug);
-	// GPUManager::set(0);
-	printf("Setting gpuID to %d\n",gpuID);
-	GPUManager::set(gpuID);
-	//MLog: this copyToCUDA function (along with the one in GrandBrownTown.cpp) was split into pieces to allocate memory into the ComputeForce, due to the location of this call we may get some memory error as a ComputeForce class isn't allocated until later on.
 	config.copyToCUDA();
-	
+	// GPUManager::set(0);
 
 	GrandBrownTown brown(config, outArg,
 			debug, imd_on, imd_port, replicas);
-	printf("Running on GPU %d...\n", GPUManager::current());
-	cudaDeviceProp prop = GPUManager::properties[GPUManager::current()];
-	if (prop.kernelExecTimeoutEnabled != 0)
-		printf("WARNING: GPU may timeout\n");
+
 	brown.run();
   return 0;
 

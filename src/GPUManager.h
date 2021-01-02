@@ -17,21 +17,49 @@ struct GPUPeer {
 	GPUPeer(int gpu) : gpu(gpu) {}
 };
 
-class GPUManager {
+class GPU {
+    /* Class to represent individual GPUs on a node */
+    friend class GPUManager;
 private:
-	static std::vector<int> timeouts, notimeouts;
+    bool may_timeout;
+    unsigned int id;
+    cudaStream_t streams[NUMSTREAMS];
+
+    int last_stream;
+    bool streams_created;
+    void create_streams();
+    void destroy_streams();
+
+    cudaDeviceProp properties;
+
+public:
+    GPU(unsigned int id);
+    ~GPU();
+
+    inline const cudaStream_t& get_stream(unsigned int stream_id) {
+	return streams[stream_id];
+    }
+
+    inline const cudaStream_t& get_next_stream() {
+	if (last_stream == NUMSTREAMS-1) {
+	    last_stream = 0;
+	} else {
+            last_stream +=1;
+	}
+	return streams[last_stream];
+    };
+};
+
+class GPUManager {
+
+private:
+	static std::vector<GPU> allGpus, timeouts, notimeouts;
 	static void init_devices();
 	static int nGPUs;
 	static bool is_safe;
 
-    static void create_streams();
-
 public:	
-    static cudaStream_t* stream;
-    static int last_stream;
-	static std::vector<int> allGpus;
-	static std::vector<int> gpus;
-	static std::vector<cudaDeviceProp> properties;
+	static std::vector<GPU> gpus;
 	
 	static bool safe() { return is_safe; }
 
@@ -42,9 +70,10 @@ public:
 
 	static void load_info();
 
-	// set
-	// Set the GPU
-	static void set(int gpu_id);
+	static void select_gpus(std::vector<unsigned int>& gpu_ids);
+	// use
+	// Use the GPU using local index 0..N (not cudaGetDevice index)
+	static void use(int gpu_id);
 
 	// current
 	// @return the current GPU a thread is using
@@ -58,19 +87,9 @@ public:
 
         // 
     inline const cudaStream_t& get_next_stream() {
-	if (last_stream == NUMSTREAMS-1) {
-	    last_stream = 0;
-	} else {
-            last_stream +=1;
-	}
-	return stream[last_stream];
+	return gpus[0].get_next_stream();
     };
-		
 
-	// Currently unused
-	static std::vector<GPUPeer> peers;
-	static std::vector<cudaEvent_t> events;
-       
 };
 
 #endif

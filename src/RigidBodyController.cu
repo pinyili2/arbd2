@@ -659,13 +659,6 @@ void RigidBodyController::KineticEnergy()
     else
         return 0.;*/
 }
-#if 0
-// allocate and initialize an array of stream handles
-cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
-int RigidBodyForcePair::nextStreamID = 0;	 /* used during stream init */
-int RigidBodyForcePair::lastRbGridID = -1; /* used to schedule kernel interaction */
-RigidBodyForcePair* RigidBodyForcePair::lastRbForcePair = NULL;
-#endif
 
 void RigidBodyForcePair::createStreams() {
 	for (int i = 0; i < NUMSTREAMS; i++)
@@ -736,7 +729,7 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s, int scheme, Base
 		const int nb = numBlocks[i];
 		const int k1 = gridKeyId1[i];
 		const int k2 = gridKeyId2[i];
-		const cudaStream_t &s = gpuman.stream[streamID[i]];
+		const cudaStream_t &s = gpuman.gpus[0].get_stream(streamID[i]);
 
 		/*
 			ijk: index of grid value
@@ -782,7 +775,7 @@ void RigidBodyForcePair::callGridForceKernel(int pairId, int s, int scheme, Base
 
 void RigidBodyForcePair::retrieveForcesForGrid(const int i) {
 	// i: grid ID (less than numGrids)
-	const cudaStream_t &s = gpuman.stream[streamID[i]];
+        const cudaStream_t &s = gpuman.gpus[0].get_stream(streamID[i]);
 	// const int nb = numBlocks[i];
 	const int nb = 1;
 

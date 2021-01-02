@@ -283,7 +283,7 @@ class MY_ALIGN(16) Matrix3  {
 	friend class BaseGrid;
 	friend class RigidBodyController; /* for trajectory writing */
 public:
-	HOST DEVICE inline Matrix3() {}
+	HOST DEVICE inline Matrix3() : isDiag(false) {}
 	HOST DEVICE Matrix3(float s);
 	HOST DEVICE Matrix3(float xx, float xy, float xz, float yx, float yy, float yz, float zx, float zy, float zz);
 	HOST DEVICE Matrix3(float x, float y, float z);
