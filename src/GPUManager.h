@@ -75,6 +75,9 @@ public:
 	// Use the GPU using local index 0..N (not cudaGetDevice index)
 	static void use(int gpu_id);
 
+	static void sync(int gpu_id);
+	static void sync();
+
 	// current
 	// @return the current GPU a thread is using
 	static int current();

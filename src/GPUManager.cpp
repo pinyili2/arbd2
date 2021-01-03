@@ -1,5 +1,6 @@
 #include "GPUManager.h"
 
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -7,6 +8,9 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=t
       if (abort) exit(code);
    }
 }
+#endif 
+
+#define WITH_GPU(id,code) { int wg_curr; cudaGetDevice(&wg_curr); cudaSetDevice(id); code ; cudaSetDevice(wg_curr); }
 
 int GPUManager::nGPUs = 0;
 bool GPUManager::is_safe = true;
@@ -119,10 +123,27 @@ void GPUManager::select_gpus(std::vector<unsigned int>& gpu_ids) {
 
 void GPUManager::use(int gpu_id) {
 	gpu_id = gpu_id % (int) gpus.size();
-	printf("Setting device to %d\n",gpus[gpu_id].id);
+	// printf("Setting device to %d\n",gpus[gpu_id].id);
 	gpuErrchk( cudaSetDevice(gpus[gpu_id].id) );
-	gpuErrchk( cudaDeviceSynchronize() );
 	// printf("Done setting device\n");
+}
+
+void GPUManager::sync(int gpu_id) {
+    WITH_GPU( gpus[gpu_id].id, 
+    	      gpuErrchk( cudaDeviceSynchronize() ));
+    // int wg_curr; 
+    // gpuErrchk( cudaGetDevice(&wg_curr) );
+    // gpuErrchk( cudaSetDevice(gpus[gpu_id].id) );
+    // gpuErrchk( cudaSetDevice(wg_curr) );
+}
+void GPUManager::sync() {
+    int curr;
+    gpuErrchk( cudaGetDevice(&curr) );
+    for (auto it = gpus.begin(); it != gpus.end(); ++it) {
+	gpuErrchk( cudaSetDevice(it->id) );
+	gpuErrchk( cudaDeviceSynchronize() );
+    }
+    gpuErrchk( cudaSetDevice(curr) );
 }
 
 int GPUManager::current() {

@@ -8,6 +8,7 @@
 
 #include "Debug.h"
 
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -15,7 +16,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       if (abort) exit(code);
    }
 }
-
+#endif
 
 RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref, RigidBodyController* RBCref) 
     : name(name), c(&cref), t(&tref), RBC(RBCref), impulse_to_momentum(4.1867999435271e4) /*impulse_to_momentum(4.184e8f)*/ { init(); }

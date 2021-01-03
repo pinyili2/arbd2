@@ -16,6 +16,7 @@
 
 #include "RandomCPU.h"							/* RBTODO: fix this? */
 
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -23,6 +24,8 @@ inline void gpuAssert(cudaError_t code, String file, int line, bool abort=true) 
       if (abort) exit(code);
    }
 }
+#endif
+
 // allocate and initialize an array of stream handles
 cudaStream_t *RigidBodyForcePair::stream = (cudaStream_t *) malloc(NUMSTREAMS * sizeof(cudaStream_t));
 int RigidBodyForcePair::nextStreamID = 0;        /* used during stream init */

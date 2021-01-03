@@ -8,6 +8,8 @@
 #include <cuda_profiler_api.h>
 #include <fstream>
 #include <iostream>
+
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -15,6 +17,7 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       if (abort) exit(code);
    }
 }
+#endif 
 
 #define gpuKernelCheck() {kernelCheck( __FILE__, __LINE__); }
 inline void kernelCheck(const char* file, int line)
@@ -29,6 +32,8 @@ inline void kernelCheck(const char* file, int line)
 }
 
 cudaEvent_t start, stop;
+
+GPUManager ComputeForce::gpuman = GPUManager();
 
 void runSort(int2 *d1, int *d2, float *key,
 				int2 *scratch1, int  *scratch2, float *scratchKey,
@@ -46,6 +51,20 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     numBondAngles(c.numBondAngles), numProductPotentials(c.numProductPotentials),
     numReplicas(numReplicas) {
 
+	// Grow vectors for per-gpu device pointers
+	for (int i = 0; i < gpuman.gpus.size(); ++i) {
+	    int s = gpuman.gpus.size();
+	    sys_d	= std::vector<BaseGrid*>(s);
+	    tablePot_d	= std::vector<TabulatedPotential**>(s);
+	    pairLists_d = std::vector<int2*>(s);
+	    pairLists_tex = std::vector<cudaTextureObject_t>(s);
+	    pairTabPotType_d = std::vector<int*>(s);
+	    pairTabPotType_tex = std::vector<cudaTextureObject_t>(s);
+	    numPairs_d = std::vector<int*>(s);
+	    pos_d = std::vector<Vector3*>(s);
+	    forceInternal_d = std::vector<Vector3*>(s);
+	}
+
 	// Allocate the parameter tables.
 	decomp_d = NULL;
 
@@ -61,8 +80,8 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	gpuErrchk(cudaMalloc(&tableEps_d, tableSize));
 	gpuErrchk(cudaMalloc(&tableRad6_d, tableSize));
 	gpuErrchk(cudaMalloc(&tableAlpha_d, tableSize));
-	gpuErrchk(cudaMalloc(&sys_d, sizeof(BaseGrid)));
-	gpuErrchk(cudaMemcpyAsync(sys_d, sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc(&sys_d[0], sizeof(BaseGrid)));
+	gpuErrchk(cudaMemcpyAsync(sys_d[0], sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
 
 	// Build the parameter tables.
 	makeTables(c.part);
@@ -78,7 +97,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		tablePot_addr[i] = NULL;
 		tablePot[i] = NULL;
 	}
-	gpuErrchk(cudaMalloc(&tablePot_d, sizeof(TabulatedPotential*) * np2));
+	gpuErrchk(cudaMalloc(&tablePot_d[0], sizeof(TabulatedPotential*) * np2));
 
 	// Create the bond table
 	tableBond = new TabulatedPotential*[numTabBondFiles];
@@ -116,17 +135,17 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	{	// allocate device for pairlists
 		// RBTODO: select maxpairs in better way; add assertion in kernel to avoid going past this
 		const int maxPairs = 1<<25;
-		gpuErrchk(cudaMalloc(&numPairs_d,       sizeof(int)));
-		gpuErrchk(cudaMalloc(&pairLists_d,      sizeof(int2)*maxPairs));
-                // gpuErrchk(cudaBindTexture(0, pairListsTex, pairLists_d, sizeof(int2)*maxPairs)); //Han-Yi
-		gpuErrchk(cudaMalloc(&pairTabPotType_d, sizeof(int)*maxPairs));
+		gpuErrchk(cudaMalloc(&numPairs_d[0],       sizeof(int)));
+		gpuErrchk(cudaMalloc(&pairLists_d[0],      sizeof(int2)*maxPairs));
+                // gpuErrchk(cudaBindTexture(0, pairListsTex, pairLists_d[0], sizeof(int2)*maxPairs)); //Han-Yi
+		gpuErrchk(cudaMalloc(&pairTabPotType_d[0], sizeof(int)*maxPairs));
 
 		// create texture object
 		{
 		    cudaResourceDesc resDesc;
 		    memset(&resDesc, 0, sizeof(resDesc));
 		    resDesc.resType = cudaResourceTypeLinear;
-		    resDesc.res.linear.devPtr = pairLists_d;
+		    resDesc.res.linear.devPtr = pairLists_d[0];
 		    resDesc.res.linear.desc.f = cudaChannelFormatKindSigned;
 		    resDesc.res.linear.desc.x = 32; // bits per channel
 		    resDesc.res.linear.desc.y = 32; // bits per channel
@@ -137,8 +156,8 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		    texDesc.readMode = cudaReadModeElementType;
 
 		    // create texture object: we only have to do this once!
-		    pairLists_tex=0;
-		    cudaCreateTextureObject(&pairLists_tex, &resDesc, &texDesc, NULL);
+		    pairLists_tex[0]=0;
+		    cudaCreateTextureObject(&pairLists_tex[0], &resDesc, &texDesc, NULL);
 
 		}
 
@@ -147,7 +166,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		    cudaResourceDesc resDesc;
 		    memset(&resDesc, 0, sizeof(resDesc));
 		    resDesc.resType = cudaResourceTypeLinear;
-		    resDesc.res.linear.devPtr = pairTabPotType_d;
+		    resDesc.res.linear.devPtr = pairTabPotType_d[0];
 		    resDesc.res.linear.desc.f = cudaChannelFormatKindSigned;
 		    resDesc.res.linear.desc.x = 32; // bits per channel
 		    resDesc.res.linear.sizeInBytes = maxPairs*sizeof(int);
@@ -157,8 +176,8 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		    texDesc.readMode = cudaReadModeElementType;
 
 		    // create texture object: we only have to do this once!
-		    pairTabPotType_tex = 0;
-		    cudaCreateTextureObject(&pairTabPotType_tex, &resDesc, &texDesc, NULL);
+		    pairTabPotType_tex[0] = 0;
+		    cudaCreateTextureObject(&pairTabPotType_tex[0], &resDesc, &texDesc, NULL);
 
 		}
 
@@ -210,7 +229,6 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
-GPUManager ComputeForce::gpuman = GPUManager();
 
 ComputeForce::~ComputeForce() {
 	delete[] tableEps;
@@ -243,11 +261,13 @@ ComputeForce::~ComputeForce() {
 
 		gpuErrchk(cudaFree(energies_d));
 
-		gpuErrchk(cudaFree(sys_d));
+		gpuErrchk(cudaFree(sys_d[0]));
                 //Han-Yi Unbind the texture
                 gpuErrchk(cudaDestroyTextureObject(pos_tex));
-		gpuErrchk( cudaFree(pos_d) );
-		gpuErrchk( cudaFree(forceInternal_d) );
+		for (int i = 0; i < forceInternal_d.size(); ++i) {
+		    gpuErrchk( cudaFree(forceInternal_d[i]) );
+		}
+		gpuErrchk( cudaFree(pos_d[0]) );
 		gpuErrchk( cudaFree(type_d) );
 		if (numBonds > 0) {
 			gpuErrchk( cudaFree(bonds_d) );
@@ -274,11 +294,11 @@ ComputeForce::~ComputeForce() {
 		}
 	}
 
-	gpuErrchk(cudaFree(numPairs_d));
-	gpuErrchk(cudaDestroyTextureObject(pairLists_tex));
-	gpuErrchk(cudaFree(pairLists_d));
-        gpuErrchk(cudaDestroyTextureObject(pairTabPotType_tex));
-	gpuErrchk(cudaFree(pairTabPotType_d));
+	gpuErrchk(cudaFree(numPairs_d[0]));
+	gpuErrchk(cudaDestroyTextureObject(pairLists_tex[0]));
+	gpuErrchk(cudaFree(pairLists_d[0]));
+        gpuErrchk(cudaDestroyTextureObject(pairTabPotType_tex[0]));
+	gpuErrchk(cudaFree(pairTabPotType_d[0]));
         gpuErrchk(cudaDestroyTextureObject(neighbors_tex));
         gpuErrchk(cudaFree( CellNeighborsList));
 
@@ -384,7 +404,7 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 	t->v0 = NULL; t->v1 = NULL;
 	t->v2 = NULL; t->v3 = NULL;
 	delete t;
-	gpuErrchk(cudaMemcpy(tablePot_d, tablePot_addr,
+	gpuErrchk(cudaMemcpy(tablePot_d[0], tablePot_addr,
 			sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
 
 	return true;
@@ -524,11 +544,11 @@ void ComputeForce::decompose() {
             cudaFree(decomp_d);
             decomp_d = NULL;
 	}	
-	decomp.decompose_d(pos_d, num);
+	decomp.decompose_d(pos_d[0], num);
 	decomp_d = decomp.copyToCUDA();
 
 	// Update pairlists using cell decomposition (not sure this is really needed or good) 
-	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d, num, numReplicas, sys_d, decomp_d);	
+	//RBTODO updatePairlists<<< nBlocks, NUM_THREADS >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d);	
 
 	/* size_t free, total; */
 	/* { */
@@ -549,15 +569,15 @@ void ComputeForce::decompose() {
 	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
 	// const size_t nBlocks = nCells*blocksPerCell;
 
-	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d, decomp_d); */
+	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d[0], decomp_d); */
 	/* gpuErrchk(cudaDeviceSynchronize()); */
 	/* pairlistTest<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, */
-	/* 																					 sys_d, decomp_d, nCells, blocksPerCell, */
-	/* 																					 numPairs_d, pairListListI_d, pairListListJ_d); */
+	/* 																					 sys_d[0], decomp_d, nCells, blocksPerCell, */
+	/* 																					 numPairs_d[0], pairListListI_d, pairListListJ_d); */
 	/* gpuErrchk(cudaDeviceSynchronize());	 */
 
 	int tmp = 0;
-	gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp,	sizeof(int), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpyAsync(numPairs_d[0], &tmp,	sizeof(int), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaDeviceSynchronize());
 	// printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
 
@@ -567,64 +587,64 @@ void ComputeForce::decompose() {
 #endif
     //Han-Yi Chou bind texture
     //printf("%d\n", sizeof(Vector3));
-    //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d,sizeof(Vector3)*num*numReplicas));
+    //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d[0],sizeof(Vector3)*num*numReplicas));
     //gpuErrchk(cudaBindTexture(0,CellsTex, decomp_d->getCells_d(),sizeof(CellDecomposition::cell_t)*num*numReplicas));
    
 //#if __CUDA_ARCH__ >= 300
-	//createPairlists_debug<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+	//createPairlists_debug<<< 2048, 64 >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
     //#ifdef NEW
    //for sm52
-    //createPairlists<32,64,1><<< dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, 
+    //createPairlists<32,64,1><<< dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], 
       //GTX 980
       //Han-Yi Chou 2017 my code
       
       #if __CUDA_ARCH__ >= 520
-      createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
-                                                                             pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d,
+      createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+                                                                             pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
 									   excludeMap_d, numExcludes, pairlistdist2, pos_tex, neighbors_tex);
       #else //__CUDA_ARCH__ == 300
-      createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
-                                                                           pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, 
+      createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+                                                                           pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, 
                                                                            excludeMap_d, numExcludes, pairlistdist2, pos_tex, neighbors_tex);
       #endif
        
       gpuKernelCheck();
       gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 
-    //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
-    //                                                                  pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d,
+    //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+    //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
     //                                                                  excludeMap_d, numExcludes, pairlistdist2);
 
     //#else
-    //createPairlists_debug<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, 
-      //                            pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+    //createPairlists_debug<<< 2048, 64 >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, 
+      //                            pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
     //#endif
 //#else
 	// Use shared memory for warp_bcast function
-	//createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+	//createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
     //#ifdef NEW
     //for sm52
-    //createPairlists<32,64,1><<<dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, 
+    //createPairlists<32,64,1><<<dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], 
       //GTX 980
-      //createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
+      //createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
         //GTX 680
-        //createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
-        //                                                              pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, 
+        //createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+        //                                                              pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, 
         //                                                              excludeMap_d, numExcludes, pairlistdist2);
-    //createPairlists<64,64><<<dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d,
-    //                                                                  pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d,
+    //createPairlists<64,64><<<dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+    //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
     //                                                                  excludeMap_d, numExcludes, pairlistdist2);
 
     //#else
-    //createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d,
-      //                                             pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2, CellNeighborsList);
+    //createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d,
+      //                                             pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2, CellNeighborsList);
     //#endif
 
 //#endif
 #if 0
 //////debug section			
 	// DEBUGING
-	gpuErrchk(cudaMemcpy(&tmp, numPairs_d,	sizeof(int), cudaMemcpyDeviceToHost));
+	gpuErrchk(cudaMemcpy(&tmp, numPairs_d[0],	sizeof(int), cudaMemcpyDeviceToHost));
 	//printf("CreatePairlist found %d pairs\n",tmp);
         gpuErrchk(cudaDeviceSynchronize());
 
@@ -634,12 +654,12 @@ void ComputeForce::decompose() {
         if (decomp_d)
             cudaFree(decomp_d);
 
-        decomp.decompose_d(pos_d, num);
+        decomp.decompose_d(pos_d[0], num);
         decomp_d = decomp.copyToCUDA();
 
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
         int tmp1 = 0;
-        gpuErrchk(cudaMemcpyAsync(numPairs_d, &tmp1,     sizeof(int), cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(numPairs_d[0], &tmp1,     sizeof(int), cudaMemcpyHostToDevice));
         gpuErrchk(cudaDeviceSynchronize());
         // printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
 
@@ -648,12 +668,12 @@ void ComputeForce::decompose() {
         gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 #endif
         #if __CUDA_ARCH__ >= 300
-        createPairlists_debug<<< 2048, 64 >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+        createPairlists_debug<<< 2048, 64 >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 #else
         // Use shared memory for warp_bcast function
-        createPairlists_debug<<< 2048, 64, 2048/WARPSIZE >>>(pos_d, num, numReplicas, sys_d, decomp_d, nCells, numPairs_d, pairLists_d, numParts, type_d, pairTabPotType_d, excludes_d, excludeMap_d, numExcludes, pairlistdist2);
+        createPairlists_debug<<< 2048, 64, 2048/WARPSIZE >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
 #endif
-    gpuErrchk(cudaMemcpy(&tmp1, numPairs_d,  sizeof(int), cudaMemcpyDeviceToHost));
+    gpuErrchk(cudaMemcpy(&tmp1, numPairs_d[0],  sizeof(int), cudaMemcpyDeviceToHost));
     printf("Difference CreatePairlist found %d pairs\n",tmp-tmp1);
     gpuErrchk(cudaDeviceSynchronize());
 
@@ -682,8 +702,8 @@ float ComputeForce::computeFull(bool get_energy) {
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
-	computeFullKernel<<< numBlocks, numThreads >>>(forceInternal_d, pos_d, type_d, tableAlpha_d,
-		tableEps_d, tableRad6_d, num, numParts, sys_d, energies_d, gridSize,
+	computeFullKernel<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], type_d, tableAlpha_d,
+		tableEps_d, tableRad6_d, num, numParts, sys_d[0], energies_d, gridSize,
 		numReplicas, get_energy);
 
 	// Calculate energy based on the array created by the kernel
@@ -703,8 +723,8 @@ float ComputeForce::computeSoftcoreFull(bool get_energy) {
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
-	computeSoftcoreFullKernel<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, type_d,
-			tableEps_d, tableRad6_d, num, numParts, sys_d, energies_d, gridSize,
+	computeSoftcoreFullKernel<<<numBlocks, numThreads>>>(forceInternal_d[0], pos_d[0], type_d,
+			tableEps_d, tableRad6_d, num, numParts, sys_d[0], energies_d, gridSize,
 			numReplicas, get_energy);
 
 	// Calculate energy based on the array created by the kernel
@@ -725,8 +745,8 @@ float ComputeForce::computeElecFull(bool get_energy) {
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
-	computeElecFullKernel<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, type_d,
-			tableAlpha_d, num, numParts, sys_d, energies_d, gridSize, numReplicas,
+	computeElecFullKernel<<<numBlocks, numThreads>>>(forceInternal_d[0], pos_d[0], type_d,
+			tableAlpha_d, num, numParts, sys_d[0], energies_d, gridSize, numReplicas,
 			get_energy);
 
 	// Calculate energy based on the array created by the kernel
@@ -748,8 +768,8 @@ float ComputeForce::compute(bool get_energy) {
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
-	computeKernel<<<numBlocks, numThreads>>>(forceInternal_d, pos_d, type_d,
-			tableAlpha_d, tableEps_d, tableRad6_d, num, numParts, sys_d,
+	computeKernel<<<numBlocks, numThreads>>>(forceInternal_d[0], pos_d[0], type_d,
+			tableAlpha_d, tableEps_d, tableRad6_d, num, numParts, sys_d[0],
 			decomp_d, energies_d, switchStart, switchLen, gridSize, numReplicas,
 			get_energy);
 
@@ -788,16 +808,16 @@ float ComputeForce::computeTabulated(bool get_energy) {
 		//clearEnergies<<< nb, numThreads >>>(energies_d,num);
 		//gpuErrchk(cudaDeviceSynchronize());
 		cudaMemset((void*)energies_d, 0, sizeof(float)*num*numReplicas);
-		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
-						cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d, energies_d);
+		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
+						cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], energies_d);
 	}
 	
 	else
 	{
-                //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d,sizeof(Vector3)*num*numReplicas));
-		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d, pos_d, sys_d,
-	    computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d, sys_d,
-													cutoff2, numPairs_d, pairLists_d, pairTabPotType_d, tablePot_d, pairLists_tex, pos_tex, pairTabPotType_tex);
+                //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d[0],sizeof(Vector3)*num*numReplicas));
+		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
+	    computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d[0], sys_d[0],
+													cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], pairLists_tex[0], pos_tex, pairTabPotType_tex[0]);
                   gpuKernelCheck();
                 //gpuErrchk(cudaUnbindTexture(PosTex));
 	}
@@ -808,41 +828,41 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	if(product_potential_list_d != NULL && product_potentials_d != NULL)
 	{
-	    computeProductPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numProductPotentials, product_potential_particles_d, product_potentials_d, product_potential_list_d, productCount_d, energies_d, get_energy);
+	    computeProductPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numProductPotentials, product_potential_particles_d, product_potentials_d, product_potential_list_d, productCount_d, energies_d, get_energy);
 	}
 
 	if(bondAngleList_d != NULL && tableBond_d != NULL && tableAngle_d != NULL)
 	{
-	    computeTabulatedBondAngles <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBondAngles, bondAngleList_d, tableAngle_d, tableBond_d, energies_d, get_energy);
+	    computeTabulatedBondAngles <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numBondAngles, bondAngleList_d, tableAngle_d, tableBond_d, energies_d, get_energy);
 	}
 
 	if(bondList_d != NULL && tableBond_d != NULL)
 
 	{
-	    //computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d, bonds, bondMap_d, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
-	//computeTabulatedBonds <<<nb, numThreads>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d);
+	    //computeTabulatedBonds <<<numBlocks, numThreads>>> ( force, pos, num, numParts, sys_d[0], bonds, bondMap_d, numBonds, numReplicas, energies_d, get_energy, tableBond_d);
+	//computeTabulatedBonds <<<nb, numThreads>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numBonds/2, bondList_d, tableBond_d);
 	  //if(get_energy)
               //cudaMemset(bond_energy_d, 0, sizeof(float)*num);
-		computeTabulatedBonds <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBonds/2, bondList_d, tableBond_d, energies_d, get_energy);
+		computeTabulatedBonds <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numBonds/2, bondList_d, tableBond_d, energies_d, get_energy);
 	}
 
 	if (angleList_d != NULL && tableAngle_d != NULL)
         {
             //if(get_energy)
-		//computeTabulatedAngles<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d);
-	    computeTabulatedAngles<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numAngles*numReplicas, angleList_d, tableAngle_d, energies_d, get_energy);
+		//computeTabulatedAngles<<<nb, numThreads>>>(forceInternal_d[0], pos_d[0], sys_d[0], numAngles*numReplicas, angleList_d, tableAngle_d);
+	    computeTabulatedAngles<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numAngles*numReplicas, angleList_d, tableAngle_d, energies_d, get_energy);
         }
 	if (dihedralList_d != NULL && tableDihedral_d != NULL)
         {
             //if(get_energy)
-		//computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
-	    computeTabulatedDihedrals<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numDihedrals*numReplicas, 
+		//computeTabulatedDihedrals<<<nb, numThreads>>>(forceInternal_d[0], pos_d[0], sys_d[0], numDihedrals*numReplicas, dihedralList_d, dihedralPotList_d, tableDihedral_d);
+	    computeTabulatedDihedrals<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numDihedrals*numReplicas, 
                 dihedralList_d, dihedralPotList_d, tableDihedral_d, energies_d, get_energy);
         }
 
 	// TODO: Sum energy
 	if (restraintIds_d != NULL )
-	    computeHarmonicRestraints<<<1, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d, pos_d, sys_d, numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
+	    computeHarmonicRestraints<<<1, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
 	
 
 	// Calculate the energy based on the array created by the kernel
@@ -877,16 +897,16 @@ float ComputeForce::computeTabulatedFull(bool get_energy) {
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
-	computeTabulatedFullKernel<<< numBlocks, numThreads >>>(forceInternal_d, pos_d, type_d,	tablePot_d, tableBond_d, num, numParts, sys_d, bonds_d, bondMap_d, numBonds, excludes_d, excludeMap_d, numExcludes, energies_d, gridSize, numReplicas, get_energy, angles_d);
+	computeTabulatedFullKernel<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], type_d,	tablePot_d[0], tableBond_d, num, numParts, sys_d[0], bonds_d, bondMap_d, numBonds, excludes_d, excludeMap_d, numExcludes, energies_d, gridSize, numReplicas, get_energy, angles_d);
 	gpuErrchk(cudaDeviceSynchronize());
 
-	computeAngles<<< numBlocks, numThreads >>>(forceInternal_d, pos_d, angles_d, tableAngle_d,
-																						 numAngles, num, sys_d, energies_d,
+	computeAngles<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], angles_d, tableAngle_d,
+																						 numAngles, num, sys_d[0], energies_d,
 																						 get_energy);
 	gpuErrchk(cudaDeviceSynchronize());
-	computeDihedrals<<< numBlocks, numThreads >>>(forceInternal_d, pos_d, dihedrals_d,
+	computeDihedrals<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], dihedrals_d,
 																							  tableDihedral_d, numDihedrals,
-																								num, sys_d, energies_d,
+																								num, sys_d[0], energies_d,
 																								get_energy);
 	// Calculate the energy based on the array created by the kernel
 	if (get_energy) {
@@ -902,13 +922,13 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 {
 	const size_t tot_num = num * numReplicas;
 
-	gpuErrchk(cudaMalloc(&pos_d, sizeof(Vector3) * tot_num));
+	gpuErrchk(cudaMalloc(&pos_d[0], sizeof(Vector3) * tot_num));
 	{
         //Han-Yi bind to the texture
 	    cudaResourceDesc resDesc;
 	    memset(&resDesc, 0, sizeof(resDesc));
 	    resDesc.resType = cudaResourceTypeLinear;
-	    resDesc.res.linear.devPtr = pos_d;
+	    resDesc.res.linear.devPtr = pos_d[0];
 	    resDesc.res.linear.desc.f = cudaChannelFormatKindFloat;
 	    resDesc.res.linear.desc.x = 32; // bits per channel
 	    resDesc.res.linear.desc.y = 32; // bits per channel
@@ -927,10 +947,10 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 
         gpuErrchk(cudaDeviceSynchronize());
 
-	gpuErrchk(cudaMemcpyAsync(pos_d, pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpyAsync(pos_d[0], pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
-	gpuErrchk(cudaMalloc(&forceInternal_d, sizeof(Vector3) * num * numReplicas));
-	gpuErrchk(cudaMemcpyAsync(forceInternal_d, forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc(&forceInternal_d[0], sizeof(Vector3) * num * numReplicas));
+	gpuErrchk(cudaMemcpyAsync(forceInternal_d[0], forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
 	gpuErrchk(cudaDeviceSynchronize());
 }
@@ -957,7 +977,7 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom
 
 void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 	const size_t tot_num = num * numReplicas;
-	gpuErrchk(cudaMemcpy(forceInternal_d, f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpy(forceInternal_d[0], f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 }
 
 
