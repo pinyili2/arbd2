@@ -259,7 +259,7 @@ private:
 	//float electricConst;
 	//int fullLongRange;
         std::vector<Vector3*> pos_d;
-	cudaTextureObject_t pos_tex;
+	std::vector<cudaTextureObject_t> pos_tex;
         Vector3* mom_d;
         float*   ran_d;
 

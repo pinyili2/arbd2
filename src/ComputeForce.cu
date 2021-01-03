@@ -62,6 +62,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	    pairTabPotType_tex = std::vector<cudaTextureObject_t>(s);
 	    numPairs_d = std::vector<int*>(s);
 	    pos_d = std::vector<Vector3*>(s);
+	    pos_tex = std::vector<cudaTextureObject_t>(s);
 	    forceInternal_d = std::vector<Vector3*>(s);
 	}
 
@@ -80,8 +81,12 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	gpuErrchk(cudaMalloc(&tableEps_d, tableSize));
 	gpuErrchk(cudaMalloc(&tableRad6_d, tableSize));
 	gpuErrchk(cudaMalloc(&tableAlpha_d, tableSize));
-	gpuErrchk(cudaMalloc(&sys_d[0], sizeof(BaseGrid)));
-	gpuErrchk(cudaMemcpyAsync(sys_d[0], sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuman.use(i);
+	    gpuErrchk(cudaMalloc(&sys_d[i], sizeof(BaseGrid)));
+	    gpuErrchk(cudaMemcpyAsync(sys_d[i], sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	}
+	gpuman.use(0);
 
 	// Build the parameter tables.
 	makeTables(c.part);
@@ -97,7 +102,11 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		tablePot_addr[i] = NULL;
 		tablePot[i] = NULL;
 	}
-	gpuErrchk(cudaMalloc(&tablePot_d[0], sizeof(TabulatedPotential*) * np2));
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuman.use(i);
+	    gpuErrchk(cudaMalloc(&tablePot_d[i], sizeof(TabulatedPotential*) * np2));
+	}
+	gpuman.use(0);
 
 	// Create the bond table
 	tableBond = new TabulatedPotential*[numTabBondFiles];
@@ -135,17 +144,21 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	{	// allocate device for pairlists
 		// RBTODO: select maxpairs in better way; add assertion in kernel to avoid going past this
 		const int maxPairs = 1<<25;
-		gpuErrchk(cudaMalloc(&numPairs_d[0],       sizeof(int)));
-		gpuErrchk(cudaMalloc(&pairLists_d[0],      sizeof(int2)*maxPairs));
-                // gpuErrchk(cudaBindTexture(0, pairListsTex, pairLists_d[0], sizeof(int2)*maxPairs)); //Han-Yi
-		gpuErrchk(cudaMalloc(&pairTabPotType_d[0], sizeof(int)*maxPairs));
+		for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+		    gpuman.use(i);
+		    gpuErrchk(cudaMalloc(&numPairs_d[i],       sizeof(int)));
+		    gpuErrchk(cudaMalloc(&pairLists_d[i],      sizeof(int2)*maxPairs));
+		    // gpuErrchk(cudaBindTexture(0, pairListsTex, pairLists_d[i], sizeof(int2)*maxPairs)); //Han-Yi
+		    gpuErrchk(cudaMalloc(&pairTabPotType_d[i], sizeof(int)*maxPairs));
+		}
 
 		// create texture object
-		{
+		for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+		    gpuman.use(i);
 		    cudaResourceDesc resDesc;
 		    memset(&resDesc, 0, sizeof(resDesc));
 		    resDesc.resType = cudaResourceTypeLinear;
-		    resDesc.res.linear.devPtr = pairLists_d[0];
+		    resDesc.res.linear.devPtr = pairLists_d[i];
 		    resDesc.res.linear.desc.f = cudaChannelFormatKindSigned;
 		    resDesc.res.linear.desc.x = 32; // bits per channel
 		    resDesc.res.linear.desc.y = 32; // bits per channel
@@ -156,17 +169,17 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		    texDesc.readMode = cudaReadModeElementType;
 
 		    // create texture object: we only have to do this once!
-		    pairLists_tex[0]=0;
-		    cudaCreateTextureObject(&pairLists_tex[0], &resDesc, &texDesc, NULL);
-
+		    pairLists_tex[i]=0;
+		    cudaCreateTextureObject(&pairLists_tex[i], &resDesc, &texDesc, NULL);
 		}
 
 		// create texture object
-		{
+		for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+		    gpuman.use(i);
 		    cudaResourceDesc resDesc;
 		    memset(&resDesc, 0, sizeof(resDesc));
 		    resDesc.resType = cudaResourceTypeLinear;
-		    resDesc.res.linear.devPtr = pairTabPotType_d[0];
+		    resDesc.res.linear.devPtr = pairTabPotType_d[i];
 		    resDesc.res.linear.desc.f = cudaChannelFormatKindSigned;
 		    resDesc.res.linear.desc.x = 32; // bits per channel
 		    resDesc.res.linear.sizeInBytes = maxPairs*sizeof(int);
@@ -176,10 +189,11 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		    texDesc.readMode = cudaReadModeElementType;
 
 		    // create texture object: we only have to do this once!
-		    pairTabPotType_tex[0] = 0;
-		    cudaCreateTextureObject(&pairTabPotType_tex[0], &resDesc, &texDesc, NULL);
+		    pairTabPotType_tex[i] = 0;
+		    cudaCreateTextureObject(&pairTabPotType_tex[i], &resDesc, &texDesc, NULL);
 
 		}
+		gpuman.use(0);
 
 
                 //Han-Yi Chou
@@ -261,13 +275,6 @@ ComputeForce::~ComputeForce() {
 
 		gpuErrchk(cudaFree(energies_d));
 
-		gpuErrchk(cudaFree(sys_d[0]));
-                //Han-Yi Unbind the texture
-                gpuErrchk(cudaDestroyTextureObject(pos_tex));
-		for (int i = 0; i < forceInternal_d.size(); ++i) {
-		    gpuErrchk( cudaFree(forceInternal_d[i]) );
-		}
-		gpuErrchk( cudaFree(pos_d[0]) );
 		gpuErrchk( cudaFree(type_d) );
 		if (numBonds > 0) {
 			gpuErrchk( cudaFree(bonds_d) );
@@ -294,11 +301,17 @@ ComputeForce::~ComputeForce() {
 		}
 	}
 
-	gpuErrchk(cudaFree(numPairs_d[0]));
-	gpuErrchk(cudaDestroyTextureObject(pairLists_tex[0]));
-	gpuErrchk(cudaFree(pairLists_d[0]));
-        gpuErrchk(cudaDestroyTextureObject(pairTabPotType_tex[0]));
-	gpuErrchk(cudaFree(pairTabPotType_d[0]));
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuErrchk(cudaFree(forceInternal_d[i]) );
+	    gpuErrchk(cudaFree(sys_d[i]));
+	    gpuErrchk(cudaDestroyTextureObject(pos_tex[i]));
+	    gpuErrchk(cudaFree(pos_d[i]) );
+	    gpuErrchk(cudaFree(numPairs_d[i]));
+	    gpuErrchk(cudaDestroyTextureObject(pairLists_tex[i]));
+	    gpuErrchk(cudaFree(pairLists_d[i]));
+	    gpuErrchk(cudaDestroyTextureObject(pairTabPotType_tex[i]));
+	    gpuErrchk(cudaFree(pairTabPotType_d[i]));
+	}
         gpuErrchk(cudaDestroyTextureObject(neighbors_tex));
         gpuErrchk(cudaFree( CellNeighborsList));
 
@@ -404,9 +417,12 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 	t->v0 = NULL; t->v1 = NULL;
 	t->v2 = NULL; t->v3 = NULL;
 	delete t;
-	gpuErrchk(cudaMemcpy(tablePot_d[0], tablePot_addr,
-			sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
-
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuman.use(i);
+	    gpuErrchk(cudaMemcpy(tablePot_d[i], tablePot_addr,
+				 sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
+	}
+	gpuman.use(0);
 	return true;
 }
 
@@ -601,11 +617,11 @@ void ComputeForce::decompose() {
       #if __CUDA_ARCH__ >= 520
       createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
                                                                              pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
-									   excludeMap_d, numExcludes, pairlistdist2, pos_tex, neighbors_tex);
+									   excludeMap_d, numExcludes, pairlistdist2, pos_tex[0], neighbors_tex);
       #else //__CUDA_ARCH__ == 300
       createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
                                                                            pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, 
-                                                                           excludeMap_d, numExcludes, pairlistdist2, pos_tex, neighbors_tex);
+                                                                           excludeMap_d, numExcludes, pairlistdist2, pos_tex[0], neighbors_tex);
       #endif
        
       gpuKernelCheck();
@@ -817,7 +833,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
                 //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d[0],sizeof(Vector3)*num*numReplicas));
 		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
 	    computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d[0], sys_d[0],
-													cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], pairLists_tex[0], pos_tex, pairTabPotType_tex[0]);
+													cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], pairLists_tex[0], pos_tex[0], pairTabPotType_tex[0]);
                   gpuKernelCheck();
                 //gpuErrchk(cudaUnbindTexture(PosTex));
 	}
@@ -923,12 +939,13 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 	const size_t tot_num = num * numReplicas;
 
 	gpuErrchk(cudaMalloc(&pos_d[0], sizeof(Vector3) * tot_num));
-	{
-        //Han-Yi bind to the texture
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuman.use(i);
+	    //Han-Yi bind to the texture
 	    cudaResourceDesc resDesc;
 	    memset(&resDesc, 0, sizeof(resDesc));
 	    resDesc.resType = cudaResourceTypeLinear;
-	    resDesc.res.linear.devPtr = pos_d[0];
+	    resDesc.res.linear.devPtr = pos_d[i];
 	    resDesc.res.linear.desc.f = cudaChannelFormatKindFloat;
 	    resDesc.res.linear.desc.x = 32; // bits per channel
 	    resDesc.res.linear.desc.y = 32; // bits per channel
@@ -941,11 +958,11 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 	    texDesc.readMode = cudaReadModeElementType;
 	    
 	    // create texture object: we only have to do this once!
-	    pos_tex=0;
-	    cudaCreateTextureObject(&pos_tex, &resDesc, &texDesc, NULL);
+	    pos_tex[i] = 0;
+	    cudaCreateTextureObject(&pos_tex[i], &resDesc, &texDesc, NULL);
+	    gpuErrchk(cudaDeviceSynchronize());
 	}
-
-        gpuErrchk(cudaDeviceSynchronize());
+	gpuman.use(0);
 
 	gpuErrchk(cudaMemcpyAsync(pos_d[0], pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
