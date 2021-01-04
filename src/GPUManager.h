@@ -6,6 +6,20 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+// #ifdef USE_NCCL
+#include <nccl.h>
+#define NCCLCHECK(cmd) do {					\
+      ncclResult_t r = cmd;					\
+      if (r!= ncclSuccess) {					\
+	  printf("Failed, NCCL error %s:%d '%s'\n",             \
+		 __FILE__,__LINE__,ncclGetErrorString(r));	\
+	  exit(EXIT_FAILURE);					\
+      }								\
+  } while(0)
+// #endif
+
+#include "useful.h"
+
 #define NUMSTREAMS 8
 
 // GPUs capable of Peer Access 
@@ -58,7 +72,11 @@ private:
 	static int nGPUs;
 	static bool is_safe;
 
+	// NCCL
+	static void init_comms();
+
 public:	
+	static ncclComm_t* comms;
 	static std::vector<GPU> gpus;
 	
 	static bool safe() { return is_safe; }
@@ -93,6 +111,34 @@ public:
 	return gpus[0].get_next_stream();
     };
 
+    template<typename T>
+    void nccl_broadcast(int root, std::vector<T*> send_d, std::vector<T*> recv_d, unsigned int size, int stream_id) {
+	if (gpus.size() == 1) return;
+	cudaStream_t stream = 0;
+	NCCLCHECK(ncclGroupStart());
+	for (size_t i = 0; i < gpus.size(); ++i) {
+	    if (stream_id >= 0) stream = gpus[i].streams[stream_id];
+	    NCCLCHECK( ncclBroadcast((const void*) send_d[i], (void*) recv_d[i],
+				     size*sizeof(T)/sizeof(float), ncclFloat, root,
+				     comms[i], stream) );
+	}
+	NCCLCHECK(ncclGroupEnd());
+    }
+
+    template<typename T>
+    void nccl_reduce(int root, const std::vector<T*> send_d, const std::vector<T*> recv_d, const unsigned int size, const int stream_id) {
+	if (gpus.size() == 1) return;
+	cudaStream_t stream = 0;
+	NCCLCHECK(ncclGroupStart());
+	for (size_t i = 0; i < gpus.size(); ++i) {
+	    if (stream_id >= 0) stream = gpus[i].streams[stream_id];
+	    NCCLCHECK(ncclReduce((const void*) send_d[i], (void*) recv_d[i],
+				 size*sizeof(T)/sizeof(float), ncclFloat, ncclSum, root, 
+				 comms[i], stream));
+	}
+	NCCLCHECK(ncclGroupEnd());
+    }
+    
 };
 
 #endif

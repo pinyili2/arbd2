@@ -607,6 +607,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
             // 'interparticleForce' - determines whether particles interact with each other
 	    internal->clear_force();
 	    internal->clear_energy();
+	    const std::vector<Vector3*>& _pos = internal->getPos_d();
+	    gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
 	    gpuman.sync();
 
             #ifdef _OPENMP
@@ -696,7 +698,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }//if step == 1
 
-        internal->clear_energy();
+	{ 
+	    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
+	    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+	}
+	internal->clear_energy();
 	gpuman.sync();
 
         if(particle_dynamic == String("Langevin"))
@@ -745,6 +751,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	}
         if (imd_on && clientsock && s % outputPeriod == 0)
         {
+	    assert(gpuman.gpus.size()==1); // TODO: implement IMD with multiple gpus
 	    gpuErrchk(cudaDeviceSynchronize());
             float* coords = new float[num*3]; // TODO: move allocation out of run loop
             int* atomIds = new int[num]; // TODO: move allocation out of run loop
@@ -822,6 +829,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
             internal->clear_force();
+	    const std::vector<Vector3*>& _p = internal->getPos_d();
+	    gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, -1);
     	}
 
         if (interparticleForce)
@@ -911,6 +920,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 RBC[i]->print(s);
             }
         }
+
+	{ 
+	    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
+	    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+	}
 
         if (s % outputPeriod == 0)
         {

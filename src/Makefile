@@ -1,6 +1,5 @@
 ### Paths, libraries, includes, options
 include ./findcudalib.mk
-INCLUDE = $(CUDA_PATH)/include
 
 
 ifeq ($(dbg),1)
@@ -27,16 +26,17 @@ else
 	VERSION:=unknown (not compiled in a git repository)
 endif
 endif
+
 CC_FLAGS += -DVERSION="\"$(VERSION)\"" -DSIGNAL
-
-
-CC_FLAGS += -I$(CUDA_PATH)/include
+CC_FLAGS += -I$(CUDA_PATH)/include -I$(NCCL_PATH)/include
 CC_FLAGS += -Wall -Wno-write-strings -pedantic# TODO: test on Mac OSX and other architectures
+
 ifeq ($(dbg),1)
 NV_FLAGS += -lineinfo
 else
 NV_FLAGS += -lineinfo
 endif
+NV_FLAGS += -I$(NCCL_PATH)/include
 
 CUDA_VERSION_GT10 = $(shell expr `nvcc -V | tr 'V' ' ' | tr ' ' '\n' | tail -n1 | cut -f1 -d.` \> 10)
 ifeq "$(CUDA_VERSION_GT10)" "1"
@@ -55,6 +55,7 @@ else
   endif
 endif
 CC_FLAGS += -std=$(CSTD)
+# LIBRARY := $(LIBRARY) $(NCCL_PATH)/lib
 # NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
 ## Find valid compute capabilities for this machine
@@ -74,7 +75,7 @@ $(foreach SM,$(SMS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM
 $(foreach SM,$(SMPTXS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)) )
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
-LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
+LD_FLAGS = -L$(LIBRARY) -L$(NCCL_PATH)/lib -lnccl -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY):$(NCCL_PATH)/lib
 
 ifdef USE_BOOST
 	CC_FLAGS += -DUSE_BOOST

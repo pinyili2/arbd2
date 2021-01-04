@@ -248,6 +248,7 @@ private:
     std::vector<int*> pairTabPotType_d;
     std::vector<cudaTextureObject_t> pairTabPotType_tex;
 
+    int numPairs;
     std::vector<int*> numPairs_d;
 
         //Han-Yi Chou

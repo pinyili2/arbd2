@@ -627,6 +627,19 @@ void ComputeForce::decompose() {
       gpuKernelCheck();
       gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 
+      if (gpuman.gpus.size() > 1) {
+	  gpuErrchk(cudaMemcpy(&numPairs, numPairs_d[0], sizeof(int), cudaMemcpyDeviceToHost));
+	  gpuman.nccl_broadcast(0, pairTabPotType_d, pairTabPotType_d, numPairs, -1);
+	  gpuman.nccl_broadcast(0, pairLists_d, pairLists_d, numPairs, -1);
+      }
+
+      for (size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	  gpuman.use(i);
+	  gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
+      }
+      gpuman.use(0);
+
+
     //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
     //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
     //                                                                  excludeMap_d, numExcludes, pairlistdist2);
@@ -830,11 +843,22 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	
 	else
 	{
+	    // Copy positions from device 0 to all others
+
                 //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d[0],sizeof(Vector3)*num*numReplicas));
 		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
-	    computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d[0], sys_d[0],
-													cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], pairLists_tex[0], pos_tex[0], pairTabPotType_tex[0]);
+
+	    int ngpu = gpuman.gpus.size();
+	    for (size_t i = 0; i < ngpu; ++i) {
+		gpuman.use(i);
+		int start = floor( ((float) numPairs*i    )/ngpu );
+		int end   = floor( ((float) numPairs*(i+1))/ngpu );
+		if (i == ngpu-1) assert(end == numPairs);
+		computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d[i], sys_d[i],
+													    cutoff2, pairLists_d[i], pairTabPotType_d[i], tablePot_d[i], pairLists_tex[i], pos_tex[i], pairTabPotType_tex[i], start, end-start);
                   gpuKernelCheck();
+	    }
+	    gpuman.use(0);
                 //gpuErrchk(cudaUnbindTexture(PosTex));
 	}
 	/* printPairForceCounter<<<1,32>>>(); */
