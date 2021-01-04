@@ -381,48 +381,48 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 
 	TabulatedPotential* t = new TabulatedPotential(*tablePot[ind]);
 
-	// Copy tablePot[ind] to the device
-	float *v0, *v1, *v2, *v3;
-	size_t sz_n = sizeof(float) * tablePot[ind]->n;
-	gpuErrchk(cudaMalloc(&v0, sz_n));
-	gpuErrchk(cudaMalloc(&v1, sz_n));
-	gpuErrchk(cudaMalloc(&v2, sz_n));
-	gpuErrchk(cudaMalloc(&v3, sz_n));
-	gpuErrchk(cudaMemcpyAsync(v0, tablePot[ind]->v0, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v1, tablePot[ind]->v1, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v2, tablePot[ind]->v2, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v3, tablePot[ind]->v3, sz_n, cudaMemcpyHostToDevice));
-	t->v0 = v0; t->v1 = v1;
-	t->v2 = v2; t->v3 = v3;
-	gpuErrchk(cudaMalloc(&tablePot_addr[ind], sizeof(TabulatedPotential)));
-	gpuErrchk(cudaMemcpy(tablePot_addr[ind], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
-	t->v0 = NULL; t->v1 = NULL;
-	t->v2 = NULL; t->v3 = NULL;
-	delete t;
-	/** Same thing for ind1 **/
-	t = new TabulatedPotential(*tablePot[ind1]);
-	sz_n = sizeof(float) * tablePot[ind1]->n;
-	gpuErrchk(cudaMalloc(&v0, sz_n));
-	gpuErrchk(cudaMalloc(&v1, sz_n));
-	gpuErrchk(cudaMalloc(&v2, sz_n));
-	gpuErrchk(cudaMalloc(&v3, sz_n));
-	gpuErrchk(cudaMemcpyAsync(v0, tablePot[ind1]->v0, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v1, tablePot[ind1]->v1, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v2, tablePot[ind1]->v2, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v3, tablePot[ind1]->v3, sz_n, cudaMemcpyHostToDevice));
-	t->v0 = v0; t->v1 = v1;
-	t->v2 = v2; t->v3 = v3;
-	gpuErrchk(cudaMalloc(&tablePot_addr[ind1], sizeof(TabulatedPotential)));
-	gpuErrchk(cudaMemcpy(tablePot_addr[ind1], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
-	t->v0 = NULL; t->v1 = NULL;
-	t->v2 = NULL; t->v3 = NULL;
-	delete t;
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
+
+	    // Copy tablePot[ind] to the device
+	    float *v0, *v1, *v2, *v3;
+	    size_t sz_n = sizeof(float) * tablePot[ind]->n;
+	    gpuErrchk(cudaMalloc(&v0, sz_n));
+	    gpuErrchk(cudaMalloc(&v1, sz_n));
+	    gpuErrchk(cudaMalloc(&v2, sz_n));
+	    gpuErrchk(cudaMalloc(&v3, sz_n));
+	    gpuErrchk(cudaMemcpyAsync(v0, tablePot[ind]->v0, sz_n, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(v1, tablePot[ind]->v1, sz_n, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(v2, tablePot[ind]->v2, sz_n, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(v3, tablePot[ind]->v3, sz_n, cudaMemcpyHostToDevice));
+	    t->v0 = v0; t->v1 = v1;
+	    t->v2 = v2; t->v3 = v3;
+	    // gpuErrchk(cudaMalloc(&tablePot_addr[ind], sizeof(TabulatedPotential)));
+	    gpuErrchk(cudaMemcpy(tablePot_d[i][ind], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
+
+	    /** Same thing for ind1 **/
+	    sz_n = sizeof(float) * tablePot[ind1]->n;
+	    gpuErrchk(cudaMalloc(&v0, sz_n));
+	    gpuErrchk(cudaMalloc(&v1, sz_n));
+	    gpuErrchk(cudaMalloc(&v2, sz_n));
+	    gpuErrchk(cudaMalloc(&v3, sz_n));
+	    gpuErrchk(cudaMemcpyAsync(v0, tablePot[ind1]->v0, sz_n, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(v1, tablePot[ind1]->v1, sz_n, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(v2, tablePot[ind1]->v2, sz_n, cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpyAsync(v3, tablePot[ind1]->v3, sz_n, cudaMemcpyHostToDevice));
+	    t->v0 = v0; t->v1 = v1;
+	    t->v2 = v2; t->v3 = v3;
+	    // gpuErrchk(cudaMalloc(&tablePot_addr[ind1], sizeof(TabulatedPotential)));
+	    // gpuErrchk(cudaMemcpy(tablePot_addr[ind1], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
+	    gpuErrchk(cudaMemcpy(tablePot_d[i][ind1], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
+	    t->v0 = NULL; t->v1 = NULL;
+	    t->v2 = NULL; t->v3 = NULL;
 	    gpuErrchk(cudaMemcpy(tablePot_d[i], tablePot_addr,
 				 sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
 	}
 	gpuman.use(0);
+	delete t;
+
 	return true;
 }
 
