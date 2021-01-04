@@ -55,6 +55,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	for (int i = 0; i < gpuman.gpus.size(); ++i) {
 	    int s = gpuman.gpus.size();
 	    sys_d	= std::vector<BaseGrid*>(s);
+	    tablePot_addr = std::vector<TabulatedPotential**>(s);
 	    tablePot_d	= std::vector<TabulatedPotential**>(s);
 	    pairLists_d = std::vector<int2*>(s);
 	    pairLists_tex = std::vector<cudaTextureObject_t>(s);
@@ -97,12 +98,11 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 
 	// Create the potential table
 	tablePot = new TabulatedPotential*[np2];
-	tablePot_addr = new TabulatedPotential*[np2];
-	for (int i = 0; i < np2; ++i) {
-		tablePot_addr[i] = NULL;
-		tablePot[i] = NULL;
-	}
+	for (int i = 0; i < np2; ++i) tablePot[i] = NULL;
+
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    tablePot_addr[i] = new TabulatedPotential*[np2];
+	    for (int j = 0; j < np2; ++j) tablePot_addr[i][j] = NULL;
 	    gpuman.use(i);
 	    gpuErrchk(cudaMalloc(&tablePot_d[i], sizeof(TabulatedPotential*) * np2));
 	}
@@ -255,7 +255,7 @@ ComputeForce::~ComputeForce() {
 	for (int j = 0; j < numParts * numParts; ++j)
 		delete tablePot[j];
 	delete[] tablePot;
-	delete[] tablePot_addr;
+	for (auto& tpa : tablePot_addr) delete[] tpa;
 
 	for (int j = 0; j < numTabBondFiles; ++j)
 		delete tableBond[j];
@@ -364,78 +364,44 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 	// If an entry already exists for this particle type, delete it
 	if (tablePot[ind] != NULL) {
 		delete tablePot[ind];
-		gpuErrchk(cudaFree(tablePot_addr[ind]));
-		tablePot[ind] = NULL;
-		tablePot_addr[ind] = NULL;
+		// TODO free resources
+		// gpuErrchk(cudaFree(tablePot_d[ind]));
+		// tablePot[ind] = NULL;
+		// tablePot_addr[ind] = NULL;
 	}
 	if (tablePot[ind1] != NULL) {
-		gpuErrchk(cudaFree(tablePot_addr[ind1]));
+	    // gpuErrchk(cudaFree(tablePot_addr[ind1]));
 		delete tablePot[ind1];
-		tablePot[ind1] = NULL;
-		tablePot_addr[ind1] = NULL;
+		// tablePot[ind1] = NULL;
+		// tablePot_addr[ind1] = NULL;
 	}
+	
+	FullTabulatedPotential fullpot = FullTabulatedPotential(fileName);
 
-	tablePot[ind] = new TabulatedPotential(fileName);
+	tablePot[ind] = tablePot[ind1] = new TabulatedPotential(*fullpot.pot);
 	tablePot[ind]->truncate(switchStart, sqrtf(cutoff2), 0.0f);
-	tablePot[ind1] = new TabulatedPotential(*(tablePot[ind]));
 
-	TabulatedPotential* t = new TabulatedPotential(*tablePot[ind]);
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
-
-	    // Copy tablePot[ind] to the device
-	    float *v0, *v1, *v2, *v3;
-	    size_t sz_n = sizeof(float) * tablePot[ind]->n;
-	    gpuErrchk(cudaMalloc(&v0, sz_n));
-	    gpuErrchk(cudaMalloc(&v1, sz_n));
-	    gpuErrchk(cudaMalloc(&v2, sz_n));
-	    gpuErrchk(cudaMalloc(&v3, sz_n));
-	    gpuErrchk(cudaMemcpyAsync(v0, tablePot[ind]->v0, sz_n, cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpyAsync(v1, tablePot[ind]->v1, sz_n, cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpyAsync(v2, tablePot[ind]->v2, sz_n, cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpyAsync(v3, tablePot[ind]->v3, sz_n, cudaMemcpyHostToDevice));
-	    t->v0 = v0; t->v1 = v1;
-	    t->v2 = v2; t->v3 = v3;
-	    // gpuErrchk(cudaMalloc(&tablePot_addr[ind], sizeof(TabulatedPotential)));
-	    gpuErrchk(cudaMemcpy(tablePot_d[i][ind], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
-
-	    /** Same thing for ind1 **/
-	    sz_n = sizeof(float) * tablePot[ind1]->n;
-	    gpuErrchk(cudaMalloc(&v0, sz_n));
-	    gpuErrchk(cudaMalloc(&v1, sz_n));
-	    gpuErrchk(cudaMalloc(&v2, sz_n));
-	    gpuErrchk(cudaMalloc(&v3, sz_n));
-	    gpuErrchk(cudaMemcpyAsync(v0, tablePot[ind1]->v0, sz_n, cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpyAsync(v1, tablePot[ind1]->v1, sz_n, cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpyAsync(v2, tablePot[ind1]->v2, sz_n, cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpyAsync(v3, tablePot[ind1]->v3, sz_n, cudaMemcpyHostToDevice));
-	    t->v0 = v0; t->v1 = v1;
-	    t->v2 = v2; t->v3 = v3;
-	    // gpuErrchk(cudaMalloc(&tablePot_addr[ind1], sizeof(TabulatedPotential)));
-	    // gpuErrchk(cudaMemcpy(tablePot_addr[ind1], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
-	    gpuErrchk(cudaMemcpy(tablePot_d[i][ind1], t, sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
-	    t->v0 = NULL; t->v1 = NULL;
-	    t->v2 = NULL; t->v3 = NULL;
-	    gpuErrchk(cudaMemcpy(tablePot_d[i], tablePot_addr,
+	    tablePot_addr[i][ind] = tablePot_addr[i][ind1] = tablePot[ind]->copy_to_cuda();
+	    gpuErrchk(cudaMemcpy(tablePot_d[i], tablePot_addr[i],
 				 sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
 	}
 	gpuman.use(0);
-	delete t;
-
 	return true;
 }
 
 bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], BondAngle bondAngles[])
 {
-	// TODO: see if tableBond_addr can be removed
-	if (tableBond[ind] != NULL) {
-		delete tableBond[ind];
-		gpuErrchk(cudaFree(tableBond_addr[ind]));
-		tableBond[ind] = NULL;
-		tableBond_addr[ind] = NULL;
-	}
-	tableBond[ind] = new TabulatedPotential(fileName);
+    // TODO: see if tableBond_addr can be removed
+    if (tableBond[ind] != NULL) {
+	delete tableBond[ind];
+	// gpuErrchk(cudaFree(tableBond_addr[ind])); //TODO free this a little more cleanly
+    }
+
+    FullTabulatedPotential fullpot = FullTabulatedPotential(fileName);
+    tableBond[ind] = new TabulatedPotential(*fullpot.pot);
 
 	for (int i = 0; i < numBonds; ++i)
 		if (bonds[i].fileName == fileName)
@@ -449,29 +415,9 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], Bond
 
 	gpuErrchk(cudaMemcpyAsync(bonds_d, bonds, sizeof(Bond) * numBonds, cudaMemcpyHostToDevice));
 
-	// Copy tableBond[ind] to the device
-	float *v0, *v1, *v2, *v3;
-	size_t sz_n = sizeof(float) * tableBond[ind]->n;
-	gpuErrchk(cudaMalloc(&v0, sz_n));
-	gpuErrchk(cudaMalloc(&v1, sz_n));
-	gpuErrchk(cudaMalloc(&v2, sz_n));
-	gpuErrchk(cudaMalloc(&v3, sz_n));
-	gpuErrchk(cudaMemcpyAsync(v0, tableBond[ind]->v0, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v1, tableBond[ind]->v1, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v2, tableBond[ind]->v2, sz_n, cudaMemcpyHostToDevice));
-	gpuErrchk(cudaMemcpyAsync(v3, tableBond[ind]->v3, sz_n, cudaMemcpyHostToDevice));
-
-	gpuErrchk(cudaMalloc(&tableBond_addr[ind], sizeof(TabulatedPotential)));
-	TabulatedPotential t = TabulatedPotential(*tableBond[ind]);
-	t.v0 = v0; t.v1 = v1;
-	t.v2 = v2; t.v3 = v3;
-	gpuErrchk(cudaMemcpyAsync(tableBond_addr[ind], &t,
-			sizeof(TabulatedPotential), cudaMemcpyHostToDevice));
-
+	tableBond_addr[ind] = tableBond[ind]->copy_to_cuda();
 	gpuErrchk(cudaMemcpy(tableBond_d, tableBond_addr,
-			sizeof(TabulatedPotential*) * numTabBondFiles, cudaMemcpyHostToDevice));
-	t.v0 = NULL; t.v1 = NULL;
-	t.v2 = NULL; t.v3 = NULL;
+				 sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
 	return true;
 }
 

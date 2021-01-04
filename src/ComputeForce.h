@@ -216,7 +216,7 @@ private:
 	int numTabDihedralFiles;
 
 	float *tableEps, *tableRad6, *tableAlpha;
-	TabulatedPotential **tablePot;
+	TabulatedPotential **tablePot; // 100% on Host 
 	TabulatedPotential **tableBond;
 	TabulatedAnglePotential **tableAngle;
 	TabulatedDihedralPotential **tableDihedral;
@@ -232,9 +232,10 @@ private:
 	float *energies_d;
 	float *tableEps_d, *tableRad6_d, *tableAlpha_d;
 	int gridSize;
-    // TabulatedPotential **tablePot_d, **tablePot_addr;
-    std::vector<TabulatedPotential**> tablePot_d;
-        TabulatedPotential** tablePot_addr;
+	// TabulatedPotential **tablePot_d, **tablePot_addr;
+	// We use this ugly approach because the array of tabulatePotentials may be sparse... but it probably won't be large enough to cause problems if we allocate more directly
+	std::vector<TabulatedPotential**> tablePot_addr; // per-gpu vector of host-allocated device pointers
+	std::vector<TabulatedPotential**> tablePot_d; // per-gpu vector of device-allocated device pointers
 
 	TabulatedPotential **tableBond_d, **tableBond_addr;
 	TabulatedAnglePotential **tableAngle_d, **tableAngle_addr;
