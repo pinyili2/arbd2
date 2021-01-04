@@ -138,15 +138,6 @@ void GPUManager::sync(int gpu_id) {
     // gpuErrchk( cudaSetDevice(gpus[gpu_id].id) );
     // gpuErrchk( cudaSetDevice(wg_curr) );
 }
-void GPUManager::sync() {
-    int curr;
-    gpuErrchk( cudaGetDevice(&curr) );
-    for (auto it = gpus.begin(); it != gpus.end(); ++it) {
-	gpuErrchk( cudaSetDevice(it->id) );
-	gpuErrchk( cudaDeviceSynchronize() );
-    }
-    gpuErrchk( cudaSetDevice(curr) );
-}
 
 int GPUManager::current() {
 	int c;

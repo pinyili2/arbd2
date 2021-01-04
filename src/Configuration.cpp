@@ -549,8 +549,8 @@ Configuration::~Configuration() {
                 partGridFileScale[i] = NULL;
             }
         }
-        delete partGridFile;
-        delete partGridFileScale;
+        delete [] partGridFile;
+        delete [] partGridFileScale;
         //delete numPartGridFiles;
 	delete[] partForceXGridFile;
 	delete[] partForceYGridFile;
@@ -795,7 +795,7 @@ void Configuration::setDefaults() {
 
 	readProductPotentialsFromFile = false;
 	numProductPotentials = 0;
-	
+	productPotentials = NULL;
 
 	readRestraintsFromFile = false;
 	numRestraints = 0;
