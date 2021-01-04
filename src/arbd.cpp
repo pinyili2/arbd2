@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 		    int nTokens = argval.tokenCount(',');
 		    String* tokens = new String[nTokens];
 		    argval.tokenize(tokens,',');
-		    for (int i = 0; i < 0; ++i) {
+		    for (int i = 0; i < nTokens; ++i) {
 			unsigned int arg_val = atoi(tokens[i].val());
 			if (arg_val < 0 || arg_val > n_gpus) {
 			    printf("ERROR: Invalid argument given to %s: %s\n", arg, tokens[i].val());
