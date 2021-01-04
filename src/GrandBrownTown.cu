@@ -608,7 +608,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    internal->clear_force();
 	    internal->clear_energy();
 	    const std::vector<Vector3*>& _pos = internal->getPos_d();
-	    gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
+	    if (gpuman.gpus.size() > 1)
+		gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
 	    gpuman.sync();
 
             #ifdef _OPENMP
@@ -698,7 +699,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }//if step == 1
 
-	{ 
+	if (gpuman.gpus.size() > 1) {
 	    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
 	    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
 	}
@@ -829,8 +830,10 @@ void GrandBrownTown::RunNoseHooverLangevin()
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
             internal->clear_force();
-	    const std::vector<Vector3*>& _p = internal->getPos_d();
-	    gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, -1);
+	    if (gpuman.gpus.size() > 1) {
+		const std::vector<Vector3*>& _p = internal->getPos_d();
+		gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, -1);
+	    }
     	}
 
         if (interparticleForce)
@@ -921,7 +924,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }
 
-	{ 
+	if (gpuman.gpus.size() > 1) {
 	    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
 	    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
 	}

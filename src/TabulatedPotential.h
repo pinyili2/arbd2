@@ -44,11 +44,48 @@ public:
   Vector3 f;
 };
 
+class TabulatedPotential;
+
+class FullTabulatedPotential {
+public:
+  FullTabulatedPotential();
+  FullTabulatedPotential(const char* fileName);
+  FullTabulatedPotential(const FullTabulatedPotential& tab);
+  ~FullTabulatedPotential();
+
+  static int countValueLines(const char* fileName);
+
+  /* HOST DEVICE inline EnergyForce computeOLD(Vector3 r) { */
+  /* 		float d = r.length(); */
+  /* 		Vector3 rUnit = -r/d; */
+  /* 		int home = int(floorf((d - r0)/dr)); */
+  /* 		if (home < 0) return EnergyForce(v0[0], Vector3(0.0f)); */
+  /* 		if (home >= n) return EnergyForce(e0, Vector3(0.0f)); */
+  /* 		float homeR = home*dr + r0; */
+  /* 		float w = (d - homeR)/dr; */
+		
+  /* 		// Interpolate. */
+  /* 		float energy = v3[home]*w*w*w + v2[home]*w*w + v1[home]*w + v0[home]; */
+  /* 		Vector3 force = -(3.0f*v3[home] * w * w */
+  /* 										+ 2.0f*v2[home] * w */
+  /* 										+ v1[home]) * rUnit/dr; */
+  /* 		return EnergyForce(energy,force); */
+  /* 	} */
+
+  TabulatedPotential* pot;
+
+private:
+  int numLines;
+  String fileName;
+};
+
 class TabulatedPotential {
 public:
   TabulatedPotential();
   TabulatedPotential(const TabulatedPotential& tab);
   TabulatedPotential(const float* dist, const float* pot, int n0);
+    TabulatedPotential(const FullTabulatedPotential& tab) : TabulatedPotential(*tab.pot) {}
+    TabulatedPotential(const char* filename) : TabulatedPotential(FullTabulatedPotential(filename)) {}
   ~TabulatedPotential();
 
   void truncate(float cutoff);
@@ -61,7 +98,7 @@ public:
     TabulatedPotential* copy_to_cuda() const {
 	// Allocate data for array 
 	TabulatedPotential* dev_ptr;
-	TabulatedPotential tmp(*this);
+	TabulatedPotential tmp(*this); // TODO consider avoiding allocating v0
 
 	float *v;
 	{
@@ -69,6 +106,7 @@ public:
 	    gpuErrchk(cudaMalloc(&v, sz));
 	    gpuErrchk(cudaMemcpy(v, v0, sz, cudaMemcpyHostToDevice));
 	}
+	delete [] tmp.v0;
 	tmp.v0 = v;
 
 	size_t sz = sizeof(TabulatedPotential);
@@ -78,7 +116,13 @@ public:
 	return dev_ptr;
     }
     void free_from_cuda(TabulatedPotential* dev_ptr) const {
-	// TODO: copy pointers to local temporary object, then cudaFree that data
+	TabulatedPotential tmp = TabulatedPotential();
+	delete [] tmp.v0;
+	gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(TabulatedPotential), cudaMemcpyDeviceToHost));
+	gpuErrchk(cudaFree(dev_ptr));
+	gpuErrchk(cudaFree(tmp.v0));
+	tmp.v0 = NULL;
+	dev_ptr->v0 = NULL;
     }
 
 
@@ -142,40 +186,6 @@ private:
   float drInv; //TODO replace with drInv
   float r0;
 };
-
-class FullTabulatedPotential {
-public:
-  FullTabulatedPotential();
-  FullTabulatedPotential(const char* fileName);
-  FullTabulatedPotential(const FullTabulatedPotential& tab);
-  ~FullTabulatedPotential();
-
-  static int countValueLines(const char* fileName);
-
-  /* HOST DEVICE inline EnergyForce computeOLD(Vector3 r) { */
-  /* 		float d = r.length(); */
-  /* 		Vector3 rUnit = -r/d; */
-  /* 		int home = int(floorf((d - r0)/dr)); */
-  /* 		if (home < 0) return EnergyForce(v0[0], Vector3(0.0f)); */
-  /* 		if (home >= n) return EnergyForce(e0, Vector3(0.0f)); */
-  /* 		float homeR = home*dr + r0; */
-  /* 		float w = (d - homeR)/dr; */
-		
-  /* 		// Interpolate. */
-  /* 		float energy = v3[home]*w*w*w + v2[home]*w*w + v1[home]*w + v0[home]; */
-  /* 		Vector3 force = -(3.0f*v3[home] * w * w */
-  /* 										+ 2.0f*v2[home] * w */
-  /* 										+ v1[home]) * rUnit/dr; */
-  /* 		return EnergyForce(energy,force); */
-  /* 	} */
-
-  TabulatedPotential* pot;
-
-private:
-  int numLines;
-  String fileName;
-};
-
 
 /* // New unified/simplified classes for working with potentials */
 /* <template int num_indices, int max_integer> */

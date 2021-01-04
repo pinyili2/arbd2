@@ -31,7 +31,7 @@ TabulatedPotential::TabulatedPotential(const TabulatedPotential& tab) {
 }
 
 TabulatedPotential::~TabulatedPotential() {
-    delete [] v0;
+    if (v0 != NULL) delete [] v0;
 }
 
 void TabulatedPotential::truncate(float cutoff) {
@@ -142,8 +142,7 @@ FullTabulatedPotential::FullTabulatedPotential(const char* fileName) : fileName(
 		delete[] tokenList;
 	}
 	fclose(inp);
-	*pot = TabulatedPotential(r,v,count);
-	//pot = new TabulatePotential(r,v,count);
+	pot = new TabulatedPotential(r,v,count);
 	// init(r, v, count);
 	// interpolate();
 	delete[] r;

@@ -363,24 +363,23 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 
 	// If an entry already exists for this particle type, delete it
 	if (tablePot[ind] != NULL) {
-		delete tablePot[ind];
-		// TODO free resources
-		// gpuErrchk(cudaFree(tablePot_d[ind]));
-		// tablePot[ind] = NULL;
-		// tablePot_addr[ind] = NULL;
+	    for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+		gpuman.use(i);
+		tablePot_addr[i][ind]->free_from_cuda(tablePot_addr[i][ind]);
+		delete tablePot_addr[i][ind];
+	    }
+	    gpuman.use(0);
+	    delete tablePot[ind];
 	}
-	if (tablePot[ind1] != NULL) {
-	    // gpuErrchk(cudaFree(tablePot_addr[ind1]));
-		delete tablePot[ind1];
-		// tablePot[ind1] = NULL;
-		// tablePot_addr[ind1] = NULL;
-	}
-	
-	FullTabulatedPotential fullpot = FullTabulatedPotential(fileName);
+	// if (tablePot[ind1] != NULL) {
+	//     // gpuErrchk(cudaFree(tablePot_addr[ind1]));
+	// 	delete tablePot[ind1];
+	// 	// tablePot[ind1] = NULL;
+	// 	// tablePot_addr[ind1] = NULL;
+	// }
 
-	tablePot[ind] = tablePot[ind1] = new TabulatedPotential(*fullpot.pot);
+	tablePot[ind] = tablePot[ind1] = new TabulatedPotential(fileName);
 	tablePot[ind]->truncate(switchStart, sqrtf(cutoff2), 0.0f);
-
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
@@ -400,8 +399,7 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], Bond
 	// gpuErrchk(cudaFree(tableBond_addr[ind])); //TODO free this a little more cleanly
     }
 
-    FullTabulatedPotential fullpot = FullTabulatedPotential(fileName);
-    tableBond[ind] = new TabulatedPotential(*fullpot.pot);
+    tableBond[ind] = new TabulatedPotential(fileName);
 
 	for (int i = 0; i < numBonds; ++i)
 		if (bonds[i].fileName == fileName)
@@ -417,7 +415,7 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], Bond
 
 	tableBond_addr[ind] = tableBond[ind]->copy_to_cuda();
 	gpuErrchk(cudaMemcpy(tableBond_d, tableBond_addr,
-				 sizeof(TabulatedPotential*) * numParts * numParts, cudaMemcpyHostToDevice));
+			     sizeof(TabulatedPotential*) * numTabBondFiles, cudaMemcpyHostToDevice));
 	return true;
 }
 
@@ -574,6 +572,7 @@ void ComputeForce::decompose() {
       gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 
       if (gpuman.gpus.size() > 1) {
+	  // Currently we don't use numPairs_d[i] for i > 0... might be able to reduce data transfer with some kind nccl scatter, and in that case we'd prefer to use all numPairs_d[i]
 	  gpuErrchk(cudaMemcpy(&numPairs, numPairs_d[0], sizeof(int), cudaMemcpyDeviceToHost));
 	  gpuman.nccl_broadcast(0, pairTabPotType_d, pairTabPotType_d, numPairs, -1);
 	  gpuman.nccl_broadcast(0, pairLists_d, pairLists_d, numPairs, -1);
@@ -795,16 +794,24 @@ float ComputeForce::computeTabulated(bool get_energy) {
 		//computeTabulatedKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
 
 	    int ngpu = gpuman.gpus.size();
+	    if (ngpu == 1) {
+		int i = 0;
+		computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.gpus[i].get_next_stream() >>>
+		    (forceInternal_d[i], sys_d[i], cutoff2, numPairs_d[i], pairLists_d[i], pairTabPotType_d[i], tablePot_d[i], pairLists_tex[i], pos_tex[i], pairTabPotType_tex[i]);
+
+	    } else {
 	    for (size_t i = 0; i < ngpu; ++i) {
 		gpuman.use(i);
-		int start = floor( ((float) numPairs*i    )/ngpu );
-		int end   = floor( ((float) numPairs*(i+1))/ngpu );
+		int start =            floor( ((float) numPairs*i    )/ngpu );
+		int end   = i < ngpu-1 ? floor( ((float) numPairs*(i+1))/ngpu ) : numPairs;
+		
 		if (i == ngpu-1) assert(end == numPairs);
 		computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.gpus[i].get_next_stream() >>>(forceInternal_d[i], sys_d[i],
 														    cutoff2, pairLists_d[i], pairTabPotType_d[i], tablePot_d[i], pairLists_tex[i], pos_tex[i], pairTabPotType_tex[i], start, end-start);
                   gpuKernelCheck();
 	    }
 	    gpuman.use(0);
+	    }
                 //gpuErrchk(cudaUnbindTexture(PosTex));
 	}
 	/* printPairForceCounter<<<1,32>>>(); */
