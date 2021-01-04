@@ -854,8 +854,8 @@ float ComputeForce::computeTabulated(bool get_energy) {
 		int start = floor( ((float) numPairs*i    )/ngpu );
 		int end   = floor( ((float) numPairs*(i+1))/ngpu );
 		if (i == ngpu-1) assert(end == numPairs);
-		computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.get_next_stream() >>>(forceInternal_d[i], sys_d[i],
-													    cutoff2, pairLists_d[i], pairTabPotType_d[i], tablePot_d[i], pairLists_tex[i], pos_tex[i], pairTabPotType_tex[i], start, end-start);
+		computeTabulatedKernel<64><<< dim3(2048,1,1), dim3(64,1,1), 0, gpuman.gpus[i].get_next_stream() >>>(forceInternal_d[i], sys_d[i],
+														    cutoff2, pairLists_d[i], pairTabPotType_d[i], tablePot_d[i], pairLists_tex[i], pos_tex[i], pairTabPotType_tex[i], start, end-start);
                   gpuKernelCheck();
 	    }
 	    gpuman.use(0);
@@ -962,9 +962,9 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 {
 	const size_t tot_num = num * numReplicas;
 
-	gpuErrchk(cudaMalloc(&pos_d[0], sizeof(Vector3) * tot_num));
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
+	    gpuErrchk(cudaMalloc(&pos_d[i], sizeof(Vector3) * tot_num));
 	    //Han-Yi bind to the texture
 	    cudaResourceDesc resDesc;
 	    memset(&resDesc, 0, sizeof(resDesc));
@@ -990,7 +990,11 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 
 	gpuErrchk(cudaMemcpyAsync(pos_d[0], pos, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
-	gpuErrchk(cudaMalloc(&forceInternal_d[0], sizeof(Vector3) * num * numReplicas));
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuman.use(i);
+	    gpuErrchk(cudaMalloc(&forceInternal_d[i], sizeof(Vector3) * num * numReplicas));
+	}
+	gpuman.use(0);
 	gpuErrchk(cudaMemcpyAsync(forceInternal_d[0], forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
 	gpuErrchk(cudaDeviceSynchronize());
