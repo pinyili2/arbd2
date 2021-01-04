@@ -252,8 +252,18 @@ ComputeForce::~ComputeForce() {
 	gpuErrchk(cudaFree(tableAlpha_d));
 	gpuErrchk(cudaFree(tableRad6_d));
 	
-	for (int j = 0; j < numParts * numParts; ++j)
-		delete tablePot[j];
+	for (int i = 0; i < numParts; ++i) {
+	    for (int j = i; j < numParts; ++j) {
+		int ind = i+j*numParts;
+		if (tablePot[ind] != NULL) {
+		    for (std::size_t g = 0; g < gpuman.gpus.size(); ++g) {
+			gpuman.use(g);
+			tablePot_addr[g][ind]->free_from_cuda(tablePot_addr[g][ind]);
+		    }
+		    delete tablePot[ind];
+		}
+	    }
+	}
 	delete[] tablePot;
 	for (auto& tpa : tablePot_addr) delete[] tpa;
 

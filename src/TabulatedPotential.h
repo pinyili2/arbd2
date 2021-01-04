@@ -122,7 +122,6 @@ public:
 	gpuErrchk(cudaFree(dev_ptr));
 	gpuErrchk(cudaFree(tmp.v0));
 	tmp.v0 = NULL;
-	dev_ptr->v0 = NULL;
     }
 
 

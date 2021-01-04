@@ -6,6 +6,8 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
+#include "useful.h"
+
 // #ifdef USE_NCCL
 #include <nccl.h>
 #define NCCLCHECK(cmd) do {					\
@@ -18,7 +20,12 @@
   } while(0)
 // #endif
 
-#include "useful.h"
+#ifndef gpuErrchk
+#define delgpuErrchk
+#define gpuErrchk(code) { if ((code) != cudaSuccess) {					       \
+	fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, __LINE__); \
+    }}
+#endif
 
 #define NUMSTREAMS 8
 
@@ -94,7 +101,18 @@ public:
 	static void use(int gpu_id);
 
 	static void sync(int gpu_id);
-	static void sync();
+	static void sync() {
+	    if (gpus.size() > 1) {
+		int curr;
+		gpuErrchk( cudaGetDevice(&curr) );
+		for (auto it = gpus.begin(); it != gpus.end(); ++it) {
+		    gpuErrchk( cudaSetDevice(it->id) );
+		    gpuErrchk( cudaDeviceSynchronize() );
+		}
+		gpuErrchk( cudaSetDevice(curr) );
+	    } else gpuErrchk( cudaDeviceSynchronize() );
+	}
+
 
 	// current
 	// @return the current GPU a thread is using
@@ -140,5 +158,9 @@ public:
     }
     
 };
+#ifndef delgpuErrchk
+#undef  delgpuErrchk
+#undef  gpuErrchk
+#endif
 
 #endif
