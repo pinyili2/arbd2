@@ -142,6 +142,17 @@ public:
 	}
 	NCCLCHECK(ncclGroupEnd());
     }
+    template<typename T>
+	void nccl_broadcast(int root, std::vector<T*> send_d, std::vector<T*> recv_d, unsigned int size, cudaStream_t* streams) {
+	if (gpus.size() == 1) return;
+	NCCLCHECK(ncclGroupStart());
+	for (size_t i = 0; i < gpus.size(); ++i) {
+	    NCCLCHECK( ncclBroadcast((const void*) send_d[i], (void*) recv_d[i],
+				     size*sizeof(T)/sizeof(float), ncclFloat, root,
+				     comms[i], streams[i]) );
+	}
+	NCCLCHECK(ncclGroupEnd());
+    }
 
     template<typename T>
     void nccl_reduce(int root, const std::vector<T*> send_d, const std::vector<T*> recv_d, const unsigned int size, const int stream_id) {

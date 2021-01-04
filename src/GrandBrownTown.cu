@@ -7,6 +7,7 @@
 #include <time.h>       /* time */
 #include <thrust/device_ptr.h>
 #include <fstream>
+#include <cuda_profiler_api.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -527,6 +528,9 @@ void GrandBrownTown::RunNoseHooverLangevin()
     timer0 = wkf_timer_create();
     timerS = wkf_timer_create();
 
+    cudaStream_t* nccl_broadcast_streams = new cudaStream_t[gpuman.gpus.size()];
+    for (int i=0; i< gpuman.gpus.size(); ++i) nccl_broadcast_streams[i] = 0;
+
     copyToCUDA();
 
     if(particle_dynamic == String("Langevin"))
@@ -596,6 +600,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
     gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
 
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
+    gpuErrchk( cudaProfilerStart() );
+
     //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
     for (long int s = 1; s < steps; s++)
@@ -608,8 +614,9 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    internal->clear_force();
 	    internal->clear_energy();
 	    const std::vector<Vector3*>& _pos = internal->getPos_d();
-	    if (gpuman.gpus.size() > 1)
+	    if (gpuman.gpus.size() > 1) {
 		gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
+	    }
 	    gpuman.sync();
 
             #ifdef _OPENMP
@@ -832,7 +839,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
             internal->clear_force();
 	    if (gpuman.gpus.size() > 1) {
 		const std::vector<Vector3*>& _p = internal->getPos_d();
-		gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, -1);
+		nccl_broadcast_streams[0] = gpuman.gpus[0].get_next_stream();
+		gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, nccl_broadcast_streams);
 	    }
     	}
 
