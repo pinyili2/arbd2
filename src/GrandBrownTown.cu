@@ -600,7 +600,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
     gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
 
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
-    gpuErrchk( cudaProfilerStart() );
+    for (int i=0; i< gpuman.gpus.size(); ++i) {
+	gpuman.use(i);
+	gpuErrchk( cudaProfilerStart() );
+    }
+    gpuman.use(0);
 
     //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
@@ -704,12 +708,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     RBC[i]->AddLangevin();
                 }
             }
+	    if (gpuman.gpus.size() > 1) {
+		const std::vector<Vector3*>& _f = internal->getForceInternal_d();
+		gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+	    }
+
         }//if step == 1
 
-	if (gpuman.gpus.size() > 1) {
-	    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
-	    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
-	}
 	internal->clear_energy();
 	gpuman.sync();
 
@@ -863,6 +868,10 @@ void GrandBrownTown::RunNoseHooverLangevin()
                                 RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
                         }
                         internal -> computeTabulated(get_energy);
+			if (gpuman.gpus.size() > 1) {
+			    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
+			    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+			}
                         break;
                     default: // [ N^2 ] interactions, no cutoff | decompositions
                         internal->computeTabulatedFull(get_energy);
@@ -906,7 +915,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         omp_set_num_threads(4);
         #endif
         #pragma omp parallel for
-        for(int i = 0; i < numReplicas; ++i)
+        for(int i = 0; i < numReplicas; ++i) // TODO: Use different buffer for RB particle forces to avoid race condition
             RBC[i]->updateForces((internal->getPos_d()[0])+i*num, (internal->getForceInternal_d()[0])+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                  RigidBodyInterpolationType, sys, sys_d);
 
@@ -931,11 +940,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 RBC[i]->print(s);
             }
         }
-
-	if (gpuman.gpus.size() > 1) {
-	    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
-	    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
-	}
 
         if (s % outputPeriod == 0)
         {

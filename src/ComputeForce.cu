@@ -587,13 +587,7 @@ void ComputeForce::decompose() {
 	  gpuman.nccl_broadcast(0, pairTabPotType_d, pairTabPotType_d, numPairs, -1);
 	  gpuman.nccl_broadcast(0, pairLists_d, pairLists_d, numPairs, -1);
       }
-
-      for (size_t i = 0; i < gpuman.gpus.size(); ++i) {
-	  gpuman.use(i);
-	  gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
-      }
-      gpuman.use(0);
-
+      gpuman.sync();
 
     //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
     //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
