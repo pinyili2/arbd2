@@ -1,6 +1,5 @@
 ### Paths, libraries, includes, options
 include ./findcudalib.mk
-INCLUDE = $(CUDA_PATH)/include
 
 
 ifeq ($(dbg),1)
@@ -27,11 +26,11 @@ else
 	VERSION:=unknown (not compiled in a git repository)
 endif
 endif
+
 CC_FLAGS += -DVERSION="\"$(VERSION)\"" -DSIGNAL
-
-
 CC_FLAGS += -I$(CUDA_PATH)/include
-CC_FLAGS += -Wall -Wno-write-strings -pedantic# TODO: test on Mac OSX and other architectures
+CC_FLAGS += -Wall -Wno-write-strings -std=c++14 -pedantic# TODO: test on Mac OSX and other architectures
+
 ifeq ($(dbg),1)
 NV_FLAGS += -lineinfo
 else
@@ -47,9 +46,9 @@ endif
 NV_FLAGS := $(NV_FLAGS) -std=$(CSTD)
 
 ifneq ($(DARWIN),)
-  LIBRARY = $(CUDA_PATH)/lib
+  CUDALIB = $(CUDA_PATH)/lib
 else
-  LIBRARY = $(CUDA_PATH)/lib64
+  CUDALIB = $(CUDA_PATH)/lib64
   ifeq "$(CSTD)" "c++11"
     CSTD := c++1y
   endif
@@ -74,7 +73,14 @@ $(foreach SM,$(SMS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM
 $(foreach SM,$(SMPTXS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)) )
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
-LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
+LD_FLAGS = -L$(CUDALIB) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(CUDALIB)
+
+ifdef NCCL_PATH
+	CC_FLAGS += -DUSE_NCCL
+	CC_FLAGS += -I$(NCCL_PATH)/include
+	NV_FLAGS += -I$(NCCL_PATH)/include
+	LD_FLAGS += -L$(NCCL_PATH)/lib -lnccl -Wl,-rpath,$(NCCL_PATH)/lib
+endif
 
 ifdef USE_BOOST
 	CC_FLAGS += -DUSE_BOOST

@@ -34,6 +34,16 @@
 #include <thrust/transform_reduce.h>	// thrust::reduce
 #include <thrust/functional.h>				// thrust::plus
 
+#ifndef gpuErrchk
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=true) {
+   if (code != cudaSuccess) {
+      fprintf(stderr,"CUDA Error: %s %s:%d\n", cudaGetErrorString(code), __FILE__, line);
+      if (abort) exit(code);
+   }
+}
+#endif
+
 #ifdef USE_BOOST
 #include <boost/unordered_map.hpp>
 typedef boost::unordered_map<String,unsigned int> XpotMap;
@@ -106,7 +116,7 @@ public:
 	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *bondAngleList);
 	    
 	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
-	Vector3* getPos_d()
+    std::vector<Vector3*> getPos_d()
 	{
 		return pos_d;
 	}
@@ -119,7 +129,7 @@ public:
             return ran_d;
         }
 
-	Vector3* getForceInternal_d()
+    std::vector<Vector3*> getForceInternal_d()
 	{
 		return forceInternal_d;
 	}
@@ -169,6 +179,18 @@ public:
         {
             return energies_d;
         }
+    
+    void clear_force() { 
+	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
+	    gpuman.use(i);
+	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,num*numReplicas*sizeof(Vector3)));
+	}
+	gpuman.use(0);		// TODO move to a paradigm where gpu0 is not preferentially treated 
+    }
+    void clear_energy() { 
+	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*num*numReplicas)); // TODO make async
+    }
+
 	HOST DEVICE
 	static EnergyForce coulombForce(Vector3 r, float alpha,float start, float len);
 
@@ -194,7 +216,7 @@ private:
 	int numTabDihedralFiles;
 
 	float *tableEps, *tableRad6, *tableAlpha;
-	TabulatedPotential **tablePot;
+	TabulatedPotential **tablePot; // 100% on Host 
 	TabulatedPotential **tableBond;
 	TabulatedAnglePotential **tableAngle;
 	TabulatedDihedralPotential **tableDihedral;
@@ -205,25 +227,30 @@ private:
 	float energy;
 
 	// Device Variables
-	BaseGrid* sys_d;
+    std::vector<BaseGrid*> sys_d;
 	CellDecomposition* decomp_d;
 	float *energies_d;
 	float *tableEps_d, *tableRad6_d, *tableAlpha_d;
 	int gridSize;
-	TabulatedPotential **tablePot_d, **tablePot_addr;
+	// TabulatedPotential **tablePot_d, **tablePot_addr;
+	// We use this ugly approach because the array of tabulatePotentials may be sparse... but it probably won't be large enough to cause problems if we allocate more directly
+	std::vector<TabulatedPotential**> tablePot_addr; // per-gpu vector of host-allocated device pointers
+	std::vector<TabulatedPotential**> tablePot_d; // per-gpu vector of device-allocated device pointers
+
 	TabulatedPotential **tableBond_d, **tableBond_addr;
 	TabulatedAnglePotential **tableAngle_d, **tableAngle_addr;
 	TabulatedDihedralPotential **tableDihedral_d, **tableDihedral_addr;
 
 	// Pairlists
 	float pairlistdist2;
-	int2 *pairLists_d;
-	cudaTextureObject_t pairLists_tex;
+    std::vector<int2*> pairLists_d;
+    std::vector<cudaTextureObject_t> pairLists_tex;
 
-	int *pairTabPotType_d;
-	cudaTextureObject_t pairTabPotType_tex;
+    std::vector<int*> pairTabPotType_d;
+    std::vector<cudaTextureObject_t> pairTabPotType_tex;
 
-	int *numPairs_d;
+    int numPairs;
+    std::vector<int*> numPairs_d;
 
         //Han-Yi Chou
         int *CellNeighborsList;	
@@ -233,11 +260,12 @@ private:
 	//BrownianParticleType* part;
 	//float electricConst;
 	//int fullLongRange;
-	Vector3* pos_d;
-	cudaTextureObject_t pos_tex;
+        std::vector<Vector3*> pos_d;
+	std::vector<cudaTextureObject_t> pos_tex;
         Vector3* mom_d;
         float*   ran_d;
-	Vector3* forceInternal_d;
+
+	std::vector<Vector3*> forceInternal_d; // vector for multigpu
 	int* type_d; 
 
 	Bond* bonds_d; 

@@ -10,6 +10,7 @@
 #include <iostream>
 using namespace std;
 
+#ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {
    if (code != cudaSuccess) {
@@ -17,6 +18,8 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
       if (abort) exit(code);
    }
 }
+#endif
+
 namespace
 {
     template<class T> 
@@ -546,8 +549,8 @@ Configuration::~Configuration() {
                 partGridFileScale[i] = NULL;
             }
         }
-        delete partGridFile;
-        delete partGridFileScale;
+        delete [] partGridFile;
+        delete [] partGridFileScale;
         //delete numPartGridFiles;
 	delete[] partForceXGridFile;
 	delete[] partForceYGridFile;
@@ -792,7 +795,7 @@ void Configuration::setDefaults() {
 
 	readProductPotentialsFromFile = false;
 	numProductPotentials = 0;
-	
+	productPotentials = NULL;
 
 	readRestraintsFromFile = false;
 	numRestraints = 0;

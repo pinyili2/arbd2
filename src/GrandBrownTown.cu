@@ -7,6 +7,7 @@
 #include <time.h>       /* time */
 #include <thrust/device_ptr.h>
 #include <fstream>
+#include <cuda_profiler_api.h>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -30,11 +31,13 @@ bool GrandBrownTown::DEBUG;
 
 cudaEvent_t START, STOP;
 
+GPUManager GrandBrownTown::gpuman = GPUManager();
+
 GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		bool debug, bool imd_on, unsigned int imd_port, int numReplicas) :
 	imd_on(imd_on), imd_port(imd_port), numReplicas(numReplicas),
 	//conf(c), RBC(RigidBodyController(c,outArg)) {
-	conf(c){
+	conf(c) {
 
         RBC.resize(numReplicas);      
         for(int i = 0; i < numReplicas; ++i)
@@ -525,6 +528,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
     timer0 = wkf_timer_create();
     timerS = wkf_timer_create();
 
+    #ifdef USE_NCCL
+    cudaStream_t* nccl_broadcast_streams = new cudaStream_t[gpuman.gpus.size()];
+    for (int i=0; i< gpuman.gpus.size(); ++i) nccl_broadcast_streams[i] = 0;
+    #endif
+
     copyToCUDA();
 
     if(particle_dynamic == String("Langevin"))
@@ -582,7 +590,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         #endif
         #pragma omp parallel for
         for(int i = 0; i < numReplicas; ++i)
-            RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+            RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
         gpuErrchk(cudaDeviceSynchronize());
     }
 
@@ -594,6 +602,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
     gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
 
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
+    for (int i=0; i< gpuman.gpus.size(); ++i) {
+	gpuman.use(i);
+	gpuErrchk( cudaProfilerStart() );
+    }
+    gpuman.use(0);
+
     //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
     for (long int s = 1; s < steps; s++)
@@ -603,8 +617,16 @@ void GrandBrownTown::RunNoseHooverLangevin()
         if(s == 1)
         {
             // 'interparticleForce' - determines whether particles interact with each other
-            gpuErrchk(cudaMemset((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
-            gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas));
+	    internal->clear_force();
+	    internal->clear_energy();
+	    const std::vector<Vector3*>& _pos = internal->getPos_d();
+	    #ifdef USE_NCCL
+	    if (gpuman.gpus.size() > 1) {
+		gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
+	    }
+	    #endif
+	    gpuman.sync();
+
             #ifdef _OPENMP
             omp_set_num_threads(4);
             #endif
@@ -628,7 +650,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                                 #endif
                                 #pragma omp parallel for
                                 for(int i = 0; i < numReplicas; ++i)
-                                    RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+                                    RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
                             }
                             internal -> computeTabulated(get_energy);
                             break;
@@ -652,7 +674,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                                 #endif
                                 #pragma omp parallel for
                                 for(int i = 0; i < numReplicas; ++i)
-                                    RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+                                    RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -676,7 +698,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             #endif
             #pragma omp parallel for
             for(int i = 0; i < numReplicas; ++i)
-                RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
+                RBC[i]->updateForces((internal->getPos_d()[0])+i*num, (internal->getForceInternal_d()[0])+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                        RigidBodyInterpolationType, sys, sys_d);
             if(rigidbody_dynamic == String("Langevin"))
             {
@@ -690,19 +712,28 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     RBC[i]->AddLangevin();
                 }
             }
+	    #ifdef USE_NCCL
+	    if (gpuman.gpus.size() > 1) {
+		const std::vector<Vector3*>& _f = internal->getForceInternal_d();
+		gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+	    }
+	    #endif
+
         }//if step == 1
 
-        gpuErrchk(cudaMemset((void*)(internal->getEnergy()), 0, sizeof(float)*num*numReplicas)); // TODO: make async
+	internal->clear_energy();
+	gpuman.sync();
+
         if(particle_dynamic == String("Langevin"))
-            updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+            updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
         else if(particle_dynamic == String("NoseHooverLangevin"))
             //kernel for Nose-Hoover Langevin dynamic
-            updateKernelNoseHooverLangevin<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), 
-            internal -> getRan_d(), internal -> getForceInternal_d(), internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, 
+            updateKernelNoseHooverLangevin<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), 
+            internal -> getRan_d(), internal -> getForceInternal_d()[0], internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, 
             randoGen_d, numReplicas, ParticleInterpolationType);
         ////For Brownian motion
         else
-            updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getForceInternal_d(), internal -> getType_d(),
+            updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getForceInternal_d()[0], internal -> getType_d(),
                                                        part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, 
                                                        internal->getEnergy(), get_energy, ParticleInterpolationType);
 
@@ -735,10 +766,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
         if (s % outputPeriod == 0) {
             // Copy particle positions back to CPU
 	    gpuErrchk(cudaDeviceSynchronize());
-            gpuErrchk(cudaMemcpy(pos, internal ->  getPos_d(), sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
+            gpuErrchk(cudaMemcpy(pos, internal ->getPos_d()[0], sizeof(Vector3) * num * numReplicas, cudaMemcpyDeviceToHost));
 	}
         if (imd_on && clientsock && s % outputPeriod == 0)
         {
+	    assert(gpuman.gpus.size()==1); // TODO: implement IMD with multiple gpus
 	    gpuErrchk(cudaDeviceSynchronize());
             float* coords = new float[num*3]; // TODO: move allocation out of run loop
             int* atomIds = new int[num]; // TODO: move allocation out of run loop
@@ -813,9 +845,16 @@ void GrandBrownTown::RunNoseHooverLangevin()
         for(int i = 0; i < numReplicas; ++i) 
             RBC[i]->clearForceAndTorque();
         if (imd_on && clientsock)
-            internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD
+            internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
-            gpuErrchk(cudaMemsetAsync((void*)(internal->getForceInternal_d()),0,num*numReplicas*sizeof(Vector3)));
+            internal->clear_force();
+	    #ifdef USE_NCCL
+	    if (gpuman.gpus.size() > 1) {
+		const std::vector<Vector3*>& _p = internal->getPos_d();
+		nccl_broadcast_streams[0] = gpuman.gpus[0].get_next_stream();
+		gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, nccl_broadcast_streams);
+	    }
+	    #endif
     	}
 
         if (interparticleForce)
@@ -834,9 +873,15 @@ void GrandBrownTown::RunNoseHooverLangevin()
                             #endif
                             #pragma omp parallel for
                             for(int i = 0; i < numReplicas; ++i)
-                                RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+                                RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
                         }
                         internal -> computeTabulated(get_energy);
+			#ifdef USE_NCCL
+			if (gpuman.gpus.size() > 1) {
+			    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
+			    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+			}
+			#endif
                         break;
                     default: // [ N^2 ] interactions, no cutoff | decompositions
                         internal->computeTabulatedFull(get_energy);
@@ -857,7 +902,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
                                #endif
                                #pragma omp parallel for
                                for(int i = 0; i < numReplicas; ++i)
-                                   RBC[i]->updateParticleLists( (internal->getPos_d())+i*num, sys_d);
+                                   RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
                             }
                             internal->compute(get_energy);
                             break;
@@ -880,12 +925,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
         omp_set_num_threads(4);
         #endif
         #pragma omp parallel for
-        for(int i = 0; i < numReplicas; ++i)
-            RBC[i]->updateForces((internal->getPos_d())+i*num, (internal->getForceInternal_d())+i*num, s, (internal->getEnergy())+i*num, get_energy, 
+        for(int i = 0; i < numReplicas; ++i) // TODO: Use different buffer for RB particle forces to avoid race condition
+            RBC[i]->updateForces((internal->getPos_d()[0])+i*num, (internal->getForceInternal_d()[0])+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                  RigidBodyInterpolationType, sys, sys_d);
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
-            LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d(), internal -> getMom_d(), internal -> getForceInternal_d(), 
+            LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getForceInternal_d()[0], 
             internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, internal->getEnergy(), get_energy, 
             ParticleInterpolationType);
             //gpuErrchk(cudaDeviceSynchronize());

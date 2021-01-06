@@ -812,13 +812,12 @@ __global__ void computeTabulatedKernel(
 #endif
 //#if 0
 template<const int BlockSize>
-__global__ void computeTabulatedKernel(Vector3* force, const BaseGrid* __restrict__ sys, 
-                                       float cutoff2, const int* __restrict__ g_numPairs, const int2* __restrict__ g_pair, 
-                                       const int* __restrict__ g_pairTabPotType, TabulatedPotential** __restrict__ tablePot,
-				       cudaTextureObject_t pairListsTex, cudaTextureObject_t PosTex, cudaTextureObject_t pairTabPotTypeTex
+__device__ inline void _computeTabulatedKernel(Vector3* force, const BaseGrid* __restrict__ sys, 
+					       float cutoff2, const int numPairs, const int2* __restrict__ g_pair, 
+					       const int* __restrict__ g_pairTabPotType, TabulatedPotential** __restrict__ tablePot,
+					       cudaTextureObject_t pairListsTex, cudaTextureObject_t PosTex, cudaTextureObject_t pairTabPotTypeTex
     )
 {
-    const int numPairs = *g_numPairs;
     const int tid = threadIdx.x + blockDim.x * threadIdx.y
                                          + blockDim.x *  blockDim.y * threadIdx.z 
                                          + BlockSize  *( blockIdx.x + gridDim.x * blockIdx.y 
@@ -850,6 +849,30 @@ __global__ void computeTabulatedKernel(Vector3* force, const BaseGrid* __restric
         }
     }
 }
+
+template<const int BlockSize>
+__global__ void computeTabulatedKernel(Vector3* force, const BaseGrid* __restrict__ sys, 
+                                       float cutoff2, const int* __restrict__ g_numPairs, const int2* __restrict__ g_pair, 
+                                       const int* __restrict__ g_pairTabPotType, TabulatedPotential** __restrict__ tablePot,
+				       cudaTextureObject_t pairListsTex, cudaTextureObject_t PosTex, cudaTextureObject_t pairTabPotTypeTex) {
+    _computeTabulatedKernel<BlockSize>(force,sys,
+				       cutoff2, *g_numPairs, g_pair,
+				       g_pairTabPotType, tablePot,
+				       pairListsTex, PosTex, pairTabPotTypeTex);
+}
+
+template<const int BlockSize>
+__global__ void computeTabulatedKernel(Vector3* force, const BaseGrid* __restrict__ sys, 
+                                       float cutoff2, const int2* __restrict__ g_pair, 
+                                       const int* __restrict__ g_pairTabPotType, TabulatedPotential** __restrict__ tablePot,
+				       cudaTextureObject_t pairListsTex, cudaTextureObject_t PosTex, cudaTextureObject_t pairTabPotTypeTex,
+				       int start, int numPairs) {
+    _computeTabulatedKernel<BlockSize>(force,sys,
+				       cutoff2, numPairs, g_pair+start,
+				       g_pairTabPotType+start, tablePot,
+				       pairListsTex, PosTex, pairTabPotTypeTex);
+}
+
     
 //#endif
  

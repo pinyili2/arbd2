@@ -23,6 +23,7 @@
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 
+#include "GPUManager.h"
 #include "useful.h"
 #include "BaseGrid.h"
 #include "OverlordGrid.h"
@@ -116,6 +117,7 @@ public:
 	Vector3 freePosition(Vector3 r0, Vector3 r1, float minDist);
 
 private:
+	static GPUManager gpuman;
 	const Configuration& conf;
 	int numReplicas;
 	
