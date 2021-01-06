@@ -59,7 +59,7 @@ int main(int argc, char* argv[]) {
 	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n");
 	GPUManager::init();
 
-	size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
+	size_t n_gpus = GPUManager::allGpuSize();
 	std::vector<unsigned int> gpuIDs;
 	
 	bool debug = false, safe = false;

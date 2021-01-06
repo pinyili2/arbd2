@@ -83,6 +83,7 @@ private:
 	static void init_comms();
 
 public:	
+	static size_t allGpuSize() { return allGpus.size(); }
 	static ncclComm_t* comms;
 	static std::vector<GPU> gpus;
 	
