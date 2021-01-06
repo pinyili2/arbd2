@@ -13,10 +13,10 @@
 
 #define MAX_CELLS_FOR_CELLNEIGHBORLIST 1<<25
 
-texture<int,    1, cudaReadModeElementType>      NeighborsTex;
-texture<int,    1, cudaReadModeElementType> pairTabPotTypeTex;
-texture<int2,   1, cudaReadModeElementType>      pairListsTex;
-texture<float4, 1, cudaReadModeElementType>            PosTex;
+// texture<int,    1, cudaReadModeElementType>      NeighborsTex;
+// texture<int,    1, cudaReadModeElementType> pairTabPotTypeTex;
+//texture<int2,   1, cudaReadModeElementType>      pairListsTex;
+// texture<float4, 1, cudaReadModeElementType>            PosTex;
 
 __host__ __device__
 EnergyForce ComputeForce::coulombForce(Vector3 r, float alpha,
@@ -303,7 +303,7 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
                                 const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
                                 const int nCells,int* g_numPairs, int2* g_pair, int numParts, const int* __restrict__ type,
                                 int* __restrict__ g_pairTabPotType, const Exclude* __restrict__ excludes,
-                                const int2* __restrict__ excludeMap, const int numExcludes, float pairlistdist2)
+                                const int2* __restrict__ excludeMap, const int numExcludes, float pairlistdist2, cudaTextureObject_t PosTex, cudaTextureObject_t NeighborsTex)
 {
     __shared__ float4 __align__(16) particle[N];
     __shared__ int     Index_i[N];
@@ -336,7 +336,7 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
                 if(tid + pid_i < Ni && tid < N)
                 {
                     Index_i [tid] = cellInfo[rangeI.first+pid_i+tid].particle;
-                    particle[tid] = tex1Dfetch(PosTex,Index_i[tid]);
+                    particle[tid] = tex1Dfetch<float4>(PosTex,Index_i[tid]);
                 }
                 __syncthreads();
 
@@ -360,7 +360,7 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
 
 			int neighbor_cell;
 			if (nCells < MAX_CELLS_FOR_CELLNEIGHBORLIST) {
-			    neighbor_cell = tex1Dfetch(NeighborsTex,idx+27*cellid_i);
+			    neighbor_cell = tex1Dfetch<int>(NeighborsTex,idx+27*cellid_i);
 			} else {
 			    int3 cells = decomp->nCells;
 			    int3 cell_idx = make_int3(cellid_i %  cells.z,
@@ -405,7 +405,7 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
                                 continue;
                             }
 
-                            float4 b = tex1Dfetch(PosTex,aj);
+                            float4 b = tex1Dfetch<float4>(PosTex,aj);
                             Vector3 B(b.x,b.y,b.z);
 
                             float dr = (sys->wrapDiff(A-B)).length2();
@@ -453,7 +453,7 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
         {
             int ai      = cellInfo[rangeI.first+pid_i].particle;
 
-            float4 a = tex1Dfetch(PosTex,ai);
+            float4 a = tex1Dfetch<float4>(PosTex,ai);
             Vector3 A(a.x,a.y,a.z);
 
             int2 ex_pair = make_int2(-1,-1); 
@@ -812,9 +812,11 @@ __global__ void computeTabulatedKernel(
 #endif
 //#if 0
 template<const int BlockSize>
-__global__ void computeTabulatedKernel(Vector3* force, const Vector3* __restrict__ pos, const BaseGrid* __restrict__ sys, 
+__global__ void computeTabulatedKernel(Vector3* force, const BaseGrid* __restrict__ sys, 
                                        float cutoff2, const int* __restrict__ g_numPairs, const int2* __restrict__ g_pair, 
-                                       const int* __restrict__ g_pairTabPotType, TabulatedPotential** __restrict__ tablePot)
+                                       const int* __restrict__ g_pairTabPotType, TabulatedPotential** __restrict__ tablePot,
+				       cudaTextureObject_t pairListsTex, cudaTextureObject_t PosTex, cudaTextureObject_t pairTabPotTypeTex
+    )
 {
     const int numPairs = *g_numPairs;
     const int tid = threadIdx.x + blockDim.x * threadIdx.y
@@ -826,7 +828,7 @@ __global__ void computeTabulatedKernel(Vector3* force, const Vector3* __restrict
     for (int i = tid; i < numPairs; i += TotalThreads) 
     {
         //int2 pair = g_pair[i];
-        int2 pair = tex1Dfetch(pairListsTex,i);
+        int2 pair = tex1Dfetch<int2>(pairListsTex,i);
         //int  ind  = tex1Dfetch(pairTabPotTypeTex,i); 
 
         int ai = pair.x;
@@ -834,12 +836,12 @@ __global__ void computeTabulatedKernel(Vector3* force, const Vector3* __restrict
                         
         //int ind = g_pairTabPotType[i];
 
-        Vector3 a(tex1Dfetch(PosTex, ai));
-        Vector3 b(tex1Dfetch(PosTex, aj));
+        Vector3 a(tex1Dfetch<float4>(PosTex, ai));
+        Vector3 b(tex1Dfetch<float4>(PosTex, aj));
         Vector3 dr = sys->wrapDiff(b-a);
         
         float d2 = dr.length2();
-        int  ind  = tex1Dfetch(pairTabPotTypeTex,i);
+        int  ind  = tex1Dfetch<int>(pairTabPotTypeTex,i);
         if (tablePot[ind] != NULL && d2 <= cutoff2) 
         {
             Vector3 f = tablePot[ind]->computef(dr,d2);

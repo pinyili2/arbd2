@@ -4,7 +4,7 @@ INCLUDE = $(CUDA_PATH)/include
 
 
 ifeq ($(dbg),1)
-	NV_FLAGS += -g -G 
+	NV_FLAGS += -g -G -O0
 	EX_FLAGS = -g -m$(OS_SIZE)
 else
 	NV_FLAGS = -Xptxas -O3
@@ -31,21 +31,31 @@ CC_FLAGS += -DVERSION="\"$(VERSION)\"" -DSIGNAL
 
 
 CC_FLAGS += -I$(CUDA_PATH)/include
-CC_FLAGS += -Wall -Wno-write-strings -std=c++0x -pedantic# TODO: test on Mac OSX and other architectures
+CC_FLAGS += -Wall -Wno-write-strings -pedantic# TODO: test on Mac OSX and other architectures
 ifeq ($(dbg),1)
 NV_FLAGS += -lineinfo
 else
 NV_FLAGS += -lineinfo
 endif
 
-ifneq ($(DARWIN),)
-    LIBRARY = $(CUDA_PATH)/lib
+CUDA_VERSION_GT10 = $(shell expr `nvcc -V | tr 'V' ' ' | tr ' ' '\n' | tail -n1 | cut -f1 -d.` \> 10)
+ifeq "$(CUDA_VERSION_GT10)" "1"
+  CSTD:=c++14
 else
-    LIBRARY = $(CUDA_PATH)/lib64
+  CSTD:=c++11
 endif
-# NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
+NV_FLAGS := $(NV_FLAGS) -std=$(CSTD)
 
-$(info $(NVCC))
+ifneq ($(DARWIN),)
+  LIBRARY = $(CUDA_PATH)/lib
+else
+  LIBRARY = $(CUDA_PATH)/lib64
+  ifeq "$(CSTD)" "c++11"
+    CSTD := c++1y
+  endif
+endif
+CC_FLAGS += -std=$(CSTD)
+# NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
 ## Find valid compute capabilities for this machine
 SMS ?= 30 35 37 50 52 60 61
