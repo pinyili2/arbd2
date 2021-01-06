@@ -4,7 +4,9 @@
 #define NEW
 #pragma once
 #include <cassert>
+
 #include "CudaUtil.cuh"
+
 #include "TabulatedMethods.cuh"
 
 #define BD_PI 3.1415927f
@@ -1067,6 +1069,92 @@ void computeTabulatedAngles(Vector3* force,
 	//     //atomicAdd( &g_energies[j], energy_local);
 	// }
 	}
+}
+
+__global__
+void computeTabulatedBondAngles(Vector3* force,
+				Vector3* __restrict__ pos,
+				BaseGrid* __restrict__ sys,
+				int numBondAngles, int4* __restrict__ bondAngleList_d, TabulatedAnglePotential** tableAngle,
+				TabulatedPotential** tableBond,
+				float* energy, bool get_energy) {
+	// Loop over ALL angles in ALL replicas
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numBondAngles; i+=blockDim.x*gridDim.x) {
+		int atom1 = bondAngleList_d[2*i].x;
+		int atom2 = bondAngleList_d[2*i].y;
+		int atom3 = bondAngleList_d[2*i].z;
+		int atom4 = bondAngleList_d[2*i].w;
+
+		int angleInd1 = bondAngleList_d[2*i+1].x;
+		int bondInd   = bondAngleList_d[2*i+1].y;
+		int angleInd2 = bondAngleList_d[2*i+1].z;
+
+		computeBondAngle(tableAngle[ angleInd1 ], tableBond[ bondInd ], tableAngle[ angleInd2 ], sys, force, pos, atom1, atom2, atom3, atom4, energy, get_energy);
+	}
+}
+
+__global__
+void computeProductPotentials(Vector3* force,
+			      Vector3* __restrict__ pos,
+			      BaseGrid* __restrict__ sys,
+			      int numProductPotentials,
+			      int* __restrict__ productPotentialParticles,
+			      SimplePotential* __restrict__ potentialList,
+			      uint2* __restrict__ productPotential_list,
+			      unsigned short* __restrict__ productCount,
+			      float* energy, bool get_energy) {
+    /*
+      productPotential_list[i].x : index of first potential in potentialList for i_th productPotential
+      productPotential_list[i].y : index of first atom in productPotentialParticles for i_th productPotential
+
+      for three potentials, angle, bond, angle, we would have the following atomic indices in productPotentialParticles:
+        pot1 : productPotential_list[i].y, productPotential_list[i].y + 1 , productPotential_list[i].y + 2
+        pot2 : productPotential_list[i].y + 3, productPotential_list[i].y + 4
+	and
+        pot3 : productPotential_list[i].y + 5, productPotential_list[i].y + 6, productPotential_list[i].y + 7
+
+      productCount[i] : number of potentials in the i_th productPotential
+    */
+
+    // CRAPPY NAIVE IMPLEMENTATION
+#define MAX_XPOTS 4
+    float2 energy_and_deriv[MAX_XPOTS];
+    float tmp_force;
+
+    for (int i = threadIdx.x+blockIdx.x*blockDim.x; i<numProductPotentials; i+=blockDim.x*gridDim.x) {
+	unsigned short num_pots = productCount[i];
+
+	unsigned int part_idx = productPotential_list[i].y;
+#pragma unroll
+	for (unsigned short int j = 0; j < MAX_XPOTS; ++j) {
+	    if (j == num_pots) break;
+	    SimplePotential& p = potentialList[ productPotential_list[i].x + j ];
+
+	    // Hidden branch divergence in compute_value => sort potentials by type before running kernel
+	    float tmp = p.compute_value(pos,sys, &productPotentialParticles[part_idx]);
+	    energy_and_deriv[j] = p.compute_energy_and_deriv(tmp);
+	    part_idx += p.type==BOND? 2: p.type==ANGLE? 3: 4;
+	}
+
+	part_idx = productPotential_list[i].y;
+#pragma unroll
+	for (unsigned short int j = 0; j < MAX_XPOTS; ++j) {
+	    if (j == num_pots) break;
+	    tmp_force = energy_and_deriv[j].y;
+#pragma unroll
+	    for (unsigned short int k = 0; k < MAX_XPOTS; ++k) {
+		if (k == num_pots) break;
+		if (j == k) continue;
+		tmp_force *= energy_and_deriv[k].x;
+	    }
+	    SimplePotential& p = potentialList[ productPotential_list[i].x + j ];
+	    if (tmp_force != 0) {
+		// TODO add energy
+		p.apply_force(pos,sys, force, &productPotentialParticles[part_idx], tmp_force);
+	    }
+	    part_idx += p.type==BOND? 2: p.type==ANGLE? 3: 4;
+	}
+    }
 }
 
 
