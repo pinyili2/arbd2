@@ -581,6 +581,7 @@ void ComputeForce::decompose() {
       gpuKernelCheck();
       gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 
+      #ifdef USE_NCCL
       if (gpuman.gpus.size() > 1) {
 	  // Currently we don't use numPairs_d[i] for i > 0... might be able to reduce data transfer with some kind nccl scatter, and in that case we'd prefer to use all numPairs_d[i]
 	  gpuErrchk(cudaMemcpy(&numPairs, numPairs_d[0], sizeof(int), cudaMemcpyDeviceToHost));
@@ -588,6 +589,7 @@ void ComputeForce::decompose() {
 	  gpuman.nccl_broadcast(0, pairLists_d, pairLists_d, numPairs, -1);
       }
       gpuman.sync();
+      #endif
 
     //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
     //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,

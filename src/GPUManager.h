@@ -8,7 +8,7 @@
 
 #include "useful.h"
 
-// #ifdef USE_NCCL
+#ifdef USE_NCCL
 #include <nccl.h>
 #define NCCLCHECK(cmd) do {					\
       ncclResult_t r = cmd;					\
@@ -18,7 +18,7 @@
 	  exit(EXIT_FAILURE);					\
       }								\
   } while(0)
-// #endif
+#endif
 
 #ifndef gpuErrchk
 #define delgpuErrchk
@@ -79,12 +79,13 @@ private:
 	static int nGPUs;
 	static bool is_safe;
 
-	// NCCL
+	#ifdef USE_NCCL
 	static void init_comms();
+	static ncclComm_t* comms;
+	#endif
 
 public:	
 	static size_t allGpuSize() { return allGpus.size(); }
-	static ncclComm_t* comms;
 	static std::vector<GPU> gpus;
 	
 	static bool safe() { return is_safe; }
@@ -130,6 +131,7 @@ public:
 	return gpus[0].get_next_stream();
     };
 
+    #ifdef USE_NCCL
     template<typename T>
     void nccl_broadcast(int root, std::vector<T*> send_d, std::vector<T*> recv_d, unsigned int size, int stream_id) {
 	if (gpus.size() == 1) return;
@@ -168,6 +170,7 @@ public:
 	}
 	NCCLCHECK(ncclGroupEnd());
     }
+    #endif // USE_NCCL
     
 };
 #ifndef delgpuErrchk

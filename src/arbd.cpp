@@ -144,6 +144,13 @@ int main(int argc, char* argv[]) {
 	if (gpuIDs.size() == 0)
 	    gpuIDs.push_back( GPUManager::getInitialGPU() );
 
+	#ifndef USE_NCCL
+	if (gpuIDs.size() > 1) {
+	    printf("ERROR: more than one GPU requires compilation with USE_NCCL flag\n");
+	    return 1;
+	}
+	#endif
+
 	GPUManager::select_gpus(gpuIDs);
 
 	Configuration config(configFile, replicas, debug);

@@ -28,15 +28,14 @@ endif
 endif
 
 CC_FLAGS += -DVERSION="\"$(VERSION)\"" -DSIGNAL
-CC_FLAGS += -I$(CUDA_PATH)/include -I$(NCCL_PATH)/include
-CC_FLAGS += -Wall -Wno-write-strings -pedantic# TODO: test on Mac OSX and other architectures
+CC_FLAGS += -I$(CUDA_PATH)/include
+CC_FLAGS += -Wall -Wno-write-strings -std=c++14 -pedantic# TODO: test on Mac OSX and other architectures
 
 ifeq ($(dbg),1)
 NV_FLAGS += -lineinfo
 else
 NV_FLAGS += -lineinfo
 endif
-NV_FLAGS += -I$(NCCL_PATH)/include
 
 CUDA_VERSION_GT10 = $(shell expr `nvcc -V | tr 'V' ' ' | tr ' ' '\n' | tail -n1 | cut -f1 -d.` \> 10)
 ifeq "$(CUDA_VERSION_GT10)" "1"
@@ -47,15 +46,14 @@ endif
 NV_FLAGS := $(NV_FLAGS) -std=$(CSTD)
 
 ifneq ($(DARWIN),)
-  LIBRARY = $(CUDA_PATH)/lib
+  CUDALIB = $(CUDA_PATH)/lib
 else
-  LIBRARY = $(CUDA_PATH)/lib64
+  CUDALIB = $(CUDA_PATH)/lib64
   ifeq "$(CSTD)" "c++11"
     CSTD := c++1y
   endif
 endif
 CC_FLAGS += -std=$(CSTD)
-# LIBRARY := $(LIBRARY) $(NCCL_PATH)/lib
 # NV_FLAGS += -ftz=true			# TODO: test if this preserves accurate simulation
 
 ## Find valid compute capabilities for this machine
@@ -75,7 +73,14 @@ $(foreach SM,$(SMS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=sm_$(SM
 $(foreach SM,$(SMPTXS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=compute_$(SM)) )
 
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
-LD_FLAGS = -L$(LIBRARY) -L$(NCCL_PATH)/lib -lnccl -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY):$(NCCL_PATH)/lib
+LD_FLAGS = -L$(CUDALIB) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(CUDALIB)
+
+ifdef NCCL_PATH
+	CC_FLAGS += -DUSE_NCCL
+	CC_FLAGS += -I$(NCCL_PATH)/include
+	NV_FLAGS += -I$(NCCL_PATH)/include
+	LD_FLAGS += -L$(NCCL_PATH)/lib -lnccl -Wl,-rpath,$(NCCL_PATH)/lib
+endif
 
 ifdef USE_BOOST
 	CC_FLAGS += -DUSE_BOOST

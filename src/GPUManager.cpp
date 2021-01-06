@@ -15,8 +15,6 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=t
 int GPUManager::nGPUs = 0;
 bool GPUManager::is_safe = true;
 std::vector<GPU> GPUManager::allGpus, GPUManager::gpus, GPUManager::notimeouts;
-ncclComm_t* GPUManager::comms = NULL;
-
 
 GPU::GPU(unsigned int id) : id(id) {
     cudaSetDevice(id);
@@ -120,7 +118,9 @@ void GPUManager::select_gpus(std::vector<unsigned int>& gpu_ids) {
 	gpus.push_back( allGpus[*it] );
     }
     init_devices();
+    #ifdef USE_NCCL
     init_comms();
+    #endif
 }
 
 void GPUManager::use(int gpu_id) {
@@ -169,6 +169,8 @@ int GPUManager::getInitialGPU() {
     return 0;
 }
 
+#ifdef USE_NCCL
+ncclComm_t* GPUManager::comms = NULL;
 void GPUManager::init_comms() {
     if (gpus.size() == 1) return;
     int* gpu_ids = new int[gpus.size()];
@@ -181,3 +183,4 @@ void GPUManager::init_comms() {
     }
     NCCLCHECK(ncclCommInitAll(comms, gpus.size(), gpu_ids));
 }
+#endif

@@ -528,8 +528,10 @@ void GrandBrownTown::RunNoseHooverLangevin()
     timer0 = wkf_timer_create();
     timerS = wkf_timer_create();
 
+    #ifdef USE_NCCL
     cudaStream_t* nccl_broadcast_streams = new cudaStream_t[gpuman.gpus.size()];
     for (int i=0; i< gpuman.gpus.size(); ++i) nccl_broadcast_streams[i] = 0;
+    #endif
 
     copyToCUDA();
 
@@ -618,9 +620,11 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    internal->clear_force();
 	    internal->clear_energy();
 	    const std::vector<Vector3*>& _pos = internal->getPos_d();
+	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
 		gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
 	    }
+	    #endif
 	    gpuman.sync();
 
             #ifdef _OPENMP
@@ -708,10 +712,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     RBC[i]->AddLangevin();
                 }
             }
+	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
 		const std::vector<Vector3*>& _f = internal->getForceInternal_d();
 		gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
 	    }
+	    #endif
 
         }//if step == 1
 
@@ -842,11 +848,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
             internal->clear_force();
+	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
 		const std::vector<Vector3*>& _p = internal->getPos_d();
 		nccl_broadcast_streams[0] = gpuman.gpus[0].get_next_stream();
 		gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, nccl_broadcast_streams);
 	    }
+	    #endif
     	}
 
         if (interparticleForce)
@@ -868,10 +876,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                                 RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*num, sys_d);
                         }
                         internal -> computeTabulated(get_energy);
+			#ifdef USE_NCCL
 			if (gpuman.gpus.size() > 1) {
 			    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
 			    gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
 			}
+			#endif
                         break;
                     default: // [ N^2 ] interactions, no cutoff | decompositions
                         internal->computeTabulatedFull(get_energy);
