@@ -251,7 +251,6 @@ public:
 	int numProductPotentials;
 	bool readProductPotentialsFromFile;
         ProductPotentialConf* productPotentials;
-        // boost::unordered_map<String, unsigned int> simple_potential_ids;
 	XpotMap simple_potential_ids;
         std::vector<SimplePotential> simple_potentials;
 

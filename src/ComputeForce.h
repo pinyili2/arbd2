@@ -28,20 +28,28 @@
 #include "GPUManager.h"
 
 // #include <map>
-#include <boost/unordered_map.hpp>
+
 #include <cstdio>
 // #include <cuda_runtime.h>
 #include <thrust/transform_reduce.h>	// thrust::reduce
 #include <thrust/functional.h>				// thrust::plus
 
+#ifdef USE_BOOST
+#include <boost/unordered_map.hpp>
+typedef boost::unordered_map<String,unsigned int> XpotMap;
 inline std::size_t hash_value(String const& s) {
     if (s.length() == 0) return 0;
-    // return hash_value(s.val());
     return boost::hash_range(s.val(), s.val()+s.length());
 }
+#else
+#include <map>
+typedef std::map<String,unsigned int> XpotMap;
+inline std::size_t hash_value(String const& s) {
+    if (s.length() == 0) return 0;
+    return hash_value(s.val());
+}
+#endif
 
-typedef boost::unordered_map<String,unsigned int> XpotMap;
-// typedef std::map<String,unsigned int> XpotMap;
 
 
 const unsigned int NUM_THREADS = 256;

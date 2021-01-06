@@ -66,6 +66,10 @@ $(foreach SM,$(SMPTXS), $(eval NV_FLAGS += -gencode arch=compute_$(SM),code=comp
 NVLD_FLAGS := $(NV_FLAGS) --device-link 
 LD_FLAGS = -L$(LIBRARY) -lcurand -lcudart -lcudadevrt -Wl,-rpath,$(LIBRARY)
 
+ifdef USE_BOOST
+	CC_FLAGS += -DUSE_BOOST
+endif
+
 ### Sources
 CC_SRC := $(wildcard *.cpp)
 CC_SRC := $(filter-out arbd.cpp, $(CC_SRC))
