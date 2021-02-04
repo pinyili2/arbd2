@@ -14,6 +14,12 @@
 #include "useful.h"
 #include <cuda.h>
 
+#ifndef gpuErrchk
+#define delgpuErrchk
+#define gpuErrchk(code) { if ((code) != cudaSuccess) {			                            \
+	    fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, __LINE__); \
+	}}
+#endif
 
 class EnergyForce {
 public:
@@ -171,4 +177,8 @@ private:
   float drInv; //TODO replace with drInv
   float r0;
 };
+#ifndef delgpuErrchk
+#undef  delgpuErrchk
+#undef  gpuErrchk
+#endif
 #endif
