@@ -82,10 +82,6 @@ ifdef NCCL_PATH
 	LD_FLAGS += -L$(NCCL_PATH)/lib -lnccl -Wl,-rpath,$(NCCL_PATH)/lib
 endif
 
-ifdef USE_BOOST
-	CC_FLAGS += -DUSE_BOOST
-endif
-
 ### Sources
 CC_SRC := $(wildcard *.cpp)
 CC_SRC := $(filter-out arbd.cpp, $(CC_SRC))
