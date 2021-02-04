@@ -607,6 +607,55 @@ inline Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion,
 	return sys->wrap(r);
 }
 
+__global__
+void updateGroupSites(Vector3 pos[], int* groupSiteData, int num, int numGroupSites, int numReplicas) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	pos[num*numReplicas + i] = Vector3(0.0f); 
+    }
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	const int imod = i % numReplicas;
+	const int rep = i/numReplicas;
+	const int start  = groupSiteData[imod];
+	const int finish = groupSiteData[imod+1];
+	float weight = 1.0 / (finish-start);
+	    
+	for (int j = start; j < finish; j++) {
+	    const int aj = groupSiteData[j] + num*rep;
+	    pos[num*numReplicas + i] += weight * pos[aj];
+	}
+    }
+}
+
+__global__
+void distributeGroupSiteForces(Vector3 force[], Vector3 pos[], int* groupSiteData, int num, int numGroupSites, int numReplicas) {
+    // TODO, handle groupsite energies
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	pos[num*numReplicas + i] = Vector3(0.0f); 
+    }
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	const int imod = i % numReplicas;
+	const int rep = i/numReplicas;
+	const int start  = groupSiteData[imod];
+	const int finish = groupSiteData[imod+1];
+	float weight = 1.0 / (finish-start);
+	    
+	for (int j = start; j < finish; j++) {
+	    const int aj = groupSiteData[j] + num*rep;
+	    atomicAdd( force+aj, weight * force[num*numReplicas+i] );
+	}
+    }
+}
+
 __global__ void devicePrint(RigidBodyType* rb[]) {
 	// printf("Device printing\n");
 	int i = 0;

@@ -150,12 +150,12 @@ public:
     void clear_force() { 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
-	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,num*numReplicas*sizeof(Vector3)));
+	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,(num+numGroupSites)*numReplicas*sizeof(Vector3)));
 	}
 	gpuman.use(0);		// TODO move to a paradigm where gpu0 is not preferentially treated 
     }
     void clear_energy() { 
-	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*num*numReplicas)); // TODO make async
+	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*(num+numGroupSites)*numReplicas)); // TODO make async
     }
 
 	HOST DEVICE
@@ -181,6 +181,11 @@ private:
 	int numTabAngleFiles;
 	int numDihedrals;
 	int numTabDihedralFiles;
+
+	int numGroupSites;
+	int* comSiteParticles;
+	int* comSiteParticles_d;
+
 	float *tableEps, *tableRad6, *tableAlpha;
 	TabulatedPotential **tablePot; // 100% on Host 
 	TabulatedPotential **tableBond;

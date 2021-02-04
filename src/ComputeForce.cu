@@ -47,7 +47,9 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
-    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints), numReplicas(numReplicas) {
+    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints), 
+    numGroupSites(c.numGroupSites),
+    numReplicas(numReplicas) {
 
 	// Grow vectors for per-gpu device pointers
 	for (int i = 0; i < gpuman.gpus.size(); ++i) {
@@ -235,7 +237,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	gridSize =  num / NUM_THREADS + 1;
 
 	// Create and allocate the energy arrays
-	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * num * numReplicas));
+	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * (num+numGroupSites) * numReplicas));
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
@@ -674,7 +676,7 @@ float ComputeForce::computeFull(bool get_energy) {
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
+		energy = thrust::reduce(en_d, en_d + num + numGroupSites);
 	}
 
 	return energy;
@@ -742,7 +744,7 @@ float ComputeForce::compute(bool get_energy) {
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
+		energy = thrust::reduce(en_d, en_d + num + numGroupSites);
 	}
 
 	return energy;
@@ -771,7 +773,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	{
 		//clearEnergies<<< nb, numThreads >>>(energies_d,num);
 		//gpuErrchk(cudaDeviceSynchronize());
-		cudaMemset((void*)energies_d, 0, sizeof(float)*num*numReplicas);
+	        cudaMemset((void*)energies_d, 0, sizeof(float)*(num+numGroupSites)*numReplicas);
 		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
 						cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], energies_d);
 	}
@@ -892,7 +894,7 @@ float ComputeForce::computeTabulatedFull(bool get_energy) {
 
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 {
-	const size_t tot_num = num * numReplicas;
+    const size_t tot_num = (num+numGroupSites) * numReplicas;
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
@@ -924,7 +926,7 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
-	    gpuErrchk(cudaMalloc(&forceInternal_d[i], sizeof(Vector3) * num * numReplicas));
+	    gpuErrchk(cudaMalloc(&forceInternal_d[i], sizeof(Vector3) * tot_num));
 	}
 	gpuman.use(0);
 	gpuErrchk(cudaMemcpyAsync(forceInternal_d[0], forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
@@ -933,17 +935,18 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 }
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom)
 {
-        const size_t tot_num = num * numReplicas;
+    const size_t tot_num = (num+numGroupSites) * numReplicas;
+    const size_t small_tot_num = num * numReplicas;
 
         gpuErrchk(cudaMalloc(&mom_d, sizeof(Vector3) * tot_num));
-        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * small_tot_num, cudaMemcpyHostToDevice));
 
 	copyToCUDA(forceInternal,pos);
         gpuErrchk(cudaDeviceSynchronize());
 }
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random)
 {
-        const size_t tot_num = num * numReplicas;
+    const size_t tot_num = num * numReplicas;
 
         gpuErrchk(cudaMalloc(&ran_d, sizeof(float) * tot_num));
         gpuErrchk(cudaMemcpyAsync(ran_d, random, sizeof(float) * tot_num, cudaMemcpyHostToDevice));
@@ -953,16 +956,19 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom
 }
 
 void ComputeForce::setForceInternalOnDevice(Vector3* f) {
-	const size_t tot_num = num * numReplicas;
+    // const size_t tot_num = (num+numGroupSites) * numReplicas;
+    assert(numGroupSites == 0); // IMD, the only feature using this function, is currently incompatible with group sites
+    const size_t tot_num = num * numReplicas;
 	gpuErrchk(cudaMemcpy(forceInternal_d[0], f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 }
 
-
 void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints)
 {
+    assert(simNum == numReplicas); // Not sure why we have both of these things
+    int tot_num = num * simNum;
 	// type_d
-	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * num * simNum));
-	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * num * simNum, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * tot_num));
+	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * tot_num, cudaMemcpyHostToDevice));
 	
 	if (numBonds > 0)
 	{

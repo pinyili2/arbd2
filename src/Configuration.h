@@ -56,6 +56,7 @@ class Configuration {
 	int readParameters(const char* config_file);
 	void readAngles();
 	void readAtoms();
+	void readGroups();
 	void readBonds();
 	void readExcludes();
 	void addExclusion(int ind1, int ind2);
@@ -196,6 +197,7 @@ public:
 	String dihedralFile;
 	String restraintFile;
 	bool readPartsFromFile;
+	bool readGroupSitesFromFile;
 	bool readBondsFromFile;
 	bool readExcludesFromFile;
 	bool readAnglesFromFile;
@@ -215,6 +217,10 @@ public:
 	String* partReservoirFile;
 	int* partTableIndex0;
 	int* partTableIndex1;
+
+	String groupSiteFile;
+	int numGroupSites;
+	std::vector<std::vector<int>> groupSiteData;
 
 	String* bondTableFile;
 	int numTabBondFiles;

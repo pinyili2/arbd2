@@ -97,9 +97,10 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	bonds = c.bonds;
 	numCap = c.numCap;                      // max number of particles
 	num = c.num;                            // current number of particles
+	numGroupSites = c.numGroupSites;
 
 	// Allocate arrays of positions, types and serial numbers
-	pos    = new Vector3[num * numReplicas];  // [HOST] array of particles' positions.
+	pos    = new Vector3[(num+numGroupSites) * numReplicas];  // [HOST] array of particles' positions.
         // Allocate arrays of momentum Han-Yi Chou
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
         {
@@ -254,6 +255,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
 	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints);
+	if (numGroupSites > 0) init_cuda_group_sites();
 
 	// TODO: check for duplicate potentials 
 	if (c.tabulatedPotential) {
@@ -303,6 +305,13 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals);
 	}
 
+	auto _get_index = [this](int idx, int replica) {
+	    // Convenient lambda function to deal with increasingly complicated indexing
+	    auto num = this->num; auto numReplicas = this->numReplicas; auto numGroupSites = this->numGroupSites;
+	    idx = (idx < num) ? idx + replica*num : (idx-num) + numReplicas*num + replica * numGroupSites;
+	    return idx;
+	};
+
 	//Mlog: this is where we create the bondList.
 	if (numBonds > 0) {
 		bondList = new int3[ (numBonds / 2) * numReplicas ];
@@ -318,8 +327,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 						fprintf(stderr,"Error: bondfile '%s' was not read with tabulatedBondFile command.\n", bonds[i].fileName.val());
 						exit(1);
 					}
-						
-					bondList[j] = make_int3( (bonds[i].ind1 + k * num), (bonds[i].ind2 + k * num), bonds[i].tabFileIndex );
+					bondList[j] = make_int3( _get_index(bonds[i].ind1, k), _get_index(bonds[i].ind2, k), bonds[i].tabFileIndex );
 					// cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
 					// << "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
 					// << "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
@@ -338,7 +346,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				fprintf(stderr,"Error: anglefile '%s' was not read with tabulatedAngleFile command.\n", angles[i].fileName.val());
 				exit(1);
 			}
-		angleList[i+k*numAngles] = make_int4( angles[i].ind1+k*num, angles[i].ind2+k*num, angles[i].ind3+k*num, angles[i].tabFileIndex );
+			angleList[i+k*numAngles] = make_int4( _get_index(angles[i].ind1,k), _get_index(angles[i].ind2,k), _get_index(angles[i].ind3,k), angles[i].tabFileIndex );
 	    }
 	}
 	}
@@ -352,14 +360,14 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				fprintf(stderr,"Error: dihedralfile '%s' was not read with tabulatedDihedralFile command.\n", dihedrals[i].fileName.val());
 				exit(1);
 			}
-		dihedralList[i+k*numDihedrals] = make_int4( dihedrals[i].ind1+k*num, dihedrals[i].ind2+k*num, dihedrals[i].ind3+k*num, dihedrals[i].ind4+k*num);
+			dihedralList[i+k*numDihedrals] = make_int4( _get_index(dihedrals[i].ind1,k), _get_index(dihedrals[i].ind2,k), _get_index(dihedrals[i].ind3,k), _get_index(dihedrals[i].ind4,k) );
 		dihedralPotList[i+k*numDihedrals] = dihedrals[i].tabFileIndex;
 	    }
 	}
 	}
 	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList);
 	
-	forceInternal = new Vector3[num * numReplicas];
+	forceInternal = new Vector3[(num+numGroupSites)*numReplicas];
 	if (fullLongRange != 0)
 	    printf("No cell decomposition created.\n");
 
@@ -570,7 +578,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
     int numBlocks = (num * numReplicas) / NUM_THREADS + ((num * numReplicas) % NUM_THREADS == 0 ? 0 : 1);
     int tl = temperatureGridFile.length();
     Vector3 *force_d;
-    gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*num * numReplicas));
+    gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*(num+numGroupSites) * numReplicas));
 
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
     for (int i=0; i< gpuman.gpus.size(); ++i) {
@@ -593,10 +601,13 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    const std::vector<Vector3*>& _pos = internal->getPos_d();
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
-		gpuman.nccl_broadcast(0, _pos, _pos, num*numReplicas, -1);
+		gpuman.nccl_broadcast(0, _pos, _pos, (num+numGroupSites)*numReplicas, -1);
 	    }
 	    #endif
 	    gpuman.sync();
+
+	    if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(_pos[0], groupSiteData_d, num, numGroupSites, numReplicas);
+
 
             #ifdef _OPENMP
             omp_set_num_threads(4);
@@ -686,14 +697,16 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
 		const std::vector<Vector3*>& _f = internal->getForceInternal_d();
-		gpuman.nccl_reduce(0, _f, _f, num*numReplicas, -1);
+		gpuman.nccl_reduce(0, _f, _f, (num+numGroupSites)*numReplicas, -1);
 	    }
 	    #endif
+
 
         }//if step == 1
 
 	internal->clear_energy();
 	gpuman.sync();
+	if (numGroupSites > 0) distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         if(particle_dynamic == String("Langevin"))
             updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
@@ -823,10 +836,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    if (gpuman.gpus.size() > 1) {
 		const std::vector<Vector3*>& _p = internal->getPos_d();
 		nccl_broadcast_streams[0] = gpuman.gpus[0].get_next_stream();
-		gpuman.nccl_broadcast(0, _p, _p, num*numReplicas, nccl_broadcast_streams);
+		gpuman.nccl_broadcast(0, _p, _p, (num+numGroupSites)*numReplicas, nccl_broadcast_streams);
 	    }
 	    #endif
     	}
+
+	if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         if (interparticleForce)
         {
@@ -899,6 +914,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
         for(int i = 0; i < numReplicas; ++i) // TODO: Use different buffer for RB particle forces to avoid race condition
             RBC[i]->updateForces((internal->getPos_d()[0])+i*num, (internal->getForceInternal_d()[0])+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                  RigidBodyInterpolationType, sys, sys_d);
+
+	if (numGroupSites > 0) distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getForceInternal_d()[0], 
@@ -1722,6 +1739,40 @@ void GrandBrownTown::InitNoseHooverBath(int N)
     }
     printf("Done in nose-hoover bath\n");
 }
+
+void GrandBrownTown::init_cuda_group_sites()
+{
+    
+    // Count the number of particles that form groups
+    int num_particles = 0;
+    for (auto it = conf.groupSiteData.begin(); it != conf.groupSiteData.end(); ++it) {
+	num_particles += it->size();
+    }
+
+    // Create GPU-friendly data structure
+    // TODO make this work for replicas
+    int* tmp = new int[numGroupSites+1+num_particles];
+    num_particles = 0;
+    int i = 0;
+    for (auto it = conf.groupSiteData.begin(); it != conf.groupSiteData.end(); ++it) {
+	tmp[i] = num_particles+numGroupSites;
+	for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
+	    tmp[num_particles+numGroupSites+1] = *it2;
+	    num_particles++;
+	}
+	i++;
+    }
+    assert(i == numGroupSites);
+    tmp[i] = num_particles;
+
+    // Copy data structure to GPU
+    gpuErrchk(cudaMalloc((void**) &groupSiteData_d, sizeof(int)*(numGroupSites+1+num_particles)));
+    gpuErrchk(cudaMemcpy(groupSiteData_d, tmp, sizeof(int)*(numGroupSites+1+num_particles), cudaMemcpyHostToDevice));
+    // TODO deallocate CUDA
+    delete[] tmp;
+
+}
+
 // -----------------------------------------------------------------------------
 // Initialize file for recording ionic current
 void GrandBrownTown::newCurrent(int repID) const {

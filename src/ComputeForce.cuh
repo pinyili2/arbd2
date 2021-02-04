@@ -116,6 +116,7 @@ void computeFullKernel(Vector3 force[], Vector3 pos[], int type[],
 	}
 }
 
+
 __global__
 void computeSoftcoreFullKernel(Vector3 force[], Vector3 pos[], int type[],
 															 float tableEps[], float tableRad6[],

@@ -96,11 +96,13 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
     }
   } // end result: variable "num" is set
 
-
 	// Set the number capacity
 	printf("\n%d particles\n", num);
 	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
 	if (numCap <= 0) numCap = 20;
+
+	if (readGroupSitesFromFile) readGroups();
+	printf("%d groups\n", numGroupSites);
 
 	// Allocate particle variables.
 	pos = new Vector3[num * simNum];
@@ -764,6 +766,10 @@ void Configuration::setDefaults() {
 	numPartsFromFile = 0;
 	partsFromFile = NULL;
 	readBondsFromFile = false;
+	numGroupSites = 0;
+	readGroupSitesFromFile = false;
+	
+
 	numBonds = 0;
 	bonds = NULL;
 	bondMap = NULL;
@@ -999,6 +1005,13 @@ int Configuration::readParameters(const char * config_file) {
 				partFile = value;
 				readPartsFromFile = true;
 				loadedCoordinates = true;
+			}
+		} else if (param == String("inputGroups")) {
+			if (readGroupSitesFromFile) {
+				printf("WARNING: More than one group file specified. Ignoring new file.\n");
+			} else {
+				groupSiteFile = value;
+				readGroupSitesFromFile = true;
 			}
 		} else if (param == String("inputBonds")) {
 			if (readBondsFromFile) {
@@ -1391,6 +1404,62 @@ void Configuration::readAtoms() {
 		}
 	}
 }
+void Configuration::readGroups() {
+	// Open the file
+    const size_t line_char = 16384;
+	FILE* inp = fopen(groupSiteFile.val(), "r");
+	char line[line_char];
+
+	// If the particle file cannot be found, exit the program
+	if (inp == NULL) {
+		printf("ERROR: Could not open `%s'.\n", partFile.val());
+		exit(1);
+	}
+
+	// Our particle array has a starting capacity of 256
+	// We will expand this later if we need to.
+	// int capacity = 256;
+	numGroupSites = 0;
+
+	// partsFromFile = new String[capacity];
+	// indices = new int[capacity];
+	// indices[0] = 0;
+
+	// Get and process all lines of input
+	while (fgets(line, line_char, inp) != NULL) {
+		// Lines in the particle file that begin with # are comments
+		if (line[0] == '#') continue;
+		      
+		String s(line);
+		int numTokens = s.tokenCount();
+		      
+		// Break the line down into pieces (tokens) so we can process them individually
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		// Legitimate GROUP input lines have at least 3 tokens: 
+		// GROUP | Atom_1_idx | Atom_2_idx | ...
+		// A line without exactly six tokens should be discarded.
+		if (numTokens < 3) {
+		    printf("Error: Invalid group file line: %s\n", line);
+		    exit(-1);
+		}
+
+		// Make sure the index of this particle is unique.
+		// NOTE: The particle list is sorted by index. 
+		std::vector<int> tmp;
+		for (int i=1; i < numTokens; ++i) {
+		    const int ai = atoi(tokenList[i].val());
+		    if (ai >= num) {
+			printf("Error: Attempted to include invalid particle in group: %s\n", line);
+			exit(-1);
+		    }
+		    tmp.push_back( ai );
+		}
+		groupSiteData.push_back(tmp);
+		numGroupSites++;
+	}
+}
 
 void Configuration::readBonds() {
 	// Open the file
@@ -1441,7 +1510,7 @@ void Configuration::readBonds() {
 			continue;
 		}
 
-		if (ind1 < 0 || ind1 >= num || ind2 < 0 || ind2 >=num) {
+		if (ind1 < 0 || ind1 >= num+numGroupSites || ind2 < 0 || ind2 >= num+numGroupSites) {
 			printf("ERROR: Bond file line '%s' includes invalid index\n", line);
 			exit(1);
 		}
@@ -1489,8 +1558,8 @@ void Configuration::readBonds() {
 	 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
 	 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
 	 */
-	bondMap = new int2[num];
-	for (int i = 0; i < num; i++) {	
+	bondMap = new int2[num+numGroupSites];
+	for (int i = 0; i < num+numGroupSites; i++) {	
 		bondMap[i].x = -1;
 		bondMap[i].y = -1;
 	}
@@ -1651,7 +1720,7 @@ void Configuration::readAngles() {
 		int ind3 = atoi(tokenList[3].val());
 		String file_name = tokenList[4];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num or ind2 >= num or ind3 >= num)
+		if (ind1 >= num+numGroupSites or ind2 >= num+numGroupSites or ind3 >= num+numGroupSites)
 			continue;
 
 		if (numAngles >= capacity) {
@@ -1712,8 +1781,8 @@ void Configuration::readDihedrals() {
 		int ind4 = atoi(tokenList[4].val());
 		String file_name = tokenList[5];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num or ind2 >= num
-				or ind3 >= num or ind4 >= num)
+		if (ind1 >= num+numGroupSites or ind2 >= num+numGroupSites
+				or ind3 >= num+numGroupSites or ind4 >= num+numGroupSites)
 			continue;
 
 		if (numDihedrals >= capacity) {
@@ -1772,7 +1841,7 @@ void Configuration::readRestraints() {
 		float y0 = (float) strtod(tokenList[4].val(), NULL);
 		float z0 = (float) strtod(tokenList[5].val(), NULL);
 
-		if (id >= num) continue;
+		if (id >= num+numGroupSites) continue;
 
 		if (numRestraints >= capacity) {
 			Restraint* temp = restraints;
