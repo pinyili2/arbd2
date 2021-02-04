@@ -648,7 +648,10 @@ void distributeGroupSiteForces(Vector3 force[], Vector3 pos[], int* groupSiteDat
 	const int start  = groupSiteData[imod];
 	const int finish = groupSiteData[imod+1];
 	float weight = 1.0 / (finish-start);
-	    
+
+	// Vector3 tmp = force[num*numReplicas+i];
+	// printf("GroupSite %d Force: %f %f %f\n",i, tmp.x, tmp.y, tmp.z);
+
 	for (int j = start; j < finish; j++) {
 	    const int aj = groupSiteData[j] + num*rep;
 	    atomicAdd( force+aj, weight * force[num*numReplicas+i] );

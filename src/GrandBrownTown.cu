@@ -599,6 +599,8 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    internal->clear_force();
 	    internal->clear_energy();
 	    const std::vector<Vector3*>& _pos = internal->getPos_d();
+	    if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(_pos[0], groupSiteData_d, num, numGroupSites, numReplicas);
+
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
 		gpuman.nccl_broadcast(0, _pos, _pos, (num+numGroupSites)*numReplicas, -1);
@@ -606,7 +608,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    #endif
 	    gpuman.sync();
 
-	    if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(_pos[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
 
             #ifdef _OPENMP
@@ -701,12 +702,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    }
 	    #endif
 
+	    if (numGroupSites > 0) distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         }//if step == 1
 
 	internal->clear_energy();
 	gpuman.sync();
-	if (numGroupSites > 0) distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         if(particle_dynamic == String("Langevin"))
             updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
@@ -828,6 +829,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
         #pragma omp parallel for
         for(int i = 0; i < numReplicas; ++i) 
             RBC[i]->clearForceAndTorque();
+
+	if (numGroupSites > 0) {
+	    updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	    gpuman.sync();
+	}
+
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
@@ -840,8 +847,6 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    }
 	    #endif
     	}
-
-	if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         if (interparticleForce)
         {
@@ -915,7 +920,10 @@ void GrandBrownTown::RunNoseHooverLangevin()
             RBC[i]->updateForces((internal->getPos_d()[0])+i*num, (internal->getForceInternal_d()[0])+i*num, s, (internal->getEnergy())+i*num, get_energy, 
                                  RigidBodyInterpolationType, sys, sys_d);
 
-	if (numGroupSites > 0) distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	if (numGroupSites > 0) {
+	    distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	    gpuman.sync();
+	}
 
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getForceInternal_d()[0], 
