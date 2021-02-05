@@ -702,7 +702,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    }
 	    #endif
 
-	    if (numGroupSites > 0) distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	    if (numGroupSites > 0) distributeGroupSiteForces<false><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 
         }//if step == 1
 
@@ -831,6 +831,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
             RBC[i]->clearForceAndTorque();
 
 	if (numGroupSites > 0) {
+	    gpuman.sync();
 	    updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
 	    gpuman.sync();
 	}
@@ -921,7 +922,12 @@ void GrandBrownTown::RunNoseHooverLangevin()
                                  RigidBodyInterpolationType, sys, sys_d);
 
 	if (numGroupSites > 0) {
-	    distributeGroupSiteForces<<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], internal->getPos_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	    gpuman.sync();
+	    // if ((s%100) == 0) {
+	    distributeGroupSiteForces<true><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	// } else {
+	//     distributeGroupSiteForces<false><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num, numGroupSites, numReplicas);
+	// }
 	    gpuman.sync();
 	}
 
@@ -1750,7 +1756,6 @@ void GrandBrownTown::InitNoseHooverBath(int N)
 
 void GrandBrownTown::init_cuda_group_sites()
 {
-    
     // Count the number of particles that form groups
     int num_particles = 0;
     for (auto it = conf.groupSiteData.begin(); it != conf.groupSiteData.end(); ++it) {
@@ -1763,15 +1768,23 @@ void GrandBrownTown::init_cuda_group_sites()
     num_particles = 0;
     int i = 0;
     for (auto it = conf.groupSiteData.begin(); it != conf.groupSiteData.end(); ++it) {
-	tmp[i] = num_particles+numGroupSites;
+	tmp[i] = num_particles+numGroupSites+1;
+	// printf("DEBUG: tmp[%d] = %d\n", i, tmp[i]);
 	for (auto it2 = it->begin(); it2 != it->end(); ++it2) {
 	    tmp[num_particles+numGroupSites+1] = *it2;
+	    // printf("DEBUG: tmp[%d] = %d\n", num_particles+numGroupSites+1, *it2);
 	    num_particles++;
 	}
 	i++;
     }
     assert(i == numGroupSites);
-    tmp[i] = num_particles;
+    tmp[i] = num_particles+numGroupSites+1;
+    // printf("DEBUG: tmp[%d] = %d\n", i, tmp[i]);
+
+    // printf("DEBUG: Finally:\n");
+    // for (int j = 0; j < numGroupSites+1+num_particles; j++) {
+    //         printf("DEBUG: tmp[%d] = %d\n", j, tmp[j]);
+    // }
 
     // Copy data structure to GPU
     gpuErrchk(cudaMalloc((void**) &groupSiteData_d, sizeof(int)*(numGroupSites+1+num_particles)));

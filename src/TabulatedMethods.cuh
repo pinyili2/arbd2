@@ -85,6 +85,12 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	const Vector3 posb = pos[j];
 	const Vector3 posc = pos[k];
 	const Vector3 posd = pos[l];
+	// if (i >= 8738)  printf("Dihedral posa: (%f,%f,%f)\nDihedral posb: (%f,%f,%f)\nDihedral posc: (%f,%f,%f)\nDihedral posd: (%f,%f,%f)\n",
+	// 		       posa.x,posa.y,posa.z,
+	// 		       posb.x,posb.y,posb.z,
+	// 		       posc.x,posc.y,posc.z,
+	// 		       posd.x,posd.y,posd.z);
+
 		
 	const Vector3 ab = sys->wrapDiff(posa - posb);
 	const Vector3 bc = sys->wrapDiff(posb - posc);
@@ -144,6 +150,7 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
             atomicAdd( &energy[l], e_local );
         }
 	force = -dU * d->angle_step_inv;
+	// if (i >= 8738)  printf("Dihedral (angle,U0,dUdT): (%f,%f,%f)\n", angle*180.0f/BD_PI, U0, force);
 
 	// avoid singularity when one angle is straight 
 	// force = (distbc*distbc*crossABC.rLength2() > 1000.0f || distbc*distbc*crossBCD.rLength2() > 1000.0f) ? 0.0f : force;
