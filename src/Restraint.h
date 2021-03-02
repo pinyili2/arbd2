@@ -7,7 +7,7 @@
 struct Restraint {
 public:
     Restraint() : id(-1) {}
-    Restraint(int id, Vector3 r0, int k) : id(id), r0(r0), k(k) {}
+    Restraint(int id, Vector3 r0, float k) : id(id), r0(r0), k(k) {}
     int id;
     Vector3 r0;
     float k;
