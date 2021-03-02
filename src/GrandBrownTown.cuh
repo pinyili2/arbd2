@@ -607,6 +607,62 @@ inline Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion,
 	return sys->wrap(r);
 }
 
+__global__
+void updateGroupSites(Vector3 pos[], int* groupSiteData, int num, int numGroupSites, int numReplicas) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // TODO: improve naive implementation so that each thread loads memory single pos elemment
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	pos[num*numReplicas + i] = Vector3(0.0f); 
+    }
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	const int imod = i % numGroupSites;
+	const int rep = i/numGroupSites;
+	const int start  = groupSiteData[imod];
+	const int finish = groupSiteData[imod+1];
+	float weight = 1.0 / (finish-start);
+
+	Vector3 tmp = Vector3(0.0f);
+
+	for (int j = start; j < finish; j++) {
+	    const int aj = groupSiteData[j] + num*rep;
+	    tmp += weight * pos[aj];
+	}
+	// printf("GroupSite %d (mod %d) COM (start,finish, x,y,z): (%d,%d, %f,%f,%f)\n",i, imod, start, finish, tmp.x, tmp.y, tmp.z);
+	pos[num*numReplicas + i] = tmp;
+    }
+}
+
+template<bool print>
+__global__
+void distributeGroupSiteForces(Vector3 force[], int* groupSiteData, int num, int numGroupSites, int numReplicas) {
+    // TODO, handle groupsite energies
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // For all threads representing a valid pair of particles
+    if (i < numGroupSites*numReplicas) {
+	const int imod = i % numGroupSites;
+	const int rep = i/numGroupSites;
+	const int start  = groupSiteData[imod];
+	const int finish = groupSiteData[imod+1];
+	float weight = 1.0 / (finish-start);
+
+	const Vector3 tmp = weight*force[num*numReplicas+i];
+	// if (print) {
+	//     printf("GroupSite %d Force rep %d: %f %f %f\n",i, rep, tmp.x, tmp.y, tmp.z);
+	// }
+
+	for (int j = start; j < finish; j++) {
+	    const int aj = groupSiteData[j] + num*rep;
+	    atomicAdd( force+aj, tmp );
+	}
+    }
+}
+
 __global__ void devicePrint(RigidBodyType* rb[]) {
 	// printf("Device printing\n");
 	int i = 0;

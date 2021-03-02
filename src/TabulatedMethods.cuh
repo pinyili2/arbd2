@@ -2,14 +2,6 @@
 
 #define BD_PI 3.1415927f
 
-struct AngleForce {
-    __host__ __device__
-    AngleForce(Vector3 f1, Vector3 f3, float e) : f1(f1), f3(f3), e(e) { }
-    Vector3 f1;
-    Vector3 f3;
-    float e;
-};
-
 __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ a, const BaseGrid* __restrict__ sys, Vector3* force, const Vector3* __restrict__ pos,
 				const int& i, const int& j, const int& k, float* energy, bool get_energy) {
 	    
@@ -85,108 +77,6 @@ __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ 
 	atomicAdd( &force[k], force3 );
 }
 
-__device__ inline AngleForce calcAngle(const TabulatedAnglePotential* __restrict__ a, const Vector3 ab, const Vector3 bc, const Vector3 ac) {
-	// // The vectors between each pair of particles
-	// const Vector3 ab = sys->wrapDiff(posa - posb);
-	// const Vector3 bc = sys->wrapDiff(posb - posc);
-	// const Vector3 ac = sys->wrapDiff(posc - posa);
- 
-	// Find the distance between each pair of particles
-	float distab = ab.length2();
-	float distbc = bc.length2();
-	const float distac2 = ac.length2();
-  
-	// Find the cosine of the angle we want - <ABC	
-	float cos = (distab + distbc - distac2);
-
-	distab = 1.0f/sqrt(distab); //TODO: test other functiosn
-	distbc = 1.0f/sqrt(distbc);
-	cos *= 0.5f * distbc * distab;
-  
-	// If the cosine is illegitimate, set it to 1 or -1 so that acos won't fail
-	if (cos < -1.0f) cos = -1.0f;
-	if (cos > 1.0f) cos = 1.0f;
-
-	// Find the sine while we're at it.
-
-	// Now we can use the cosine to find the actual angle (in radians)		
-	float angle = acos(cos);
-
-	// transform angle to units of tabulated array index
-	angle *= a->angle_step_inv;
-
-	// tableAngle[0] stores the potential at angle_step
-	// tableAngle[1] stores the potential at angle_step * 2, etc.
-	// 'home' is the index after which 'convertedAngle' would appear if it were stored in the table	
-	int home = int(floorf(angle));
-        home =  (home >= a->size) ? (a->size)-1 : home; 
-	//assert(home >= 0);
-	//assert(home+1 < a->size);
-
-	// // Make angle the distance from [0,1) from the first index in the potential array index
-	// angle -= home;
-		
-	// Linearly interpolate the potential	
-	float U0 = a->pot[home];
-	float dUdx = (a->pot[(((home+1)==(a->size)) ? (a->size)-1 : home+1)] - U0) * a->angle_step_inv;
-	float e = ((dUdx * (angle-home)) + U0);
-
-	float sin = sqrtf(1.0f - cos*cos);
-	dUdx /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity 
-
-	// Calculate the forces
-	Vector3 force1 = -(dUdx*distab) * (ab * (cos*distab) + bc * distbc); // force on particle 1
-	Vector3 force3 = (dUdx*distbc) * (bc * (cos*distbc) + ab * distab); // force on particle 3
-
-	return AngleForce(force1,force3,e);
-}
-
-__device__ inline void computeBondAngle(const TabulatedAnglePotential* __restrict__ a1,
-					const TabulatedPotential* __restrict__ b, const TabulatedAnglePotential* __restrict__ a2,
-					const BaseGrid* __restrict__ sys, Vector3* force, const Vector3* __restrict__ pos,
-					const int& i, const int& j, const int& k, const int& l, float* energy, bool get_energy) {
-
-	// Particle's type and position
-	Vector3 posa = pos[i];
-	Vector3 posb = pos[j];
-	Vector3 posc = pos[k];
-	Vector3 posd = pos[l];
-
-	// The vectors between each pair of particles
-	const Vector3 ab = sys->wrapDiff(posb - posa);
-	const Vector3 bc = sys->wrapDiff(posc - posb);
-	const Vector3 ca = sys->wrapDiff(posc - posa);
-	AngleForce fe_a1 = calcAngle(a1, -ab,-bc,ca);
-
-	float distbc = bc.length2();
-	EnergyForce fe_b = b->compute(bc,distbc);
-
-	const Vector3 cd = sys->wrapDiff(posd - posc);
-	const Vector3 db = sys->wrapDiff(posd - posb);
-	AngleForce fe_a2 = calcAngle(a2, -bc,-cd,db);
-
-        if(get_energy)
-        {
-	    float e =  fe_a1.e * fe_b.e * fe_a2.e * 0.25f;
-            atomicAdd( &energy[i], e);
-            atomicAdd( &energy[j], e);
-            atomicAdd( &energy[k], e);
-            atomicAdd( &energy[l], e);
-        }
-	atomicAdd( &force[i], fe_a1.f1 * fe_b.e * fe_a2.e );
-	atomicAdd( &force[j], 
-		   -(fe_a1.f1 + fe_a1.f3) * fe_b.e * fe_a2.e
-		   + fe_b.f * fe_a1.e * fe_a2.e
-		   + fe_a2.f1 * fe_b.e * fe_a1.e 
-	    );
-	atomicAdd( &force[k], 
-		   fe_a1.f3 * fe_b.e * fe_a2.e
-		   - fe_b.f * fe_a1.e * fe_a2.e 
-		   - (fe_a2.f1 + fe_a2.f3) * fe_b.e * fe_a1.e
-	    );
-	atomicAdd( &force[l], fe_a2.f3 * fe_b.e * fe_a1.e );
-}
-
 
 __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restrict__ d,
 				const BaseGrid* __restrict__ sys, Vector3* forces, const Vector3* __restrict__ pos,
@@ -195,6 +85,12 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
 	const Vector3 posb = pos[j];
 	const Vector3 posc = pos[k];
 	const Vector3 posd = pos[l];
+	// if (i >= 8738)  printf("Dihedral posa: (%f,%f,%f)\nDihedral posb: (%f,%f,%f)\nDihedral posc: (%f,%f,%f)\nDihedral posd: (%f,%f,%f)\n",
+	// 		       posa.x,posa.y,posa.z,
+	// 		       posb.x,posb.y,posb.z,
+	// 		       posc.x,posc.y,posc.z,
+	// 		       posd.x,posd.y,posd.z);
+
 		
 	const Vector3 ab = sys->wrapDiff(posa - posb);
 	const Vector3 bc = sys->wrapDiff(posb - posc);
@@ -254,6 +150,7 @@ __device__ inline void computeDihedral(const TabulatedDihedralPotential* __restr
             atomicAdd( &energy[l], e_local );
         }
 	force = -dU * d->angle_step_inv;
+	// if (i >= 8738)  printf("Dihedral (angle,U0,dUdT): (%f,%f,%f)\n", angle*180.0f/BD_PI, U0, force);
 
 	// avoid singularity when one angle is straight 
 	// force = (distbc*distbc*crossABC.rLength2() > 1000.0f || distbc*distbc*crossBCD.rLength2() > 1000.0f) ? 0.0f : force;

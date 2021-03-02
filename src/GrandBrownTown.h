@@ -102,6 +102,9 @@ private:
         //Initialize the Nose-Hoover auxilliary variables
         void InitNoseHooverBath(int N);
         //curandState_t *randoDevice;
+
+	void init_cuda_group_sites();
+
 public:
 	// Compute the current in nanoamperes.
 	float current(float t) const;
@@ -226,6 +229,10 @@ private:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+
+	int numGroupSites;
+	int* groupSiteData_d;
+
 	String partFile;
 	String bondFile;
 	String excludeFile;
@@ -266,10 +273,6 @@ private:
 	int numTabDihedralFiles;
 	int4 *dihedralList;
 	int  *dihedralPotList;
-
-	int numBondAngles;
-	BondAngle* bondAngles;
-	int4 *bondAngleList;
 
         //Han-Yi Chou
         String particle_dynamic;

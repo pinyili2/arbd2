@@ -1,7 +1,8 @@
 ///////////////////////////////////////////////////////////////////////
 // Brownian dynamics base class
 // Author: Jeff Comer <jcomer2@illinois.edu>
-#pragma once
+#ifndef COMPUTEFORCE_H
+#define COMPUTEFORCE_H
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -24,43 +25,12 @@
 #include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
 #include "TabulatedDihedral.h"
-#include "ProductPotential.h"
 #include "GPUManager.h"
-
-// #include <map>
 
 #include <cstdio>
 // #include <cuda_runtime.h>
 #include <thrust/transform_reduce.h>	// thrust::reduce
 #include <thrust/functional.h>				// thrust::plus
-
-#ifndef gpuErrchk
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"CUDA Error: %s %s:%d\n", cudaGetErrorString(code), __FILE__, line);
-      if (abort) exit(code);
-   }
-}
-#endif
-
-#ifdef USE_BOOST
-#include <boost/unordered_map.hpp>
-typedef boost::unordered_map<String,unsigned int> XpotMap;
-inline std::size_t hash_value(String const& s) {
-    if (s.length() == 0) return 0;
-    return boost::hash_range(s.val(), s.val()+s.length());
-}
-#else
-#include <map>
-typedef std::map<String,unsigned int> XpotMap;
-inline std::size_t hash_value(String const& s) {
-    if (s.length() == 0) return 0;
-    return hash_value(s.val());
-}
-#endif
-
-
 
 const unsigned int NUM_THREADS = 256;
 
@@ -76,8 +46,8 @@ public:
 	void makeTables(const BrownianParticleType* part);
 
 	bool addTabulatedPotential(String fileName, int type0, int type1);
-	bool addBondPotential(String fileName, int ind, Bond* bonds, BondAngle* bondAngles);
-	bool addAnglePotential(String fileName, int ind, Angle* angles, BondAngle* bondAngles);
+	bool addBondPotential(String fileName, int ind, Bond* bonds);
+	bool addAnglePotential(String fileName, int ind, Angle* angles);
 	bool addDihedralPotential(String fileName, int ind, Dihedral* dihedrals);
 
 	void decompose();
@@ -105,15 +75,12 @@ public:
 	
 	//MLog: new copy function to allocate memory required by ComputeForce class.
 	void copyToCUDA(Vector3* forceInternal, Vector3* pos);
-	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles,
-			const XpotMap simple_potential_map,
-			const std::vector<SimplePotential> simple_potentials,
-			const ProductPotentialConf* const product_potential_confs);
+	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints);
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom);
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
 	// void createBondList(int3 *bondList);
-	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *bondAngleList);
+	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList);
 	    
 	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
     std::vector<Vector3*> getPos_d()
@@ -183,12 +150,12 @@ public:
     void clear_force() { 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
-	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,num*numReplicas*sizeof(Vector3)));
+	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,(num+numGroupSites)*numReplicas*sizeof(Vector3)));
 	}
 	gpuman.use(0);		// TODO move to a paradigm where gpu0 is not preferentially treated 
     }
     void clear_energy() { 
-	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*num*numReplicas)); // TODO make async
+	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*(num+numGroupSites)*numReplicas)); // TODO make async
     }
 
 	HOST DEVICE
@@ -214,6 +181,10 @@ private:
 	int numTabAngleFiles;
 	int numDihedrals;
 	int numTabDihedralFiles;
+
+	int numGroupSites;
+	int* comSiteParticles;
+	int* comSiteParticles_d;
 
 	float *tableEps, *tableRad6, *tableAlpha;
 	TabulatedPotential **tablePot; // 100% on Host 
@@ -277,18 +248,6 @@ private:
 	Angle* angles_d;
 	Dihedral* dihedrals_d;
 
-	int numBondAngles;
-	BondAngle* bondAngles_d;
-	int4* bondAngleList_d;
-
-    int numProductPotentials;
-    float** simple_potential_pots_d;
-    SimplePotential* simple_potentials_d;
-    int* product_potential_particles_d;
-    SimplePotential* product_potentials_d;
-    uint2* product_potential_list_d;
-    unsigned short* productCount_d;
-
 	int3* bondList_d;
 	int4* angleList_d;
 	int4* dihedralList_d;
@@ -300,3 +259,5 @@ private:
 	float* restraintSprings_d;
 
 };
+
+#endif

@@ -48,7 +48,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
     numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints), 
-    numBondAngles(c.numBondAngles), numProductPotentials(c.numProductPotentials),
+    numGroupSites(c.numGroupSites),
     numReplicas(numReplicas) {
 
 	// Grow vectors for per-gpu device pointers
@@ -232,14 +232,12 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	}
 	
 	restraintIds_d = NULL;
-	bondAngleList_d = NULL;
-	product_potential_list_d = NULL;
 
 	//Calculate the number of blocks the grid should contain
 	gridSize =  num / NUM_THREADS + 1;
 
 	// Create and allocate the energy arrays
-	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * num * numReplicas));
+	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * (num+numGroupSites) * numReplicas));
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
@@ -401,7 +399,7 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 	return true;
 }
 
-bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], BondAngle bondAngles[])
+bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[])
 {
     // TODO: see if tableBond_addr can be removed
     if (tableBond[ind] != NULL) {
@@ -415,12 +413,6 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], Bond
 		if (bonds[i].fileName == fileName)
 			bonds[i].tabFileIndex = ind;
 
-	for (int i = 0; i < numBondAngles; i++)
-	{
-	    if (bondAngles[i].bondFileName == fileName)
-		bondAngles[i].tabFileIndex2 = ind;
-	}
-
 	gpuErrchk(cudaMemcpyAsync(bonds_d, bonds, sizeof(Bond) * numBonds, cudaMemcpyHostToDevice));
 
 	tableBond_addr[ind] = tableBond[ind]->copy_to_cuda();
@@ -429,7 +421,7 @@ bool ComputeForce::addBondPotential(String fileName, int ind, Bond bonds[], Bond
 	return true;
 }
 
-bool ComputeForce::addAnglePotential(String fileName, int ind, Angle* angles, BondAngle* bondAngles) {
+bool ComputeForce::addAnglePotential(String fileName, int ind, Angle* angles) {
 	if (tableAngle[ind] != NULL) {
 		delete tableAngle[ind];
 		gpuErrchk(cudaFree(tableAngle_addr[ind]));
@@ -458,12 +450,6 @@ bool ComputeForce::addAnglePotential(String fileName, int ind, Angle* angles, Bo
 		if (angles[i].fileName == fileName)
 			angles[i].tabFileIndex = ind;
 
-	for (int i = 0; i < numBondAngles; i++) {
-	    if (bondAngles[i].angleFileName1 == fileName)
-		bondAngles[i].tabFileIndex1 = ind;
-	    if (bondAngles[i].angleFileName2 == fileName)
-		bondAngles[i].tabFileIndex3 = ind;
-	}
 	gpuErrchk(cudaMemcpy(angles_d, angles, sizeof(Angle) * numAngles,
 			cudaMemcpyHostToDevice));
 	return true;
@@ -690,7 +676,7 @@ float ComputeForce::computeFull(bool get_energy) {
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
+		energy = thrust::reduce(en_d, en_d + num + numGroupSites);
 	}
 
 	return energy;
@@ -758,7 +744,7 @@ float ComputeForce::compute(bool get_energy) {
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
+		energy = thrust::reduce(en_d, en_d + num + numGroupSites);
 	}
 
 	return energy;
@@ -787,7 +773,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	{
 		//clearEnergies<<< nb, numThreads >>>(energies_d,num);
 		//gpuErrchk(cudaDeviceSynchronize());
-		cudaMemset((void*)energies_d, 0, sizeof(float)*num*numReplicas);
+	        cudaMemset((void*)energies_d, 0, sizeof(float)*(num+numGroupSites)*numReplicas);
 		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
 						cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], energies_d);
 	}
@@ -824,17 +810,6 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	//Mlog: the commented function doesn't use bondList, uncomment for testing.
 	//if(bondMap_d != NULL && tableBond_d != NULL)
-
-	if(product_potential_list_d != NULL && product_potentials_d != NULL)
-	{
-	    computeProductPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numProductPotentials, product_potential_particles_d, product_potentials_d, product_potential_list_d, productCount_d, energies_d, get_energy);
-	}
-
-	if(bondAngleList_d != NULL && tableBond_d != NULL && tableAngle_d != NULL)
-	{
-	    computeTabulatedBondAngles <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numBondAngles, bondAngleList_d, tableAngle_d, tableBond_d, energies_d, get_energy);
-	}
-
 	if(bondList_d != NULL && tableBond_d != NULL)
 
 	{
@@ -919,7 +894,7 @@ float ComputeForce::computeTabulatedFull(bool get_energy) {
 
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 {
-	const size_t tot_num = num * numReplicas;
+    const size_t tot_num = (num+numGroupSites) * numReplicas;
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
@@ -951,7 +926,7 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
-	    gpuErrchk(cudaMalloc(&forceInternal_d[i], sizeof(Vector3) * num * numReplicas));
+	    gpuErrchk(cudaMalloc(&forceInternal_d[i], sizeof(Vector3) * tot_num));
 	}
 	gpuman.use(0);
 	gpuErrchk(cudaMemcpyAsync(forceInternal_d[0], forceInternal, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
@@ -960,17 +935,18 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 }
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom)
 {
-        const size_t tot_num = num * numReplicas;
+    const size_t tot_num = (num+numGroupSites) * numReplicas;
+    const size_t small_tot_num = num * numReplicas;
 
         gpuErrchk(cudaMalloc(&mom_d, sizeof(Vector3) * tot_num));
-        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * small_tot_num, cudaMemcpyHostToDevice));
 
 	copyToCUDA(forceInternal,pos);
         gpuErrchk(cudaDeviceSynchronize());
 }
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random)
 {
-        const size_t tot_num = num * numReplicas;
+    const size_t tot_num = num * numReplicas;
 
         gpuErrchk(cudaMalloc(&ran_d, sizeof(float) * tot_num));
         gpuErrchk(cudaMemcpyAsync(ran_d, random, sizeof(float) * tot_num, cudaMemcpyHostToDevice));
@@ -980,16 +956,19 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom
 }
 
 void ComputeForce::setForceInternalOnDevice(Vector3* f) {
-	const size_t tot_num = num * numReplicas;
+    // const size_t tot_num = (num+numGroupSites) * numReplicas;
+    assert(numGroupSites == 0); // IMD, the only feature using this function, is currently incompatible with group sites
+    const size_t tot_num = num * numReplicas;
 	gpuErrchk(cudaMemcpy(forceInternal_d[0], f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 }
 
-
-void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles, const XpotMap simple_potential_map, const std::vector<SimplePotential> simple_potentials, const ProductPotentialConf* const product_potential_confs)
+void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints)
 {
+    assert(simNum == numReplicas); // Not sure why we have both of these things
+    int tot_num = num * simNum;
 	// type_d
-	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * num * simNum));
-	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * num * simNum, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * tot_num));
+	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * tot_num, cudaMemcpyHostToDevice));
 	
 	if (numBonds > 0)
 	{
@@ -1053,105 +1032,6 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 				      sizeof(float)   * numRestraints, cudaMemcpyHostToDevice));
 	}	    
 
-	if (numBondAngles > 0) {
-		gpuErrchk(cudaMalloc(&bondAngles_d, sizeof(BondAngle) * numBondAngles));
-		gpuErrchk(cudaMemcpyAsync(bondAngles_d, bondAngles, sizeof(BondAngle) * numBondAngles,
-				cudaMemcpyHostToDevice));
-	}
-
-	if (simple_potentials.size() > 0) {
-	    float **val = simple_potential_pots_d = new float*[simple_potentials.size()];
-	    // float **tmp = new float*[simple_potentials.size()];
-	    for (int i=0; i < simple_potentials.size(); ++i) {
-		const SimplePotential sp = simple_potentials[i];
-		gpuErrchk(cudaMalloc(&val[i], sizeof(float)*sp.size));
-		gpuErrchk(cudaMemcpyAsync(val[i], sp.pot, sizeof(float)*sp.size, cudaMemcpyHostToDevice));
-		// tmp[i] = sp.pot;
-		// // sp.pot = val[i];
-	    }
-
-	    // size_t sz =  sizeof(SimplePotential) * simple_potentials.size();
-	    // gpuErrchk(cudaMalloc(&simple_potentials_d, sz));
-	    // gpuErrchk(cudaMemcpyAsync(simple_potentials_d, &simple_potentials[0], sz,
-	    // 				  cudaMemcpyHostToDevice));
-	    
-	    // for (int i=0; i < simple_potentials.size(); ++i) { // Restore host pointers on host object
-	    // 	SimplePotential &sp = simple_potentials[i];
-	    // 	sp.pot = tmp[i];
-	    // }
-	    // // delete[] val;
-	    // delete[] tmp;
-
-	}
-	
-	if (numProductPotentials > 0) {
-	    // Count particles
-	    int n_pots = 0;
-	    int n_particles = 0;
-	    for (int i=0; i < numProductPotentials; ++i) {
-		const ProductPotentialConf& c = product_potential_confs[i];
-		n_pots += c.indices.size();
-		for (int j=0; j < c.indices.size(); ++j) {
-		    n_particles += c.indices[j].size();
-		}
-	    }
-	    // printf("DEBUG: Found %d particles participating in %d potentials forming %d productPotentials\n",
-	    // 	   n_particles, n_pots, numProductPotentials);
-
-	    // Build productPotentialLists on host
-	    int *particle_list = new int[n_particles*numReplicas];
-	    SimplePotential *product_potentials = new SimplePotential[n_pots];
-	    uint2 *product_potential_list = new uint2[numProductPotentials*numReplicas];
-	    unsigned short *productCount = new unsigned short[numProductPotentials*numReplicas];
-
-	    n_particles = 0;
-	    
-	    for (unsigned int r=0; r < numReplicas; ++r) {
-		n_pots = 0;
-		for (int i=0; i < numProductPotentials; ++i) {
-		    const ProductPotentialConf& c = product_potential_confs[i];
-		    product_potential_list[i+r*numProductPotentials] = make_uint2( n_pots, n_particles );
-
-		    for (int j=0; j < c.indices.size(); ++j) {
-			if (r == 0) {
-			    unsigned int sp_i = simple_potential_map.at(c.potential_names[j]);
-			    product_potentials[n_pots] = simple_potentials[sp_i];
-			    product_potentials[n_pots].pot = simple_potential_pots_d[sp_i];
-			}
-			++n_pots;
-			for (int k=0; k < c.indices[j].size(); ++k) {
-			    particle_list[n_particles++] = c.indices[j][k]+r*num;
-			}
-		    }
-		    productCount[i+r*numProductPotentials] = c.indices.size();
-		}
-	    }
-
-	    // Copy to device
-	    size_t sz = n_particles*numReplicas * sizeof(int);
-	    gpuErrchk(cudaMalloc(&product_potential_particles_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(product_potential_particles_d, particle_list, sz,
-	    				  cudaMemcpyHostToDevice));
-	    sz = n_pots * sizeof(SimplePotential);
-	    gpuErrchk(cudaMalloc(&product_potentials_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(product_potentials_d, product_potentials, sz,
-	    				  cudaMemcpyHostToDevice));
-	    sz = numProductPotentials*numReplicas * sizeof(uint2);
-	    gpuErrchk(cudaMalloc(&product_potential_list_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(product_potential_list_d, product_potential_list, sz,
-	    				  cudaMemcpyHostToDevice));
-	    sz = numProductPotentials*numReplicas * sizeof(unsigned short);
-	    gpuErrchk(cudaMalloc(&productCount_d, sz));
-	    gpuErrchk(cudaMemcpyAsync(productCount_d, productCount, sz,
-	    				  cudaMemcpyHostToDevice));
-
-	    // Clean up
-	    delete[] particle_list;
-	    delete[] product_potentials;
-	    delete[] product_potential_list;
-	    delete[] productCount;
-	}
-
 	gpuErrchk(cudaDeviceSynchronize());
 }
 
@@ -1170,7 +1050,7 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 // 	}
 // }
 
-void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4* bondAngleList) {
+void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList) {
 
 	
 	size_t size;
@@ -1196,11 +1076,4 @@ void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *d
     gpuErrchk( cudaMalloc( &dihedralPotList_d, size ) );
     gpuErrchk( cudaMemcpyAsync( dihedralPotList_d, dihedralPotList, size, cudaMemcpyHostToDevice) );
 	}
-
-	if (numBondAngles > 0) {
-	    size = 2*numBondAngles * numReplicas * sizeof(int4);
-	    gpuErrchk( cudaMalloc( &bondAngleList_d, size ) );
-	    gpuErrchk( cudaMemcpyAsync( bondAngleList_d, bondAngleList, size, cudaMemcpyHostToDevice) );
-	}
-
 }

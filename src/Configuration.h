@@ -24,7 +24,6 @@
 #include "TrajectoryWriter.h"
 #include "TabulatedPotential.h"
 #include "TabulatedAngle.h"
-#include "ProductPotential.h"
 #include "GPUManager.h"
 #include "RigidBodyType.h"
 #include "RigidBody.h"
@@ -48,8 +47,6 @@ class Configuration {
 		bool operator()(const Exclude& lhs, const Exclude& rhs);
 		bool operator()(const Angle& lhs, const Angle& rhs);
 		bool operator()(const Dihedral& lhs, const Dihedral& rhs);
-		bool operator()(const BondAngle& lhs, const BondAngle& rhs);
-		bool operator()(const ProductPotentialConf& lhs, const ProductPotentialConf& rhs);
 	};
 
 	void setDefaults();
@@ -59,20 +56,18 @@ class Configuration {
 	int readParameters(const char* config_file);
 	void readAngles();
 	void readAtoms();
+	void readGroups();
 	void readBonds();
 	void readExcludes();
 	void addExclusion(int ind1, int ind2);
 	void buildExcludeMap();
 	void readDihedrals();
 	void readRestraints();
-	void readBondAngles();
 
 	bool readTableFile(const String& value, int currTab);
 	bool readBondFile(const String& value, int currBond);
 	bool readAngleFile(const String& value, int currAngle);
 	bool readDihedralFile(const String& value, int currDihedral);
-
-	bool readBondAngleFile(const String& value, const String& bondfile1, const String& bondfile2, int currBondAngle);
 
 	// Given the numbers of each particle, populate the type list.
 	void populate();
@@ -193,7 +188,6 @@ public:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
-	int numBondAngles;
 	int numRestraints;
 	int* numPartsOfType;
 	String partFile;
@@ -202,13 +196,12 @@ public:
 	String angleFile;
 	String dihedralFile;
 	String restraintFile;
-	String bondAngleFile;
 	bool readPartsFromFile;
+	bool readGroupSitesFromFile;
 	bool readBondsFromFile;
 	bool readExcludesFromFile;
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
-	bool readBondAnglesFromFile;
 	bool readRestraintsFromFile;
 	//String* partGridFile;
 	String **partGridFile;
@@ -224,6 +217,10 @@ public:
 	String* partReservoirFile;
 	int* partTableIndex0;
 	int* partTableIndex1;
+
+	String groupSiteFile;
+	int numGroupSites;
+	std::vector<std::vector<int>> groupSiteData;
 
 	String* bondTableFile;
 	int numTabBondFiles;
@@ -242,17 +239,7 @@ public:
 	String* dihedralTableFile;
 	int numTabDihedralFiles;
 
-	BondAngle* bondAngles;
-
 	Restraint* restraints;
-
-	void readProductPotentials();
-	String productPotentialFile;
-	int numProductPotentials;
-	bool readProductPotentialsFromFile;
-        ProductPotentialConf* productPotentials;
-	XpotMap simple_potential_ids;
-        std::vector<SimplePotential> simple_potentials;
 
         //Han-Yi Chou
         String ParticleDynamicType;

@@ -2,7 +2,6 @@
 #include "Angle.h"
 #include "Dihedral.h"
 #include "Restraint.h"
-#include "ProductPotential.h"
 #include <cmath>
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
@@ -97,11 +96,13 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
     }
   } // end result: variable "num" is set
 
-
 	// Set the number capacity
 	printf("\n%d particles\n", num);
 	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
 	if (numCap <= 0) numCap = 20;
+
+	if (readGroupSitesFromFile) readGroups();
+	printf("%d groups\n", numGroupSites);
 
 	// Allocate particle variables.
 	pos = new Vector3[num * simNum];
@@ -231,9 +232,6 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readAnglesFromFile) readAngles();
 	if (readDihedralsFromFile) readDihedrals();
 	if (readRestraintsFromFile) readRestraints();
-	if (readBondAnglesFromFile) readBondAngles();
-	if (readProductPotentialsFromFile) readProductPotentials();
-
 
 	if (temperatureGridFile.length() != 0) {
 		printf("\nFound temperature grid file: %s\n", temperatureGridFile.val());
@@ -567,8 +565,6 @@ Configuration::~Configuration() {
 	if (excludeMap != NULL) delete[] excludeMap;
 	if (angles != NULL) delete[] angles;
 	if (dihedrals != NULL) delete[] dihedrals;
-	if (bondAngles != NULL) delete[] bondAngles;
-	if (productPotentials != NULL) delete[] productPotentials;
 
 	delete[] numPartsOfType;
 	  
@@ -770,6 +766,10 @@ void Configuration::setDefaults() {
 	numPartsFromFile = 0;
 	partsFromFile = NULL;
 	readBondsFromFile = false;
+	numGroupSites = 0;
+	readGroupSitesFromFile = false;
+	
+
 	numBonds = 0;
 	bonds = NULL;
 	bondMap = NULL;
@@ -788,14 +788,6 @@ void Configuration::setDefaults() {
 	numDihedrals = 0;
 	dihedrals = NULL;
 	numTabDihedralFiles = 0;
-
-	readBondAnglesFromFile = false;
-	numBondAngles = 0;
-	bondAngles = NULL;
-
-	readProductPotentialsFromFile = false;
-	numProductPotentials = 0;
-	productPotentials = NULL;
 
 	readRestraintsFromFile = false;
 	numRestraints = 0;
@@ -1014,6 +1006,13 @@ int Configuration::readParameters(const char * config_file) {
 				readPartsFromFile = true;
 				loadedCoordinates = true;
 			}
+		} else if (param == String("inputGroups")) {
+			if (readGroupSitesFromFile) {
+				printf("WARNING: More than one group file specified. Ignoring new file.\n");
+			} else {
+				groupSiteFile = value;
+				readGroupSitesFromFile = true;
+			}
 		} else if (param == String("inputBonds")) {
 			if (readBondsFromFile) {
 				printf("WARNING: More than one bond file specified. Ignoring new bond file.\n");
@@ -1036,20 +1035,6 @@ int Configuration::readParameters(const char * config_file) {
 			} else {
 				angleFile = value;
 				readAnglesFromFile = true;
-			}
-		} else if (param == String("inputBondAngles")) {
-			if (readBondAnglesFromFile) {
-				printf("WARNING: More than one angle file specified. Ignoring new angle file.\n");
-			} else {
-			        bondAngleFile = value;
-				readBondAnglesFromFile = true;
-			}
-		} else if (param == String("inputProductPotentials")) {
-			if (readBondAnglesFromFile) {
-				printf("WARNING: More than one product potential file specified. Ignoring new file.\n");
-			} else {
-			        productPotentialFile = value;
-				readProductPotentialsFromFile = true;
 			}
 		} else if (param == String("tabulatedAngleFile")) {
 			if (numTabAngleFiles >= atfcap) {
@@ -1419,6 +1404,62 @@ void Configuration::readAtoms() {
 		}
 	}
 }
+void Configuration::readGroups() {
+	// Open the file
+    const size_t line_char = 16384;
+	FILE* inp = fopen(groupSiteFile.val(), "r");
+	char line[line_char];
+
+	// If the particle file cannot be found, exit the program
+	if (inp == NULL) {
+		printf("ERROR: Could not open `%s'.\n", partFile.val());
+		exit(1);
+	}
+
+	// Our particle array has a starting capacity of 256
+	// We will expand this later if we need to.
+	// int capacity = 256;
+	numGroupSites = 0;
+
+	// partsFromFile = new String[capacity];
+	// indices = new int[capacity];
+	// indices[0] = 0;
+
+	// Get and process all lines of input
+	while (fgets(line, line_char, inp) != NULL) {
+		// Lines in the particle file that begin with # are comments
+		if (line[0] == '#') continue;
+		      
+		String s(line);
+		int numTokens = s.tokenCount();
+		      
+		// Break the line down into pieces (tokens) so we can process them individually
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		// Legitimate GROUP input lines have at least 3 tokens: 
+		// GROUP | Atom_1_idx | Atom_2_idx | ...
+		// A line without exactly six tokens should be discarded.
+		if (numTokens < 3) {
+		    printf("Error: Invalid group file line: %s\n", line);
+		    exit(-1);
+		}
+
+		// Make sure the index of this particle is unique.
+		// NOTE: The particle list is sorted by index. 
+		std::vector<int> tmp;
+		for (int i=1; i < numTokens; ++i) {
+		    const int ai = atoi(tokenList[i].val());
+		    if (ai >= num) {
+			printf("Error: Attempted to include invalid particle in group: %s\n", line);
+			exit(-1);
+		    }
+		    tmp.push_back( ai );
+		}
+		groupSiteData.push_back(tmp);
+		numGroupSites++;
+	}
+}
 
 void Configuration::readBonds() {
 	// Open the file
@@ -1446,7 +1487,7 @@ void Configuration::readBonds() {
 		      
 		String s(line);
 		int numTokens = s.tokenCount();
-
+		      
 		// Break the line down into pieces (tokens) so we can process them individually
 		String* tokenList = new String[numTokens];
 		s.tokenize(tokenList);
@@ -1469,7 +1510,7 @@ void Configuration::readBonds() {
 			continue;
 		}
 
-		if (ind1 < 0 || ind1 >= num || ind2 < 0 || ind2 >=num) {
+		if (ind1 < 0 || ind1 >= num+numGroupSites || ind2 < 0 || ind2 >= num+numGroupSites) {
 			printf("ERROR: Bond file line '%s' includes invalid index\n", line);
 			exit(1);
 		}
@@ -1517,8 +1558,8 @@ void Configuration::readBonds() {
 	 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
 	 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
 	 */
-	bondMap = new int2[num];
-	for (int i = 0; i < num; i++) {	
+	bondMap = new int2[num+numGroupSites];
+	for (int i = 0; i < num+numGroupSites; i++) {	
 		bondMap[i].x = -1;
 		bondMap[i].y = -1;
 	}
@@ -1679,7 +1720,7 @@ void Configuration::readAngles() {
 		int ind3 = atoi(tokenList[3].val());
 		String file_name = tokenList[4];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num or ind2 >= num or ind3 >= num)
+		if (ind1 >= num+numGroupSites or ind2 >= num+numGroupSites or ind3 >= num+numGroupSites)
 			continue;
 
 		if (numAngles >= capacity) {
@@ -1740,8 +1781,8 @@ void Configuration::readDihedrals() {
 		int ind4 = atoi(tokenList[4].val());
 		String file_name = tokenList[5];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num or ind2 >= num
-				or ind3 >= num or ind4 >= num)
+		if (ind1 >= num+numGroupSites or ind2 >= num+numGroupSites
+				or ind3 >= num+numGroupSites or ind4 >= num+numGroupSites)
 			continue;
 
 		if (numDihedrals >= capacity) {
@@ -1762,178 +1803,6 @@ void Configuration::readDihedrals() {
 	// for(int i = 0; i < numDihedrals; i++)
 	// 	dihedrals[i].print();
 }
-
-void Configuration::readBondAngles() {
-	FILE* inp = fopen(bondAngleFile.val(), "r");
-	char line[256];
-	int capacity = 256;
-	numBondAngles = 0;
-	bondAngles = new BondAngle[capacity];
-
-	// If the angle file cannot be found, exit the program
-	if (inp == NULL) {
-		printf("WARNING: Could not open `%s'.\n", bondAngleFile.val());
-		printf("This simulation will not use angles.\n");
-		return;
-	}
-
-	while(fgets(line, 256, inp)) {
-		if (line[0] == '#') continue;
-		String s(line);
-		int numTokens = s.tokenCount();
-		String* tokenList = new String[numTokens];
-		s.tokenize(tokenList);
-
-		// Legitimate BONDANGLE inputs have 7 tokens
-		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | ANGLE_FILENAME | BOND_FILENAME1 | BOND_FILENAME2
-		// Any angle input line without exactly 5 tokens should be discarded
-		if (numTokens != 8) {
-			printf("WARNING: Invalid bond_angle input line: %s\n", line);
-			continue;
-		}
-
-		// Discard any empty line
-		if (tokenList == NULL)
-			continue;
-
-		int ind1 = atoi(tokenList[1].val());
-		int ind2 = atoi(tokenList[2].val());
-		int ind3 = atoi(tokenList[3].val());
-		int ind4 = atoi(tokenList[4].val());
-		String file_name1 = tokenList[5];
-		String file_name2 = tokenList[6];
-		String file_name3 = tokenList[7];
-		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num or ind2 >= num or ind3 >= num or ind4 >= num)
-			continue;
-
-		if (numBondAngles >= capacity) {
-			BondAngle* temp = bondAngles;
-			capacity *= 2;
-			bondAngles = new BondAngle[capacity];
-			for (int i = 0; i < numBondAngles; i++)
-				bondAngles[i] = temp[i];
-			delete[] temp;
-		}
-
-		BondAngle a(ind1, ind2, ind3, ind4, file_name1, file_name2, file_name3);
-		bondAngles[numBondAngles++] = a;
-		delete[] tokenList;
-	}
-	std::sort(bondAngles, bondAngles + numBondAngles, compare());
-
-	// for(int i = 0; i < numAngles; i++)
-	// 	angles[i].print();
-}
-
-void Configuration::readProductPotentials() {
-	FILE* inp = fopen(productPotentialFile.val(), "r");
-	char line[256];
-	int capacity = 256;
-	numProductPotentials = 0;
-	productPotentials = new ProductPotentialConf[capacity];
-
-	// If the angle file cannot be found, exit the program
-	if (inp == NULL) {
-		printf("WARNING: Could not open `%s'.\n", productPotentialFile.val());
-		printf("This simulation will not use product potentials.\n");
-		return;
-	}
-	printf("DEBUG: READING PRODUCT POTENTAL FILE\n");
-	std::vector<std::vector<int>> indices;
-	std::vector<int> tmp;
-	std::vector<String> pot_names;
-
-	while(fgets(line, 256, inp)) {
-		if (line[0] == '#') continue;
-		String s(line);
-		int numTokens = s.tokenCount();
-		String* tokenList = new String[numTokens];
-		s.tokenize(tokenList);
-
-		indices.clear();
-		tmp.clear();
-		pot_names.clear();		    
-
-		printf("\rDEBUG: reading line %d",numProductPotentials+1);
-
-		// Legitimate ProductPotential inputs have at least 7 tokens
-		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | [TYPE1] | POT_FILENAME1 | INDEX4 | INDEX5 | [TYPE2] POT_FILENAME2 ...
-		if (numTokens < 7) {
-		    printf("WARNING: Invalid product potential input line (too few tokens %d): %s\n", numTokens, line);
-			continue;
-		}
-
-		// Discard any empty line
-		if (tokenList == NULL)
-			continue;
-
-		SimplePotentialType type = BOND; // initialize to suppress warning
-		bool type_specified = false;
-		for (int i = 1; i < numTokens; ++i) {
-		    char *end;
-		    // printf("DEBUG: Working on token %d '%s'\n", i, tokenList[i].val());
-
-		    // Try to convert token to integer
-		    int index = (int) strtol(tokenList[i].val(), &end, 10);
-		    if (tokenList[i].val() == end || *end != '\0' || errno == ERANGE) {
-			// Failed to convert token to integer; therefore it must be a potential name or type
-
-			// Try to match a type
-			String n = tokenList[i];
-			n.lower();
-			if (n == "bond") { type = DIHEDRAL; type_specified = true; }
-			else if (n == "angle")  { type = DIHEDRAL; type_specified = true; }
-			else if (n == "dihedral")  { type = DIHEDRAL; type_specified = true; }
-			else if (n == "vecangle") { type = VECANGLE; type_specified = true; }
-			else { // Not a type, therefore a path to a potential
-			    n = tokenList[i];
-			    indices.push_back(tmp);
-			    pot_names.push_back( n );
-			    // TODO: Key should be tuple of (type,n)
-			    if ( simple_potential_ids.find(n) == simple_potential_ids.end() ) {
-				// Could not find fileName in dictionary, so read and add it
-				unsigned int s = tmp.size();
-				if (s < 2 || s > 4) {
-				    printf("WARNING: Invalid product potential input line (indices of potential %d == %d): %s\n", i, s, line);
-				    continue;
-				}
-				simple_potential_ids[n] = simple_potentials.size();
-				if (not type_specified) type = s==2? BOND: s==3? ANGLE: DIHEDRAL;
-				simple_potentials.push_back( SimplePotential(n.val(), type) );
-			    }
-			    tmp.clear();
-			    type_specified = false;
-
-			}
-		    } else {
-			if (index >= num) {
-			    continue;
-			}
-			tmp.push_back(index);
-		    }
-		}
-
-		if (numProductPotentials >= capacity) {
-			ProductPotentialConf* temp = productPotentials;
-			capacity *= 2;
-			productPotentials = new ProductPotentialConf[capacity];
-			for (int i = 0; i < numProductPotentials; i++)
-				productPotentials[i] = temp[i];
-			delete[] temp;
-		}
-
-		ProductPotentialConf a(indices, pot_names);
-		productPotentials[numProductPotentials++] = a;
-		delete[] tokenList;
-	}
-	printf("\nDEBUG: Sorting\n");
-	std::sort(productPotentials, productPotentials + numProductPotentials, compare());
-
-	// for(int i = 0; i < numAngles; i++)
-	// 	angles[i].print();
-}
-
 
 void Configuration::readRestraints() {
 	FILE* inp = fopen(restraintFile.val(), "r");
@@ -1972,7 +1841,7 @@ void Configuration::readRestraints() {
 		float y0 = (float) strtod(tokenList[4].val(), NULL);
 		float z0 = (float) strtod(tokenList[5].val(), NULL);
 
-		if (id >= num) continue;
+		if (id >= num+numGroupSites) continue;
 
 		if (numRestraints >= capacity) {
 			Restraint* temp = restraints;
@@ -2533,35 +2402,4 @@ bool Configuration::compare::operator()(const Dihedral& lhs, const Dihedral& rhs
 	if (diff != 0) 
 		return lhs.ind3 < rhs.ind3;
 	return lhs.ind4 < rhs.ind4;
-}
-
-bool Configuration::compare::operator()(const BondAngle& lhs, const BondAngle& rhs) {
-	int diff = lhs.ind1 - rhs.ind1;
-	if (diff != 0)
-		return lhs.ind1 < rhs.ind1;
-	diff = lhs.ind2 - rhs.ind2;
-	if (diff != 0)
-		return lhs.ind2 < rhs.ind2;
-	diff = lhs.ind3 - rhs.ind3;
-	if (diff != 0) 
-		return lhs.ind3 < rhs.ind3;
-	return lhs.ind4 < rhs.ind4;
-}
-
-bool Configuration::compare::operator()(const ProductPotentialConf& lhs, const ProductPotentialConf& rhs) {
-    int diff = rhs.indices.size() - lhs.indices.size();
-    if (diff != 0) return diff > 0;
-
-    for (unsigned int i = 0; i < lhs.indices.size(); ++i) {
-	diff = rhs.indices[i].size() - lhs.indices[i].size();
-	if (diff != 0) return diff > 0;
-    }
-
-    for (unsigned int i = 0; i < lhs.indices.size(); ++i) {
-	for (unsigned int j = 0; j < lhs.indices[i].size(); ++j) {
-	    diff = rhs.indices[i][j] - lhs.indices[i][j];
-	    if (diff != 0) return diff > 0;
-	}
-    }
-    return true;
 }
