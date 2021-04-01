@@ -6,6 +6,7 @@
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
+#include <string>
 #include <iostream>
 using namespace std;
 
@@ -257,72 +258,66 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	}
 
 	printf("\nFound %d particle types.\n", numParts);
-	// Load the potential grids.
+
 	printf("Loading the potential grids...\n");
+	// First load a single copy of each grid
 	for (int i = 0; i < numParts; i++) 
         {
-            String map = partGridFile[i][0];
-            int len = map.length();
+	    for(int j = 0; j < part[i].numPartGridFiles; ++j)
+	    {
+		std::string fname(partGridFile[i][j].val(), partGridFile[i][j].length());
+		if (part_grid_dictionary.count( fname ) == 0)
+		{
+		    int len = fname.length();
+		    if (len >= 3 && fname[len-3]=='.' && fname[len-2]=='d' && fname[len-1]=='x')
+		    {
+			part_grid_dictionary.insert({fname, BaseGrid(fname.c_str())});
+		    }
+		    else if  (len >= 4 && fname[len-4]=='.' && fname[len-3]=='d' && fname[len-2]=='e' && fname[len-1]=='f')
+		    {
+			assert(1==2); // Throw exception because this implementation needs to be revisited
+/*                OverlordGrid* over = new OverlordGrid[part[i].numPartGridFiles];
+		  part[i].meanPmf = new float[part[i].numPartGridFiles];
+		  for(int j = 0; j < part[i].numPartGridFiles; ++j)
+		  {
+		  map = partGridFile[i][j];
+		  len = map.length();
+		  if (!(len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f'))
+		  {
+		  cout << "currently do not support different format " << endl;
+		  exit(1);
+		  }
 
-            if (len >= 3 && map[len-3]=='.' && map[len-2]=='d' && map[len-1]=='x') 
-            {
-                part[i].pmf     = new BaseGrid[part[i].numPartGridFiles];
-                part[i].meanPmf = new float[part[i].numPartGridFiles];
-                for(int j = 0; j < part[i].numPartGridFiles; ++j)
-                {
-                    map = partGridFile[i][j];
-                    len = map.length();
-                    if (!(len >= 3 && map[len-3]=='.' && map[len-2]=='d' && map[len-1]=='x'))
-                    {
-                        cout << "currently do not support different format " << endl;
-                        exit(1);
-                    }
-                    // Decide which type of grid is given.
-                    //String map = partGridFile[i];
- 
-	            // A dx file. Load the old-fashioned way.
-	            //part[i].pmf[j] = new BaseGrid(map.val());
-	            BaseGrid tmp(map.val());
-		    part[i].pmf[j] = tmp;
-		    if (partGridFileScale[i][j] != 1.0f) 
-                        part[i].pmf[j].scale(partGridFileScale[i][j]);
+		  String rootGrid = OverlordGrid::readDefFirst(map);
+		  over[j] = OverlordGrid(rootGrid.val());
+		  int count = over->readDef(map);
+		  printf("Loaded system def file `%s'.\n", map.val());
+		  printf("Found %d unique grids.\n", over->getUniqueGridNum());
+		  printf("Linked %d subgrids.\n", count);
+		  part[i].meanPmf[j] = part[i].pmf[j].mean();
+		  }
+		  part[i].pmf = static_cast<BaseGrid*>(over);
+*/
+		    } else {
+			printf("WARNING: Unrecognized gridFile extension. Must be *.def or *.dx.\n");
+			exit(-1);
+		    }
+		}
+	    }
+	}
 
-			//part[i].meanPmf = part[i].pmf->mean();
-		    part[i].meanPmf[j] = part[i].pmf[j].mean();
-		    printf("Loaded dx potential grid `%s'.\n", map.val());
-		    printf("Grid size %s.\n", part[i].pmf[j].getExtent().toString().val());
-                }
-            } 
-	    else if  (len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f') 
-            {
-                OverlordGrid* over = new OverlordGrid[part[i].numPartGridFiles];
-                part[i].meanPmf = new float[part[i].numPartGridFiles];
-                for(int j = 0; j < part[i].numPartGridFiles; ++j)
-                {
-                    map = partGridFile[i][j];
-                    len = map.length();
-                    if (!(len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f'))
-                    {
-                        cout << "currently do not support different format " << endl;
-                        exit(1);
-                    }
-
-                    String rootGrid = OverlordGrid::readDefFirst(map);
-                    over[j] = OverlordGrid(rootGrid.val());
-		    int count = over->readDef(map);
-		    printf("Loaded system def file `%s'.\n", map.val());
-		    printf("Found %d unique grids.\n", over->getUniqueGridNum());
-		    printf("Linked %d subgrids.\n", count);
-                    part[i].meanPmf[j] = part[i].pmf[j].mean();
-                 }
-      		 part[i].pmf = static_cast<BaseGrid*>(over);
-	     } 
-             else 
-             {
-	         printf("WARNING: Unrecognized gridFile extension. Must be *.def or *.dx.\n");
-		 exit(-1);
-	     }
-
+	// Then assign grid addresses to particles
+	for (int i = 0; i < numParts; i++)
+        {
+	    part[i].pmf     = new BaseGrid*[part[i].numPartGridFiles];
+	    part[i].pmf_scale = new float[part[i].numPartGridFiles];
+	    part[i].meanPmf = new float[part[i].numPartGridFiles];
+	    for(int j = 0; j < part[i].numPartGridFiles; ++j)
+	    {
+		part[i].pmf[j] = &(part_grid_dictionary.find( std::string(partGridFile[i][j]) )->second);
+		part[i].pmf_scale[j] = partGridFileScale[i][j];
+		part[i].meanPmf[j] = part[i].pmf[j]->mean(); // TODO: review how this is used and decide whether to scale
+	    }
 		if (partForceXGridFile[i].length() != 0) {
 			part[i].forceXGrid = new BaseGrid(partForceXGridFile[i].val());
 			printf("Loaded `%s'.\n", partForceXGridFile[i].val());
@@ -385,7 +380,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	sys = new BaseGrid( Matrix3(basis1,basis2,basis3), origin, 1, 1, 1 );
     } else {
 	// TODO: use largest system in x,y,z
-	sys = part[0].pmf;
+	sys = *part[0].pmf;
     }
     sysDim = sys->getExtent();
 
@@ -594,7 +589,17 @@ Configuration::~Configuration() {
 }
 
 void Configuration::copyToCUDA() {
-	printf("Copying particle data to GPU %d\n", GPUManager::current());
+    printf("Copying particle grids to GPU %d\n", GPUManager::current());
+    for (const auto& pair : part_grid_dictionary)
+    {
+	// Copy PMF
+	const BaseGrid& g = pair.second;
+	BaseGrid *g_d = g.copy_to_cuda();
+	part_grid_dictionary_d.insert({pair.first, g_d});
+	// printf("Assigning grid for %s to %p (originally %p)\n", pair.first.c_str(), (void *) part_grid_dictionary_d[pair.first], (void *) g_d);
+    }
+
+    printf("Copying particle data to GPU %d\n", GPUManager::current());
 
 	BrownianParticleType **part_addr = new BrownianParticleType*[numParts];
 
@@ -604,11 +609,31 @@ void Configuration::copyToCUDA() {
 	
 	for (int i = 0; i < numParts; i++) 
         {
-	        BaseGrid *pmf = NULL, *diffusionGrid = NULL;
 		BrownianParticleType *b = new BrownianParticleType(part[i]);
-		// Copy PMF
+		// Copy PMF pointers
 		if (part[i].pmf != NULL) 
                 {
+		    {
+			BaseGrid** tmp_d = new BaseGrid*[part[i].numPartGridFiles];
+			BaseGrid** tmp   = new BaseGrid*[part[i].numPartGridFiles];
+			for(int j = 0; j < part[i].numPartGridFiles; ++j) {
+			    // printf("Retrieving grid for %s (at %p)\n", partGridFile[i][j].val(), (void *) part_grid_dictionary_d[std::string(partGridFile[i][j])]);
+			    tmp[j] = part_grid_dictionary_d[std::string(partGridFile[i][j])];
+			}
+			gpuErrchk(cudaMalloc(&tmp_d, sizeof(BaseGrid*)*part[i].numPartGridFiles));
+			gpuErrchk(cudaMemcpy(tmp_d, tmp, sizeof(BaseGrid*)*part[i].numPartGridFiles,
+					     cudaMemcpyHostToDevice));
+			b->pmf = tmp_d;
+		    }
+
+		    {
+			float *tmp;
+			gpuErrchk(cudaMalloc(&tmp, sizeof(float)*part[i].numPartGridFiles));
+			gpuErrchk(cudaMemcpy(tmp, part[i].pmf_scale, sizeof(float)*part[i].numPartGridFiles,
+					     cudaMemcpyHostToDevice));
+			b->pmf_scale = tmp;
+		    }
+
 		    {
 			float *tmp;
 			gpuErrchk(cudaMalloc(&tmp, sizeof(float)*part[i].numPartGridFiles));
@@ -624,40 +649,17 @@ void Configuration::copyToCUDA() {
 			gpuErrchk(cudaMemcpy(tmp, part[i].pmf_boundary_conditions, s, cudaMemcpyHostToDevice));
 			b->pmf_boundary_conditions = tmp;
 		    }
-
-		    gpuErrchk(cudaMalloc(&pmf, sizeof(BaseGrid)*part[i].numPartGridFiles));
-                    for(int j = 0; j < part[i].numPartGridFiles; ++j)
-                    { 
-                        float *val = NULL;
-		        size_t sz = sizeof(float) * part[i].pmf[j].getSize();
-		        //gpuErrchk(cudaMalloc(pmf, sizeof(BaseGrid)));
-		        gpuErrchk(cudaMalloc(&val, sz));
-		        gpuErrchk(cudaMemcpyAsync(val, part[i].pmf[j].val, sz, cudaMemcpyHostToDevice));
-		        BaseGrid *pmf_h = new BaseGrid(part[i].pmf[j]);
-	                pmf_h->val = val;
-		        gpuErrchk(cudaMemcpy(pmf+j, pmf_h, sizeof(BaseGrid), cudaMemcpyHostToDevice));
-		        pmf_h->val = NULL;
-                    }
                     
 		}
-		b->pmf = pmf;
 
 		// Copy the diffusion grid
 		if (part[i].diffusionGrid != NULL) {
-			float *val = NULL;
-			size_t sz = sizeof(float) * part[i].diffusionGrid->getSize();
-		  BaseGrid *diffusionGrid_h = new BaseGrid(*part[i].diffusionGrid);
-		  gpuErrchk(cudaMalloc(&diffusionGrid, sizeof(BaseGrid)));
-		  gpuErrchk(cudaMalloc(&val, sz));
-			diffusionGrid_h->val = val;
-			gpuErrchk(cudaMemcpyAsync(diffusionGrid, diffusionGrid_h, sizeof(BaseGrid),
-					cudaMemcpyHostToDevice));
-		  gpuErrchk(cudaMemcpy(val, part[i].diffusionGrid->val, sz, cudaMemcpyHostToDevice));
-			diffusionGrid_h->val = NULL;
+		    b->diffusionGrid = part[i].diffusionGrid->copy_to_cuda();
+		} else {
+		    b->diffusionGrid = NULL;
 		}
 		
 		//b->pmf = pmf;
-		b->diffusionGrid = diffusionGrid;
 		gpuErrchk(cudaMalloc(&part_addr[i], sizeof(BrownianParticleType)));
 		gpuErrchk(cudaMemcpyAsync(part_addr[i], b, sizeof(BrownianParticleType),
 				cudaMemcpyHostToDevice));

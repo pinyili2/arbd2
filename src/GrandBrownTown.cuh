@@ -120,10 +120,10 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
             ForceEnergy tmp(0.f,0.f);
             if(!scheme) {
 		const BoundaryCondition& bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
-	    } else 
-                tmp = pt.pmf[i].interpolateForceD(r0);
-            fe.f += tmp.f;
+		INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
+	    } else
+                tmp = pt.pmf[i]->interpolateForceD(r0);
+            fe.f += tmp.f * pt.pmf_scale[i];
         }
         //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
 
@@ -236,10 +236,10 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
             ForceEnergy tmp(0.f, 0.f);
             if(!scheme) {
 		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
+		INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
 	    } else 
-                tmp = pt.pmf[i].interpolateForceD(r0);
-            fe.f += tmp.f;
+                tmp = pt.pmf[i]->interpolateForceD(r0);
+            fe.f += tmp.f * pt.pmf_scale[i];
         }
 
 #ifndef FORCEGRIDOFF
@@ -336,10 +336,12 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
             ForceEnergy tmp(0.f, 0.f);
             if(!scheme) {
 		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
+		INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
 	    } else 
-                tmp = pt.pmf[i].interpolateForceD(r0);
+                tmp = pt.pmf[i]->interpolateForceD(r0);
 
+	    tmp.f = tmp.f * pt.pmf_scale[i];
+	    tmp.e = tmp.e * pt.pmf_scale[i];
             fe += tmp;
             //fe.e += tmp.e;
         }
@@ -468,9 +470,11 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                     ForceEnergy tmp(0.f,0.f);
 		    if(!scheme) {
 			BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-			INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, p)
+			INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, p)
 		    } else 
-                        tmp = pt.pmf[i].interpolateForceD(p);
+                        tmp = pt.pmf[i]->interpolateForceD(p);
+		    tmp.f *= pt.pmf_scale[i];
+		    tmp.e *= pt.pmf_scale[i];
                     fe += tmp;
                 }
 #ifndef FORCEGRIDOFF
@@ -550,10 +554,12 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                     float en_local = 0.f;
                     for(int i = 0; i < pt.numPartGridFiles; ++i)
                     {
+			float en_tmp = 0.0f;
                         if(!scheme)
-                            en_local += pt.pmf[i].interpolatePotentialLinearly(tmp);
+                            en_tmp = pt.pmf[i]->interpolatePotentialLinearly(tmp);
                         else
-                            en_local += pt.pmf[i].interpolatePotential(tmp);
+                            en_tmp = pt.pmf[i]->interpolatePotential(tmp);
+			en_tmp *= pt.pmf_scale[i];
                     }
                     energy[idx] += en_local;
                 }		

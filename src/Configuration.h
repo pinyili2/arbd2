@@ -11,6 +11,7 @@
 
 #include <algorithm> // sort
 #include <vector>
+#include <map>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -208,6 +209,8 @@ public:
 	//float* partGridFileScale;
 	float **partGridFileScale;
         //int *numPartGridFiles;
+    std::map<std::string,BaseGrid> part_grid_dictionary;
+    std::map<std::string,BaseGrid*> part_grid_dictionary_d;
 	std::vector< std::vector<String> > partRigidBodyGrid;
 	String* partDiffusionGridFile;
 	String* partForceXGridFile;
