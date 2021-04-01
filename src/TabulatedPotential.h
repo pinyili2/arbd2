@@ -179,6 +179,6 @@ private:
 };
 #ifndef delgpuErrchk
 #undef  delgpuErrchk
-#undef  gpuErrchk
+#undef  gpuErrchk(code)
 #endif
 #endif
