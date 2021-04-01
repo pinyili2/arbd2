@@ -1048,7 +1048,6 @@ public:
   Vector3 origin;
   Matrix3 basis;
   int nx, ny, nz;
-  int nynz;
   int size;
   Matrix3 basisInv;
 public:

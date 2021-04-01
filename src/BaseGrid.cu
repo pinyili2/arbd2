@@ -13,7 +13,6 @@
 // Also, allocate the main value array.
 void BaseGrid::init() {
 	basisInv = basis.inverse();
-	nynz = ny*nz;
 	size = nx*ny*nz;
 	val = new float[size];
 }
@@ -267,7 +266,6 @@ if(strcmp("origi", start) == 0) {
 	//printf("Size: %d %d %d\n", nx, ny, nz);
 	if (read == 3) {
 		size = nx*ny*nz;
-		nynz = ny*nz;
 		val = new float[size];
 		zero();
 	}
@@ -537,7 +535,7 @@ void BaseGrid::averageProfile(const char* fileName, int axis) {
 	int dir2 = (axis+2)%3;
 
 	int jump[3];
-	jump[0] = nynz;
+	jump[0] = ny*nz;
 	jump[1] = nz;
 	jump[2] = 1;
 
@@ -602,11 +600,10 @@ bool BaseGrid::crop(int x0, int y0, int z0, int x1, int y1, int z1, bool keep_or
 	float *new_val = new float[new_size];
 
 	int ind = 0;
-	int nynz = ny * nz;
 	for (int i = x0; i < x1; i++)
 		for (int j = y0; j < y1; j++)
 			for (int k = z0; k < z1; k++) {
-				int ind1 = k + j * nz + i * nynz;
+				int ind1 = k + j * nz + i * ny*nz;
 				new_val[ind++] = val[ind1];
 			}
 
@@ -658,7 +655,7 @@ void BaseGrid::getNeighbors(int j, int* indexBuffer) const {
 	for (int ix = -1; ix <= 1; ix++) {
 		for (int iy = -1; iy <= 1; iy++) {
 			for (int iz = -1; iz <= 1; iz++) {
-				int ind = wrap(jz+iz,nz) + nz*wrap(jy+iy,ny) + nynz*wrap(jx+ix,nx);
+				int ind = wrap(jz+iz,nz) + nz*wrap(jy+iy,ny) + ny*nz*wrap(jx+ix,nx);
 				indexBuffer[k] = ind;
 				k++;
 			}
@@ -673,7 +670,7 @@ void BaseGrid::getNeighborValues(NeighborList* neigh, int homeX, int homeY, int 
 	for (int ix = -1; ix <= 1; ix++) {
 		for (int iy = -1; iy <= 1; iy++) {
 			for (int iz = -1; iz <= 1; iz++) {
-				int ind = wrap(homeZ+iz,nz) + nz*wrap(homeY+iy,ny) + nynz*wrap(homeX+ix,nx);
+				int ind = wrap(homeZ+iz,nz) + nz*wrap(homeY+iy,ny) + ny*nz*wrap(homeX+ix,nx);
 				neigh->v[ix+1][iy+1][iz+1] = val[ind];
 			}
 		}
