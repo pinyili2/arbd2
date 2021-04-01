@@ -21,6 +21,14 @@
 #include <ctime>
 // #include <cuda.h>
 
+#ifndef gpuErrchk
+#define delgpuErrchk
+#define gpuErrchk(code) { if ((code) != cudaSuccess) {			                            \
+	    fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, __LINE__); \
+	}}
+#endif
+
+
 enum BoundaryCondition { dirichlet, neumann, periodic };
 enum InterpolationOrder { linear = 1, cubic = 3 };
 
@@ -1044,6 +1052,36 @@ public:
   void getNeighborValues(NeighborList* neigh, int homeX, int homeY, int homeZ) const;
   inline void setVal(float* v) { val = v; }
 
+    BaseGrid* copy_to_cuda() const {
+	BaseGrid* g_d = NULL;
+	BaseGrid g_tmp;
+	float* val_d = NULL;
+	size_t sz = sizeof(float) * size;
+	gpuErrchk(cudaMalloc(&g_d, sizeof(BaseGrid)));
+	gpuErrchk(cudaMalloc(&val_d, sz));
+	gpuErrchk(cudaMemcpy(val_d, val, sz, cudaMemcpyHostToDevice));
+	g_tmp.origin = origin;
+	g_tmp.basis = basis;
+	g_tmp.nx = nx;
+	g_tmp.ny = ny;
+	g_tmp.nz = nz;
+	g_tmp.size= size;
+	g_tmp.basisInv = basisInv;
+	g_tmp.val = val_d;
+	gpuErrchk(cudaMemcpy(g_d, &g_tmp, sizeof(BaseGrid), cudaMemcpyHostToDevice));
+	g_tmp.val = NULL;
+	return g_d;
+    }
+
+    static void remove_from_cuda(BaseGrid* g_d) {
+	BaseGrid g_tmp;
+	gpuErrchk(cudaMemcpy(&g_tmp, g_d, sizeof(BaseGrid), cudaMemcpyDeviceToHost));
+	gpuErrchk(cudaFree(&(g_tmp.val)));
+	g_tmp.val = NULL;
+	gpuErrchk(cudaMemcpy(g_d, &g_tmp, sizeof(BaseGrid), cudaMemcpyHostToDevice)); // copy NULL back to device
+	gpuErrchk(cudaFree(&g_d));
+    }
+
 public:
   Vector3 origin;
   Matrix3 basis;
@@ -1053,4 +1091,10 @@ public:
 public:
   float* val;
 };
+
+#ifndef delgpuErrchk
+#undef  delgpuErrchk
+#undef  gpuErrchk
+#endif
+
 #endif
