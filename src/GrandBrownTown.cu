@@ -1664,7 +1664,7 @@ void GrandBrownTown::writeRestart(int repID) const
 /*the center is defined by the first pmf*/
 void GrandBrownTown::initialCondCen() {
 	for (int i = 0; i < num; i++)
-		pos[i] = part[ type[i] ].pmf->getCenter();
+		pos[i] = part[ type[i] ].pmf[0]->getCenter();
 }
 
 
@@ -1688,7 +1688,7 @@ Vector3 GrandBrownTown::findPos(int typ) {
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
-	} while (pt.pmf->interpolatePotential(r) > *pt.meanPmf);
+	} while (pt.pmf[0]->interpolatePotential(r) > *pt.meanPmf);
 	return r;
 }
 
@@ -1701,7 +1701,7 @@ Vector3 GrandBrownTown::findPos(int typ, float minZ) {
 		const float ry = sysDim.y * randoGen->uniform();
 		const float rz = sysDim.z * randoGen->uniform();
 		r = sys->wrap( Vector3(rx, ry, rz) );
-	} while (pt.pmf->interpolatePotential(r) > *pt.meanPmf and fabs(r.z) > minZ);
+	} while (pt.pmf[0]->interpolatePotential(r) > *pt.meanPmf and fabs(r.z) > minZ);
 	return r;
 }
 
