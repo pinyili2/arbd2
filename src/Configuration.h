@@ -149,6 +149,7 @@ public:
 	String inputCoordinates;
         String inputMomentum; //Han-Yi Chou
 	String inputRBCoordinates;
+	String restartRBCoordinates;
 	int copyReplicaCoordinates;
 	String restartCoordinates;
         String restartMomentum; //Han-Yi Chou

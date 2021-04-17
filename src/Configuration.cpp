@@ -1137,6 +1137,8 @@ int Configuration::readParameters(const char * config_file) {
                         rigidBody[currRB].initAngularMomentum = stringToVector3(value);
 		else if (param == String("inputRBCoordinates"))
 			inputRBCoordinates = value;
+		else if (param == String("restartRBCoordinates"))
+		        restartRBCoordinates = value;
 		
 		// COMMON
 		else if (param == String("num")) {

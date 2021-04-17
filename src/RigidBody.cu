@@ -69,8 +69,8 @@ void RigidBody::Boltzmann(unsigned long int seed)
     angularMomentum.x *= sigma[1];
     angularMomentum.y *= sigma[2];
     angularMomentum.z *= sigma[3];
-    printf("%f\n", Temp);
-    printf("%f\n", Temperature());
+    // printf("%f\n", Temp);
+    // printf("%f\n", Temperature());
 }
 
 RigidBody::~RigidBody() {

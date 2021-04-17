@@ -117,6 +117,7 @@ public:
         float getEnergy(float (RigidBody::*get)());
 private:
 	bool loadRBCoordinates(const char* fileName);
+    bool load_restart_coordinates(const char* filename);
 	void initializeForcePairs();
 
 	//void print(int step);

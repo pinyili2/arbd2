@@ -80,24 +80,16 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 	gpuErrchk(cudaMallocHost(&(particleForces), sizeof(ForceEnergy) * 2*totalParticleForceNumBlocks))
 	gpuErrchk(cudaMalloc(&(particleForces_d), sizeof(ForceEnergy) * 2*totalParticleForceNumBlocks))
 
-	if (conf.inputRBCoordinates.length() > 0)
-		loadRBCoordinates(conf.inputRBCoordinates.val());
+	if (conf.restartRBCoordinates.length() > 0)
+	    load_restart_coordinates(conf.restartRBCoordinates.val());
+	else if (conf.inputRBCoordinates.length() > 0)
+	    loadRBCoordinates(conf.inputRBCoordinates.val());
 	
 	random = new RandomCPU(conf.seed + repID + 1); /* +1 to avoid using same seed as RandomCUDA */
 	
+	
 	initializeForcePairs();	// Must run after construct_grids()
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
-
-        //Boltzmann distribution
-        for (int i = 0; i < rigidBodyByType.size(); i++)
-        {
-            for (int j = 0; j < rigidBodyByType[i].size(); j++)
-            {
-                RigidBody& rb = rigidBodyByType[i][j];
-                // thermostat
-                rb.Boltzmann(seed);
-            }
-        }
 }
 
 RigidBodyController::~RigidBodyController() {
@@ -337,6 +329,9 @@ bool RigidBodyController::loadRBCoordinates(const char* fileName) {
                     rb.momentum = Vector3((float)strtod(tokenList[12],NULL), (float) strtod(tokenList[13],NULL), (float) strtod(tokenList[14],NULL));
                     rb.angularMomentum = Vector3((float)strtod(tokenList[15],NULL), (float) strtod(tokenList[16],NULL), (float) strtod(tokenList[17],NULL));
                 }
+
+	        if(conf.RigidBodyDynamicType == String("Langevin") && numTokens < 18)
+		    rb.Boltzmann(conf.seed);
                
 		delete[] tokenList;
 
@@ -350,6 +345,82 @@ bool RigidBodyController::loadRBCoordinates(const char* fileName) {
 		}
 	}
 	fclose(inp);
+	return true;
+}
+bool RigidBodyController::load_restart_coordinates(const char* filename) {
+	char line[STRLEN];
+	FILE* inp = fopen(filename, "r");
+
+	if (inp == NULL) {
+		printf("ARBD: load RB coordinates: File '%s' does not exist\n", filename);
+		exit(-1);	   
+	}
+
+	int imax = rigidBodyByType.size();
+	int i = 0;
+	int jmax = rigidBodyByType[i].size();
+	int j = 0;
+
+	while (fgets(line, STRLEN, inp) != NULL) {
+		// Ignore comments.
+		int len = strlen(line);
+		if (line[0] == '#') continue;
+		if (len < 2) continue;
+
+		String s(line);
+		int numTokens = s.tokenCount();
+		if (numTokens < 2+3+9) {
+			printf("ARBD: invalid RB restart coordinate line: %s\n", line);
+			fclose(inp);	
+			exit(-1);
+		}
+                if(conf.RigidBodyDynamicType == String("Langevin") && numTokens < 20)
+                {
+                    std::cout << "Warning the initial momentum set by random number" << std::endl;
+                }
+
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+		if (tokenList == NULL) {
+			printf("ARBD: invalid RB restart coordinate line: %s\n", line);
+			fclose(inp);
+			exit(-1);
+		}
+
+		RigidBody& rb = rigidBodyByType[i][j];
+		printf("Assinging positions %d %d %f\n",i,j, (float) strtod(tokenList[2],NULL));
+		rb.position = Vector3(
+			(float) strtod(tokenList[2],NULL), (float) strtod(tokenList[3],NULL), (float) strtod(tokenList[4],NULL));
+		rb.orientation = Matrix3(
+			(float) strtod(tokenList[5],NULL), (float) strtod(tokenList[6],NULL), (float) strtod(tokenList[7],NULL),
+			(float) strtod(tokenList[8],NULL), (float) strtod(tokenList[9],NULL), (float) strtod(tokenList[10],NULL),
+			(float) strtod(tokenList[11],NULL), (float) strtod(tokenList[12],NULL), (float) strtod(tokenList[13],NULL));
+
+	        if(conf.RigidBodyDynamicType == String("Langevin") && numTokens >= 20)
+                {
+                    rb.momentum = Vector3((float)strtod(tokenList[14],NULL), (float) strtod(tokenList[15],NULL), (float) strtod(tokenList[16],NULL));
+                    rb.angularMomentum = Vector3((float)strtod(tokenList[17],NULL), (float) strtod(tokenList[18],NULL), (float) strtod(tokenList[19],NULL));
+                }
+
+	        if(conf.RigidBodyDynamicType == String("Langevin") && numTokens < 20)
+		    rb.Boltzmann(conf.seed);
+
+		delete[] tokenList;
+
+		j++;
+		if (j == jmax) {
+			i++;
+			if (i == imax)
+				break;
+			j=0;
+			jmax = rigidBodyByType[i].size();
+		}
+	}
+	fclose(inp);
+	if (i < imax || j < jmax) {
+	    printf("ARBD: RB restart file did not contain the correct number of lines: %s\n", filename);
+	    exit(-1);
+	}
 	return true;
 }
 
