@@ -39,6 +39,10 @@ public:
 	/* RigidBodyType& operator=(const RigidBodyType& src); */
 	void copyGridsToDevice();
 	
+    void append_attached_particle_file(String s) { attached_particle_files.push_back(s); }
+    void attach_particles();
+    size_t num_attached_particles() { return attached_particle_types.size() ;}
+
 	void addPotentialGrid(String s);
 	void addDensityGrid(String s);
 	void addPMF(String s);
@@ -54,6 +58,10 @@ public:
 	String name;
 private:
 	const Configuration* conf;
+	std::vector<String> attached_particle_files;
+    std::vector<int>attached_particle_types;
+    std::vector<Vector3>attached_particle_positions;
+
 public:
 	int num; // number of particles of this type
 

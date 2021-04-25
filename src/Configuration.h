@@ -65,6 +65,7 @@ class Configuration {
 	void readDihedrals();
 	void readRestraints();
 
+
 	bool readTableFile(const String& value, int currTab);
 	bool readBondFile(const String& value, int currBond);
 	bool readAngleFile(const String& value, int currAngle);
@@ -88,6 +89,13 @@ class Configuration {
 public:
 	Configuration(const char * config_file, int simNum = 0, bool debug=false);
 	~Configuration();
+
+    int find_particle_type(const char* s) const {
+	for (int j = 0; j < numParts; j++)
+	    if (s == part[j].name)
+		return j;
+	return -1;
+    }
 
 	void copyToCUDA();
 
@@ -122,7 +130,8 @@ public:
 	Bond* bonds;
 	int numCap; // max number of particles
 	int num; // current number of particles
-	Vector3* pos; //  position of each particle
+    int num_rb_attached_particles;
+        Vector3* pos; //  position of each particle
         Vector3* momentum; //momentum of each brownian particles Han-Yi Chou
         Vector3  COM_Velocity; //center of mass velocity Han-Yi Chou
 	int* type; // type of each particle

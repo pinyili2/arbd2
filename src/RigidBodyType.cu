@@ -81,6 +81,55 @@ void RigidBodyType::setDampingCoeffs(float timestep) { /* MUST ONLY BE CALLED ON
 
 }
 	
+void RigidBodyType::attach_particles() {
+    for (const auto& filename: attached_particle_files) {
+	const size_t line_char = 256;
+	FILE* inp = fopen(filename.val(), "r");
+	char line[line_char];
+
+	// If the particle file cannot be found, exit the program
+	if (inp == NULL) {
+	    printf("ERROR: Could not open `%s'.\n", filename.val());
+	    fclose(inp);
+	    exit(1);
+	}
+
+	// Get and process all lines of input
+	while (fgets(line, line_char, inp) != NULL) {
+		// Lines in the particle file that begin with # are comments
+		if (line[0] == '#') continue;
+
+		String s(line);
+		int numTokens = s.tokenCount();
+
+		// Break the line down into pieces (tokens) so we can process them individually
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		// Legitimate GROUP input lines have at least 3 tokens:
+		// Particle_type | x | y | z
+		// A line without exactly six tokens should be discarded.
+		if (numTokens != 4) {
+		    printf("Error: Invalid attached particle file line: %s\n", line);
+		    fclose(inp);
+		    exit(-1);
+		}
+
+		// Make sure the index of this particle is unique.
+		// NOTE: The particle list is sorted by index.
+		int type_idx = conf->find_particle_type( tokenList[0].val() );
+		if (type_idx < 0) {
+		    printf("Error: Unrecognized particle type: %s\n", line);
+		    fclose(inp);
+		    exit(-1);
+		}
+		attached_particle_types.push_back( type_idx );
+		attached_particle_positions.push_back( Vector3(atof(tokenList[1].val()), atof(tokenList[2].val()), atof(tokenList[3].val())) );
+	}
+	fclose(inp);
+    }
+}
+
 void RigidBodyType::addGrid(String s, std::vector<String> &keys, std::vector<String> &files) {
 	// tokenize and return
 	int numTokens = s.tokenCount();
