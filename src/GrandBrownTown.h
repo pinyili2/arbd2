@@ -230,6 +230,8 @@ private:
 	int numAngles;
 	int numDihedrals;
 
+    int num_rb_attached_particles;
+
 	int numGroupSites;
 	int* groupSiteData_d;
 

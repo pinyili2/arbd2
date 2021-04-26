@@ -19,12 +19,14 @@ Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion, Vector3
 #if 0
 __global__ void updateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal, 
                              int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField, 
-                             int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas) 
+                             int tGridLength, float timestep, int num, int num_rb_attached_particles, BaseGrid* sys, Random* randoGen, int numReplicas)
 {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < num * numReplicas)
     {
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
+
         int t = type[idx];
         //Vector3 r0(tex1Dfetch(PosTex, idx));
         //Vector3 p0(tex1Dfetch(MomTex, idx));
@@ -101,11 +103,13 @@ __global__ void
 updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ momentum, float* random, 
                                Vector3* __restrict__ forceInternal, int type[], BrownianParticleType* part[], 
                                float kT, BaseGrid* kTGrid, float electricField, int tGridLength, float timestep, 
-                               int num, BaseGrid* sys, Random* randoGen, int numReplicas, int scheme)
+                               int num, int num_rb_attached_particles, BaseGrid* sys, Random* randoGen, int numReplicas, int scheme)
 {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num * numReplicas)
     {
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
+
         int t = type[idx];
 
         Vector3 r0  = pos[idx];
@@ -214,13 +218,17 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
 //Han-Yi Chou
 __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
                                   int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
-                                  float electricField,int tGridLength, float timestep, int num, BaseGrid* sys, 
+                                  float electricField,int tGridLength, float timestep,
+				  int num, int num_rb_attached_particles, BaseGrid* sys,
                                   Random* randoGen, int numReplicas, int scheme)
 {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
 
     if (idx < num * numReplicas)
     {
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
+
         int t = type[idx];
 
         Vector3 r0 = pos[idx];
@@ -315,13 +323,15 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
 //update momentum in the last step of BAOAB integrator for the Langevin dynamics. Han-Yi Chou
 __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* __restrict__ forceInternal,
                                       int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
-                                      float electricField, int tGridLength, float timestep, int num, 
+                                      float electricField, int tGridLength, float timestep, int num, int num_rb_attached_particles,
                                       BaseGrid* sys, Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy,int scheme)
 {
-    const int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 
     if (idx < num * numReplicas)
     {
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
+
         int t = type[idx];
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
@@ -380,12 +390,14 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
 #if 0
 __global__ void LastUpdateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
                                  int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField,
-                                 int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas)
+				      int tGridLength, float timestep, int num, int num_rb_attached_particles, BaseGrid* sys, Random* randoGen, int numReplicas)
 {
-    const int idx  = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx  = blockIdx.x * blockDim.x + threadIdx.x;
 
     if (idx < num * numReplicas)
     {
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
+
         int t = type[idx];
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
@@ -441,16 +453,17 @@ __global__ void LastUpdateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* 
 __global__
 void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[], 
                   BrownianParticleType* part[],float kT, BaseGrid* kTGrid, float electricField, 
-                  int tGridLength, float timestep, int num, BaseGrid* sys,
+                  int tGridLength, float timestep, int num, int num_rb_attached_particles, BaseGrid* sys,
 		  Random* randoGen, int numReplicas, float* energy, bool get_energy, int scheme) 
 {
 	// Calculate this thread's ID
-	const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+	int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
         
 	// TODO: Make this a grid-stride loop to make efficient reuse of RNG states 
 	// Loop over ALL particles in ALL replicas
 	if (idx < num * numReplicas) 
         {
+	    idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 		const int t = type[idx];
 		Vector3   p = pos[idx];
 

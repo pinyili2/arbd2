@@ -114,6 +114,7 @@ void RigidBody::addEnergy(float e)
     energy += e;
 }
 void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
+    assert(false); // TODO update particles, excluding own particles
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];

@@ -122,9 +122,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	printf("%d groups\n", numGroupSites);
 
 	// Allocate particle variables.
-	// First num*simNum entries are for point particles, next num_rb_attached_particles*simNum are for RB particles
-
-
+	// Each replica works with num+num_rb_attached_particles in array
 	pos = new Vector3[ (num+num_rb_attached_particles) * simNum];
 
         //Han-Yi Chou
