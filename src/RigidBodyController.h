@@ -110,6 +110,7 @@ public:
         void integrateDLM(BaseGrid* sys, int step);
 	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
 	void updateParticleLists(Vector3* pos_d, BaseGrid* sys_d);
+    void update_attached_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d, BaseGrid* sys_d);
         void clearForceAndTorque(); 
         void KineticEnergy();
         void print(int step);

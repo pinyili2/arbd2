@@ -31,7 +31,9 @@ class RigidBody { // host side representation of rigid bodies
 	| splitting methods for rigid body molecular dynamics". J Chem Phys. (1997) |
 	`––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––*/
 		public:
-	RigidBody(String name, const Configuration& c, const RigidBodyType& t, RigidBodyController* RBC);
+    RigidBody(String name, const Configuration& c, const RigidBodyType& t, RigidBodyController* RBC,
+	      int attached_particle_start, int attached_particle_end);
+
     RigidBody(const RigidBody& rb);
     // RigidBody(const RigidBody& rb) : RigidBody(rb.name, *rb.c, *rb.t) {};
 	void init();
@@ -39,6 +41,8 @@ class RigidBody { // host side representation of rigid bodies
 	~RigidBody();
 
 	int appendNumParticleBlocks( std::vector<int>* blocks );
+
+    void update_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d);
 
 	HOST DEVICE void addForce(Force f); 
 	HOST DEVICE void addTorque(Force t);
@@ -76,6 +80,7 @@ class RigidBody { // host side representation of rigid bodies
               return Vector3( angularMomentum.x, angularMomentum.y, angularMomentum.z);
         }
 
+        void initializeParticleLists();
 	void updateParticleList(Vector3* pos_d, BaseGrid* sys_d);
 	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, ForceEnergy* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx);
 	void applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx);
@@ -122,9 +127,12 @@ private:
 	bool isFirstStep; 
 	
 	int* numParticles;		  /* particles affected by potential grids */
+	int** possible_particles_d;		 	
 	int** particles_d;		 	
 	const cudaStream_t** particleForceStreams;
-	
+
+    int attached_particle_start, attached_particle_end;
+    
 	/*–––––––––––––––––––––––––––––––––––––––––.
 	| units "kcal_mol/AA * ns" "(AA/ns) * amu" |
 	`–––––––––––––––––––––––––––––––––––––––––*/

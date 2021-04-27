@@ -128,6 +128,9 @@ void RigidBodyType::attach_particles() {
 	}
 	fclose(inp);
     }
+    size_t sz = sizeof(Vector3)*attached_particle_positions.size();
+    gpuErrchk(cudaMalloc( &(attached_particle_positions_d), sz ));
+    gpuErrchk(cudaMemcpyAsync( attached_particle_positions_d, &attached_particle_positions[0], sz, cudaMemcpyHostToDevice));
 }
 
 void RigidBodyType::addGrid(String s, std::vector<String> &keys, std::vector<String> &files) {

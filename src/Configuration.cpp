@@ -133,6 +133,20 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	serial = new int[(num+num_rb_attached_particles) * simNum];
 	posLast = new Vector3[(num+num_rb_attached_particles) * simNum];
 
+	{
+	    int pidx = 0;
+	    for (int i = 0; i < numRigidTypes; i++) { // Loop over RB types
+		RigidBodyType &rbt = rigidBody[i];
+		for (int j = 0; j < rbt.num; ++j) { // Loop over RBs
+		    for (const int& t: rbt.get_attached_particle_types()) {
+			type[num+pidx] = t;
+			serial[num+pidx] = num+pidx;
+			pidx++;
+		    }
+		}
+	    }
+	}	
+	
         //Han-Yi Chou
         if(ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
            momLast = new Vector3[(num+num_rb_attached_particles) * simNum];
@@ -434,10 +448,9 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 
 
 	// Create exclusions from the exclude rule, if it was specified in the config file
-    assert(false); // TODO implement RB exclusions
 	if (excludeRule != String("")) {
 		int oldNumExcludes = numExcludes;
-		Exclude* newExcludes = makeExcludes(bonds, bondMap, num+num_rb_attached_particles, numBonds, excludeRule, numExcludes);
+		Exclude* newExcludes = makeExcludes(bonds, bondMap, num, numBonds, excludeRule, numExcludes);
 		if (excludes == NULL) {
 			excludes = new Exclude[numExcludes];
 		} else if (numExcludes >= excludeCapacity) {
@@ -445,13 +458,45 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 			excludes = new Exclude[numExcludes];
 			for (int i = 0; i < oldNumExcludes; i++)
 				excludes[i] = tempExcludes[i];
-			delete tempExcludes;
+			delete [] tempExcludes;
 		}
 		for (int i = oldNumExcludes; i < numExcludes; i++)
 			excludes[i] = newExcludes[i - oldNumExcludes];
 		printf("Built %d exclusions.\n",numExcludes);
 	}
 
+	{ // Add exclusions for RB attached particles
+	    std::vector<Exclude> ex;
+	    int start = num;
+	    for (int i = 0; i < numRigidTypes; i++) { // Loop over RB types
+		RigidBodyType &rbt = rigidBody[i];
+		const int nap = rbt.num_attached_particles();
+		for (int j = 0; j < rbt.num; ++j) { // Loop over RBs
+		    for (int ai = 0; ai < nap-1; ++ai) {
+			for (int aj = ai+1; aj < nap; ++aj) {
+			    ex.push_back( Exclude( ai+start, aj+start ) );
+			}
+		    }
+		    start += nap;
+		}
+	    }
+	    // copy
+	    int oldNumExcludes = numExcludes;
+	    numExcludes = numExcludes + ex.size();
+	    if (excludes == NULL) {
+		excludes = new Exclude[numExcludes];
+	    } else if (numExcludes >= excludeCapacity) {
+		Exclude* tempExcludes = excludes;
+		excludes = new Exclude[numExcludes];
+		for (int i = 0; i < oldNumExcludes; i++)
+		    excludes[i] = tempExcludes[i];
+		delete [] tempExcludes;
+	    }
+	    for (int i = oldNumExcludes; i < numExcludes; i++)
+		excludes[i] = ex[i - oldNumExcludes];
+	}
+
+	printf("Built %d exclusions.\n",numExcludes);		
 	buildExcludeMap();
 
 	// Count number of particles of each type
@@ -459,7 +504,6 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	for (int i = 0; i < numParts; ++i) {
 		numPartsOfType[i] = 0;
 	}
-    assert(false); // First assign type[i] for rb particles
 	for (int i = 0; i < num+num_rb_attached_particles; ++i) {
 		++numPartsOfType[type[i]];
 	}
@@ -1303,7 +1347,7 @@ void Configuration::readAtoms() {
 		for (int i = 0; i < numParts; i++)
 			if (part[i].num == 0)
 				found = false;
-		assert(false); // TODO probably relax constraint that particle must be found; could just be in RB
+		// assert(false); // TODO probably relax constraint that particle must be found; could just be in RB
 		if (!found) {
 			printf("ERROR: Number of particles not specified in config file.\n");
 			exit(1);

@@ -503,8 +503,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
     // Open the files for recording ionic currents
     for (int repID = 0; repID < numReplicas; ++repID) 
     {
-
-        writers[repID]->newFile(pos + (repID * num), name, 0.0f, num); // 'pos + (repID*num)' == array-to-pointer decay
+        writers[repID]->newFile(pos + repID*(num+num_rb_attached_particles), name, 0.0f, num); // 'pos + (repID*num)' == array-to-pointer decay
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             momentum_writers[repID]->newFile((momentum + repID * num), name, 0.0f, num); // 'pos + (repID*num)' == array-to-pointer decay
         //random_writers[repID]->newFile(random + (repID * num), name, 0.0f, num);
@@ -606,6 +605,18 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    internal->clear_force();
 	    internal->clear_energy();
 	    const std::vector<Vector3*>& _pos = internal->getPos_d();
+
+	    if (num_rb_attached_particles > 0) {
+		#pragma omp parallel for
+		for(int i = 0; i < numReplicas; ++i) {
+		    RBC[i]->update_attached_particle_positions(
+			internal->getPos_d()[0]+i*(num+num_rb_attached_particles),
+			internal->getForceInternal_d()[0]+i*(num+num_rb_attached_particles),
+			internal->getEnergy()+i*(num+num_rb_attached_particles),
+			sys_d);
+		}
+	    }
+
 	    if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(_pos[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
 
 	    #ifdef USE_NCCL
@@ -720,7 +731,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	internal->clear_energy();
 	gpuman.sync();
 
-	assert(false); // TODO update RB particels
+
         if(particle_dynamic == String("Langevin"))
             updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
         else if(particle_dynamic == String("NoseHooverLangevin"))
@@ -760,6 +771,17 @@ void GrandBrownTown::RunNoseHooverLangevin()
             }
         }
 
+	if (num_rb_attached_particles > 0) {
+	    #pragma omp parallel for
+	    for(int i = 0; i < numReplicas; ++i) {
+		RBC[i]->update_attached_particle_positions(
+		    internal->getPos_d()[0]+i*(num+num_rb_attached_particles),
+		    internal->getForceInternal_d()[0]+i*(num+num_rb_attached_particles),
+		    internal->getEnergy()+i*(num+num_rb_attached_particles),
+		    sys_d);
+	    }
+	}
+	
         if (s % outputPeriod == 0) {
             // Copy particle positions back to CPU
 	    gpuErrchk(cudaDeviceSynchronize());
@@ -842,6 +864,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         for(int i = 0; i < numReplicas; ++i) 
             RBC[i]->clearForceAndTorque();
 
+	
 	if (numGroupSites > 0) {
 	    gpuman.sync();
 	    updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);

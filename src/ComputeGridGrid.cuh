@@ -29,6 +29,7 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 extern __global__
 void createPartlist(const Vector3* __restrict__ pos,
 				const int numTypeParticles, const int* __restrict__ typeParticles_d,
+		    const int attached_particle_start, const int attached_particle_end,
 				int* numParticles_d, int* particles_d,
 				const Vector3 gridCenter, const float radius2, BaseGrid* sys_d);
 	

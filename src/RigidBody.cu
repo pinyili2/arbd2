@@ -18,10 +18,10 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 }
 #endif
 
-RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref, RigidBodyController* RBCref) 
-    : name(name), c(&cref), t(&tref), RBC(RBCref), impulse_to_momentum(4.1867999435271e4) /*impulse_to_momentum(4.184e8f)*/ { init(); }
+RigidBody::RigidBody(String name, const Configuration& cref, const RigidBodyType& tref, RigidBodyController* RBCref, int attached_particle_start, int attached_particle_end) 
+    : name(name), c(&cref), t(&tref), RBC(RBCref), attached_particle_start(attached_particle_start), attached_particle_end(attached_particle_end), impulse_to_momentum(4.1867999435271e4) /*impulse_to_momentum(4.184e8f)*/ { init(); }
 RigidBody::RigidBody(const RigidBody& rb)
-    : name(rb.name), c(rb.c), t(rb.t), RBC(rb.RBC), impulse_to_momentum(4.1867999435271e4)/*impulse_to_momentum(4.184e8f)*/ { init(); }
+    : name(rb.name), c(rb.c), t(rb.t), RBC(rb.RBC), attached_particle_start(rb.attached_particle_start), attached_particle_end(rb.attached_particle_end), impulse_to_momentum(4.1867999435271e4)/*impulse_to_momentum(4.184e8f)*/ { init(); }
 void RigidBody::init() {
 	// units "(kcal_mol/AA) * ns" "dalton AA/ns" * 4.184e+08	
 	timestep = c->timestep;
@@ -103,6 +103,23 @@ int RigidBody::appendNumParticleBlocks( std::vector<int>* blocks ) {
     return ret;
 }
 
+__global__
+void update_particle_positions_kernel(Vector3* __restrict__ pos, const int start, const int num,
+			       const Vector3* __restrict__ pos_rb,
+			       const Vector3 center, const Matrix3 orientation) {
+	const int i = blockIdx.x * blockDim.x + threadIdx.x;
+	if (i < num) {
+	    const int aid = i+start;
+	    pos[aid] = orientation*pos_rb[i] + center;
+	}
+}		
+void RigidBody::update_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d) {
+    int num = attached_particle_end - attached_particle_start;
+    int nb = floor(num/NUMTHREADS) + 1;
+    update_particle_positions_kernel<<<nb,NUMTHREADS>>>(pos_d, attached_particle_start, num,
+						 t->attached_particle_positions_d, position, orientation);
+}
+
 void RigidBody::addForce(Force f) { 
 	force += f; 
 } 
@@ -113,8 +130,142 @@ void RigidBody::addEnergy(float e)
 {
     energy += e;
 }
+
+// TODO move code snippet to more general location
+template<class C, class T>
+auto contains(const C& v, const T& x)
+-> decltype(end(v), true)
+{
+    return end(v) != std::find(begin(v), end(v), x);
+}
+/*
+void RigidBody::initialize_possible_particles()
+{
+    std::vector<int> atomic_ids;
+
+    // Loop over potential grids
+    for (int i = 0; i < t->numPotGrids; ++i) {
+	atomic_ids.clear();
+
+	String& gridName = t->potentialGridKeys[i];
+	
+	// Loop over particle types to count the number of particles
+	for (int j = 0; j < conf->numParts; ++j) {
+	    if (contains(conf->partRigidBodyGrid[j], gridName)) {
+		// gridNames contained gridName, so add the particles to atomic_ids
+		for (int aid = 0; aid < conf->num + conf->num_rb_attached_particles; ++aid) {
+		    if (conf->type[aid] == j && (aid < exclude_start || aid > exclude_end)) {
+			atomic_ids.push_back(aid);
+		    }
+		}
+	    }
+	}
+
+	// Initialize device data
+	size_t sz = sizeof(int) * atomic_ids.size();
+	gpuErrchk(cudaMalloc( &(possible_particles_d[i]), sz ));
+	gpuErrchk(cudaMemcpyAsync( possible_particles_d[i], &atomic_ids[0], sz, cudaMemcpyHostToDevice))
+
+	// // Add particles attached to OTHER RBs
+	// int rb_particle_offset = conf->num;
+	// for (const auto& rbs: RBC->rigidBodyByType)
+	// {
+	//     int rb_type
+	//     const RigidBodyType& rb_type = rbs[0].t;
+	//     if (rbs.t != 
+	//     for (int& ptype: rb_type->attached_particle_types) {
+	// 	// This could be made much more efficient
+	// 	if (contains(conf->partRigidBodyGrid[ptype], gridName)) {
+	// 	// Add particles
+	// 	rb
+	// 	rbs[0].sum
+	// 	    }
+	//     rb_particle_offset += rb_type.attached_particle_types
+	    
+	//     for (int k = 0; k < t->gridNames.size(); ++k) {
+	// 	    if (t->gridNames[k] == gridName) {
+	// 		t->numParticles[i] += conf->numPartsOfType[j];			
+	// 	    }
+
+	    
+	// 		// Loop over rigid body grid names associated with particle type
+	// 		const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
+	// 		for (int k = 0; k < gridNames.size(); ++k) {
+	// 		    if (gridNames[k] == gridName) {
+	// 			// Copy type j particles to particles[i]
+	// 			memcpy( &(particles[i][pid]), tmp, sizeof(int)*currId );
+	// 			assert(currId == conf->numPartsOfType[j]);
+	// 			pid += conf->numPartsOfType[j];
+	// 		    }
+	// 		}
+	// 	    }
+
+	// numParticles[i] = 0;
+
+	    // Count the particles interacting with potential grid i
+	    // Loop over particle types
+	    for (int j = 0; j < conf->numParts; ++j) {
+
+		// Loop over rigid body grid names associated with particle type
+		const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
+		for (int k = 0; k < t->gridNames.size(); ++k) {
+		    if (t->gridNames[k] == gridName) {
+			numParticles[i] += conf->numPartsOfType[j];			
+		    }
+		}
+	    }
+
+	    // Add RB particles
+	    for (const auto& rbv: RBC->rigidBodyByType)
+	    {
+		int ptype = rbv[0].t->attached_particle_types;
+		const std::vector<String>& gridNames = conf->partRigidBodyGrid[ptype];
+		for (int k = 0; k < t->gridNames.size(); ++k) {
+		    if (t->gridNames[k] == gridName) {
+			t->numParticles[i] += conf->numPartsOfType[j];			
+		    }
+		
+	    attached_particle_
+	    
+	    if (numParticles[i] > 0) {
+
+		    // allocate array of particle ids for the potential grid 
+		    particles[i] = new int[numParticles[i]];
+		    int pid = 0;
+		
+		    // Loop over particle types to count the number of particles
+		    for (int j = 0; j < conf->numParts; ++j) {
+
+			// Build temporary id array of type j particles
+			int tmp[conf->numPartsOfType[j]];
+			int currId = 0;
+			for (int aid = 0; aid < conf->num; ++aid) {
+			    if (conf->type[aid] == j)
+				tmp[currId++] = aid;
+			}
+			if (currId == 0) continue;
+
+			// Loop over rigid body grid names associated with particle type
+			const std::vector<String>& gridNames = conf->partRigidBodyGrid[j];
+			for (int k = 0; k < gridNames.size(); ++k) {
+			    if (gridNames[k] == gridName) {
+				// Copy type j particles to particles[i]
+				memcpy( &(particles[i][pid]), tmp, sizeof(int)*currId );
+				assert(currId == conf->numPartsOfType[j]);
+				pid += conf->numPartsOfType[j];
+			    }
+			}
+		    }
+
+		    // Initialize device data
+		    size_t sz = sizeof(int) * numParticles[i];
+		    gpuErrchk(cudaMalloc( &(particles_d[i]), sz ));
+		    gpuErrchk(cudaMemcpyAsync( particles_d[i], particles[i], sz, cudaMemcpyHostToDevice));
+		}
+	}
+}
+*/
 void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
-    assert(false); // TODO update particles, excluding own particles
 	for (int i = 0; i < t->numPotGrids; ++i) {
 		numParticles[i] = 0;
 		int& tnp = t->numParticles[i];
@@ -132,10 +283,12 @@ void RigidBody::updateParticleList(Vector3* pos_d, BaseGrid* sys_d) {
 			int nb = floor(tnp/NUMTHREADS) + 1;
 #if __CUDA_ARCH__ >= 300
 			createPartlist<<<nb,NUMTHREADS>>>(pos_d, tnp, t->particles_d[i],
+							  attached_particle_start, attached_particle_end,
 							tmp_d, particles_d[i],
 							gridCenter + position, cutoff*cutoff, sys_d);
 #else
 			createPartlist<<<nb,NUMTHREADS,NUMTHREADS/WARPSIZE>>>(pos_d, tnp, t->particles_d[i],
+							  attached_particle_start, attached_particle_end,
 							tmp_d, particles_d[i],
 							gridCenter + position, cutoff*cutoff, sys_d);
 #endif			

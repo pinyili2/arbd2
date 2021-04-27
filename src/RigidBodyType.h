@@ -17,9 +17,10 @@ class BaseGrid;
 class RigidBodyGrid;
 class Configuration;
 class RigidBodyController;
+class RigidBody;
 
 class RigidBodyType {
-	
+    friend class RigidBody;
 public:
 RigidBodyType(const String& name = "", const Configuration* conf = NULL ) :
 	name(name), conf(conf), num(0),
@@ -41,7 +42,8 @@ public:
 	
     void append_attached_particle_file(String s) { attached_particle_files.push_back(s); }
     void attach_particles();
-    size_t num_attached_particles() { return attached_particle_types.size() ;}
+    size_t num_attached_particles() const { return attached_particle_types.size() ;}
+    const std::vector<int>& get_attached_particle_types() const { return attached_particle_types; }
 
 	void addPotentialGrid(String s);
 	void addDensityGrid(String s);
@@ -59,8 +61,10 @@ public:
 private:
 	const Configuration* conf;
 	std::vector<String> attached_particle_files;
-    std::vector<int>attached_particle_types;
+	std::vector<int>attached_particle_types;
+private:
     std::vector<Vector3>attached_particle_positions;
+    Vector3* attached_particle_positions_d;
 
 public:
 	int num; // number of particles of this type
