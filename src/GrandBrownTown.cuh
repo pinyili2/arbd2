@@ -14,6 +14,53 @@ __device__
 Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion, Vector3 diffGrad,
 						 float timestep, BaseGrid *sys, Random *randoGen, int num);
 
+inline __device__
+ForceEnergy compute_position_dependent_force(
+    const Vector3* __restrict__ pos, Vector3* __restrict__ forceInternal,
+    const int* __restrict__ type, const BrownianParticleType* __restrict__ * __restrict__ part,
+    const float electricField, const int scheme, const int idx)
+{
+    int t = type[idx];
+    Vector3 r0 = pos[idx];
+    const BrownianParticleType& pt = *part[t];
+    Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
+
+    ForceEnergy fe(0.f, 0.f);
+    for(int i = 0; i < pt.numPartGridFiles; ++i)
+    {
+	ForceEnergy tmp(0.f, 0.f);
+	if(!scheme) {
+	    BoundaryCondition bc = pt.pmf_boundary_conditions[i];
+	    INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
+		} else
+	    tmp = pt.pmf[i]->interpolateForceD(r0);
+	fe.f += tmp.f * pt.pmf_scale[i];
+	fe.e += tmp.e * pt.pmf_scale[i];
+    }
+    // if(get_energy)
+    // 	energy[idx] += fe.e;
+
+#ifndef FORCEGRIDOFF
+    // Add a force defined via 3D FORCE maps (not 3D potential maps)
+    if(!scheme)
+    {
+	if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
+	if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
+	if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
+    }
+    else
+    {
+	if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
+	if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
+	if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
+    }
+#endif
+    fe.f = fe.f + forceExternal;
+    return fe;
+}
+
+
+
 //update both position and momentum for Langevin dynamics
 //Han-Yi Chou
 #if 0
@@ -110,43 +157,17 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
     {
 	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
-        int t = type[idx];
+	forceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
 
+        int t = type[idx];
         Vector3 r0  = pos[idx];
         Vector3 p0  = momentum[idx];
         float   ran = random[idx];
 
         const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-        ForceEnergy fe(0.f, 0.f);
-        for(int i = 0; i < pt.numPartGridFiles; ++i)
-        {
-            ForceEnergy tmp(0.f,0.f);
-            if(!scheme) {
-		const BoundaryCondition& bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
-	    } else
-                tmp = pt.pmf[i]->interpolateForceD(r0);
-            fe.f += tmp.f * pt.pmf_scale[i];
-        }
-        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
 
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if(!scheme)
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-        }
-        else
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
-        }
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+        Vector3 force = forceInternal[idx] + fe.f;
         #ifdef Debug
         forceInternal[idx] = -force;
         #endif
@@ -229,43 +250,16 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
     {
 	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
-        int t = type[idx];
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	// if (get_energy) energy[idx] += fe.e;
 
+        int t = type[idx];
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
-
         const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
-        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
-        ForceEnergy fe(0.f, 0.f);
-        for(int i = 0; i < pt.numPartGridFiles; ++i)
-        {
-            ForceEnergy tmp(0.f, 0.f);
-            if(!scheme) {
-		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
-	    } else 
-                tmp = pt.pmf[i]->interpolateForceD(r0);
-            fe.f += tmp.f * pt.pmf_scale[i];
-        }
-
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if(!scheme)
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-        }
-        else
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
-        }
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+        Vector3 force = forceInternal[idx] + fe.f;
 #ifdef Debug
         forceInternal[idx] = -force;
 #endif
@@ -332,47 +326,15 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
     {
 	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	if (get_energy) energy[idx] += fe.e;
+
         int t = type[idx];
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
 
-        const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-
-        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
-        ForceEnergy fe(0.f, 0.f);
-        for(int i = 0; i < pt.numPartGridFiles; ++i)
-        {
-            ForceEnergy tmp(0.f, 0.f);
-            if(!scheme) {
-		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
-	    } else 
-                tmp = pt.pmf[i]->interpolateForceD(r0);
-
-	    tmp.f = tmp.f * pt.pmf_scale[i];
-	    tmp.e = tmp.e * pt.pmf_scale[i];
-            fe += tmp;
-            //fe.e += tmp.e;
-        }
-        if(get_energy)
-            energy[idx] += fe.e;
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if(!scheme)
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-        }
-        else
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
-        }
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+        Vector3 force = forceInternal[idx] + fe.f;
 #ifdef Debug
         forceInternal[idx] = -force;
 #endif
@@ -471,46 +433,14 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                 
 	 	/* printf("atom %d: forceInternal: %f %f %f\n", idx, forceInternal[idx].x, forceInternal[idx].y, forceInternal[idx].z);  */
 
-		// Compute external force
-		Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-
-		// Compute PMF
-		// TODO: maybe make periodic and nonPeriodic versions of this kernel
-		//ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(p);
-		ForceEnergy fe(0.f, 0.f);
-                for(int i = 0; i < pt.numPartGridFiles; ++i)
-                {
-                    ForceEnergy tmp(0.f,0.f);
-		    if(!scheme) {
-			BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-			INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, p)
-		    } else 
-                        tmp = pt.pmf[i]->interpolateForceD(p);
-		    tmp.f *= pt.pmf_scale[i];
-		    tmp.e *= pt.pmf_scale[i];
-                    fe += tmp;
-                }
-#ifndef FORCEGRIDOFF
-		// Add a force defined via 3D FORCE maps (not 3D potential maps)
-		if(!scheme)
-                {
-		    if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(p);
-		    if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(p);
-		    if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(p);
-                }
-                else
-                {
-                    if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(p);
-                    if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(p);
-                    if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(p);
-                }
-#endif
+		ForceEnergy fe = compute_position_dependent_force(
+		    pos, forceInternal, type, part, electricField, scheme, idx );
 
 		// Compute total force:
 		//	  Internal:  interaction between particles
 		//	  External:  electric field (now this is basically a constant vector)
 		//	  forceGrid: ADD force due to PMF or other potentials defined in 3D space
-		Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+		Vector3 force = forceInternal[idx] + fe.f;
                 #ifdef Debug
                 forceInternal[idx] = -force;
                 #endif
