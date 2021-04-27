@@ -613,7 +613,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
 			internal->getPos_d()[0]+i*(num+num_rb_attached_particles),
 			internal->getForceInternal_d()[0]+i*(num+num_rb_attached_particles),
 			internal->getEnergy()+i*(num+num_rb_attached_particles),
-			sys_d);
+			sys_d, num, num_rb_attached_particles, numReplicas);
 		}
 	    }
 
@@ -704,7 +704,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
 				     s,
 				     internal->getEnergy()+i*(num+num_rb_attached_particles),
 				     get_energy,
-				     RigidBodyInterpolationType, sys, sys_d);
+				     RigidBodyInterpolationType, sys, sys_d, num, num_rb_attached_particles);
             if(rigidbody_dynamic == String("Langevin"))
             {
                 #ifdef _OPENMP
@@ -778,7 +778,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
 		    internal->getPos_d()[0]+i*(num+num_rb_attached_particles),
 		    internal->getForceInternal_d()[0]+i*(num+num_rb_attached_particles),
 		    internal->getEnergy()+i*(num+num_rb_attached_particles),
-		    sys_d);
+		    sys_d, num, num_rb_attached_particles, numReplicas);
 	    }
 	}
 	
@@ -954,7 +954,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         #pragma omp parallel for
         for(int i = 0; i < numReplicas; ++i) // TODO: Use different buffer for RB particle forces to avoid race condition
             RBC[i]->updateForces((internal->getPos_d()[0])+i*(num+num_rb_attached_particles), (internal->getForceInternal_d()[0])+i*(num+num_rb_attached_particles), s, (internal->getEnergy())+i*(num+num_rb_attached_particles), get_energy,
-                                 RigidBodyInterpolationType, sys, sys_d);
+				 RigidBodyInterpolationType, sys, sys_d, num, num_rb_attached_particles);
 
 	if (numGroupSites > 0) {
 	    gpuman.sync();

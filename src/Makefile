@@ -1,6 +1,7 @@
 ### Paths, libraries, includes, options
 include ./findcudalib.mk
 
+SUFFIX ?= ""
 
 ifeq ($(dbg),1)
 	NV_FLAGS += -g -G -O0
@@ -99,17 +100,17 @@ ifeq ($(omp),1)
 TARGET := $(TARGET)_omp
 endif
 
-all: $(TARGET)
-	@echo "Done ->" $(TARGET)
+all: $(TARGET)$(SUFFIX)
+	@echo "Done ->" $(TARGET)$(SUFFIX)
 
 $(TARGET)_link.o: $(CU_OBJ)
 #	$(NVCC) $(NVLD_FLAGS) $(CU_OBJ) $(CC_OBJ) -o $(TARGET)_link.o
 	$(NVCC) $(NVLD_FLAGS) $(CU_OBJ) -o $(TARGET)_link.o
 
-$(TARGET): $(TARGET)_link.o $(CU_OBJ) $(CC_OBJ) arbd.cpp vmdsock.c imd.c imd.h
+$(TARGET)$(SUFFIX): $(TARGET)_link.o $(CU_OBJ) $(CC_OBJ) arbd.cpp vmdsock.c imd.c imd.h
 #	$(NVCC) $(NVLD_FLAGS) $(CU_OBJ) $(CC_OBJ) -o $(TARGET)_link.o
 #	$(NVCC) $(NVLD_FLAGS) $(CU_OBJ) -o $(TARGET)_link.o
-	$(CC) $(CC_FLAGS) $(EX_FLAGS) arbd.cpp vmdsock.c imd.c $(TARGET)_link.o $(CU_OBJ) $(CC_OBJ) $(LD_FLAGS)  -o $(TARGET)
+	$(CC) $(CC_FLAGS) $(EX_FLAGS) arbd.cpp vmdsock.c imd.c $(TARGET)_link.o $(CU_OBJ) $(CC_OBJ) $(LD_FLAGS)  -o $(TARGET)$(SUFFIX)
 
 
 .SECONDEXPANSION:

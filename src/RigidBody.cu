@@ -333,6 +333,20 @@ void RigidBody::callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, in
 	}
 }
 
+void RigidBody::apply_attached_particle_forces(const Vector3* force) {
+    const auto &rb_pos = t->attached_particle_positions;
+    int num = rb_pos.size();
+    Vector3 total_force = Vector3(0.0f);
+    Vector3 torque = Vector3(0.0f);
+    for (int i = 0; i < num; ++i) {
+	const int j = i + attached_particle_start;
+	torque = torque + (orientation*rb_pos[i]).cross(force[j]);
+	total_force = total_force + force[j];
+    }
+    addForce(total_force);
+    addTorque(torque);
+}
+
 void RigidBody::applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx) {
 	// loop over potential grids 
 	for (int i = 0; i < t->numPotGrids; ++i) {

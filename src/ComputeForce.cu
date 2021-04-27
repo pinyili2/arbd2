@@ -40,14 +40,15 @@ void runSort(int2 *d1, int *d2, float *key,
 				unsigned int count);
 
 ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
-    num(c.num), numParts(c.numParts), sys(c.sys), switchStart(c.switchStart),
+    num(c.num), numParts(c.numParts), num_rb_attached_particles(c.num_rb_attached_particles),
+    sys(c.sys), switchStart(c.switchStart),
     switchLen(c.switchLen), electricConst(c.coulombConst),
     cutoff2((c.switchLen + c.switchStart) * (c.switchLen + c.switchStart)),
     decomp(c.sys->getBox(), c.sys->getOrigin(), c.switchStart + c.switchLen + c.pairlistDistance, numReplicas),
     numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
-    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints), 
+    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints),
     numGroupSites(c.numGroupSites),
     numReplicas(numReplicas) {
 
@@ -237,7 +238,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	gridSize =  num / NUM_THREADS + 1;
 
 	// Create and allocate the energy arrays
-	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * (num+numGroupSites) * numReplicas));
+	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * (num+num_rb_attached_particles+numGroupSites) * numReplicas));
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
@@ -894,7 +895,7 @@ float ComputeForce::computeTabulatedFull(bool get_energy) {
 
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 {
-    const size_t tot_num = (num+numGroupSites) * numReplicas;
+    const size_t tot_num = (num+num_rb_attached_particles+numGroupSites) * numReplicas;
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
@@ -965,10 +966,10 @@ void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints)
 {
     assert(simNum == numReplicas); // Not sure why we have both of these things
-    int tot_num = num * simNum;
+    int tot_num_with_rb = (num+num_rb_attached_particles) * simNum;
 	// type_d
-	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * tot_num));
-	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * tot_num, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * tot_num_with_rb));
+	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * tot_num_with_rb, cudaMemcpyHostToDevice));
 	
 	if (numBonds > 0)
 	{

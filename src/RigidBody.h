@@ -83,6 +83,7 @@ class RigidBody { // host side representation of rigid bodies
         void initializeParticleLists();
 	void updateParticleList(Vector3* pos_d, BaseGrid* sys_d);
 	void callGridParticleForceKernel(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, ForceEnergy* forcestorques_d, const std::vector<int>& forcestorques_offset, int& fto_idx);
+	void apply_attached_particle_forces(const Vector3* force);
 	void applyGridParticleForces(BaseGrid* sys, ForceEnergy* forcestorques, const std::vector<int>& forcestorques_offset, int& fto_idx);
 	
 	bool langevin;

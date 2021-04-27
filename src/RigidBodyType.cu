@@ -110,7 +110,7 @@ void RigidBodyType::attach_particles() {
 		// Particle_type | x | y | z
 		// A line without exactly six tokens should be discarded.
 		if (numTokens != 4) {
-		    printf("Error: Invalid attached particle file line: %s\n", line);
+		    printf("Error: Invalid attached particle file line: %s\n", tokenList[0].val());
 		    fclose(inp);
 		    exit(-1);
 		}
