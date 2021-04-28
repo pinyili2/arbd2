@@ -610,9 +610,9 @@ void GrandBrownTown::RunNoseHooverLangevin()
 		#pragma omp parallel for
 		for(int i = 0; i < numReplicas; ++i) {
 		    RBC[i]->update_attached_particle_positions(
-			internal->getPos_d()[0]+i*(num+num_rb_attached_particles),
-			internal->getForceInternal_d()[0]+i*(num+num_rb_attached_particles),
-			internal->getEnergy()+i*(num+num_rb_attached_particles),
+			internal->getPos_d()[0]+num+i*(num+num_rb_attached_particles),
+			internal->getForceInternal_d()[0]+num+i*(num+num_rb_attached_particles),
+			internal->getEnergy()+num+i*(num+num_rb_attached_particles),
 			sys_d, num, num_rb_attached_particles, numReplicas);
 		}
 	    }
@@ -694,6 +694,21 @@ void GrandBrownTown::RunNoseHooverLangevin()
                     }
                 }
             }//if inter-particle force
+
+	    if (get_energy) {
+		compute_position_dependent_force_for_rb_attached_particles
+		    <<< numBlocks, NUM_THREADS >>> (
+			internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
+			internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+	    } else {
+		compute_position_dependent_force_for_rb_attached_particles
+		    <<< numBlocks, NUM_THREADS >>> (
+			internal -> getPos_d()[0],
+			internal -> getForceInternal_d()[0], internal -> getEnergy(),
+			internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+	    }
+
+
             #ifdef _OPENMP
             omp_set_num_threads(4);
             #endif
@@ -775,9 +790,9 @@ void GrandBrownTown::RunNoseHooverLangevin()
 	    #pragma omp parallel for
 	    for(int i = 0; i < numReplicas; ++i) {
 		RBC[i]->update_attached_particle_positions(
-		    internal->getPos_d()[0]+i*(num+num_rb_attached_particles),
-		    internal->getForceInternal_d()[0]+i*(num+num_rb_attached_particles),
-		    internal->getEnergy()+i*(num+num_rb_attached_particles),
+		    internal->getPos_d()[0]+num+i*(num+num_rb_attached_particles),
+		    internal->getForceInternal_d()[0]+num+i*(num+num_rb_attached_particles),
+		    internal->getEnergy()+num+i*(num+num_rb_attached_particles),
 		    sys_d, num, num_rb_attached_particles, numReplicas);
 	    }
 	}
@@ -947,6 +962,21 @@ void GrandBrownTown::RunNoseHooverLangevin()
                 }
             }
         }
+
+	if (get_energy) {
+	    compute_position_dependent_force_for_rb_attached_particles
+		<<< numBlocks, NUM_THREADS >>> (
+		    internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
+		    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+	} else {
+	    compute_position_dependent_force_for_rb_attached_particles
+		<<< numBlocks, NUM_THREADS >>> (
+		    internal -> getPos_d()[0],
+		    internal -> getForceInternal_d()[0], internal -> getEnergy(),
+		    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+	}
+
+
         //compute the force for rigid bodies
         #ifdef _OPENMP
         omp_set_num_threads(4);
@@ -992,7 +1022,7 @@ void GrandBrownTown::RunNoseHooverLangevin()
         {
             if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             {
-                gpuErrchk(cudaMemcpy(momentum, internal ->  getMom_d(), sizeof(Vector3) * (num+num_rb_attached_particles) * numReplicas, cudaMemcpyDeviceToHost));
+                gpuErrchk(cudaMemcpy(momentum, internal ->  getMom_d(), sizeof(Vector3) * (num) * numReplicas, cudaMemcpyDeviceToHost));
             }
             t = s*timestep;
             // Loop over all replicas

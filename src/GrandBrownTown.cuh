@@ -17,7 +17,7 @@ Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion, Vector3
 inline __device__
 ForceEnergy compute_position_dependent_force(
     const Vector3* __restrict__ pos, Vector3* __restrict__ forceInternal,
-    const int* __restrict__ type, const BrownianParticleType* __restrict__ * __restrict__ part,
+    const int* __restrict__ type, BrownianParticleType** part,
     const float electricField, const int scheme, const int idx)
 {
     int t = type[idx];
@@ -157,7 +157,7 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
     {
 	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
-	forceEnergy fe = compute_position_dependent_force(
+	ForceEnergy fe = compute_position_dependent_force(
 	    pos, forceInternal, type, part, electricField, scheme, idx );
 
         int t = type[idx];
@@ -330,7 +330,6 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
 	    pos, forceInternal, type, part, electricField, scheme, idx );
 	if (get_energy) energy[idx] += fe.e;
 
-        int t = type[idx];
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
 
@@ -652,3 +651,37 @@ __global__ void devicePrint(RigidBodyType* rb[]) {
 //     cudaMalloc( &totalForce_h, sizeof(Vector3) );
 //     cudaMemcpyToSymbol(totalForce, &totalForce_h, sizeof(totalForce_h));
 // }
+
+__global__ void compute_position_dependent_force_for_rb_attached_particles(
+    const Vector3* __restrict__ pos,
+    Vector3* __restrict__ forceInternal, float* __restrict__ energy,
+    const int* __restrict__ type, BrownianParticleType** __restrict__ part,
+    const float electricField, const int num, const int num_rb_attached_particles,
+    const int numReplicas, const int scheme)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_rb_attached_particles * numReplicas)
+    {
+	idx = num + (idx % num_rb_attached_particles) + (idx/num_rb_attached_particles) * (num+num_rb_attached_particles);
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	atomicAdd( &forceInternal[idx], fe.f );
+	atomicAdd( &energy[idx], fe.e );
+    }
+}
+__global__ void compute_position_dependent_force_for_rb_attached_particles(
+    const Vector3* __restrict__ pos, Vector3* __restrict__ forceInternal,
+    const int* __restrict__ type, BrownianParticleType** __restrict__ part,
+    const float electricField, const int num, const int num_rb_attached_particles,
+    const int numReplicas, const int scheme)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < num_rb_attached_particles * numReplicas)
+    {
+	idx = num + (idx % num_rb_attached_particles) + (idx/num_rb_attached_particles) * (num+num_rb_attached_particles);
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	atomicAdd( &forceInternal[idx], fe.f );
+    }
+}

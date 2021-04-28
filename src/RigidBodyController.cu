@@ -536,11 +536,8 @@ void RigidBodyController::update_attached_particle_positions(Vector3* pos_d, Vec
 	    rigidBodyByType[i][j].update_particle_positions(pos_d, force_d, energy_d);
 	}
     }
-    for (int rep = 0; rep < numReplicas; ++rep) {
-	size_t o = (num+num_rb_attached_particles)*rep;
-	gpuErrchk(cudaMemset((void*)&(force_d[num+o]),0,num_rb_attached_particles*sizeof(Vector3)));
-    }
-    gpuErrchk(cudaMemset((void*)&(energy_d[num]),0,num_rb_attached_particles*sizeof(float)));
+    gpuErrchk(cudaMemset((void*) force_d, 0, num_rb_attached_particles*sizeof(Vector3)));
+    gpuErrchk(cudaMemset((void*) energy_d, 0, num_rb_attached_particles*sizeof(float)));
 }
 
 

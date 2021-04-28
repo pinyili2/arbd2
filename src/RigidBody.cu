@@ -114,9 +114,9 @@ void update_particle_positions_kernel(Vector3* __restrict__ pos, const int start
 	}
 }		
 void RigidBody::update_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d) {
-    int num = attached_particle_end - attached_particle_start;
-    int nb = floor(num/NUMTHREADS) + 1;
-    update_particle_positions_kernel<<<nb,NUMTHREADS>>>(pos_d, attached_particle_start, num,
+    int num_attached = attached_particle_end - attached_particle_start;
+    int nb = floor(num_attached/NUMTHREADS) + 1;
+    update_particle_positions_kernel<<<nb,NUMTHREADS>>>(pos_d, attached_particle_start, num_attached,
 						 t->attached_particle_positions_d, position, orientation);
 }
 
