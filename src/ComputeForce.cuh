@@ -296,7 +296,6 @@ void createNeighborsList(const int3 *Cells,int* __restrict__ CellNeighborsList)
         }
     }
 }
-//#ifdef NEW
 template<const int BlockSize,const int Size,const int N>
 __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const int numReplicas,
                                 const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
@@ -424,101 +423,6 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
     }
 }
 
-#if 0
-template<const int BlockSize,const int Size> 
-__global__ void createPairlists(Vector3* __restrict__ pos, const int num, const int numReplicas, 
-                                const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp, 
-                                const int nCells,int* g_numPairs, int2* g_pair, int numParts, const int* __restrict__ type, 
-                                int* __restrict__ g_pairTabPotType, const Exclude* __restrict__ excludes, 
-                                const int2* __restrict__ excludeMap, const int numExcludes, float pairlistdist2) 
-{
-    const int TotalBlocks = gridDim.x * gridDim.y;
-    const int cells       = TotalBlocks / Size;
-    const int cell_start  = (blockIdx.x + gridDim.x  *  blockIdx.y) / Size;
-    const int pid_start   = (blockIdx.x + gridDim.x  *  blockIdx.y) % Size;
-    const int tid         = threadIdx.x + blockDim.x * threadIdx.y 
-                                        + blockDim.x *  blockDim.y * threadIdx.z;
-    const int warpLane    =  tid % WARPSIZE;
-    const int repID       =  blockIdx.z;
-
-    const CellDecomposition::cell_t* __restrict__ cellInfo = decomp->getCells_d();
-
-    for(int cellid_i = cell_start; cellid_i < nCells; cellid_i += cells)
-    {
-        CellDecomposition::range_t rangeI = decomp->getRange(cellid_i,repID);
-        int Ni = rangeI.last-rangeI.first;
-
-        for(int pid_i = pid_start; pid_i < Ni; pid_i += Size)
-        {
-            int ai      = cellInfo[rangeI.first+pid_i].particle;
-
-            float4 a = tex1Dfetch<float4>(PosTex,ai);
-            Vector3 A(a.x,a.y,a.z);
-
-            int2 ex_pair = make_int2(-1,-1); 
-            if(numExcludes > 0 && excludeMap != NULL)
-            {
-                ex_pair = excludeMap[ai];
-            }
-
-            int currEx = ex_pair.x;
-            int nextEx = (ex_pair.x >= 0) ? excludes[currEx].ind2 : -1;
- 
-            //loop over neighbor directions
-            for(int idx = 0; idx < 27; ++idx)
-            {
-                int neighbor_cell = tex1Dfetch(NeighborsTex,idx+27*cellid_i);
-
-                if(neighbor_cell < 0)
-                {
-                    continue;       
-                }
-
-                CellDecomposition::range_t rangeJ = decomp->getRange(neighbor_cell,repID);
-                int Nj = rangeJ.last-rangeJ.first;
-
-                // In each neighbor cell, loop over particles
-                for(int pid_j = tid; pid_j < Nj; pid_j += BlockSize)
-                {
-                    int aj = cellInfo[pid_j+rangeJ.first].particle;
-                    if(aj <= ai)
-                    {
-                        continue;
-                    }
-
-                    while (nextEx >= 0 && nextEx < ( aj - repID * num))
-                    {
-                        nextEx = (currEx < ex_pair.y - 1) ? excludes[++currEx].ind2 : -1;
-                    }
-
-                    if (nextEx == (aj - repID * num))
-                    {
-                        #ifdef DEBUGEXCLUSIONS
-                        atomicAggInc( exSum, warpLane );
-                        #endif
-                        nextEx = (currEx < ex_pair.y - 1) ? excludes[++currEx].ind2 : -1;
-                        continue;
-                    }
-
-                    float4 b = tex1Dfetch(PosTex,aj);
-                    Vector3 B(b.x,b.y,b.z);
-
-                    float dr = (sys->wrapDiff(A-B)).length2();
-
-                    if(dr < pairlistdist2)
-                    {
-                        int gid = atomicAggInc( g_numPairs, warpLane );
-                        int pairType = type[ai] + type[aj] * numParts;
-
-                        g_pair[gid] = make_int2(ai,aj);
-                        g_pairTabPotType[gid] = pairType;
-                    }
-                }    
-            }
-        }
-    }
-}
-#endif
 __global__
 void createPairlists_debug(Vector3* __restrict__ pos, const int num, const int numReplicas,
                                 const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
@@ -597,104 +501,6 @@ void createPairlists_debug(Vector3* __restrict__ pos, const int num, const int n
     }
 }
 
-//#else
-#if 0
-__global__
-void createPairlists(Vector3* __restrict__ pos, const int num, const int numReplicas,
-				const BaseGrid* __restrict__ sys, const CellDecomposition* __restrict__ decomp,
-				const int nCells,
-				int* g_numPairs, int2* g_pair,
-				int numParts, const int* __restrict__ type, int* __restrict__ g_pairTabPotType,
-				const Exclude* __restrict__ excludes, const int2* __restrict__ excludeMap, const int numExcludes,
-				float pairlistdist2, const int* __restrict__ CellNeighborsList) {
-	// TODO: loop over all cells with edges within pairlistdist2
-
-	// Loop over threads searching for atom pairs
-	//   Each thread has designated values in shared memory as a buffer
-	//   A sync operation periodically moves data from shared to global
-	const int tid = threadIdx.x;
-	const int warpLane = tid % WARPSIZE; /* RBTODO: optimize */
-	const int split = 32;					/* numblocks should be divisible by split */
-	/* const int blocksPerCell = gridDim.x/split;  */
-	const CellDecomposition::cell_t* __restrict__ cellInfo = decomp->getCells();
-	for (int cID = 0 + (blockIdx.x % split); cID < nCells; cID += split) {
-	// for (int cID = blockIdx.x/blocksPerCell; cID < nCells; cID += split ) {
-		for (int repID = 0; repID < numReplicas; repID++) {
-			const CellDecomposition::range_t rangeI = decomp->getRange(cID, repID);
-
-			for (int ci = rangeI.first + blockIdx.x/split; ci < rangeI.last; ci += gridDim.x/split) {
-			// ai - index of the particle in the original, unsorted array
-				const int ai = cellInfo[ci].particle;
-				// const CellDecomposition::cell_t celli = decomp->getCellForParticle(ai);
-				const CellDecomposition::cell_t celli = cellInfo[ci];
-				// Vector3 posi = pos[ai];
-
-				// Same as for bonds, but for exclusions now
-                                const int ex_start = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai -repID*num].x : -1;
-                                const int ex_end   = (numExcludes > 0 && excludeMap != NULL) ? excludeMap[ai -repID*num].y : -1;
-				/*
-				for (int x = -1; x <= 1; ++x) {
-					for (int y = -1; y <= 1; ++y) {
-                                                #pragma unroll(3)
-						for (int z = -1; z <= 1; ++z) {					
-				*/
-		                for(int x = 0; x < 27; ++x) {	
-							//const int nID = decomp->getNeighborID(celli, x, y, z);
-							const int nID = CellNeighborsList[x+27*cID];//elli.id]; 
-							if (nID < 0) continue; 
-							
-							// Initialize exclusions
-							// TODO: optimize exclusion code (and entire kernel)
-							int currEx = ex_start;
-							int nextEx = (ex_start >= 0) ? excludes[currEx].ind2 : -1;
-							int ajLast = -1; // TODO: remove this sanity check
-							
-							const CellDecomposition::range_t range = decomp->getRange(nID, repID);
-
-							for (int n = range.first + tid; n < range.last; n+=blockDim.x) {
-							    const int aj = cellInfo[n].particle;
-							    if (aj <= ai) continue;
-								
-								// Skip excludes
-								//   Implementation requires that aj increases monotonically
-								assert( ajLast < aj ); ajLast = aj; // TODO: remove this sanity check
-								while (nextEx >= 0 && nextEx < (aj - repID * num)) // TODO get rid of this
-								    nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
-								if (nextEx == (aj - repID * num)) {
-#ifdef DEBUGEXCLUSIONS
-								    atomicAggInc( exSum, warpLane );	
-#endif
-								    nextEx = (currEx < ex_end - 1) ? excludes[++currEx].ind2 : -1;
-								    continue;
-								} 
-								// TODO: Skip non-interacting types for efficiency
-
-								// Skip ones that are too far away
-								const float dr = (sys->wrapDiff(pos[aj] - pos[ai])).length2();
-								// const float dr = (sys->wrapDiff(pos[aj] - posi)).length2();
-								if (dr > pairlistdist2) continue;
-
-								// Add to pairlist
-								
-								int gid = atomicAggInc( g_numPairs, warpLane );
-								int pairType = type[ai] + type[aj] * numParts;
-								/* assert( ai >= 0 ); */
-								/* assert( aj >= 0 ); */
-
-								g_pair[gid] = make_int2(ai,aj);
-								g_pairTabPotType[gid] = pairType;
-                                                                
-								// g_pairDists[gid] = dr; 
-							} 	// atoms J
-						//} 		// z				
-					//} 			// y
-				} 				// x
-			} // atoms I					
-		} // replicas
-		/* if (tid == 0) printf("Cell%d: found %d pairs\n",cID,g_numPairs[cID]); */
-	}
-}
-#endif
 // TODO: deprecate?
 __global__
 void computeKernel(Vector3 force[], Vector3 pos[], int type[],
@@ -774,42 +580,6 @@ __global__ void printPairForceCounter() {
 		printf("Computed the force for %d pairs\n", pairForceCounter);
 }
 
-// ============================================================================
-// Kernel computes forces between Brownian particles (ions)
-// using cell decomposition
-//
-#if 0
-__global__ void computeTabulatedKernel(
-	Vector3* force, const Vector3* __restrict__ pos,
-	const BaseGrid* __restrict__ sys, float cutoff2,
-	const int* __restrict__ g_numPairs,	const int2* __restrict__ g_pair, const int* __restrict__ g_pairTabPotType, 	TabulatedPotential** __restrict__ tablePot) {
-//remove int* type. remove bond references	
-
-	const int numPairs = *g_numPairs;
-	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numPairs; i+=blockDim.x*gridDim.x) {
-		const int2 pair = g_pair[i];
-		const int ai = pair.x;
-		const int aj = pair.y;
-			
-		// Particle's type and position
-		const int ind = g_pairTabPotType[i];
-
-	 	/* printf("tid,bid,pos[ai(%d)]: %d %d %f %f %f\n", ai, threadIdx.x, blockIdx.x, pos[ai].x, pos[ai].y, pos[ai].z); //*/
-
-		Vector3 dr = pos[aj] - pos[ai];
-		dr = sys->wrapDiff(dr);
-	
-    // Calculate the force based on the tabulatedPotential file
-		float d2 = dr.length2();
-		if (tablePot[ind] != NULL && d2 <= cutoff2) {
-			Vector3 f = tablePot[ind]->computef(dr,d2);
-			atomicAdd( &force[ai],  f );
-			atomicAdd( &force[aj], -f );
-		}
-	}
-}
-#endif
-//#if 0
 template<const int BlockSize>
 __device__ inline void _computeTabulatedKernel(Vector3* force, const BaseGrid* __restrict__ sys, 
 					       float cutoff2, const int numPairs, const int2* __restrict__ g_pair, 
@@ -870,11 +640,7 @@ __global__ void computeTabulatedKernel(Vector3* force, const BaseGrid* __restric
 				       cutoff2, numPairs, g_pair+start,
 				       g_pairTabPotType+start, tablePot,
 				       pairListsTex, PosTex, pairTabPotTypeTex);
-}
-
-    
-//#endif
- 
+} 
 
 __global__ void clearEnergies(float* __restrict__  g_energies, int num) {
 	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < num; i+=blockDim.x*gridDim.x) {

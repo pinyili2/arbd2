@@ -62,7 +62,6 @@ public:
 	~GrandBrownTown();
 
 	void run();
-        void RunNoseHooverLangevin();
 	static bool DEBUG;
 
 private:  

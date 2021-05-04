@@ -515,45 +515,18 @@ void ComputeForce::decompose() {
 	
 	// initializePairlistArrays
 	int nCells = decomp.nCells.x * decomp.nCells.y * decomp.nCells.z;
-
-	// int blocksPerCell = 10;
-
 	
 	/* cuMemGetInfo(&free,&total); */
 	/* printf("Free memory: %zu / %zu\n", free, total); */
 	
-	// const int NUMTHREADS = 128;
-	//const size_t nBlocks = (num * numReplicas) / NUM_THREADS + 1;
-	// const size_t nBlocks = nCells*blocksPerCell;
-
-	/* clearPairlists<<< 1, 32 >>>(pos, num, numReplicas, sys_d[0], decomp_d); */
-	/* gpuErrchk(cudaDeviceSynchronize()); */
-	/* pairlistTest<<< nBlocks, NUMTHREADS >>>(pos, num, numReplicas, */
-	/* 																					 sys_d[0], decomp_d, nCells, blocksPerCell, */
-	/* 																					 numPairs_d[0], pairListListI_d, pairListListJ_d); */
-	/* gpuErrchk(cudaDeviceSynchronize());	 */
-
 	int tmp = 0;
 	gpuErrchk(cudaMemcpyAsync(numPairs_d[0], &tmp,	sizeof(int), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaDeviceSynchronize());
-	// printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
 
 #ifdef DEBUGEXCLUSIONS
 	initExSum();
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
 #endif
-    //Han-Yi Chou bind texture
-    //printf("%d\n", sizeof(Vector3));
-    //gpuErrchk(cudaBindTexture(0,  PosTex, pos_d[0],sizeof(Vector3)*num*numReplicas));
-    //gpuErrchk(cudaBindTexture(0,CellsTex, decomp_d->getCells_d(),sizeof(CellDecomposition::cell_t)*num*numReplicas));
-   
-//#if __CUDA_ARCH__ >= 300
-	//createPairlists_debug<<< 2048, 64 >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-    //#ifdef NEW
-   //for sm52
-    //createPairlists<32,64,1><<< dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], 
-      //GTX 980
-      //Han-Yi Chou 2017 my code
       
       #if __CUDA_ARCH__ >= 520
       createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num+num_rb_attached_particles, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
@@ -577,77 +550,6 @@ void ComputeForce::decompose() {
       }
       gpuman.sync();
       #endif
-
-    //createPairlists<64,64><<< dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
-    //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
-    //                                                                  excludeMap_d, numExcludes, pairlistdist2);
-
-    //#else
-    //createPairlists_debug<<< 2048, 64 >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, 
-      //                            pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-    //#endif
-//#else
-	// Use shared memory for warp_bcast function
-	//createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-    //#ifdef NEW
-    //for sm52
-    //createPairlists<32,64,1><<<dim3(256,128,numReplicas),dim3(32,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], 
-      //GTX 980
-      //createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
-        //GTX 680
-        //createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
-        //                                                              pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, 
-        //                                                              excludeMap_d, numExcludes, pairlistdist2);
-    //createPairlists<64,64><<<dim3(256,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
-    //                                                                  pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
-    //                                                                  excludeMap_d, numExcludes, pairlistdist2);
-
-    //#else
-    //createPairlists<<< 2048, 64, 2048/WARPSIZE >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d,
-      //                                             pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2, CellNeighborsList);
-    //#endif
-
-//#endif
-#if 0
-//////debug section			
-	// DEBUGING
-	gpuErrchk(cudaMemcpy(&tmp, numPairs_d[0],	sizeof(int), cudaMemcpyDeviceToHost));
-	//printf("CreatePairlist found %d pairs\n",tmp);
-        gpuErrchk(cudaDeviceSynchronize());
-
-        gpuErrchk( cudaProfilerStart() );
-
-        // Reset the cell decomposition.
-        if (decomp_d)
-            cudaFree(decomp_d);
-
-        decomp.decompose_d(pos_d[0], num);
-        decomp_d = decomp.copyToCUDA();
-
-	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
-        int tmp1 = 0;
-        gpuErrchk(cudaMemcpyAsync(numPairs_d[0], &tmp1,     sizeof(int), cudaMemcpyHostToDevice));
-        gpuErrchk(cudaDeviceSynchronize());
-        // printf("Pairlistdist: %f\n",sqrt(pairlistdist2));
-
-#ifdef DEBUGEXCLUSIONS
-        initExSum();
-        gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: sync needed here? */
-#endif
-        #if __CUDA_ARCH__ >= 300
-        createPairlists_debug<<< 2048, 64 >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-#else
-        // Use shared memory for warp_bcast function
-        createPairlists_debug<<< 2048, 64, 2048/WARPSIZE >>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0], pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, excludeMap_d, numExcludes, pairlistdist2);
-#endif
-    gpuErrchk(cudaMemcpy(&tmp1, numPairs_d[0],  sizeof(int), cudaMemcpyDeviceToHost));
-    printf("Difference CreatePairlist found %d pairs\n",tmp-tmp1);
-    gpuErrchk(cudaDeviceSynchronize());
-
-#ifdef DEBUGEXCLUSIONS
-	printf("Counted %d exclusions\n", getExSum());
-#endif
-#endif
 }
 
 IndexList ComputeForce::decompDim() const {
