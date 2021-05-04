@@ -45,15 +45,14 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 	construct_grids();
-	for (int i = 0; i < conf.numRigidTypes; i++)
-		conf.rigidBody[i].initializeParticleLists();
 
 	int numRB = 0;
 	// grow list of rbs
 
-
+	int attached_particle_offset = 0;
 	for (int i = 0; i < conf.numRigidTypes; i++) {			
 		numRB += conf.rigidBody[i].num;
+		int attached_particle_in_type = conf.rigidBody[i].num_attached_particles();
 		std::vector<RigidBody> tmp;
 		// RBTODO: change conf.rigidBody to conf.rigidBodyType
 		const int jmax = conf.rigidBody[i].num;
@@ -64,13 +63,17 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 			    snprintf(stmp, 128, "#%d", j);
 			    name.add( stmp );
 			}
-			RigidBody r(name, conf, conf.rigidBody[i], this);
+			RigidBody r(name, conf, conf.rigidBody[i], this,
+				    attached_particle_offset, attached_particle_offset+attached_particle_in_type);
+			attached_particle_offset += attached_particle_in_type;
+
 			int nb = r.appendNumParticleBlocks( &particleForceNumBlocks );
 			tmp.push_back( r );
 		}
 		rigidBodyByType.push_back(tmp);
 	}
-	
+	attached_particle_forces = new Vector3[attached_particle_offset];
+
 	totalParticleForceNumBlocks = 0;
 	for (int i=0; i < particleForceNumBlocks.size(); ++i) {
 	    particleForce_offset.push_back(2*totalParticleForceNumBlocks);
@@ -96,6 +99,8 @@ RigidBodyController::~RigidBodyController() {
 	for (int i = 0; i < rigidBodyByType.size(); i++)
 		rigidBodyByType[i].clear();
 	rigidBodyByType.clear();
+
+	delete [] attached_particle_forces;
 	delete random;
 }
 
@@ -525,6 +530,17 @@ void RigidBodyController::initializeForcePairs() {
 			
 }
 
+void RigidBodyController::update_attached_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d, BaseGrid* sys_d, int num, int num_rb_attached_particles, int numReplicas) {
+    for (int i = 0; i < rigidBodyByType.size(); i++) {
+	for (int j = 0; j < rigidBodyByType[i].size(); j++) {
+	    rigidBodyByType[i][j].update_particle_positions(pos_d, force_d, energy_d);
+	}
+    }
+    gpuErrchk(cudaMemset((void*) force_d, 0, num_rb_attached_particles*sizeof(Vector3)));
+    gpuErrchk(cudaMemset((void*) energy_d, 0, num_rb_attached_particles*sizeof(float)));
+}
+
+
 void RigidBodyController::updateParticleLists(Vector3* pos_d, BaseGrid* sys_d) {
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
@@ -547,7 +563,7 @@ void RigidBodyController::clearForceAndTorque()
     }
 }
 
-void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d) 
+void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, int num, int num_rb_attached_particles)
 {
 	//if (s <= 1)
 		//gpuErrchk( cudaProfilerStart() );
@@ -564,6 +580,7 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, 
 	// RBTODO: launch kernels ahead of time and sync using event and memcpyAsync 
 	gpuErrchk( cudaDeviceSynchronize() );
 	cudaMemcpy(particleForces, particleForces_d, sizeof(ForceEnergy)*2*totalParticleForceNumBlocks, cudaMemcpyDeviceToHost);
+	cudaMemcpyAsync(attached_particle_forces, &force_d[num], sizeof(Vector3)*(num_rb_attached_particles), cudaMemcpyDeviceToHost);
 
 	pfo_idx=0;
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
@@ -573,6 +590,16 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, 
 ;
 		}
 	}
+
+	{
+	    gpuErrchk( cudaDeviceSynchronize() );
+	    for (auto &rbv: rigidBodyByType) {
+		for (auto &rb: rbv) {
+		    rb.apply_attached_particle_forces( attached_particle_forces );
+		}
+	    }
+	}
+
 
 	// Grid–Grid forces
 	if ( ((s % conf.rigidBodyGridGridPeriod) == 0 || s == 1 ) && forcePairs.size() > 0) {

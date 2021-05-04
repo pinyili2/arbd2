@@ -108,8 +108,9 @@ public:
         void SetRandomTorques();
 	void integrate(BaseGrid* sys, int step);
         void integrateDLM(BaseGrid* sys, int step);
-	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d);
+	void updateForces(Vector3* pos_d, Vector3* force_d, int s, float* energy, bool get_energy, int scheme, BaseGrid* sys, BaseGrid* sys_d, int num, int num_rb_attached_particles);
 	void updateParticleLists(Vector3* pos_d, BaseGrid* sys_d);
+    void update_attached_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d, BaseGrid* sys_d, int num, int num_rb_attached_particles, int numReplicas);
         void clearForceAndTorque(); 
         void KineticEnergy();
         void print(int step);
@@ -151,7 +152,8 @@ private:
 	void construct_grids();
 	void destruct_grids();
 
-        //float* rb_energy;	
+        //float* rb_energy;
+	Vector3* attached_particle_forces;
 	ForceEnergy* particleForces;
 	ForceEnergy* particleForces_d;
 	std::vector<int> particleForceNumBlocks;

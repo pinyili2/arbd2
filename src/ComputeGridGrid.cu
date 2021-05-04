@@ -171,9 +171,11 @@ void computePartGridForce(const Vector3* __restrict__ pos, Vector3* particleForc
 	}
 }
 
+
 __global__
 void createPartlist(const Vector3* __restrict__ pos,
 				const int numTypeParticles, const int* __restrict__ typeParticles_d,
+		    const int attached_particle_start, const int attached_particle_end,
 				int* numParticles_d, int* particles_d,
 				const Vector3 gridCenter, const float radius2, BaseGrid* sys_d) {
 	const int tid = threadIdx.x;
@@ -182,11 +184,13 @@ void createPartlist(const Vector3* __restrict__ pos,
 	const int i = blockIdx.x * blockDim.x + threadIdx.x;
 	if (i < numTypeParticles) {
 		int aid = typeParticles_d[i];
-		float dist = (sys_d->wrapDiff(pos[aid] - gridCenter)).length2();
-
-		if (dist <= radius2) {
+		if (aid < attached_particle_start || aid >= attached_particle_end) { 
+		    float dist = (sys_d->wrapDiff(pos[aid] - gridCenter)).length2();
+		
+		    if (dist <= radius2) {
 			int tmp = atomicAggInc(numParticles_d, warpLane);
 			particles_d[tmp] = aid;
+		    }
 		}
 	}
 }		

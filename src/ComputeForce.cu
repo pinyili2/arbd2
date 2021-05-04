@@ -40,14 +40,15 @@ void runSort(int2 *d1, int *d2, float *key,
 				unsigned int count);
 
 ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
-    num(c.num), numParts(c.numParts), sys(c.sys), switchStart(c.switchStart),
+    num(c.num), numParts(c.numParts), num_rb_attached_particles(c.num_rb_attached_particles),
+    sys(c.sys), switchStart(c.switchStart),
     switchLen(c.switchLen), electricConst(c.coulombConst),
     cutoff2((c.switchLen + c.switchStart) * (c.switchLen + c.switchStart)),
     decomp(c.sys->getBox(), c.sys->getOrigin(), c.switchStart + c.switchLen + c.pairlistDistance, numReplicas),
     numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
-    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints), 
+    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints),
     numGroupSites(c.numGroupSites),
     numReplicas(numReplicas) {
 
@@ -234,10 +235,10 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 	restraintIds_d = NULL;
 
 	//Calculate the number of blocks the grid should contain
-	gridSize =  num / NUM_THREADS + 1;
+	gridSize =  (num+num_rb_attached_particles) / NUM_THREADS + 1;
 
 	// Create and allocate the energy arrays
-	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * (num+numGroupSites) * numReplicas));
+	gpuErrchk(cudaMalloc(&energies_d, sizeof(float) * (num+num_rb_attached_particles+numGroupSites) * numReplicas));
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 }
@@ -341,7 +342,7 @@ void ComputeForce::updateNumber(int newNum) {
 
 	// Recalculate the number of blocks in the grid
 	gridSize = 0;
-	while ((int)sqrt(NUM_THREADS) * gridSize < num)
+	while ((int)sqrt(NUM_THREADS) * gridSize < num+num_rb_attached_particles)
 		++gridSize;
 
 	gpuErrchk(cudaFree(energies_d));
@@ -500,7 +501,7 @@ void ComputeForce::decompose() {
             cudaFree(decomp_d);
             decomp_d = NULL;
 	}	
-	decomp.decompose_d(pos_d[0], num);
+	decomp.decompose_d(pos_d[0], num+num_rb_attached_particles);
 	decomp_d = decomp.copyToCUDA();
 
 	// Update pairlists using cell decomposition (not sure this is really needed or good) 
@@ -555,11 +556,11 @@ void ComputeForce::decompose() {
       //Han-Yi Chou 2017 my code
       
       #if __CUDA_ARCH__ >= 520
-      createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+      createPairlists<64,64,8><<<dim3(128,128,numReplicas),dim3(64,1,1)>>>(pos_d[0], num+num_rb_attached_particles, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
                                                                              pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d,
 									   excludeMap_d, numExcludes, pairlistdist2, pos_tex[0], neighbors_tex);
       #else //__CUDA_ARCH__ == 300
-      createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d[0], num, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
+      createPairlists<64,64,8><<<dim3(256,256,numReplicas),dim3(64,1,1)>>>(pos_d[0], num+num_rb_attached_particles, numReplicas, sys_d[0], decomp_d, nCells, numPairs_d[0],
                                                                            pairLists_d[0], numParts, type_d, pairTabPotType_d[0], excludes_d, 
                                                                            excludeMap_d, numExcludes, pairlistdist2, pos_tex[0], neighbors_tex);
       #endif
@@ -663,20 +664,20 @@ float ComputeForce::decompCutoff() { return decomp.getCutoff(); }
 
 float ComputeForce::computeFull(bool get_energy) {
 	float energy = 0.0f;
-	gridSize = (num * numReplicas) / NUM_THREADS + 1;
+	gridSize = ((num+num_rb_attached_particles) * numReplicas) / NUM_THREADS + 1;
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
 	computeFullKernel<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], type_d, tableAlpha_d,
-		tableEps_d, tableRad6_d, num, numParts, sys_d[0], energies_d, gridSize,
+		tableEps_d, tableRad6_d, num+num_rb_attached_particles, numParts, sys_d[0], energies_d, gridSize,
 		numReplicas, get_energy);
 
 	// Calculate energy based on the array created by the kernel
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num + numGroupSites);
+		energy = thrust::reduce(en_d, en_d + num + num_rb_attached_particles + numGroupSites);
 	}
 
 	return energy;
@@ -684,20 +685,20 @@ float ComputeForce::computeFull(bool get_energy) {
 
 float ComputeForce::computeSoftcoreFull(bool get_energy) {
 	float energy = 0.0f;
-	gridSize = (num * numReplicas) / NUM_THREADS + 1;
+	gridSize = ((num+num_rb_attached_particles) * numReplicas) / NUM_THREADS + 1;
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
 	computeSoftcoreFullKernel<<<numBlocks, numThreads>>>(forceInternal_d[0], pos_d[0], type_d,
-			tableEps_d, tableRad6_d, num, numParts, sys_d[0], energies_d, gridSize,
+			tableEps_d, tableRad6_d, num+num_rb_attached_particles, numParts, sys_d[0], energies_d, gridSize,
 			numReplicas, get_energy);
 
 	// Calculate energy based on the array created by the kernel
 	if (get_energy) {
 		cudaDeviceSynchronize();
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
+		energy = thrust::reduce(en_d, en_d + num + num_rb_attached_particles);
 	}
 
 	return energy;
@@ -729,13 +730,13 @@ float ComputeForce::computeElecFull(bool get_energy) {
 float ComputeForce::compute(bool get_energy) {
 	float energy = 0.0f;
 
-	gridSize = (num * numReplicas) / NUM_THREADS + 1;
+	gridSize = ((num+num_rb_attached_particles) * numReplicas) / NUM_THREADS + 1;
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
 	computeKernel<<<numBlocks, numThreads>>>(forceInternal_d[0], pos_d[0], type_d,
-			tableAlpha_d, tableEps_d, tableRad6_d, num, numParts, sys_d[0],
+			tableAlpha_d, tableEps_d, tableRad6_d, num+num_rb_attached_particles, numParts, sys_d[0],
 			decomp_d, energies_d, switchStart, switchLen, gridSize, numReplicas,
 			get_energy);
 
@@ -744,7 +745,7 @@ float ComputeForce::compute(bool get_energy) {
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num + numGroupSites);
+		energy = thrust::reduce(en_d, en_d + num + num_rb_attached_particles + numGroupSites);
 	}
 
 	return energy;
@@ -757,7 +758,7 @@ float ComputeForce::compute(bool get_energy) {
 float ComputeForce::computeTabulated(bool get_energy) {
 	float energy = 0.0f;
 
-	gridSize = (num * numReplicas) / NUM_THREADS + 1;
+	gridSize = ((num+num_rb_attached_particles) * numReplicas) / NUM_THREADS + 1;
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
 	
@@ -773,7 +774,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	{
 		//clearEnergies<<< nb, numThreads >>>(energies_d,num);
 		//gpuErrchk(cudaDeviceSynchronize());
-	        cudaMemset((void*)energies_d, 0, sizeof(float)*(num+numGroupSites)*numReplicas);
+	        cudaMemset((void*)energies_d, 0, sizeof(float)*(num+num_rb_attached_particles+numGroupSites)*numReplicas);
 		computeTabulatedEnergyKernel<<< nb, numThreads >>>(forceInternal_d[0], pos_d[0], sys_d[0],
 						cutoff2, numPairs_d[0], pairLists_d[0], pairTabPotType_d[0], tablePot_d[0], energies_d);
 	}
@@ -866,27 +867,27 @@ float ComputeForce::computeTabulated(bool get_energy) {
 float ComputeForce::computeTabulatedFull(bool get_energy) {
 	energy = 0.0f;
 
-	gridSize = (num * numReplicas) / NUM_THREADS + 1;
+	gridSize = ((num+num_rb_attached_particles) * numReplicas) / NUM_THREADS + 1;
 	dim3 numBlocks(gridSize, 1, 1);
 	dim3 numThreads(NUM_THREADS, 1, 1);
 
 	// Call the kernel to calculate forces
-	computeTabulatedFullKernel<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], type_d,	tablePot_d[0], tableBond_d, num, numParts, sys_d[0], bonds_d, bondMap_d, numBonds, excludes_d, excludeMap_d, numExcludes, energies_d, gridSize, numReplicas, get_energy, angles_d);
+	computeTabulatedFullKernel<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], type_d,	tablePot_d[0], tableBond_d, num+num_rb_attached_particles, numParts, sys_d[0], bonds_d, bondMap_d, numBonds, excludes_d, excludeMap_d, numExcludes, energies_d, gridSize, numReplicas, get_energy, angles_d);
 	gpuErrchk(cudaDeviceSynchronize());
 
 	computeAngles<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], angles_d, tableAngle_d,
-																						 numAngles, num, sys_d[0], energies_d,
+																						 numAngles, num+num_rb_attached_particles, sys_d[0], energies_d,
 																						 get_energy);
 	gpuErrchk(cudaDeviceSynchronize());
 	computeDihedrals<<< numBlocks, numThreads >>>(forceInternal_d[0], pos_d[0], dihedrals_d,
 																							  tableDihedral_d, numDihedrals,
-																								num, sys_d[0], energies_d,
+																								num+num_rb_attached_particles, sys_d[0], energies_d,
 																								get_energy);
 	// Calculate the energy based on the array created by the kernel
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
 		thrust::device_ptr<float> en_d(energies_d);
-		energy = thrust::reduce(en_d, en_d + num);
+		energy = thrust::reduce(en_d, en_d + num + num_rb_attached_particles);
 	}
 
 	return energy;
@@ -894,7 +895,7 @@ float ComputeForce::computeTabulatedFull(bool get_energy) {
 
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 {
-    const size_t tot_num = (num+numGroupSites) * numReplicas;
+    const size_t tot_num = (num+num_rb_attached_particles+numGroupSites) * numReplicas;
 
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
@@ -935,11 +936,10 @@ void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos)
 }
 void ComputeForce::copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom)
 {
-    const size_t tot_num = (num+numGroupSites) * numReplicas;
-    const size_t small_tot_num = num * numReplicas;
+    const size_t tot_num = num * numReplicas;
 
         gpuErrchk(cudaMalloc(&mom_d, sizeof(Vector3) * tot_num));
-        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * small_tot_num, cudaMemcpyHostToDevice));
+        gpuErrchk(cudaMemcpyAsync(mom_d, mom, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 
 	copyToCUDA(forceInternal,pos);
         gpuErrchk(cudaDeviceSynchronize());
@@ -965,10 +965,11 @@ void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints)
 {
     assert(simNum == numReplicas); // Not sure why we have both of these things
-    int tot_num = num * simNum;
+    int tot_num_with_rb = (num+num_rb_attached_particles) * simNum;
+    int tot_num_with_rb_group = (num+num_rb_attached_particles+numGroupSites) * simNum;
 	// type_d
-	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * tot_num));
-	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * tot_num, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMalloc(&type_d, sizeof(int) * tot_num_with_rb));
+	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * tot_num_with_rb, cudaMemcpyHostToDevice));
 	
 	if (numBonds > 0)
 	{
@@ -977,8 +978,8 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 		gpuErrchk(cudaMemcpyAsync(bonds_d, bonds, sizeof(Bond) * numBonds, cudaMemcpyHostToDevice));
 		
 		// bondMap_d
-		gpuErrchk(cudaMalloc(&bondMap_d, sizeof(int2) * num));
-		gpuErrchk(cudaMemcpyAsync(bondMap_d, bondMap, sizeof(int2) * num, cudaMemcpyHostToDevice));
+		gpuErrchk(cudaMalloc(&bondMap_d, sizeof(int2) * tot_num_with_rb_group));
+		gpuErrchk(cudaMemcpyAsync(bondMap_d, bondMap, sizeof(int2) * tot_num_with_rb_group, cudaMemcpyHostToDevice));
 	}
 
 	if (numExcludes > 0) {
@@ -990,8 +991,8 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 				cudaMemcpyHostToDevice));
 		
 		// excludeMap_d
-		gpuErrchk(cudaMalloc(&excludeMap_d, sizeof(int2) * num));
-		gpuErrchk(cudaMemcpyAsync(excludeMap_d, excludeMap, sizeof(int2) * num,
+		gpuErrchk(cudaMalloc(&excludeMap_d, sizeof(int2) * tot_num_with_rb));
+		gpuErrchk(cudaMemcpyAsync(excludeMap_d, excludeMap, sizeof(int2) * tot_num_with_rb,
 				cudaMemcpyHostToDevice));
 	}
 
