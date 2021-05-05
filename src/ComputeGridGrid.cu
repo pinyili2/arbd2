@@ -2,7 +2,6 @@
 #include "ComputeGridGrid.cuh"
 #include "RigidBodyGrid.h"
 #include "CudaUtil.cuh"
-//RBTODO handle periodic boundaries
 //RBTODO: add __restrict__, benchmark (Q: how to restrict member data?)
 
 class GridPositionTransformer {
@@ -17,6 +16,7 @@ private:
     const Vector3 c;
     const BaseGrid* s;
 };
+
 //class PmfPositionTransformer : public BasePositionTransformer {
 class PmfPositionTransformer {
 public:
@@ -52,8 +52,7 @@ inline void common_computeGridGridForce(const RigidBodyGrid* rho, const RigidBod
 	    Vector3 r_pos= rho->getPosition(r_id); /* i,j,k value of voxel */
 
 	    r_pos = basis_rho.transform( r_pos );
-	    r_pos = transformer(r_pos);
-		const Vector3 u_ijk_float = basis_u_inv.transform( r_pos );
+	    const Vector3 u_ijk_float = basis_u_inv.transform( transformer( r_pos ) );
 		// RBTODO: Test for non-unit delta
 		/* Vector3 tmpf  = Vector3(0.0f); */
 		/* float tmpe = 0.0f; */
@@ -71,7 +70,8 @@ inline void common_computeGridGridForce(const RigidBodyGrid* rho, const RigidBod
 		const float r_val = rho->val[r_id]; /* maybe move to beginning of function?  */
 		force[tid].f = basis_u_inv.transpose().transform( r_val*(force[tid].f) ); /* transform to lab frame, with correct scaling factor */
                 force[tid].e = r_val;
-		// Calculate torque about origin_u in the lab frame
+
+		// Calculate torque about origin_rho in the lab frame
 		torque[tid].f = r_pos.cross(force[tid].f);
 	}
 

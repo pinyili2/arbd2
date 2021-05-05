@@ -902,10 +902,10 @@ void RigidBodyForcePair::processGPUForces(BaseGrid* sys) {
 			tmpT = tmpT + torques[i][j];
 		}
 		
-		// tmpT is the torque calculated about the origin of grid k2 (e.g. c2)
+		// tmpT is the torque calculated about the origin of density grid
 		//   so here we transform torque to be about rb1
-		Vector3 o2 = getOrigin2(i);
-		tmpT = tmpT - sys->wrapDiff(rb1->getPosition() - o2).cross( tmpF.f ); 
+		Vector3 o1 = getOrigin1(i);
+		tmpT = tmpT - (rb1->getPosition() - o1).cross( tmpF.f );
 
 		// clear forces on GPU
 		gpuErrchk(cudaMemset((void*)(forces_d[i]),0,nb*sizeof(ForceEnergy)));
