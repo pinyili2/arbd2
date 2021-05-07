@@ -92,7 +92,7 @@ public:
 
     int find_particle_type(const char* s) const {
 	for (int j = 0; j < numParts; j++) {
-	    printf("Searching particle %d (%s) =? %s\n", j, part[j].name.val(), s);
+	    // printf("Searching particle %d (%s) =? %s\n", j, part[j].name.val(), s);
 	    if (strcmp(s,part[j].name.val()) == 0)
 		return j;
 	}
