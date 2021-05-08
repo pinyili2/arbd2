@@ -258,6 +258,7 @@ ComputeForce::~ComputeForce() {
 		    for (std::size_t g = 0; g < gpuman.gpus.size(); ++g) {
 			gpuman.use(g);
 			tablePot_addr[g][ind]->free_from_cuda(tablePot_addr[g][ind]);
+			tablePot_addr[g][ind] = NULL;
 		    }
 		    delete tablePot[ind];
 		}
@@ -375,7 +376,7 @@ bool ComputeForce::addTabulatedPotential(String fileName, int type0, int type1) 
 	    for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 		gpuman.use(i);
 		tablePot_addr[i][ind]->free_from_cuda(tablePot_addr[i][ind]);
-		delete tablePot_addr[i][ind];
+		tablePot_addr[i][ind] = NULL;
 	    }
 	    gpuman.use(0);
 	    delete tablePot[ind];
