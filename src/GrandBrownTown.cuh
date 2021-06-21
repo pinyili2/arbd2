@@ -14,86 +14,50 @@ __device__
 Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion, Vector3 diffGrad,
 						 float timestep, BaseGrid *sys, Random *randoGen, int num);
 
-//update both position and momentum for Langevin dynamics
-//Han-Yi Chou
-#if 0
-__global__ void updateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal, 
-                             int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField, 
-                             int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas) 
+inline __device__
+ForceEnergy compute_position_dependent_force(
+    const Vector3* __restrict__ pos, Vector3* __restrict__ forceInternal,
+    const int* __restrict__ type, BrownianParticleType** part,
+    const float electricField, const int scheme, const int idx)
 {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int t = type[idx];
+    Vector3 r0 = pos[idx];
+    const BrownianParticleType& pt = *part[t];
+    Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
-    if (idx < num * numReplicas)
+    ForceEnergy fe(0.f, 0.f);
+    for(int i = 0; i < pt.numPartGridFiles; ++i)
     {
-        int t = type[idx];
-        //Vector3 r0(tex1Dfetch(PosTex, idx));
-        //Vector3 p0(tex1Dfetch(MomTex, idx));
-        Vector3 r0 = pos[idx];
-        Vector3 p0 = momentum[idx];
-        
-        const BrownianParticleType& pt = *part[t];
-        float mass      = pt.mass;
-        r0 = r0 + (timestep * 5e3 * p0) / mass;
-        r0 = sys->wrap(r0);
-        pos[idx]      = r0;
-
-#if 0
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-
-        // Compute PMF
-        // TODO: maybe make periodic and nonPeriodic versions of this kernel
-        ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
+	ForceEnergy tmp(0.f, 0.f);
+	if(!scheme) {
+	    BoundaryCondition bc = pt.pmf_boundary_conditions[i];
+	    INTERPOLATE_FORCE(tmp, pt.pmf[i]->interpolateForceDLinearly, bc, r0)
+		} else
+	    tmp = pt.pmf[i]->interpolateForceD(r0);
+	fe.f += tmp.f * pt.pmf_scale[i];
+	fe.e += tmp.e * pt.pmf_scale[i];
+    }
+    // if(get_energy)
+    // 	energy[idx] += fe.e;
 
 #ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-        if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-        if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
-
-        // Get local kT value
-        float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(r0); /* periodic */
-
-        // Update the particle's position using the calculated values for time, force, etc.
-        float mass      = pt.mass;
-        Vector3 gamma   = pt.transDamping;
-
-        if (pt.diffusionGrid != NULL) 
-        {
-
-            Vector3 gridCenter = pt.diffusionGrid->origin +
-            pt.diffusionGrid->basis.transform( Vector3(0.5*pt.diffusionGrid->nx, 0.5*pt.diffusionGrid->ny,
-                                                       0.5*pt.diffusionGrid->nz));
-            Vector3 p2 = r0 - gridCenter;
-            p2 = sys->wrapDiff( p2 ) + gridCenter;
-            ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
-            gamma = Vector3(kTlocal / (mass * diff.e));
-            //diffGrad = diff.f;
-        }
-
-        float tmp = sqrtf(0.50f * kTlocal * mass * timestep);
-        Vector3 rando = randoGen->gaussian_vector(idx, num * numReplicas);
-
-        #ifdef MDSTEP
-        force = Vector3(-r0.x, -r0.y, -r0.z);
-        #endif
-
-        p0.x = (1.0f - 0.50f * timestep * gamma.x) * p0.x + (0.50f * timestep * force.x * Unit1 + tmp * sqrtf(gamma.x) * rando.x * Unit2);
-        p0.y = (1.0f - 0.50f * timestep * gamma.y) * p0.y + (0.50f * timestep * force.y * Unit1 + tmp * sqrtf(gamma.y) * rando.y * Unit2);
-        p0.z = (1.0f - 0.50f * timestep * gamma.z) * p0.z + (0.50f * timestep * force.z * Unit1 + tmp * sqrtf(gamma.z) * rando.z * Unit2);
-
-        r0 = r0 + (timestep * 1e4 * p0) / mass;
-        r0 = sys->wrap(r0);
- 
-        //step(r0, p0, kTlocal, force, tmp, -diffGrad, mass, gamma, timestep, sys, randoGen, num * numReplicas);
-        pos[idx]      = r0;
-        momentum[idx] = p0;
-#endif
-
+    // Add a force defined via 3D FORCE maps (not 3D potential maps)
+    if(!scheme)
+    {
+	if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
+	if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
+	if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
     }
-}
+    else
+    {
+	if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
+	if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
+	if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
+    }
 #endif
+    fe.f = fe.f + forceExternal;
+    return fe;
+}
 
 
 ////The kernel is for Nose-Hoover Langevin dynamics
@@ -101,48 +65,24 @@ __global__ void
 updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ momentum, float* random, 
                                Vector3* __restrict__ forceInternal, int type[], BrownianParticleType* part[], 
                                float kT, BaseGrid* kTGrid, float electricField, int tGridLength, float timestep, 
-                               int num, BaseGrid* sys, Random* randoGen, int numReplicas, int scheme)
+                               int num, int num_rb_attached_particles, BaseGrid* sys, Random* randoGen, int numReplicas, int scheme)
 {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx < num * numReplicas)
     {
-        int t = type[idx];
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+
+        int t = type[idx];
         Vector3 r0  = pos[idx];
         Vector3 p0  = momentum[idx];
         float   ran = random[idx];
 
         const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-        ForceEnergy fe(0.f, 0.f);
-        for(int i = 0; i < pt.numPartGridFiles; ++i)
-        {
-            ForceEnergy tmp(0.f,0.f);
-            if(!scheme) {
-		const BoundaryCondition& bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
-	    } else 
-                tmp = pt.pmf[i].interpolateForceD(r0);
-            fe.f += tmp.f;
-        }
-        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
 
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if(!scheme)
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-        }
-        else
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
-        }
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+        Vector3 force = forceInternal[idx] + fe.f;
         #ifdef Debug
         forceInternal[idx] = -force;
         #endif
@@ -214,50 +154,27 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
 //Han-Yi Chou
 __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
                                   int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
-                                  float electricField,int tGridLength, float timestep, int num, BaseGrid* sys, 
+                                  float electricField,int tGridLength, float timestep,
+				  int num, int num_rb_attached_particles, BaseGrid* sys,
                                   Random* randoGen, int numReplicas, int scheme)
 {
-    const int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
 
     if (idx < num * numReplicas)
     {
-        int t = type[idx];
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	// if (get_energy) energy[idx] += fe.e;
+
+        int t = type[idx];
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
-
         const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
 
-        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
-        ForceEnergy fe(0.f, 0.f);
-        for(int i = 0; i < pt.numPartGridFiles; ++i)
-        {
-            ForceEnergy tmp(0.f, 0.f);
-            if(!scheme) {
-		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
-	    } else 
-                tmp = pt.pmf[i].interpolateForceD(r0);
-            fe.f += tmp.f;
-        }
-
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if(!scheme)
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-        }
-        else
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
-        }
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+        Vector3 force = forceInternal[idx] + fe.f;
 #ifdef Debug
         forceInternal[idx] = -force;
 #endif
@@ -315,52 +232,23 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
 //update momentum in the last step of BAOAB integrator for the Langevin dynamics. Han-Yi Chou
 __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* __restrict__ forceInternal,
                                       int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
-                                      float electricField, int tGridLength, float timestep, int num, 
+                                      float electricField, int tGridLength, float timestep, int num, int num_rb_attached_particles,
                                       BaseGrid* sys, Random* randoGen, int numReplicas, float* __restrict__ energy, bool get_energy,int scheme)
 {
-    const int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    int idx  = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
 
     if (idx < num * numReplicas)
     {
-        int t = type[idx];
+	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
+
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	if (get_energy) energy[idx] += fe.e;
+
         Vector3 r0 = pos[idx];
         Vector3 p0 = momentum[idx];
 
-        const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-
-        //ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
-        ForceEnergy fe(0.f, 0.f);
-        for(int i = 0; i < pt.numPartGridFiles; ++i)
-        {
-            ForceEnergy tmp(0.f, 0.f);
-            if(!scheme) {
-		BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-		INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, r0)
-	    } else 
-                tmp = pt.pmf[i].interpolateForceD(r0);
-
-            fe += tmp;
-            //fe.e += tmp.e;
-        }
-        if(get_energy)
-            energy[idx] += fe.e;
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if(!scheme)
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-        }
-        else
-        {
-            if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(r0);
-            if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(r0);
-            if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(r0);
-        }
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+        Vector3 force = forceInternal[idx] + fe.f;
 #ifdef Debug
         forceInternal[idx] = -force;
 #endif
@@ -373,82 +261,22 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         momentum[idx] = p0;
     }
 }
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//The last step of BBK integrator to update the momentum for Langevin dynamics.
-#if 0
-__global__ void LastUpdateKernelABOBA(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
-                                 int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, float electricField,
-                                 int tGridLength, float timestep, int num, BaseGrid* sys, Random* randoGen, int numReplicas)
-{
-    const int idx  = blockIdx.x * blockDim.x + threadIdx.x;
-
-    if (idx < num * numReplicas)
-    {
-        int t = type[idx];
-        Vector3 r0 = pos[idx];
-        Vector3 p0 = momentum[idx];
-
-        const BrownianParticleType& pt = *part[t];
-        Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-
-        ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(r0);
-
-#ifndef FORCEGRIDOFF
-        // Add a force defined via 3D FORCE maps (not 3D potential maps)
-        if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(r0);
-        if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(r0);
-        if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(r0);
-#endif
-        Vector3 force = forceInternal[idx] + forceExternal + fe.f;
-
-        float mass      = pt.mass;
-        Vector3 gamma   = pt.transDamping;
-        
-        float kTlocal = (tGridLength == 0) ? kT : kTGrid->interpolatePotentialLinearly(r0); /* periodic */
-
-        float tmp = sqrtf(0.50f * kTlocal * mass * timestep);
-
-        if (pt.diffusionGrid != NULL)
-        {
-
-            Vector3 gridCenter = pt.diffusionGrid->origin +
-            pt.diffusionGrid->basis.transform( Vector3(0.5*pt.diffusionGrid->nx, 0.5*pt.diffusionGrid->ny,
-                                                       0.5*pt.diffusionGrid->nz));
-            Vector3 p2 = r0 - gridCenter;
-            p2 = sys->wrapDiff( p2 ) + gridCenter;
-            ForceEnergy diff = pt.diffusionGrid->interpolateForceDLinearlyPeriodic(p2);
-            gamma = Vector3(kTlocal / (mass * diff.e));
-        }
-
-        Vector3 rando = randoGen->gaussian_vector(idx, num * numReplicas);
-        #ifdef MDSTEP
-        force = Vector3(-r0.x, -r0.y, -r0.z);
-        #endif
-
-        //step(p0, kTlocal, force, tmp, -diffGrad, mass, gamma, timestep, sys, randoGen, num * numReplicas);
-        p0.x = (p0.x + 0.50 * timestep * force.x * Unit1 + tmp * sqrtf(gamma.x) * rando.x * Unit2) / (1.0f+0.5f*timestep*gamma.x);
-        p0.y = (p0.y + 0.50 * timestep * force.y * Unit1 + tmp * sqrtf(gamma.y) * rando.y * Unit2) / (1.0f+0.5f*timestep*gamma.y);
-        p0.z = (p0.z + 0.50 * timestep * force.z * Unit1 + tmp * sqrtf(gamma.z) * rando.z * Unit2) / (1.0f+0.5f*timestep*gamma.z);
-
-        momentum[idx] = p0;
-    }
-}
-#endif
 
 //Update kernel for Brownian dynamics
 __global__
 void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[], 
                   BrownianParticleType* part[],float kT, BaseGrid* kTGrid, float electricField, 
-                  int tGridLength, float timestep, int num, BaseGrid* sys,
+                  int tGridLength, float timestep, int num, int num_rb_attached_particles, BaseGrid* sys,
 		  Random* randoGen, int numReplicas, float* energy, bool get_energy, int scheme) 
 {
 	// Calculate this thread's ID
-	const int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+	int idx = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
         
 	// TODO: Make this a grid-stride loop to make efficient reuse of RNG states 
 	// Loop over ALL particles in ALL replicas
 	if (idx < num * numReplicas) 
         {
+	    idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 		const int t = type[idx];
 		Vector3   p = pos[idx];
 
@@ -456,44 +284,14 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                 
 	 	/* printf("atom %d: forceInternal: %f %f %f\n", idx, forceInternal[idx].x, forceInternal[idx].y, forceInternal[idx].z);  */
 
-		// Compute external force
-		Vector3 forceExternal = Vector3(0.0f, 0.0f, pt.charge * electricField);
-
-		// Compute PMF
-		// TODO: maybe make periodic and nonPeriodic versions of this kernel
-		//ForceEnergy fe = pt.pmf->interpolateForceDLinearlyPeriodic(p);
-		ForceEnergy fe(0.f, 0.f);
-                for(int i = 0; i < pt.numPartGridFiles; ++i)
-                {
-                    ForceEnergy tmp(0.f,0.f);
-		    if(!scheme) {
-			BoundaryCondition bc = pt.pmf_boundary_conditions[i];
-			INTERPOLATE_FORCE(tmp, pt.pmf[i].interpolateForceDLinearly, bc, p)
-		    } else 
-                        tmp = pt.pmf[i].interpolateForceD(p);
-                    fe += tmp;
-                }
-#ifndef FORCEGRIDOFF
-		// Add a force defined via 3D FORCE maps (not 3D potential maps)
-		if(!scheme)
-                {
-		    if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotentialLinearly(p);
-		    if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotentialLinearly(p);
-		    if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotentialLinearly(p);
-                }
-                else
-                {
-                    if (pt.forceXGrid != NULL) fe.f.x += pt.forceXGrid->interpolatePotential(p);
-                    if (pt.forceYGrid != NULL) fe.f.y += pt.forceYGrid->interpolatePotential(p);
-                    if (pt.forceZGrid != NULL) fe.f.z += pt.forceZGrid->interpolatePotential(p);
-                }
-#endif
+		ForceEnergy fe = compute_position_dependent_force(
+		    pos, forceInternal, type, part, electricField, scheme, idx );
 
 		// Compute total force:
 		//	  Internal:  interaction between particles
 		//	  External:  electric field (now this is basically a constant vector)
 		//	  forceGrid: ADD force due to PMF or other potentials defined in 3D space
-		Vector3 force = forceInternal[idx] + forceExternal + fe.f;
+		Vector3 force = forceInternal[idx] + fe.f;
                 #ifdef Debug
                 forceInternal[idx] = -force;
                 #endif
@@ -550,10 +348,12 @@ void updateKernel(Vector3* pos, Vector3* __restrict__ forceInternal, int type[],
                     float en_local = 0.f;
                     for(int i = 0; i < pt.numPartGridFiles; ++i)
                     {
+			float en_tmp = 0.0f;
                         if(!scheme)
-                            en_local += pt.pmf[i].interpolatePotentialLinearly(tmp);
+                            en_tmp = pt.pmf[i]->interpolatePotentialLinearly(tmp);
                         else
-                            en_local += pt.pmf[i].interpolatePotential(tmp);
+                            en_tmp = pt.pmf[i]->interpolatePotential(tmp);
+			en_tmp *= pt.pmf_scale[i];
                     }
                     energy[idx] += en_local;
                 }		
@@ -703,3 +503,37 @@ __global__ void devicePrint(RigidBodyType* rb[]) {
 //     cudaMalloc( &totalForce_h, sizeof(Vector3) );
 //     cudaMemcpyToSymbol(totalForce, &totalForce_h, sizeof(totalForce_h));
 // }
+
+__global__ void compute_position_dependent_force_for_rb_attached_particles(
+    const Vector3* __restrict__ pos,
+    Vector3* __restrict__ forceInternal, float* __restrict__ energy,
+    const int* __restrict__ type, BrownianParticleType** __restrict__ part,
+    const float electricField, const int num, const int num_rb_attached_particles,
+    const int numReplicas, const int scheme)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx < num_rb_attached_particles * numReplicas)
+    {
+	idx = num + (idx % num_rb_attached_particles) + (idx/num_rb_attached_particles) * (num+num_rb_attached_particles);
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	atomicAdd( &forceInternal[idx], fe.f );
+	atomicAdd( &energy[idx], fe.e );
+    }
+}
+__global__ void compute_position_dependent_force_for_rb_attached_particles(
+    const Vector3* __restrict__ pos, Vector3* __restrict__ forceInternal,
+    const int* __restrict__ type, BrownianParticleType** __restrict__ part,
+    const float electricField, const int num, const int num_rb_attached_particles,
+    const int numReplicas, const int scheme)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (idx < num_rb_attached_particles * numReplicas)
+    {
+	idx = num + (idx % num_rb_attached_particles) + (idx/num_rb_attached_particles) * (num+num_rb_attached_particles);
+	ForceEnergy fe = compute_position_dependent_force(
+	    pos, forceInternal, type, part, electricField, scheme, idx );
+	atomicAdd( &forceInternal[idx], fe.f );
+    }
+}

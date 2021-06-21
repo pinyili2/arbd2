@@ -62,7 +62,6 @@ public:
 	~GrandBrownTown();
 
 	void run();
-        void RunNoseHooverLangevin();
 	static bool DEBUG;
 
 private:  
@@ -229,6 +228,8 @@ private:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+
+    int num_rb_attached_particles;
 
 	int numGroupSites;
 	int* groupSiteData_d;

@@ -6,6 +6,7 @@
 #include <cassert>
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
+#include <string>
 #include <iostream>
 using namespace std;
 
@@ -96,8 +97,24 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
     }
   } // end result: variable "num" is set
 
+	// Count particles associated with rigid bodies
+	num_rb_attached_particles = 0;
+	if (numRigidTypes > 0) {
+	    // grow list of rbs
+	    for (int i = 0; i < numRigidTypes; i++) {
+		RigidBodyType &rbt = rigidBody[i];
+		rbt.attach_particles();
+		num_rb_attached_particles += rbt.num * rbt.num_attached_particles();
+	    }
+	}
+	assert( num_rb_attached_particles == 0 || simNum == 1 ); // replicas not yet implemented
+	// num = num+num_rb_attached_particles;
+
+
 	// Set the number capacity
 	printf("\n%d particles\n", num);
+	printf("%d particles attached to RBs\n", num_rb_attached_particles);
+
 	if (numCap <= 0) numCap = numCapFactor*num; // max number of particles
 	if (numCap <= 0) numCap = 20;
 
@@ -105,18 +122,35 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	printf("%d groups\n", numGroupSites);
 
 	// Allocate particle variables.
-	pos = new Vector3[num * simNum];
+	// Each replica works with num+num_rb_attached_particles in array
+	pos = new Vector3[ (num+num_rb_attached_particles) * simNum];
+
         //Han-Yi Chou
         if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
-            momentum = new Vector3[num * simNum];
+            momentum = new Vector3[(num+num_rb_attached_particles) * simNum];
 
-	type   = new int[num * simNum];
-	serial = new int[num * simNum];
-	posLast = new Vector3[num * simNum];
+	type   = new int[(num+num_rb_attached_particles) * simNum];
+	serial = new int[(num+num_rb_attached_particles) * simNum];
+	posLast = new Vector3[(num+num_rb_attached_particles) * simNum];
+
+	{
+	    int pidx = 0;
+	    for (int i = 0; i < numRigidTypes; i++) { // Loop over RB types
+		RigidBodyType &rbt = rigidBody[i];
+		for (int j = 0; j < rbt.num; ++j) { // Loop over RBs
+		    for (const int& t: rbt.get_attached_particle_types()) {
+			type[num+pidx] = t;
+			serial[num+pidx] = num+pidx;
+			pidx++;
+		    }
+		}
+	    }
+	}	
+	
         //Han-Yi Chou
         if(ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
-           momLast = new Vector3[num * simNum];
-	name = new String[num * simNum];
+           momLast = new Vector3[(num+num_rb_attached_particles) * simNum];
+	name = new String[(num+num_rb_attached_particles) * simNum];
 	currSerial = 0;
 
 
@@ -163,7 +197,12 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 				String* tokenList = new String[numTokens];
 				partsFromFile[i].tokenize(tokenList);
 
-				int currType = 0;
+				int currType = find_particle_type(tokenList[2]);
+				if (currType == -1) {
+				    printf("Error: Unable to find particle type %s\n", tokenList[2].val());
+				    exit(1);
+
+				}
 				for (int j = 0; j < numParts; j++)
 					if (tokenList[2] == part[j].name)
 						currType = j;
@@ -215,7 +254,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
                                 printf("done!\n");
                         }
                         else
-                            loadedMomentum = Boltzmann(COM_Velocity, num * simNum);
+                            loadedMomentum = Boltzmann(COM_Velocity, (num * simNum));
                     }
                 }
             }
@@ -257,72 +296,66 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	}
 
 	printf("\nFound %d particle types.\n", numParts);
-	// Load the potential grids.
+
 	printf("Loading the potential grids...\n");
+	// First load a single copy of each grid
 	for (int i = 0; i < numParts; i++) 
         {
-            String map = partGridFile[i][0];
-            int len = map.length();
+	    for(int j = 0; j < part[i].numPartGridFiles; ++j)
+	    {
+		std::string fname(partGridFile[i][j].val(), partGridFile[i][j].length());
+		if (part_grid_dictionary.count( fname ) == 0)
+		{
+		    int len = fname.length();
+		    if (len >= 3 && fname[len-3]=='.' && fname[len-2]=='d' && fname[len-1]=='x')
+		    {
+			part_grid_dictionary.insert({fname, BaseGrid(fname.c_str())});
+		    }
+		    else if  (len >= 4 && fname[len-4]=='.' && fname[len-3]=='d' && fname[len-2]=='e' && fname[len-1]=='f')
+		    {
+			assert(1==2); // Throw exception because this implementation needs to be revisited
+/*                OverlordGrid* over = new OverlordGrid[part[i].numPartGridFiles];
+		  part[i].meanPmf = new float[part[i].numPartGridFiles];
+		  for(int j = 0; j < part[i].numPartGridFiles; ++j)
+		  {
+		  map = partGridFile[i][j];
+		  len = map.length();
+		  if (!(len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f'))
+		  {
+		  cout << "currently do not support different format " << endl;
+		  exit(1);
+		  }
 
-            if (len >= 3 && map[len-3]=='.' && map[len-2]=='d' && map[len-1]=='x') 
-            {
-                part[i].pmf     = new BaseGrid[part[i].numPartGridFiles];
-                part[i].meanPmf = new float[part[i].numPartGridFiles];
-                for(int j = 0; j < part[i].numPartGridFiles; ++j)
-                {
-                    map = partGridFile[i][j];
-                    len = map.length();
-                    if (!(len >= 3 && map[len-3]=='.' && map[len-2]=='d' && map[len-1]=='x'))
-                    {
-                        cout << "currently do not support different format " << endl;
-                        exit(1);
-                    }
-                    // Decide which type of grid is given.
-                    //String map = partGridFile[i];
- 
-	            // A dx file. Load the old-fashioned way.
-	            //part[i].pmf[j] = new BaseGrid(map.val());
-	            BaseGrid tmp(map.val());
-		    part[i].pmf[j] = tmp;
-		    if (partGridFileScale[i][j] != 1.0f) 
-                        part[i].pmf[j].scale(partGridFileScale[i][j]);
+		  String rootGrid = OverlordGrid::readDefFirst(map);
+		  over[j] = OverlordGrid(rootGrid.val());
+		  int count = over->readDef(map);
+		  printf("Loaded system def file `%s'.\n", map.val());
+		  printf("Found %d unique grids.\n", over->getUniqueGridNum());
+		  printf("Linked %d subgrids.\n", count);
+		  part[i].meanPmf[j] = part[i].pmf[j].mean();
+		  }
+		  part[i].pmf = static_cast<BaseGrid*>(over);
+*/
+		    } else {
+			printf("WARNING: Unrecognized gridFile extension. Must be *.def or *.dx.\n");
+			exit(-1);
+		    }
+		}
+	    }
+	}
 
-			//part[i].meanPmf = part[i].pmf->mean();
-		    part[i].meanPmf[j] = part[i].pmf[j].mean();
-		    printf("Loaded dx potential grid `%s'.\n", map.val());
-		    printf("Grid size %s.\n", part[i].pmf[j].getExtent().toString().val());
-                }
-            } 
-	    else if  (len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f') 
-            {
-                OverlordGrid* over = new OverlordGrid[part[i].numPartGridFiles];
-                part[i].meanPmf = new float[part[i].numPartGridFiles];
-                for(int j = 0; j < part[i].numPartGridFiles; ++j)
-                {
-                    map = partGridFile[i][j];
-                    len = map.length();
-                    if (!(len >= 4 && map[len-4]=='.' && map[len-3]=='d' && map[len-2]=='e' && map[len-1]=='f'))
-                    {
-                        cout << "currently do not support different format " << endl;
-                        exit(1);
-                    }
-
-                    String rootGrid = OverlordGrid::readDefFirst(map);
-                    over[j] = OverlordGrid(rootGrid.val());
-		    int count = over->readDef(map);
-		    printf("Loaded system def file `%s'.\n", map.val());
-		    printf("Found %d unique grids.\n", over->getUniqueGridNum());
-		    printf("Linked %d subgrids.\n", count);
-                    part[i].meanPmf[j] = part[i].pmf[j].mean();
-                 }
-      		 part[i].pmf = static_cast<BaseGrid*>(over);
-	     } 
-             else 
-             {
-	         printf("WARNING: Unrecognized gridFile extension. Must be *.def or *.dx.\n");
-		 exit(-1);
-	     }
-
+	// Then assign grid addresses to particles
+	for (int i = 0; i < numParts; i++)
+        {
+	    part[i].pmf     = new BaseGrid*[part[i].numPartGridFiles];
+	    part[i].pmf_scale = new float[part[i].numPartGridFiles];
+	    part[i].meanPmf = new float[part[i].numPartGridFiles];
+	    for(int j = 0; j < part[i].numPartGridFiles; ++j)
+	    {
+		part[i].pmf[j] = &(part_grid_dictionary.find( std::string(partGridFile[i][j]) )->second);
+		part[i].pmf_scale[j] = partGridFileScale[i][j];
+		part[i].meanPmf[j] = part[i].pmf[j]->mean(); // TODO: review how this is used and decide whether to scale
+	    }
 		if (partForceXGridFile[i].length() != 0) {
 			part[i].forceXGrid = new BaseGrid(partForceXGridFile[i].val());
 			printf("Loaded `%s'.\n", partForceXGridFile[i].val());
@@ -385,7 +418,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	sys = new BaseGrid( Matrix3(basis1,basis2,basis3), origin, 1, 1, 1 );
     } else {
 	// TODO: use largest system in x,y,z
-	sys = part[0].pmf;
+	sys = *part[0].pmf;
     }
     sysDim = sys->getExtent();
 
@@ -425,13 +458,45 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 			excludes = new Exclude[numExcludes];
 			for (int i = 0; i < oldNumExcludes; i++)
 				excludes[i] = tempExcludes[i];
-			delete tempExcludes;
+			delete [] tempExcludes;
 		}
 		for (int i = oldNumExcludes; i < numExcludes; i++)
 			excludes[i] = newExcludes[i - oldNumExcludes];
 		printf("Built %d exclusions.\n",numExcludes);
 	}
 
+	{ // Add exclusions for RB attached particles
+	    std::vector<Exclude> ex;
+	    int start = num;
+	    for (int i = 0; i < numRigidTypes; i++) { // Loop over RB types
+		RigidBodyType &rbt = rigidBody[i];
+		const int nap = rbt.num_attached_particles();
+		for (int j = 0; j < rbt.num; ++j) { // Loop over RBs
+		    for (int ai = 0; ai < nap-1; ++ai) {
+			for (int aj = ai+1; aj < nap; ++aj) {
+			    ex.push_back( Exclude( ai+start, aj+start ) );
+			}
+		    }
+		    start += nap;
+		}
+	    }
+	    // copy
+	    int oldNumExcludes = numExcludes;
+	    numExcludes = numExcludes + ex.size();
+	    if (excludes == NULL) {
+		excludes = new Exclude[numExcludes];
+	    } else if (numExcludes >= excludeCapacity) {
+		Exclude* tempExcludes = excludes;
+		excludes = new Exclude[numExcludes];
+		for (int i = 0; i < oldNumExcludes; i++)
+		    excludes[i] = tempExcludes[i];
+		delete [] tempExcludes;
+	    }
+	    for (int i = oldNumExcludes; i < numExcludes; i++)
+		excludes[i] = ex[i - oldNumExcludes];
+	}
+
+	printf("Built %d exclusions.\n",numExcludes);		
 	buildExcludeMap();
 
 	// Count number of particles of each type
@@ -439,7 +504,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	for (int i = 0; i < numParts; ++i) {
 		numPartsOfType[i] = 0;
 	}
-	for (int i = 0; i < num; ++i) {
+	for (int i = 0; i < num+num_rb_attached_particles; ++i) {
 		++numPartsOfType[type[i]];
 	}
 
@@ -594,7 +659,17 @@ Configuration::~Configuration() {
 }
 
 void Configuration::copyToCUDA() {
-	printf("Copying particle data to GPU %d\n", GPUManager::current());
+    printf("Copying particle grids to GPU %d\n", GPUManager::current());
+    for (const auto& pair : part_grid_dictionary)
+    {
+	// Copy PMF
+	const BaseGrid& g = pair.second;
+	BaseGrid *g_d = g.copy_to_cuda();
+	part_grid_dictionary_d.insert({pair.first, g_d});
+	// printf("Assigning grid for %s to %p (originally %p)\n", pair.first.c_str(), (void *) part_grid_dictionary_d[pair.first], (void *) g_d);
+    }
+
+    printf("Copying particle data to GPU %d\n", GPUManager::current());
 
 	BrownianParticleType **part_addr = new BrownianParticleType*[numParts];
 
@@ -604,11 +679,31 @@ void Configuration::copyToCUDA() {
 	
 	for (int i = 0; i < numParts; i++) 
         {
-	        BaseGrid *pmf = NULL, *diffusionGrid = NULL;
 		BrownianParticleType *b = new BrownianParticleType(part[i]);
-		// Copy PMF
+		// Copy PMF pointers
 		if (part[i].pmf != NULL) 
                 {
+		    {
+			BaseGrid** tmp_d = new BaseGrid*[part[i].numPartGridFiles];
+			BaseGrid** tmp   = new BaseGrid*[part[i].numPartGridFiles];
+			for(int j = 0; j < part[i].numPartGridFiles; ++j) {
+			    // printf("Retrieving grid for %s (at %p)\n", partGridFile[i][j].val(), (void *) part_grid_dictionary_d[std::string(partGridFile[i][j])]);
+			    tmp[j] = part_grid_dictionary_d[std::string(partGridFile[i][j])];
+			}
+			gpuErrchk(cudaMalloc(&tmp_d, sizeof(BaseGrid*)*part[i].numPartGridFiles));
+			gpuErrchk(cudaMemcpy(tmp_d, tmp, sizeof(BaseGrid*)*part[i].numPartGridFiles,
+					     cudaMemcpyHostToDevice));
+			b->pmf = tmp_d;
+		    }
+
+		    {
+			float *tmp;
+			gpuErrchk(cudaMalloc(&tmp, sizeof(float)*part[i].numPartGridFiles));
+			gpuErrchk(cudaMemcpy(tmp, part[i].pmf_scale, sizeof(float)*part[i].numPartGridFiles,
+					     cudaMemcpyHostToDevice));
+			b->pmf_scale = tmp;
+		    }
+
 		    {
 			float *tmp;
 			gpuErrchk(cudaMalloc(&tmp, sizeof(float)*part[i].numPartGridFiles));
@@ -624,40 +719,17 @@ void Configuration::copyToCUDA() {
 			gpuErrchk(cudaMemcpy(tmp, part[i].pmf_boundary_conditions, s, cudaMemcpyHostToDevice));
 			b->pmf_boundary_conditions = tmp;
 		    }
-
-		    gpuErrchk(cudaMalloc(&pmf, sizeof(BaseGrid)*part[i].numPartGridFiles));
-                    for(int j = 0; j < part[i].numPartGridFiles; ++j)
-                    { 
-                        float *val = NULL;
-		        size_t sz = sizeof(float) * part[i].pmf[j].getSize();
-		        //gpuErrchk(cudaMalloc(pmf, sizeof(BaseGrid)));
-		        gpuErrchk(cudaMalloc(&val, sz));
-		        gpuErrchk(cudaMemcpyAsync(val, part[i].pmf[j].val, sz, cudaMemcpyHostToDevice));
-		        BaseGrid *pmf_h = new BaseGrid(part[i].pmf[j]);
-	                pmf_h->val = val;
-		        gpuErrchk(cudaMemcpy(pmf+j, pmf_h, sizeof(BaseGrid), cudaMemcpyHostToDevice));
-		        pmf_h->val = NULL;
-                    }
                     
 		}
-		b->pmf = pmf;
 
 		// Copy the diffusion grid
 		if (part[i].diffusionGrid != NULL) {
-			float *val = NULL;
-			size_t sz = sizeof(float) * part[i].diffusionGrid->getSize();
-		  BaseGrid *diffusionGrid_h = new BaseGrid(*part[i].diffusionGrid);
-		  gpuErrchk(cudaMalloc(&diffusionGrid, sizeof(BaseGrid)));
-		  gpuErrchk(cudaMalloc(&val, sz));
-			diffusionGrid_h->val = val;
-			gpuErrchk(cudaMemcpyAsync(diffusionGrid, diffusionGrid_h, sizeof(BaseGrid),
-					cudaMemcpyHostToDevice));
-		  gpuErrchk(cudaMemcpy(val, part[i].diffusionGrid->val, sz, cudaMemcpyHostToDevice));
-			diffusionGrid_h->val = NULL;
+		    b->diffusionGrid = part[i].diffusionGrid->copy_to_cuda();
+		} else {
+		    b->diffusionGrid = NULL;
 		}
 		
 		//b->pmf = pmf;
-		b->diffusionGrid = diffusionGrid;
 		gpuErrchk(cudaMalloc(&part_addr[i], sizeof(BrownianParticleType)));
 		gpuErrchk(cudaMemcpyAsync(part_addr[i], b, sizeof(BrownianParticleType),
 				cudaMemcpyHostToDevice));
@@ -677,7 +749,7 @@ void Configuration::copyToCUDA() {
 	gpuErrchk(cudaMalloc(&sys_d, sizeof(BaseGrid)));
 	gpuErrchk(cudaMemcpyAsync(sys_d, sys, sizeof(BaseGrid), cudaMemcpyHostToDevice));
 	/*gpuErrchk(cudaMalloc(&type_d, sizeof(int) * num * simNum));
-	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int) * num * simNum, cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpyAsync(type_d, type, sizeof(int+num_rb_attached_particles) * num * simNum, cudaMemcpyHostToDevice));
 	
 	if (numBonds > 0) {
 		// bonds_d
@@ -696,7 +768,7 @@ void Configuration::copyToCUDA() {
 				cudaMemcpyHostToDevice));
 		
 		// excludeMap_d
-		gpuErrchk(cudaMalloc(&excludeMap_d, sizeof(int2) * num));
+		gpuErrchk(cudaMalloc(&excludeMap_d, sizeof(int2) * (num));
 		gpuErrchk(cudaMemcpyAsync(excludeMap_d, excludeMap, sizeof(int2) * num,
 				cudaMemcpyHostToDevice));
 	}
@@ -1115,6 +1187,8 @@ int Configuration::readParameters(const char * config_file) {
 		else if (param == String("rotDamping"))
 			rigidBody[currRB].rotDamping = stringToVector3( value );
 
+		else if (param == String("attachedParticles"))
+			rigidBody[currRB].append_attached_particle_file(value);
 		else if (param == String("densityGrid"))
 			rigidBody[currRB].addDensityGrid(value);
 		else if (param == String("potentialGrid"))
@@ -1135,6 +1209,8 @@ int Configuration::readParameters(const char * config_file) {
                         rigidBody[currRB].initAngularMomentum = stringToVector3(value);
 		else if (param == String("inputRBCoordinates"))
 			inputRBCoordinates = value;
+		else if (param == String("restartRBCoordinates"))
+		        restartRBCoordinates = value;
 		
 		// COMMON
 		else if (param == String("num")) {
@@ -1271,6 +1347,7 @@ void Configuration::readAtoms() {
 		for (int i = 0; i < numParts; i++)
 			if (part[i].num == 0)
 				found = false;
+		// assert(false); // TODO probably relax constraint that particle must be found; could just be in RB
 		if (!found) {
 			printf("ERROR: Number of particles not specified in config file.\n");
 			exit(1);
@@ -1450,9 +1527,11 @@ void Configuration::readGroups() {
 		std::vector<int> tmp;
 		for (int i=1; i < numTokens; ++i) {
 		    const int ai = atoi(tokenList[i].val());
-		    if (ai >= num) {
+		    if (ai >= num+num_rb_attached_particles) {
 			printf("Error: Attempted to include invalid particle in group: %s\n", line);
 			exit(-1);
+		    } else if (ai >= num) {
+			printf("WARNING: including RB particles in group with line: %s\n", line);
 		    }
 		    tmp.push_back( ai );
 		}
@@ -1510,7 +1589,8 @@ void Configuration::readBonds() {
 			continue;
 		}
 
-		if (ind1 < 0 || ind1 >= num+numGroupSites || ind2 < 0 || ind2 >= num+numGroupSites) {
+		if (ind1 < 0 || ind1 >= num+num_rb_attached_particles+numGroupSites ||
+		    ind2 < 0 || ind2 >= num+num_rb_attached_particles+numGroupSites) {
 			printf("ERROR: Bond file line '%s' includes invalid index\n", line);
 			exit(1);
 		}
@@ -1558,8 +1638,8 @@ void Configuration::readBonds() {
 	 * bondMap[i].x is the index in the bonds array where the ith particle's bonds begin
 	 * bondMap[i].y is the index in the bonds array where the ith particle's bonds end
 	 */
-	bondMap = new int2[num+numGroupSites];
-	for (int i = 0; i < num+numGroupSites; i++) {	
+	bondMap = new int2[num+num_rb_attached_particles+numGroupSites];
+	for (int i = 0; i < num+num_rb_attached_particles+numGroupSites; i++) {
 		bondMap[i].x = -1;
 		bondMap[i].y = -1;
 	}
@@ -1617,8 +1697,8 @@ void Configuration::readExcludes()
 	}
 }
 void Configuration::addExclusion(int ind1, int ind2) {
-    if (ind1 >= num || ind2 >= num) {
-	printf("WARNING: Attempted to add an exclusion for an out-of-range particle index (%d or %d >= %d).\n", ind1, ind2, num);
+    if (ind1 >= num+num_rb_attached_particles || ind2 >= num+num_rb_attached_particles) {
+	printf("WARNING: Attempted to add an exclusion for an out-of-range particle index (%d or %d >= %d).\n", ind1, ind2, num+num_rb_attached_particles);
 	return;
     }
 		
@@ -1661,8 +1741,8 @@ void Configuration::buildExcludeMap() {
      * excludeMap[i].x is the index in the excludes array where the ith particle's excludes begin
      * excludeMap[i].y is the index in the excludes array where the ith particle's excludes end
      */
-    excludeMap = new int2[num];
-    for (int i = 0; i < num; i++) {	
+    excludeMap = new int2[num+num_rb_attached_particles];
+    for (int i = 0; i < num+num_rb_attached_particles; i++) {
 	excludeMap[i].x = -1;
 	excludeMap[i].y = -1;
     }
@@ -1671,7 +1751,7 @@ void Configuration::buildExcludeMap() {
     for (int i = 0; i < numExcludes; i++) {
 	if (excludes[i].ind1 != currPart) {
 	    currPart = excludes[i].ind1;
-	    assert(currPart < num);
+	    assert(currPart < num+num_rb_attached_particles);
 	    excludeMap[currPart].x = i;
 	    if (lastPart >= 0)
 		excludeMap[lastPart].y = i;
@@ -1720,7 +1800,7 @@ void Configuration::readAngles() {
 		int ind3 = atoi(tokenList[3].val());
 		String file_name = tokenList[4];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num+numGroupSites or ind2 >= num+numGroupSites or ind3 >= num+numGroupSites)
+		if (ind1 >= num+num_rb_attached_particles+numGroupSites or ind2 >= num+num_rb_attached_particles+numGroupSites or ind3 >= num+num_rb_attached_particles+numGroupSites)
 			continue;
 
 		if (numAngles >= capacity) {
@@ -1781,8 +1861,10 @@ void Configuration::readDihedrals() {
 		int ind4 = atoi(tokenList[4].val());
 		String file_name = tokenList[5];
 		//printf("file_name %s\n", file_name.val());
-		if (ind1 >= num+numGroupSites or ind2 >= num+numGroupSites
-				or ind3 >= num+numGroupSites or ind4 >= num+numGroupSites)
+		if (ind1 >= num+num_rb_attached_particles+numGroupSites or
+		    ind2 >= num+num_rb_attached_particles+numGroupSites or
+		    ind3 >= num+num_rb_attached_particles+numGroupSites or
+		    ind4 >= num+num_rb_attached_particles+numGroupSites)
 			continue;
 
 		if (numDihedrals >= capacity) {
@@ -1841,7 +1923,7 @@ void Configuration::readRestraints() {
 		float y0 = (float) strtod(tokenList[4].val(), NULL);
 		float z0 = (float) strtod(tokenList[5].val(), NULL);
 
-		if (id >= num+numGroupSites) continue;
+		if (id >= num + num_rb_attached_particles + numGroupSites) continue;
 
 		if (numRestraints >= capacity) {
 			Restraint* temp = restraints;

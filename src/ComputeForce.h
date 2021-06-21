@@ -174,6 +174,7 @@ private:
 	int numReplicas;
 	int num;
 	int numParts;
+	int num_rb_attached_particles;
 	int numBonds;
 	int numExcludes;
 	int numTabBondFiles;

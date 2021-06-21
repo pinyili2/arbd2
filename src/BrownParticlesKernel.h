@@ -4,7 +4,7 @@
 
 template<const int BlockSize>
 static __global__ void BrownParticlesKineticEnergy(Vector3* P_n, int type[], BrownianParticleType* part[], 
-                                                   float *vec_red, int n)
+                                                   float *vec_red, int num, int num_rb_attached_particles, int num_replicas)
 {
     __shared__ __align__(4) float sdata[BlockSize];
     
@@ -17,9 +17,12 @@ static __global__ void BrownParticlesKineticEnergy(Vector3* P_n, int type[], Bro
 
     sdata[tid] = 0.f; 
 
+    int n = (num*num_replicas);
+
     while (i < n) 
-    { 
-        int t1 = type[i];
+    {
+	const int i1 = (i % num) +  (i/num)*(num+num_rb_attached_particles);
+        const int t1 = type[i1];
         const BrownianParticleType& pt1 = *part[t1];
 
         p1    = P_n[i];
@@ -27,7 +30,8 @@ static __global__ void BrownParticlesKineticEnergy(Vector3* P_n, int type[], Bro
         
         if(i + BlockSize < n)
         {
-            int t2 = type[i+BlockSize];
+	    const int i2 = ((i+BlockSize) % num) +  ((i+BlockSize)/num)*(num+num_rb_attached_particles);
+            const int t2 = type[i2];
             const BrownianParticleType& pt2 = *part[t2];
 
             p2    = P_n[i+BlockSize];
@@ -38,7 +42,7 @@ static __global__ void BrownParticlesKineticEnergy(Vector3* P_n, int type[], Bro
         else
             sdata[tid] += p1.length2() / mass1;
 
-        i += gridSize; 
+        i += gridSize;
     }
 
     sdata[tid] *= 0.50f;

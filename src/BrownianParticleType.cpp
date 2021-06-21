@@ -5,6 +5,7 @@
 //////////////////////////////////////////
 void BrownianParticleType::clear() {
 	if (pmf != NULL) delete [] pmf;
+	if (pmf_scale != NULL) delete [] pmf_scale;
 	if (diffusionGrid != NULL) delete diffusionGrid;
 	if (forceXGrid != NULL) delete forceXGrid;
 	if (forceYGrid != NULL) delete forceYGrid;
@@ -12,6 +13,7 @@ void BrownianParticleType::clear() {
 	if (reservoir != NULL) delete reservoir;
         if (meanPmf != NULL) delete []  meanPmf;
 	pmf = NULL, diffusionGrid = NULL;
+	pmf_scale = NULL;
 	pmf_boundary_conditions = NULL;
 	forceXGrid = NULL, forceYGrid = NULL, forceZGrid = NULL;
 	reservoir = NULL, meanPmf = NULL;
@@ -26,6 +28,7 @@ void BrownianParticleType::copy(const BrownianParticleType& src) {
 	radius = src.radius;
 	eps = src.eps;
         pmf = src.pmf;
+        pmf_scale = src.pmf_scale;
         pmf_boundary_conditions = src.pmf_boundary_conditions;
 	meanPmf = src.meanPmf;
         numPartGridFiles = src.numPartGridFiles;
