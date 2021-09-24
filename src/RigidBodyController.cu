@@ -45,6 +45,8 @@ RigidBodyController::RigidBodyController(const Configuration& c, const char* pre
 
 	gpuErrchk(cudaDeviceSynchronize()); /* RBTODO: this should be extraneous */
 	construct_grids();
+	for (int i = 0; i < conf.numRigidTypes; i++)
+	    conf.rigidBody[i].initializeParticleLists();
 
 	int numRB = 0;
 	// grow list of rbs
