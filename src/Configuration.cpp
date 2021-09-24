@@ -946,11 +946,13 @@ int Configuration::readParameters(const char * config_file) {
 	int partClassPart =  0;
 	int partClassRB   =  1;
 	int currPartClass = -1;				// 0 => particle, 1 => rigidBody
-	
+
+
+
 	for (int i = 0; i < numParams; i++) {
 		String param = config.getParameter(i);
 		String value = config.getValue(i);
-		// GLOBAL
+		// printf("Parsing %s: %s\n", param.val(), value.val());
 		if (param == String("outputName"))
 			outputName = value;
 		else if (param == String("timestep"))
@@ -1032,29 +1034,40 @@ int Configuration::readParameters(const char * config_file) {
                     RigidBodyInterpolationType = atoi(value.val());
 		// PARTICLES
 		else if (param == String("particle")) {
-			part[++currPart] = BrownianParticleType(value);
-			currPartClass = partClassPart;
+		    part[++currPart] = BrownianParticleType(value);
+		    currPartClass = partClassPart;
 		}
-                else if (param == String("mu")) // for Nose-Hoover Langevin
-                        part[currPart].mu = (float) strtod(value.val(), NULL);
-		else if (param == String("forceXGridFile"))
-			partForceXGridFile[currPart] = value;
-		else if (param == String("forceYGridFile"))
-			partForceYGridFile[currPart] = value;
-		else if (param == String("forceZGridFile"))
-			partForceZGridFile[currPart] = value;
-		else if (param == String("diffusionGridFile"))
-			partDiffusionGridFile[currPart] = value;
-		else if (param == String("diffusion"))
-			part[currPart].diffusion = (float) strtod(value.val(), NULL);
-		else if (param == String("charge"))
-			part[currPart].charge = (float) strtod(value.val(), NULL);
-		else if (param == String("radius"))
-			part[currPart].radius = (float) strtod(value.val(), NULL);
-		else if (param == String("eps"))
-			part[currPart].eps = (float) strtod(value.val(), NULL);
-		else if (param == String("reservoirFile"))
-			partReservoirFile[currPart] = value;
+                else if (param == String("mu")) { // for Nose-Hoover Langevin
+		    if (currPart < 0) exit(1);
+		    part[currPart].mu = (float) strtod(value.val(), NULL);
+		} else if (param == String("forceXGridFile")) {
+		    if (currPart < 0) exit(1);
+		    partForceXGridFile[currPart] = value;
+		} else if (param == String("forceYGridFile")) {
+		    if (currPart < 0) exit(1);
+		    partForceYGridFile[currPart] = value;
+		} else if (param == String("forceZGridFile")) {
+		    if (currPart < 0) exit(1);
+		    partForceZGridFile[currPart] = value;
+		} else if (param == String("diffusionGridFile")) {
+		    if (currPart < 0) exit(1);
+		    partDiffusionGridFile[currPart] = value;
+		} else if (param == String("diffusion")) {
+		    if (currPart < 0) exit(1);
+		    part[currPart].diffusion = (float) strtod(value.val(), NULL);
+		} else if (param == String("charge")) {
+		    if (currPart < 0) exit(1);
+		    part[currPart].charge = (float) strtod(value.val(), NULL);
+		} else if (param == String("radius")) {
+		    if (currPart < 0) exit(1);
+		    part[currPart].radius = (float) strtod(value.val(), NULL);
+		} else if (param == String("eps")) {
+		    if (currPart < 0) exit(1);
+		    part[currPart].eps = (float) strtod(value.val(), NULL);
+		} else if (param == String("reservoirFile")) {
+		    if (currPart < 0) exit(1);
+		    partReservoirFile[currPart] = value;
+		}
 		else if (param == String("tabulatedPotential"))
 			tabulatedPotential = atoi(value.val());
 		else if (param == String("tabulatedFile"))
@@ -1096,6 +1109,7 @@ int Configuration::readParameters(const char * config_file) {
 			if (readExcludesFromFile) {
 				printf("WARNING: More than one exclude file specified. Ignoring new exclude file.\n");
 			} else {
+			    printf("inputExclude %s\n", value.val());
 				excludeFile = value;				
 				readExcludesFromFile = true;
 			}
@@ -1145,32 +1159,37 @@ int Configuration::readParameters(const char * config_file) {
 				readRestraintsFromFile = true;
 			}
 		} else if (param == String("gridFileScale")) {
+		    if (currPart < 0) exit(1);
 			//partGridFileScale[currPart] = (float) strtod(value.val(), NULL);
 			  stringToArray<float>(&value, part[currPart].numPartGridFiles, 
                                                       &partGridFileScale[currPart]);
 		} else if (param == String("gridFileBoundaryConditions")) {
+		    if (currPart < 0) exit(1);
 		    register size_t num = value.tokenCount();
-		    String *tokens  = new String[num];
-		    BoundaryCondition *data = new BoundaryCondition[num];
-		    value.tokenize(tokens);
-		    for(size_t i = 0; i < num; ++i) {
-			tokens[i].lower();
-			if (tokens[i] == "dirichlet")
-			    data[i] = dirichlet;
-			else if (tokens[i] == "neumann")
-			    data[i] = neumann;
-			else if (tokens[i] == "periodic")
-			    data[i] = periodic;
-			else {
-			    fprintf(stderr,"WARNING: Unrecognized gridFile boundary condition \"%s\". Using Dirichlet.\n", tokens[i].val() );
-			    data[i] = dirichlet;
+		    if (num > 0) {
+			String *tokens  = new String[num];
+			BoundaryCondition *data = new BoundaryCondition[num];
+			value.tokenize(tokens);
+			for(size_t i = 0; i < num; ++i) {
+			    tokens[i].lower();
+			    if (tokens[i] == "dirichlet")
+				data[i] = dirichlet;
+			    else if (tokens[i] == "neumann")
+				data[i] = neumann;
+			    else if (tokens[i] == "periodic")
+				data[i] = periodic;
+			    else {
+				fprintf(stderr,"WARNING: Unrecognized gridFile boundary condition \"%s\". Using Dirichlet.\n", tokens[i].val() );
+				data[i] = dirichlet;
+			    }
 			}
+			delete[] tokens;
+			part[currPart].set_boundary_conditions(num, data);
+			delete[] data;
 		    }
-		    delete[] tokens;
-		    part[currPart].pmf_boundary_conditions = data;
-		    
 		} else if (param == String("rigidBodyPotential")) {
-			partRigidBodyGrid[currPart].push_back(value);
+		    if (currPart < 0) exit(1);
+		    partRigidBodyGrid[currPart].push_back(value);
 		}
                 //Han-Yi Chou initial COM velocity for total particles
                 else if (param == String("COM_Velocity"))
@@ -1182,31 +1201,41 @@ int Configuration::readParameters(const char * config_file) {
 			rigidBody[++currRB] = RigidBodyType(value, this);
 			currPartClass = partClassRB;
 		}
-		else if (param == String("inertia"))
+		else if (param == String("inertia")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].inertia = stringToVector3( value );
-		else if (param == String("rotDamping"))
+		} else if (param == String("rotDamping")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].rotDamping = stringToVector3( value );
-
-		else if (param == String("attachedParticles"))
+		} else if (param == String("attachedParticles")) {
 			rigidBody[currRB].append_attached_particle_file(value);
-		else if (param == String("densityGrid"))
+		} else if (param == String("densityGrid")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].addDensityGrid(value);
-		else if (param == String("potentialGrid"))
+		} else if (param == String("potentialGrid")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].addPotentialGrid(value);
-		else if (param == String("densityGridScale"))
+		} else if (param == String("densityGridScale")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].scaleDensityGrid(value);
-		else if (param == String("potentialGridScale"))
+		} else if (param == String("potentialGridScale")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].scalePotentialGrid(value);
-		else if (param == String("pmfScale"))
+		} else if (param == String("pmfScale")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].scalePMF(value);
-		else if (param == String("position"))
+		} else if (param == String("position")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].initPos = stringToVector3( value );
-		else if (param == String("orientation"))
+		} else if (param == String("orientation")) {
+		    if (currRB < 0) exit(1);
 			rigidBody[currRB].initRot = stringToMatrix3( value );
-                else if (param == String("momentum"))
+                } else if (param == String("momentum")) {
                         rigidBody[currRB].initMomentum = stringToVector3(value);
-                else if (param == String("angularMomentum"))//for angular momentum, serve as restart purpose
+                } else if (param == String("angularMomentum")) {
+		    if (currRB < 0) exit(1);
                         rigidBody[currRB].initAngularMomentum = stringToVector3(value);
+		}
 		else if (param == String("inputRBCoordinates"))
 			inputRBCoordinates = value;
 		else if (param == String("restartRBCoordinates"))
@@ -1214,39 +1243,47 @@ int Configuration::readParameters(const char * config_file) {
 		
 		// COMMON
 		else if (param == String("num")) {
-			if (currPartClass == partClassPart)
-				part[currPart].num = atoi(value.val());
-			else if (currPartClass == partClassRB) 
-				rigidBody[currRB].num = atoi(value.val());
+		    if (currPartClass == partClassPart) {
+			if (currPart < 0) exit(1);
+			part[currPart].num = atoi(value.val());
+		    } else if (currPartClass == partClassRB) {
+			if (currRB < 0) exit(1);
+			rigidBody[currRB].num = atoi(value.val());
+		    }
 		}
                 //set mass here Han-Yi Chou
                 else if (param == String("mass"))
                 {
-                    if(currPartClass == partClassPart)
+                    if (currPartClass == partClassPart) {
+			if (currPart < 0) exit(1);
                         part[currPart].mass    = (float) strtod(value.val(),NULL);
-                    else if (currPartClass == partClassRB)
+                    } else if (currPartClass == partClassRB) {
+			if (currRB < 0) exit(1);
                         rigidBody[currRB].mass = (float) strtod(value.val(),NULL);
+		    }
                 }
                 //set damping here, using anisotropic damping, i.e. data type Vector3 Han-Yi Chou
                 else if (param == String("transDamping"))
                 {
-                    if(currPartClass == partClassPart)
+                    if (currPartClass == partClassPart) {
+			if (currPart < 0) exit(1);
                         part[currPart].transDamping    = stringToVector3(value);
-                    else if (currPartClass == partClassRB)
+		    } else if (currPartClass == partClassRB) {
+			if (currRB < 0) exit(1);
                         rigidBody[currRB].transDamping = stringToVector3(value);
-
+		    }
                 }
 		else if (param == String("gridFile")) {
 			if (currPartClass == partClassPart)
                         {
-                                printf("The grid file name %s\n", value.val());
-				//partGridFile[currPart] = value;
+			    if (currRB < 0) exit(1);
+                                printf("Applying grid file '%s'\n", value.val());
 				stringToArray<String>(&value, part[currPart].numPartGridFiles, 
                                                              &partGridFile[currPart]);
 				const int& num = part[currPart].numPartGridFiles;
 				partGridFileScale[currPart] = new float[num];
                                 for(int i = 0; i < num; ++i) {
-                                    printf("%s ", partGridFile[currPart]->val());
+                                    // printf("%s ", partGridFile[currPart]->val());
 				    partGridFileScale[currPart][i] = 1.0f;
 				}
 
@@ -1260,8 +1297,10 @@ int Configuration::readParameters(const char * config_file) {
 				    part[currPart].pmf_boundary_conditions = bc;
 				}
                         }
-			else if (currPartClass == partClassRB)
+			else if (currPartClass == partClassRB) {
+			    if (currRB < 0) exit(1);
 				rigidBody[currRB].addPMF(value);
+			}
 		}
 		// UNKNOWN
 		else {

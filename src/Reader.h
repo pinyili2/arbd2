@@ -53,6 +53,7 @@ public:
 					value[count].add(" ");
 			}
 			//printf("%s %s\n", tokenList[0].val(), tokenList[1].val());
+			// printf("READER: %d %s %s\n", count, param[count].val(), value[count].val());
 			count++;
 
 			delete[] tokenList;
@@ -96,6 +97,7 @@ public:
 	String getValue(int i) const {
 		i %= num;
 		while (i < 0) i += num;
+		// printf("Reader::getValue(%d) %s\n",i,value[i].val());
 		return value[i];
 	}
 

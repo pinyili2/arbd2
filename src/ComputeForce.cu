@@ -144,7 +144,7 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 
 	{	// allocate device for pairlists
 		// RBTODO: select maxpairs in better way; add assertion in kernel to avoid going past this
-		const int maxPairs = 1<<25;
+		const int maxPairs = MAX_NLIST_PAIRS;
 		for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 		    gpuman.use(i);
 		    gpuErrchk(cudaMalloc(&numPairs_d[i],       sizeof(int)));

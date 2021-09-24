@@ -40,6 +40,19 @@ class BrownianParticleType {
 
 		BrownianParticleType& operator=(const BrownianParticleType& src);
 
+    void set_boundary_conditions( int num, BoundaryCondition* bcs ) {
+	if (num <= 0) return;
+
+	if (pmf_boundary_conditions != NULL) {
+	    delete[] pmf_boundary_conditions;
+	}
+
+	pmf_boundary_conditions = new BoundaryCondition[num];
+	for (int i=0; i < num; ++i) {
+	    pmf_boundary_conditions[i] = bcs[i];
+	}
+    }
+
 		// crop
 		// Crops all BaseGrid members
 		// @param  boundries to crop to (x0, y0, z0) -> (x1, y1, z1);

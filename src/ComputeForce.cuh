@@ -1,15 +1,14 @@
 // ComputeForce.cuh
 //
 // Terrance Howard <heyterrance@gmail.com>
-#define NEW
 #pragma once
 #include <cassert>
 #include "CudaUtil.cuh"
 #include "TabulatedMethods.cuh"
 
-#define BD_PI 3.1415927f
-
-#define MAX_CELLS_FOR_CELLNEIGHBORLIST 1<<25
+constexpr float BD_PI = 3.1415927f;
+constexpr size_t MAX_CELLS_FOR_CELLNEIGHBORLIST = 1<<25;
+constexpr size_t MAX_NLIST_PAIRS = 1<<27; // Reduce if ARBD crashes immediately with GPU memory allocation error
 
 // texture<int,    1, cudaReadModeElementType>      NeighborsTex;
 // texture<int,    1, cudaReadModeElementType> pairTabPotTypeTex;
@@ -410,10 +409,15 @@ __global__ void createPairlists(Vector3* __restrict__ pos, const int num, const 
                             if(dr <= pairlistdist2)
                             {
                                 int gid = atomicAggInc( g_numPairs, warpLane );
-                                int pairType = type[ai] + type[aj] * numParts;
+				if (gid < MAX_NLIST_PAIRS) {
+				    int pairType = type[ai] + type[aj] * numParts;
 
-                                g_pair[gid] = make_int2(ai,aj);
-                                g_pairTabPotType[gid] = pairType;
+				    g_pair[gid] = make_int2(ai,aj);
+				    g_pairTabPotType[gid] = pairType;
+				} else {
+				    if (gid == MAX_NLIST_PAIRS)
+					printf("RAN OUT OF PAIRLIST SPACE\n");
+				}
                             }
                         }
                     }
