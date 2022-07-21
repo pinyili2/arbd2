@@ -217,7 +217,7 @@ void RigidBodyType::initializeParticleLists() {
 			// Build temporary id array of type j particles
 			int tmp[conf->numPartsOfType[j]];
 			int currId = 0;
-			for (int aid = 0; aid < conf->num; ++aid) {
+			for (int aid = 0; aid < conf->num + conf->num_rb_attached_particles ; ++aid) {
 			    if (conf->type[aid] == j)
 				tmp[currId++] = aid;
 			}

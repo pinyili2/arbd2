@@ -566,19 +566,20 @@ void GrandBrownTown::run()
     wkf_timer_start(timer0);
     wkf_timer_start(timerS);
 
-    if (fullLongRange == 0)
-    {
-        // cudaSetDevice(0);
-        internal->decompose();
-        gpuErrchk(cudaDeviceSynchronize());
-        #ifdef _OPENMP
-        omp_set_num_threads(4);
-        #endif
-        #pragma omp parallel for
-        for(int i = 0; i < numReplicas; ++i)
-            RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*(num+conf.num_rb_attached_particles), sys_d);
-        gpuErrchk(cudaDeviceSynchronize());
-    }
+    //// Happens at step 1 later anyway!
+    // if (fullLongRange == 0)
+    // {
+    //     // cudaSetDevice(0);
+    //     internal->decompose();
+    //     gpuErrchk(cudaDeviceSynchronize());
+    //     #ifdef _OPENMP
+    //     omp_set_num_threads(4);
+    //     #endif
+    //     #pragma omp parallel for
+    //     for(int i = 0; i < numReplicas; ++i)
+    //         RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*(num+conf.num_rb_attached_particles), sys_d);
+    //     gpuErrchk(cudaDeviceSynchronize());
+    // }
 
     float t; // simulation time
 
@@ -643,7 +644,6 @@ void GrandBrownTown::run()
                     switch (fullLongRange)
                     {
                         case 0: // [ N*log(N) ] interactions, + cutoff | decomposition
-                            if (s % decompPeriod == 0)
                             {
                                 // cudaSetDevice(0);
                                  internal -> decompose();
