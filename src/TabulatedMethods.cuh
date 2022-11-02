@@ -1,6 +1,6 @@
 #pragma once
 
-#define BD_PI 3.1415927f
+// Defined elsewhere: constexpr float BD_PI = 3.1415927f;
 
 __device__ inline void computeAngle(const TabulatedAnglePotential* __restrict__ a, const BaseGrid* __restrict__ sys, Vector3* force, const Vector3* __restrict__ pos,
 				const int& i, const int& j, const int& k, float* energy, bool get_energy) {

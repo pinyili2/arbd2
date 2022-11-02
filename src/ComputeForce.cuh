@@ -6,7 +6,7 @@
 #include "CudaUtil.cuh"
 #include "TabulatedMethods.cuh"
 
-constexpr float BD_PI = 3.1415927f;
+// From TabulatedMethods.cuh: constexpr float BD_PI = 3.1415927f; 
 constexpr size_t MAX_CELLS_FOR_CELLNEIGHBORLIST = 1<<25;
 constexpr size_t MAX_NLIST_PAIRS = 1<<27; // Reduce if ARBD crashes immediately with GPU memory allocation error
 

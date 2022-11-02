@@ -3,7 +3,6 @@
 
 #include "TabulatedDihedral.h"
 #include <cassert>
-#define BD_PI 3.1415927f
 
 TabulatedDihedralPotential::TabulatedDihedralPotential() :
 		pot(NULL), size(0), fileName("") {}
