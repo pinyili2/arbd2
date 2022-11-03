@@ -17,7 +17,6 @@ endif()
 ## specify the C++ standard
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_VERBOSE_MAKEFILE True)
 
 # Set a default build type if none was specified
 set(default_build_type "Release")
@@ -26,7 +25,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
     STRING "Choose the type of build." FORCE)
-  # # Set the possible values of build type for cmake-gui
+  ## Set the possible values of build type for cmake-gui
   set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
     "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
@@ -34,12 +33,9 @@ endif()
 
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  ## Some CMake uses -O2 for relase, override here
-  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
-
-  if( CMAKE_BUILD_TYPE STREQUAL "Release")
-    set( CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3" )
-  endif()
+  ## Some CMake versions use -O2 for release; replace with -O3
+  string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+  string(REPLACE "-O2" "-O3" CMAKE_CUDA_FLAGS_RELEASE ${CMAKE_CUDA_FLAGS_RELEASE})
 endif()
 
 
@@ -89,6 +85,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_MACOSX_RPATH 1)	# Unsure if this works for CMAKE_BUIlD_RPATH, or just CMAKE_INSTALL_RPATH
 set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 
+# set(CMAKE_VERBOSE_MAKEFILE True)
 add_executable(arbd arbd.cpp
   Configuration.cpp
   FlowForce.cpp
