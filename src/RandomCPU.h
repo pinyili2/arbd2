@@ -34,7 +34,7 @@
 #define DEVICE 
 #endif
 
-#include "common.h"
+#include "namd_common.h"
 #include "useful.h"
 
 #ifdef _MSC_VER

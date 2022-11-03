@@ -9,7 +9,6 @@
 #include <curand_kernel.h>
 #include <curand.h>
 
-#include "common.h"
 #include "useful.h"
 #include "ComputeForce.h"
 
