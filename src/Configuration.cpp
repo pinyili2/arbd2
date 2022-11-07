@@ -1276,7 +1276,7 @@ int Configuration::readParameters(const char * config_file) {
 		else if (param == String("gridFile")) {
 			if (currPartClass == partClassPart)
                         {
-			    if (currRB < 0) exit(1);
+			    if (currPart < 0) exit(1);
                                 printf("Applying grid file '%s'\n", value.val());
 				stringToArray<String>(&value, part[currPart].numPartGridFiles, 
                                                              &partGridFile[currPart]);
