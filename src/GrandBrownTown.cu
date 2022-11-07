@@ -3,6 +3,7 @@
 /* #include "ComputeGridGrid.cuh" */
 #include "WKFUtils.h"
 #include "BrownParticlesKernel.h"
+#include "nvtx_defs.h"
 #include <stdlib.h>     /* srand, rand */
 #include <time.h>       /* time */
 #include <thrust/device_ptr.h>
@@ -599,6 +600,7 @@ void GrandBrownTown::run()
     // Main loop over Brownian dynamics steps
     for (long int s = 1; s < steps; s++)
     {
+      PUSH_NVTX("Main loop timestep",0)
         bool get_energy = ((s % outputEnergyPeriod) == 0);
         //At the very first time step, the force is computed
         if(s == 1)
@@ -744,10 +746,12 @@ void GrandBrownTown::run()
 
         }//if step == 1
 
+	PUSH_NVTX("Clear particle force data",1)
 	internal->clear_energy();
 	gpuman.sync();
+	POP_NVTX
 
-
+	PUSH_NVTX("Integrate particles",2)
         if(particle_dynamic == String("Langevin"))
             updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
         else if(particle_dynamic == String("NoseHooverLangevin"))
@@ -761,6 +765,9 @@ void GrandBrownTown::run()
                                                        part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas,
                                                        internal->getEnergy(), get_energy, ParticleInterpolationType);
 
+	POP_NVTX
+
+	PUSH_NVTX("Integrate rigid bodies",2)
         if(rigidbody_dynamic == String("Langevin"))
         {
             #ifdef _OPENMP
@@ -786,7 +793,9 @@ void GrandBrownTown::run()
                 RBC[i]->print(s);
             }
         }
+	POP_NVTX
 
+	PUSH_NVTX("Update rigid body attached particle positions",3)
 	if (num_rb_attached_particles > 0) {
 	    #pragma omp parallel for
 	    for(int i = 0; i < numReplicas; ++i) {
@@ -797,11 +806,14 @@ void GrandBrownTown::run()
 		    sys_d, num, num_rb_attached_particles, numReplicas);
 	    }
 	}
-	
+	POP_NVTX
+
         if (s % outputPeriod == 0) {
+	    PUSH_NVTX("Copy particle positions to host for output",7)
             // Copy particle positions back to CPU
 	    gpuErrchk(cudaDeviceSynchronize());
             gpuErrchk(cudaMemcpy(pos, internal ->getPos_d()[0], sizeof(Vector3) * (num+num_rb_attached_particles) * numReplicas, cudaMemcpyDeviceToHost));
+	    POP_NVTX
 	}
         if (imd_on && clientsock && s % outputPeriod == 0)
         {
@@ -876,20 +888,26 @@ void GrandBrownTown::run()
         #ifdef _OPENMP
         omp_set_num_threads(4);
         #endif
+
+	PUSH_NVTX("Clear rigid body forces",2)
         #pragma omp parallel for
         for(int i = 0; i < numReplicas; ++i) 
             RBC[i]->clearForceAndTorque();
+	POP_NVTX
 
 	
 	if (numGroupSites > 0) {
+ 	  PUSH_NVTX("Update collective coordinates",2)
 	    gpuman.sync();
 	    updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
 	    gpuman.sync();
+	  POP_NVTX
 	}
 
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
+	  PUSH_NVTX("Clear particle forces",2)
             internal->clear_force();
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
@@ -898,6 +916,7 @@ void GrandBrownTown::run()
 		gpuman.nccl_broadcast(0, _p, _p, (num+num_rb_attached_particles+numGroupSites)*numReplicas, nccl_broadcast_streams);
 	    }
 	    #endif
+	    POP_NVTX
     	}
 
         if (interparticleForce)
@@ -910,19 +929,27 @@ void GrandBrownTown::run()
                     case 0: // [ N*log(N) ] interactions, + cutoff | decomposition
                         if (s % decompPeriod == 0)
                         {
+			  PUSH_NVTX("Decompose particles",5)
                             internal -> decompose();
+			  POP_NVTX
                             #ifdef _OPENMP
                             omp_set_num_threads(4);
                             #endif
+			    PUSH_NVTX("Update rigid body particle lists",6)
                             #pragma omp parallel for
                             for(int i = 0; i < numReplicas; ++i)
                                 RBC[i]->updateParticleLists( (internal->getPos_d()[0])+i*(num+num_rb_attached_particles), sys_d);
+			    POP_NVTX
                         }
+			PUSH_NVTX("Calculate particle-particle forces",7)
                         internal -> computeTabulated(get_energy);
+			POP_NVTX
 			#ifdef USE_NCCL
 			if (gpuman.gpus.size() > 1) {
+			  PUSH_NVTX("Reduce particle forces",6)
 			    const std::vector<Vector3*>& _f = internal->getForceInternal_d();
 			    gpuman.nccl_reduce(0, _f, _f, (num+num_rb_attached_particles)*numReplicas, -1);
+			  POP_NVTX
 			}
 			#endif
                         break;
@@ -932,7 +959,7 @@ void GrandBrownTown::run()
                 }
             }
             else
-            {
+            { 
                 // Not using tabulated potentials.
                 switch (fullLongRange)
                 {
@@ -964,6 +991,7 @@ void GrandBrownTown::run()
             }
         }
 
+	PUSH_NVTX("Compute RB attached particle forces",4)
 	if (get_energy) {
 	    compute_position_dependent_force_for_rb_attached_particles
 		<<< numBlocks, NUM_THREADS >>> (
@@ -976,18 +1004,22 @@ void GrandBrownTown::run()
 		    internal -> getForceInternal_d()[0], internal -> getEnergy(),
 		    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
 	}
+	POP_NVTX
 
 
         //compute the force for rigid bodies
         #ifdef _OPENMP
         omp_set_num_threads(4);
         #endif
+	PUSH_NVTX("Compute RB-RB forces forces",5)
         #pragma omp parallel for
         for(int i = 0; i < numReplicas; ++i) // TODO: Use different buffer for RB particle forces to avoid race condition
             RBC[i]->updateForces((internal->getPos_d()[0])+i*(num+num_rb_attached_particles), (internal->getForceInternal_d()[0])+i*(num+num_rb_attached_particles), s, (internal->getEnergy())+i*(num+num_rb_attached_particles), get_energy,
 				 RigidBodyInterpolationType, sys, sys_d, num, num_rb_attached_particles);
+	POP_NVTX
 
 	if (numGroupSites > 0) {
+	  PUSH_NVTX("Spread collective coordinate forces to constituent particles",4)
 	    gpuman.sync();
 	    // if ((s%100) == 0) {
 	    distributeGroupSiteForces<true><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
@@ -995,14 +1027,18 @@ void GrandBrownTown::run()
 	//     distributeGroupSiteForces<false><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
 	// }
 	    gpuman.sync();
+	  POP_NVTX
 	}
 
+	PUSH_NVTX("Update particle coordinates",2)
         if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             LastUpdateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getForceInternal_d()[0], 
             internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, internal->getEnergy(), get_energy,
             ParticleInterpolationType);
             //gpuErrchk(cudaDeviceSynchronize());
-
+	POP_NVTX
+  
+	PUSH_NVTX("Update RB coordinates",3)
         if(rigidbody_dynamic == String("Langevin"))
         {
             #ifdef _OPENMP
@@ -1018,9 +1054,11 @@ void GrandBrownTown::run()
                 RBC[i]->print(s);
             }
         }
+	POP_NVTX
 
         if (s % outputPeriod == 0)
         {
+	  PUSH_NVTX("Copy and write particle and RB coordinates for output",3)
             if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
             {
                 gpuErrchk(cudaMemcpy(momentum, internal ->  getMom_d(), sizeof(Vector3) * (num) * numReplicas, cudaMemcpyDeviceToHost));
@@ -1131,6 +1169,7 @@ void GrandBrownTown::run()
                     writeRestart(repID);
 
                 wkf_timer_start(timerS);
+		POP_NVTX
          } // s % outputEnergyPeriod
      } // done with all Brownian dynamics steps
 

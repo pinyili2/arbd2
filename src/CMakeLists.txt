@@ -131,5 +131,8 @@ endif()
 if(USE_NCCL)
   target_link_libraries(arbd PRIVATE nccl)
 endif()
+if(USE_NVTX)
+  target_link_libraries(arbd PRIVATE nvToolsExt)
+endif()
 
 install(TARGETS arbd)
