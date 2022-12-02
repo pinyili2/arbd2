@@ -746,7 +746,7 @@ void GrandBrownTown::run()
 
         }//if step == 1
 
-	PUSH_NVTX("Clear particle force data",1)
+	PUSH_NVTX("Clear particle energy data",1)
 	internal->clear_energy();
 	gpuman.sync();
 	POP_NVTX
@@ -1171,6 +1171,7 @@ void GrandBrownTown::run()
                 wkf_timer_start(timerS);
 		POP_NVTX
          } // s % outputEnergyPeriod
+     POP_NVTX
      } // done with all Brownian dynamics steps
 
      if (imd_on and clientsock)
