@@ -913,7 +913,7 @@ void computeProductPotentials(Vector3* force,
     */
 
     // CRAPPY NAIVE IMPLEMENTATION
-#define MAX_XPOTS 4
+    constexpr int MAX_XPOTS = 4;
     float2 energy_and_deriv[MAX_XPOTS];
     float tmp_force;
 

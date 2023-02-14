@@ -26,7 +26,7 @@
 	    fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, __LINE__); \
 	}}
 #endif
-constexpr float BD_PI 3.1415927f;
+constexpr float BD_PI = 3.1415927f;
 
 class EnergyForce {
 public:

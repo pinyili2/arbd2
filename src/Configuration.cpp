@@ -873,7 +873,9 @@ void Configuration::setDefaults() {
 
 	readProductPotentialsFromFile = false;
 	numProductPotentials = 0;
-	
+	productPotentials = NULL;
+	simple_potential_ids = XpotMap();
+	simple_potentials = std::vector<SimplePotential>();
 
 	readRestraintsFromFile = false;
 	numRestraints = 0;
@@ -1138,7 +1140,7 @@ int Configuration::readParameters(const char * config_file) {
 			}
 		} else if (param == String("inputBondAngles")) {
 			if (readBondAnglesFromFile) {
-				printf("WARNING: More than one angle file specified. Ignoring new angle file.\n");
+				printf("WARNING: More than one bondangle file specified. Ignoring new bondangle file.\n");
 			} else {
 			        bondAngleFile = value;
 				readBondAnglesFromFile = true;
@@ -1974,9 +1976,8 @@ void Configuration::readBondAngles() {
 		String* tokenList = new String[numTokens];
 		s.tokenize(tokenList);
 
-		// Legitimate BONDANGLE inputs have 7 tokens
-		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | ANGLE_FILENAME | BOND_FILENAME1 | BOND_FILENAME2
-		// Any angle input line without exactly 5 tokens should be discarded
+		// Legitimate BONDANGLE inputs have 8 tokens
+		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | INDEX4 | ANGLE_FILENAME | BOND_FILENAME1 | BOND_FILENAME2
 		if (numTokens != 8) {
 			printf("WARNING: Invalid bond_angle input line: %s\n", line);
 			continue;
@@ -2049,7 +2050,7 @@ void Configuration::readProductPotentials() {
 
 		// Legitimate ProductPotential inputs have at least 7 tokens
 		// BONDANGLE | INDEX1 | INDEX2 | INDEX3 | [TYPE1] | POT_FILENAME1 | INDEX4 | INDEX5 | [TYPE2] POT_FILENAME2 ...
-		if (numTokens < 7) {
+		if (numTokens < 5) {
 		    printf("WARNING: Invalid product potential input line (too few tokens %d): %s\n", numTokens, line);
 			continue;
 		}
@@ -2081,14 +2082,15 @@ void Configuration::readProductPotentials() {
 			    indices.push_back(tmp);
 			    pot_names.push_back( n );
 			    // TODO: Key should be tuple of (type,n)
-			    if ( simple_potential_ids.find(n) == simple_potential_ids.end() ) {
+			    std::string n_str = std::string(n.val());
+			    if ( simple_potential_ids.find(n_str) == simple_potential_ids.end() ) {
 				// Could not find fileName in dictionary, so read and add it
 				unsigned int s = tmp.size();
 				if (s < 2 || s > 4) {
 				    printf("WARNING: Invalid product potential input line (indices of potential %d == %d): %s\n", i, s, line);
 				    continue;
 				}
-				simple_potential_ids[n] = simple_potentials.size();
+				simple_potential_ids[ n_str ] = simple_potentials.size();
 				if (not type_specified) type = s==2? BOND: s==3? ANGLE: DIHEDRAL;
 				simple_potentials.push_back( SimplePotential(n.val(), type) );
 			    }

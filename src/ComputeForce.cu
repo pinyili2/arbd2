@@ -732,12 +732,12 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	if(product_potential_list_d != NULL && product_potentials_d != NULL)
 	{
-	    computeProductPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numProductPotentials, product_potential_particles_d, product_potentials_d, product_potential_list_d, productCount_d, energies_d, get_energy);
+	    computeProductPotentials <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numProductPotentials, product_potential_particles_d, product_potentials_d, product_potential_list_d, productCount_d, energies_d, get_energy);
 	}
 
 	if(bondAngleList_d != NULL && tableBond_d != NULL && tableAngle_d != NULL)
 	{
-	    computeTabulatedBondAngles <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d, pos_d, sys_d, numReplicas*numBondAngles, bondAngleList_d, tableAngle_d, tableBond_d, energies_d, get_energy);
+	    computeTabulatedBondAngles <<<nb, numThreads, 0, gpuman.get_next_stream()>>> ( forceInternal_d[0], pos_d[0], sys_d[0], numReplicas*numBondAngles, bondAngleList_d, tableAngle_d, tableBond_d, energies_d, get_energy);
 	}
 
 	if(bondList_d != NULL && tableBond_d != NULL)
@@ -1023,7 +1023,7 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 
 		    for (int j=0; j < c.indices.size(); ++j) {
 			if (r == 0) {
-			    unsigned int sp_i = simple_potential_map.at(c.potential_names[j]);
+			    const unsigned int sp_i = simple_potential_map.find( std::string( c.potential_names[j].val() ) )->second;
 			    product_potentials[n_pots] = simple_potentials[sp_i];
 			    product_potentials[n_pots].pot = simple_potential_pots_d[sp_i];
 			}
