@@ -13,8 +13,6 @@
 // #include <math.h>
 // #define _USING_MATH_DEFINES
 
-constexpr float BD_PI = 3.1415927f;
-
 class TabulatedDihedralPotential {
 public:
 	TabulatedDihedralPotential();

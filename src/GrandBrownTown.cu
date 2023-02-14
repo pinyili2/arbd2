@@ -204,6 +204,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	partTableIndex0 = c.partTableIndex0;
 	partTableIndex1 = c.partTableIndex1;
 
+	numBondAngles = c.numBondAngles;
+
 	numTabBondFiles = c.numTabBondFiles;
 	bondMap = c.bondMap;
 	// TODO: bondList = c.bondList;
@@ -219,6 +221,8 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 
 	dihedrals = c.dihedrals;
 	numTabDihedralFiles = c.numTabDihedralFiles;
+
+	bondAngles = c.bondAngles;
 
 	// Device parameters
 	//type_d = c.type_d;
@@ -256,9 +260,9 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	 //			    fullLongRange, numBonds, numTabBondFiles, numExcludes, numAngles, numTabAngleFiles,
 	 //			    numDihedrals, numTabDihedralFiles, c.pairlistDistance, numReplicas);
 	internal = new ComputeForce(c, numReplicas);
-	
+
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
-	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints);
+	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints, c.bondAngles, c.simple_potential_ids, c.simple_potentials, c.productPotentials );
 	if (numGroupSites > 0) init_cuda_group_sites();
 
 	// TODO: check for duplicate potentials 
@@ -283,11 +287,11 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			if (bondTableFile[p].length() > 0) {
 				//MLog: make sure to add to all GPUs
 			    // printf("...loading %s\n",bondTableFile[p].val());
-				internal->addBondPotential(bondTableFile[p].val(), p, bonds);
+			    internal->addBondPotential(bondTableFile[p].val(), p, bonds, bondAngles);
 				// printf("%s\n",bondTableFile[p].val());
 			} else {
 			    printf("...skipping %s (\n",bondTableFile[p].val());
-			    internal->addBondPotential(bondTableFile[p].val(), p, bonds);
+			    internal->addBondPotential(bondTableFile[p].val(), p, bonds, bondAngles);
 			}
 			    
 	}
@@ -298,7 +302,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 			if (angleTableFile[p].length() > 0)
 			{
 				//MLog: make sure to do this for every GPU
-				internal->addAnglePotential(angleTableFile[p].val(), p, angles);
+			    internal->addAnglePotential(angleTableFile[p].val(), p, angles, bondAngles);
 			}
 	}
 
@@ -373,7 +377,32 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	    }
 	}
 	}
-	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList);
+
+	if (numBondAngles > 0) {
+	bondAngleList = new int4[ (numBondAngles*2) * numReplicas ];
+	for(int k = 0 ; k < numReplicas; k++) {
+	    for(int i = 0; i < numBondAngles; ++i) {
+			if (bondAngles[i].tabFileIndex1 == -1) {
+				fprintf(stderr,"Error: bondanglefile '%s' was not read with tabulatedAngleFile command.\n", bondAngles[i].angleFileName1.val());
+				exit(1);
+			}
+			if (bondAngles[i].tabFileIndex2 == -1) {
+				fprintf(stderr,"Error: bondanglefile1 '%s' was not read with tabulatedBondFile command.\n", bondAngles[i].bondFileName.val());
+				exit(1);
+			}
+			if (bondAngles[i].tabFileIndex3 == -1) {
+				fprintf(stderr,"Error: bondanglefile2 '%s' was not read with tabulatedBondFile command.\n", bondAngles[i].angleFileName2.val());
+				exit(1);
+			}
+			int idx = i+k*numBondAngles;
+			bondAngleList[idx*2]   = make_int4( bondAngles[i].ind1+k*num, bondAngles[i].ind2+k*num,
+							    bondAngles[i].ind3+k*num, bondAngles[i].ind4+k*num );
+			bondAngleList[idx*2+1] = make_int4( bondAngles[i].tabFileIndex1, bondAngles[i].tabFileIndex2, bondAngles[i].tabFileIndex3, -1 );
+	    }
+	}
+	}
+
+	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList,bondAngleList);
 	
 	forceInternal = new Vector3[(num+num_rb_attached_particles+numGroupSites)*numReplicas];
 	if (fullLongRange != 0)
