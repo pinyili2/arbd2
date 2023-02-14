@@ -8,12 +8,6 @@ endif()
 # option(USE_CUDA "Use CUDA" ON)
 set(USE_CUDA ON)
 
-if(USE_CUDA)
-  project(arbd VERSION 1.2 LANGUAGES CXX CUDA)
-else(USE_CUDA)
-  project(arbd VERSION 1.2 LANGUAGES CXX)
-endif()
-
 ## specify the C++ standard
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -31,7 +25,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
 endif()
 
 
-
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   ## Some CMake versions use -O2 for release; replace with -O3
   if(CMAKE_CXX_FLAGS_RELEASE)
@@ -44,14 +37,14 @@ endif()
 
 
 ## OPTIONS
+option(DEBUG "Build with debug flags" False)
 option(USE_NCCL "Use NCCL for single node GPU peer communication" False)
 option(USE_NVTX "Build with NVTX profiling ranges" False)
-option(DEBUG "Build with debug flags" False)
 
 # (not yet optional) message(STATUS "USE_CUDA: ${USE_CUDA}")
+message(STATUS "DEBUG: ${DEBUG}")
 message(STATUS "USE_NCCL: ${USE_NCCL}")
 message(STATUS "USE_NVTX: ${USE_NVTX}")
-message(STATUS "DEBUG: ${DEBUG}")
 
 
 ## Set flags before adding executable 
@@ -66,17 +59,30 @@ if(USE_CUDA)
   include_directories(${CUDA_INCLUDE_DIRS})
 endif()
 
+if(DEBUG)
+  set(CMAKE_BUILD_TYPE Debug)
+  set(PROJECT_NAME arbd_dbg)
+else(DEBUG)
+  set(PROJECT_NAME arbd)
+endif()
 if(USE_NVTX)
   add_definitions(-DUSE_NVTX)
 endif()
 if(USE_NCCL)
   add_definitions(-DUSE_NCCL)
-  target_link_libraries(arbd PRIVATE nccl)
+  target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
 endif()
 
 ## Two lines below needed?
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+if(USE_CUDA)
+  project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
+else(USE_CUDA)
+  project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
+endif()
+
 
 ## Print all variables by uncommenting block below 
 # get_cmake_property(_variableNames VARIABLES)
@@ -90,7 +96,7 @@ set(CMAKE_MACOSX_RPATH 1)	# Unsure if this works for CMAKE_BUIlD_RPATH, or just 
 set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 
 # set(CMAKE_VERBOSE_MAKEFILE True)
-add_executable(arbd src/arbd.cpp
+add_executable("${PROJECT_NAME}" src/arbd.cpp
   src/Configuration.cpp
   src/FlowForce.cpp
   src/GPUManager.cpp
@@ -130,13 +136,13 @@ add_executable(arbd src/arbd.cpp
 
 ## Add optional libraries
 if(USE_CUDA)
-  target_link_libraries(arbd PRIVATE curand)
+  target_link_libraries("${PROJECT_NAME}" PRIVATE curand)
 endif()
 if(USE_NCCL)
-  target_link_libraries(arbd PRIVATE nccl)
+  target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
 endif()
 if(USE_NVTX)
-  target_link_libraries(arbd PRIVATE nvToolsExt)
+  target_link_libraries("${PROJECT_NAME}" PRIVATE nvToolsExt)
 endif()
 
-install(TARGETS arbd)
+install(TARGETS "${PROJECT_NAME}")
