@@ -650,7 +650,9 @@ void GrandBrownTown::run()
 		}
 	    }
 
-	    if (numGroupSites > 0) updateGroupSites<<<(numGroupSites/32+1),32>>>(_pos[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
+	    gpuman.sync();
+	    if (numGroupSites > 0) updateGroupSites<<<(numGroupSites*numReplicas/32+1),32>>>(_pos[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
+	    gpuman.sync();
 
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
@@ -771,7 +773,7 @@ void GrandBrownTown::run()
 	    }
 	    #endif
 
-	    if (numGroupSites > 0) distributeGroupSiteForces<false><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
+	    if (numGroupSites > 0) distributeGroupSiteForces<false><<<(numGroupSites*numReplicas/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
 
         }//if step == 1
 
@@ -928,7 +930,7 @@ void GrandBrownTown::run()
 	if (numGroupSites > 0) {
  	  PUSH_NVTX("Update collective coordinates",2)
 	    gpuman.sync();
-	    updateGroupSites<<<(numGroupSites/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
+	    updateGroupSites<<<(numGroupSites*numReplicas/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
 	    gpuman.sync();
 	  POP_NVTX
 	}
@@ -1051,9 +1053,9 @@ void GrandBrownTown::run()
 	  PUSH_NVTX("Spread collective coordinate forces to constituent particles",4)
 	    gpuman.sync();
 	    // if ((s%100) == 0) {
-	    distributeGroupSiteForces<true><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
+	    distributeGroupSiteForces<false><<<(numGroupSites*numReplicas/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
 	// } else {
-	//     distributeGroupSiteForces<false><<<(numGroupSites/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
+	//     distributeGroupSiteForces<false><<<(numGroupSites*numReplicas/32+1),32>>>(internal->getForceInternal_d()[0], groupSiteData_d, num+num_rb_attached_particles, numGroupSites, numReplicas);
 	// }
 	    gpuman.sync();
 	  POP_NVTX

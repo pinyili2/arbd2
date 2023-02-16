@@ -407,6 +407,7 @@ inline Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion,
 	return sys->wrap(r);
 }
 
+template<bool print=false>
 __global__
 void updateGroupSites(Vector3 pos[], int* groupSiteData, int num, int numGroupSites, int numReplicas) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
@@ -432,12 +433,14 @@ void updateGroupSites(Vector3 pos[], int* groupSiteData, int num, int numGroupSi
 	    const int aj = groupSiteData[j] + num*rep;
 	    tmp += weight * pos[aj];
 	}
-	// printf("GroupSite %d (mod %d) COM (start,finish, x,y,z): (%d,%d, %f,%f,%f)\n",i, imod, start, finish, tmp.x, tmp.y, tmp.z);
+	if (print) {
+	    printf("GroupSite %d (rep %d/%d) COM (start,finish, x,y,z): (%d,%d, %f,%f,%f)\n",i, rep, numReplicas, start, finish, tmp.x, tmp.y, tmp.z);
+	}
 	pos[num*numReplicas + i] = tmp;
     }
 }
 
-template<bool print>
+template<bool print=false>
 __global__
 void distributeGroupSiteForces(Vector3 force[], int* groupSiteData, int num, int numGroupSites, int numReplicas) {
     // TODO, handle groupsite energies
@@ -452,9 +455,9 @@ void distributeGroupSiteForces(Vector3 force[], int* groupSiteData, int num, int
 	float weight = 1.0 / (finish-start);
 
 	const Vector3 tmp = weight*force[num*numReplicas+i];
-	// if (print) {
-	//     printf("GroupSite %d Force rep %d: %f %f %f\n",i, rep, tmp.x, tmp.y, tmp.z);
-	// }
+	if (print) {
+	    printf("GroupSite %d Force rep %d/%d: %f %f %f\n",i, rep, numReplicas, tmp.x, tmp.y, tmp.z);
+	}
 
 	for (int j = start; j < finish; j++) {
 	    const int aj = groupSiteData[j] + num*rep;
