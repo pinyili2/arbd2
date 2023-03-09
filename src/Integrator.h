@@ -1,26 +1,22 @@
+/*********************************************************************
+ * @file  Integrator.h
+ * 
+ * @brief Declaration of Integrator class with factory-like method
+ * GetIntegrator()
+ *
+ * Defines hashable Integrator::Conf struct that allows operator
+ * resuse. Common CPU/GPU kernels implemented in Integrator/kernels.h
+ * with various BD/MD integrators implemented on different backends in
+ * Integrator/CUDA.h and Integrator/CPU.h
+ *********************************************************************/
 #pragma once
 
 #include <cassert>
 #include <iostream>
 #include <map>
-#include "PatchOps.h"
+#include "PatchOp.h"
 
-#ifdef __CUDACC__
-    #define HOST __host__
-    #define DEVICE __device__
-#else
-    #define HOST
-    #define DEVICE
-#endif
-
-namespace IntegratorKernels {
-    HOST DEVICE  void __inline__ BDIntegrate() {
-	// std::cout << "Computes::BDIntegrate_inline" << std::endl;
-	printf("Integrator::BDIntegrate\n");
-    };
-}
-
-class Integrator : public BaseCompute {
+class Integrator : public BasePatchOp {
 public:
     virtual void compute(Patch* patch) = 0;
     int num_patches() const { return 1; };
@@ -45,5 +41,6 @@ protected:
 
 };
 
+#include "Integrator/kernels.h"
 #include "Integrator/CUDA.h"
 #include "Integrator/CPU.h"

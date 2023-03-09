@@ -18,10 +18,10 @@
 #endif
 
 #include "SimSystem.h"
-#include "useful.h"
+// #include "useful.h"
+#include "Types.h"
 
-#include "PatchOps.h"
-//class BaseCompute;
+#include "PatchOp.h"
 
 class BasePatch {
 public:
@@ -56,10 +56,10 @@ public:
     // void addParticles(int n, int typ);
     // template<class T>
     // void add_compute(std::unique_ptr<T>&& p) {
-    // 	std::unique_ptr<BaseCompute> base_p = static_cast<std::unique_ptr<BaseCompute>>(p);
+    // 	std::unique_ptr<BasePatchOp> base_p = static_cast<std::unique_ptr<BasePatchOp>>(p);
     // 	local_computes.emplace_back(p);
     // };
-    void add_compute(std::unique_ptr<BaseCompute>&& p) {
+    void add_compute(std::unique_ptr<BasePatchOp>&& p) {
 	local_computes.emplace_back(std::move(p));
     };
 
@@ -67,8 +67,8 @@ public:
     
 private:
     // std::vector<PatchProxy> neighbors;    
-    std::vector<std::unique_ptr<BaseCompute>> local_computes; // Operations that will be performed on this patch each timestep
-    std::vector<std::unique_ptr<BaseCompute>> nonlocal_computes; // Operations that will be performed on this patch each timestep
+    std::vector<std::unique_ptr<BasePatchOp>> local_computes; // Operations that will be performed on this patch each timestep
+    std::vector<std::unique_ptr<BasePatchOp>> nonlocal_computes; // Operations that will be performed on this patch each timestep
     
     static int patch_idx;		// Unique ID across ranks
 

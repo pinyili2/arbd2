@@ -96,27 +96,33 @@ endif()
 set(CMAKE_MACOSX_RPATH 1)	# Unsure if this works for CMAKE_BUIlD_RPATH, or just CMAKE_INSTALL_RPATH
 set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 
+## Set up doctest
+# option(ENABLE_DOCTESTS "Include tests in the library. Setting this to OFF will remove all doctest related code.
+#                     Tests in tests/*.cpp will still be enabled." ON)
+# set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
+# include(doctest)
+
+## Add subdirectories
+add_subdirectory(src)
+add_subdirectory(src/Tests)
+
 # set(CMAKE_VERBOSE_MAKEFILE True)
 add_executable("${PROJECT_NAME}" src/arbd.cpp
-  src/ParticlePatch.cpp
-  src/Integrator.cpp
-  src/Integrator/CPU.cpp
-  src/Integrator/CUDA.cu
-  src/SignalManager.cpp
-  src/GPUManager.cpp
-  src/SimManager.cpp
-  src/useful.cu
-  )
+src/SimManager.cpp
+src/useful.cu
+)
+
+target_link_libraries("${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
 
 ## Add optional libraries
 if(USE_CUDA)
-  target_link_libraries("${PROJECT_NAME}" PRIVATE curand)
+  target_link_libraries("${PROJECT_NAME}" PUBLIC curand)
 endif()
 if(USE_NCCL)
-  target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
+  target_link_libraries("${PROJECT_NAME}" PUBLIC nccl)
 endif()
 if(USE_NVTX)
-  target_link_libraries("${PROJECT_NAME}" PRIVATE nvToolsExt)
+  target_link_libraries("${PROJECT_NAME}" PUBLIC nvToolsExt)
 endif()
 
 install(TARGETS "${PROJECT_NAME}")

@@ -6,7 +6,7 @@
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 
-#include "useful.h"
+// #include "useful.h"
 
 #ifdef USE_NCCL
 #include <nccl.h>

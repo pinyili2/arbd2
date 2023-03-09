@@ -1,7 +1,7 @@
 #pragma once
 #include <iostream>
 #include "ParticlePatch.h"
-#include "PatchOps.h"
+#include "PatchOp.h"
 
 class SimManager {
 public:
