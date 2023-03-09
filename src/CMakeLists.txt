@@ -1,0 +1,11 @@
+add_library("lib${PROJECT_NAME}"
+  GPUManager.cpp
+  ParticlePatch.cpp
+  Integrator.cpp
+  Integrator/CPU.cpp
+  Integrator/CUDA.cu
+  Interaction.cpp
+  Interaction/CPU.cpp
+  Interaction/CUDA.cu
+  SignalManager.cpp
+)
