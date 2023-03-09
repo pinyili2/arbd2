@@ -1,3 +1,8 @@
+/**
+ * @file LocalInteraction.h
+ * @brief Defines the LocalInteraction class and its related structures
+ */
+
 #pragma once
 
 #include <cassert>
@@ -5,32 +10,61 @@
 #include <map>
 #include "PatchOp.h"
 
+/**
+ * @class LocalInteraction
+ * @brief Base class for local interaction
+ */
 class LocalInteraction : public BasePatchOp {
 public:
+    /**
+     * @brief Computes interaction for a given patch
+     * @param patch Pointer to the patch for which interaction is to be computed
+     */
     virtual void compute(Patch* patch) = 0;
+
+    /**
+     * @brief Returns the number of patches
+     * @return The number of patches
+     */
     int num_patches() const { return 1; };
 
-    // Following relates to lazy initialized factory method
+    /**
+     * @brief Struct for defining interaction configuration
+     */
     struct Conf {
-	enum Object    {Particle, RigidBody };
-	enum DoF {Bond, Angle, Dihedral, Bonded, NeighborhoodPair};
-	enum Form {Harmonic, Tabulated, LennardJones, Coulomb, LJ};
-	enum Backend   { Default, CUDA, CPU };
+	    enum Object    {Particle, RigidBody };
+	    enum DoF {Bond, Angle, Dihedral, Bonded, NeighborhoodPair};
+	    enum Form {Harmonic, Tabulated, LennardJones, Coulomb, LJ};
+	    enum Backend   { Default, CUDA, CPU };
 	
-	Object object_type;
-	DoF dof;
-	Form form;
-	Backend backend;
+	    Object object_type; ///< The object type
+	    DoF dof; ///< The degree of freedom
+	    Form form; ///< The form
+	    Backend backend; ///< The backend for computing the interaction
 
-	explicit operator int() const {return object_type*64 + dof*16 + form*4 + backend;};
+	    /**
+	     * @brief int Conversion operator for Conf for easy comparison
+	     * @return The integer representation of Conf
+	     */
+	    explicit operator int() const {return object_type*64 + dof*16 + form*4 + backend;};
     };
 
+    /**
+     * @brief Factory method for obtaining a LocalInteraction object
+     * @param conf The configuration for the LocalInteraction object to be obtained
+     * @return A pointer to the LocalInteraction object
+     */
     static LocalInteraction* GetInteraction(Conf& conf);
 
 private:
-    size_t num_interactions;
+    size_t num_interactions; /**< Stores the number of interactions of this type in the system. */
     
 protected:
+    /**
+     * A map that maps interaction configurations to interaction objects.
+     * This map is shared across all instances of LocalInteraction and is used to
+     * lazily initialize and retrieve interaction objects based on their configuration.
+     */
     static std::map<Conf, LocalInteraction*> _interactions;
 
 };
