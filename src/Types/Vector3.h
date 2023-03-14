@@ -99,9 +99,9 @@ public:
 		return v;
 	}
 
-	template<typename U>
-	    HOST DEVICE inline Vector3_t<T> operator+(const Vector3_t<U>& w ) const {
-	    using TU = typename std::common_type<T,U>::type;
+	template<typename U> 
+	    HOST DEVICE inline Vector3_t<std::common_type_t<T,U>> operator+(const Vector3_t<U>& w ) const {
+	    using TU = typename std::common_type_t<T,U>;
 	    Vector3_t<TU> v;
 	    v.x = x + w.x;
 	    v.y = y + w.y;
@@ -109,18 +109,19 @@ public:
 	    return v;
 	}
 
-	HOST DEVICE inline Vector3_t<T> operator-(const Vector3_t<T>& w ) const {
-		Vector3_t<T> v;
-		v.x = x - w.x;
-		v.y = y - w.y;
-		v.z = z - w.z;
-		return v;
+	template<typename U>
+	HOST DEVICE inline Vector3_t<std::common_type_t<T,U>> operator-(const Vector3_t<U>& w ) const {
+	    Vector3_t<std::common_type_t<T,U>> v;
+	    v.x = x - w.x;
+	    v.y = y - w.y;
+	    v.z = z - w.z;
+	    return v;
 	}
 
 	template<typename U>
-	HOST DEVICE inline Vector3_t<T> operator*(U&& s) const {
+	HOST DEVICE inline Vector3_t<std::common_type_t<T,U>> operator*(U&& s) const {
 	    // TODO, throw exception if int
-	    using TU = typename std::common_type<T,U>::type;
+	    using TU = typename std::common_type_t<T,U>;
 	    Vector3_t<TU> v;
 	    v.x = s*x;
 	    v.y = s*y;
@@ -129,13 +130,13 @@ public:
 	}
 
 	template<typename U>
-	HOST DEVICE inline Vector3_t<T> operator/(U&& s) const {
+	HOST DEVICE inline Vector3_t<std::common_type_t<T,U>> operator/(U&& s) const {
 	    const U inv = static_cast<U>(1.0)/s;
 	    return (*this)*inv;
 	}
 
 	template<typename U>
-	HOST DEVICE inline float dot(const Vector3_t<U>& w) const { return x*w.x + y*w.y + z*w.z; }
+	HOST DEVICE inline auto dot(const Vector3_t<U>& w) const { return x*w.x + y*w.y + z*w.z; }
 
 	HOST DEVICE inline float length() const { return sqrtf(x*x + y*y + z*z); }
 	HOST DEVICE inline float length2() const { return x*x + y*y + z*z; }
