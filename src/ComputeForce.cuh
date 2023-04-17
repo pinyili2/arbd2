@@ -1068,14 +1068,16 @@ void computeTabulatedDihedrals(Vector3* force, const Vector3* __restrict__ pos,
 __global__
 void computeHarmonicRestraints(Vector3* force, const Vector3* __restrict__ pos,
 			       const BaseGrid* __restrict__ sys,
-			       int numRestraints, const int* const __restrict__ particleId,
+			       int numRestraints, const int2* const __restrict__ restraintList,
 			       const Vector3* __restrict__ r0, const float* __restrict__ k) {
 
     // Loop over ALL dihedrals in ALL replicas
     for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numRestraints; i+=blockDim.x*gridDim.x) {
-	const int& id = particleId[i];
-	const Vector3 dr = sys->wrapDiff(pos[id]-r0[i]);
-	Vector3 f = -k[i]*dr;
+	const int& id = restraintList[i].x;
+	const int& rid = restraintList[i].y;
+
+	const Vector3 dr = sys->wrapDiff(pos[id]-r0[rid]);
+	Vector3 f = -k[rid]*dr;
 	atomicAdd( &force[ id ], f );
     }
 }

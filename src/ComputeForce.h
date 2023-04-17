@@ -103,7 +103,7 @@ public:
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
 	// void createBondList(int3 *bondList);
-	void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *bondAngleList);
+    void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *bondAngleList, int2 *restraintList);
 	    
 	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
     std::vector<Vector3*> getPos_d()
@@ -171,14 +171,16 @@ public:
         }
     
     void clear_force() { 
+	const size_t tot_num = (num+num_rb_attached_particles+numGroupSites) * numReplicas;
 	for (std::size_t i = 0; i < gpuman.gpus.size(); ++i) {
 	    gpuman.use(i);
-	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,(num+numGroupSites)*numReplicas*sizeof(Vector3)));
+	    gpuErrchk(cudaMemsetAsync((void*)(forceInternal_d[i]),0,tot_num*sizeof(Vector3)));
 	}
 	gpuman.use(0);		// TODO move to a paradigm where gpu0 is not preferentially treated 
     }
     void clear_energy() { 
-	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*(num+numGroupSites)*numReplicas)); // TODO make async
+	const size_t tot_num = (num+num_rb_attached_particles+numGroupSites) * numReplicas;
+	gpuErrchk(cudaMemsetAsync((void*)(energies_d), 0, sizeof(float)*tot_num)); // TODO make async
     }
 
 	HOST DEVICE
@@ -288,10 +290,13 @@ private:
 	int4* angleList_d;
 	int4* dihedralList_d;
 	int* dihedralPotList_d;
-
+        int2* restraintList_d;
+    
 	int numRestraints;
 	int* restraintIds_d;
 	Vector3* restraintLocs_d;
 	float* restraintSprings_d;
+
+    
 
 };

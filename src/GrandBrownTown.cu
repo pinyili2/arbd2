@@ -395,14 +395,35 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 				exit(1);
 			}
 			int idx = i+k*numBondAngles;
-			bondAngleList[idx*2]   = make_int4( bondAngles[i].ind1+k*num, bondAngles[i].ind2+k*num,
-							    bondAngles[i].ind3+k*num, bondAngles[i].ind4+k*num );
+			bondAngleList[idx*2]   = make_int4( _get_index(bondAngles[i].ind1,k),
+							    _get_index(bondAngles[i].ind2,k),
+							    _get_index(bondAngles[i].ind3,k),
+							    _get_index(bondAngles[i].ind4,k) );
 			bondAngleList[idx*2+1] = make_int4( bondAngles[i].tabFileIndex1, bondAngles[i].tabFileIndex2, bondAngles[i].tabFileIndex3, -1 );
 	    }
 	}
 	}
 
-	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList,bondAngleList);
+	// TODO: remove older copy-to-cuda
+	int2* restraintList = NULL;
+	if (c.numRestraints > 0) {
+	    restraintList = new int2[c.numRestraints * numReplicas];
+	    int j = 0;
+	    for(int k = 0 ; k < numReplicas; k++)
+	    {
+		for(int i = 0; i < c.numRestraints; ++i)
+		{
+		    restraintList[j] = make_int2( _get_index(c.restraints[i].id, k), i );
+		    // cout << "Displaying: bondList["<< j <<"].x = " << bondList[j].x << ".\n"
+		    // << "Displaying: bondList["<< j <<"].y = " << bondList[j].y << ".\n"
+		    // << "Displaying: bondList["<< j <<"].z = " << bondList[j].z << ".\n";
+		    ++j;
+		}
+	    }
+	}
+	
+	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList,bondAngleList,restraintList);
+	if (c.numRestraints > 0) delete[] restraintList;
 	
 	forceInternal = new Vector3[(num+num_rb_attached_particles+numGroupSites)*numReplicas];
 	if (fullLongRange != 0)
@@ -657,11 +678,9 @@ void GrandBrownTown::run()
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
 		gpuman.nccl_broadcast(0, _pos, _pos, (num+num_rb_attached_particles+numGroupSites)*numReplicas, -1);
+		gpuman.sync();
 	    }
 	    #endif
-	    gpuman.sync();
-
-
 
             #ifdef _OPENMP
             omp_set_num_threads(4);
@@ -729,19 +748,20 @@ void GrandBrownTown::run()
                 }
             }//if inter-particle force
 
-	    if (get_energy) {
-		compute_position_dependent_force_for_rb_attached_particles
-		    <<< numBlocks, NUM_THREADS >>> (
-			internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
-			internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
-	    } else {
-		compute_position_dependent_force_for_rb_attached_particles
-		    <<< numBlocks, NUM_THREADS >>> (
-			internal -> getPos_d()[0],
-			internal -> getForceInternal_d()[0], internal -> getEnergy(),
-			internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+	    if (num_rb_attached_particles > 0) {
+		if (get_energy) {
+		    compute_position_dependent_force_for_rb_attached_particles
+			<<< numBlocks, NUM_THREADS >>> (
+			    internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
+			    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+		} else {
+		    compute_position_dependent_force_for_rb_attached_particles
+			<<< numBlocks, NUM_THREADS >>> (
+			    internal -> getPos_d()[0],
+			    internal -> getForceInternal_d()[0], internal -> getEnergy(),
+			    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
+		}
 	    }
-
 
             #ifdef _OPENMP
             omp_set_num_threads(4);
@@ -1401,7 +1421,6 @@ void GrandBrownTown::init_cuda_group_sites()
     }
 
     // Create GPU-friendly data structure
-    assert(numReplicas == 1);    // TODO make this work for replicas
     int* tmp = new int[numGroupSites+1+num_particles];
     num_particles = 0;
     int i = 0;

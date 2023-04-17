@@ -766,7 +766,7 @@ float ComputeForce::computeTabulated(bool get_energy) {
 
 	// TODO: Sum energy
 	if (restraintIds_d != NULL )
-	    computeHarmonicRestraints<<<1, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numRestraints*numReplicas, restraintIds_d, restraintLocs_d, restraintSprings_d);
+	    computeHarmonicRestraints<<<1, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numRestraints*numReplicas, restraintList_d, restraintLocs_d, restraintSprings_d);
 	
 
 	// Calculate the energy based on the array created by the kernel
@@ -1079,9 +1079,7 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 // 	}
 // }
 
-void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4* bondAngleList) {
-
-	
+void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4* bondAngleList, int2* restraintList) {
 	size_t size;
 
 	if (numBonds > 0) {
@@ -1110,6 +1108,12 @@ void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *d
 	    size = 2*numBondAngles * numReplicas * sizeof(int4);
 	    gpuErrchk( cudaMalloc( &bondAngleList_d, size ) );
 	    gpuErrchk( cudaMemcpyAsync( bondAngleList_d, bondAngleList, size, cudaMemcpyHostToDevice) );
+	}
+
+	if (numRestraints > 0) {
+	    size = numRestraints * numReplicas * sizeof(int2);
+	    gpuErrchk( cudaMalloc( &restraintList_d, size ) );
+	    gpuErrchk( cudaMemcpyAsync( restraintList_d, restraintList, size, cudaMemcpyHostToDevice) );
 	}
 
 }
