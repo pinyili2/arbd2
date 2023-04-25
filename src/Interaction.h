@@ -32,7 +32,7 @@ public:
      * @brief Struct for defining interaction configuration
      */
     struct Conf {
-	    enum Object    {Particle, RigidBody };
+	    enum Object    {Particle, RigidBody};
 	    enum DoF {Bond, Angle, Dihedral, Bonded, NeighborhoodPair};
 	    enum Form {Harmonic, Tabulated, LennardJones, Coulomb, LJ};
 	    enum Backend   { Default, CUDA, CPU };

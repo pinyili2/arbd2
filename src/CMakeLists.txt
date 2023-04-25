@@ -8,4 +8,5 @@ add_library("lib${PROJECT_NAME}"
   Interaction/CPU.cpp
   Interaction/CUDA.cu
   SignalManager.cpp
+  PatchOp.cu
 )

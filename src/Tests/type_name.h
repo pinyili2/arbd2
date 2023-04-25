@@ -7,7 +7,7 @@
 #include <string>
 #include <cstdlib>
 
-template <typename T>
+template <typename T, typename ...Extras>
 std::string type_name() {
     using TR = typename std::remove_reference<T>::type;
     std::unique_ptr<char, void(*)(void*)> own

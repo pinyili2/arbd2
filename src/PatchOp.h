@@ -44,5 +44,6 @@ private:
     void* compute_data;
 };
 
+
 #include "Integrator.h"
 #include "Interaction.h"

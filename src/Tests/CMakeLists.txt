@@ -6,6 +6,7 @@ include(CTest)
 
 ## TODO, add a macro to add these projects, build with CUDA
 add_executable("arbd_tests"
+matrix3.cu
 vector3_precision.cu
 )
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")

@@ -4,6 +4,7 @@
  * @brief Declaration of templated Vector3_t class.
  *********************************************************************/
 #pragma once
+#include <memory>
 #include <type_traits> // for std::common_type<T,U>
 
 /**
@@ -18,11 +19,11 @@ g */
 template<typename T>
 class MY_ALIGN(4*sizeof(T)) Vector3_t {
 public:
-	HOST DEVICE inline Vector3_t<T>() : x(0), y(0), z(0), w(0) {}
+    HOST DEVICE inline Vector3_t<T>() : x(T(0)), y(T(0)), z(T(0)), w(T(0)) {}
 	HOST DEVICE inline Vector3_t<T>(T s):x(s), y(s), z(s), w(s) {}
 	HOST DEVICE inline Vector3_t<T>(const Vector3_t<T>& v):x(v.x), y(v.y), z(v.z), w(v.w)  {}
 	HOST DEVICE inline Vector3_t<T>(T x0, T y0, T z0) : x(x0), y(y0), z(z0), w(0) {}
-	HOST DEVICE inline Vector3_t<T>(const T* d) : x(d[0]), y(d[1]), z(d[2]), w(0) {}
+	// HOST DEVICE inline Vector3_t<T>(const T* d) : x(d[0]), y(d[1]), z(d[2]), w(0) {}
         HOST DEVICE inline Vector3_t<T>(const float4 a) : x(a.x), y(a.y), z(a.z), w(a.w) {}
 
 #if __cplusplus >= 201703L
@@ -130,8 +131,8 @@ public:
 	}
 
 	template<typename U>
-	HOST DEVICE inline Vector3_t<std::common_type_t<T,U>> operator/(U&& s) const {
-	    const U inv = static_cast<U>(1.0)/s;
+	HOST DEVICE inline Vector3_t<std::common_type_t<T,U>> operator/(U& s) const {
+	    const U inv = U(1.0)/s;
 	    return (*this)*inv;
 	}
 
@@ -175,14 +176,19 @@ public:
 		printf("%0.3f %0.3f %0.3f\n", x,y,z);
 	}
 
-	T x, y, z, w; //append a member w	
-
-	char* to_char() const {
-	    char* s = new char[128];
-	    sprintf(s, "%.10g %.10g %.10g", x, y, z);
+	auto to_string() const {
+	    char s[128];
+	    sprintf(s, "%.10g %.10g %.10g (%.10g)", x, y, z, w);
 	    s[127] = 0;
-	    return s;
+	    return std::string(s);
 	}
+
+	template<typename U>
+	    HOST DEVICE inline bool operator==(U b) const {
+	    return x == b.x && y == b.y && z == b.z && w == b.w;
+	}
+
+	T x, y, z, w; //append a member w	
 };
 
 
@@ -202,7 +208,7 @@ public:
 // }
 
 template<typename T, typename U>
-HOST DEVICE inline auto operator/(U&& s, Vector3_t<T>&& v) {
+HOST DEVICE inline auto operator/(const U&& s, const Vector3_t<T>&& v) {
     // TODO, throw exception if int
     using TU = typename std::common_type<T,U>::type;
     Vector3_t<TU> ret;
@@ -212,6 +218,26 @@ HOST DEVICE inline auto operator/(U&& s, Vector3_t<T>&& v) {
     return ret;
 }
 
+// template<typename T, typename U>
+// HOST DEVICE inline auto operator*(const U&& s, const Vector3_t<T>&& v) {
+//     return v*s;
+// }
+// template<typename T, typename U>
+// HOST DEVICE inline auto operator*(const U& s, const Vector3_t<T>& v) {
+//     return v*s;
+// }
+
+// template<typename T>
+// HOST DEVICE inline auto operator*(const float&& s, const Vector3_t<T>&& v) {
+//     return v*s;
+// }
+
+template<typename T>
+HOST DEVICE inline auto operator*(const float& s, const Vector3_t<T>& v) {
+    return v*s;
+}
+
+// Provide common type for vectors
 namespace std {
     template<typename T,typename U>
     struct common_type<Vector3_t<T>, Vector3_t<U>> {
