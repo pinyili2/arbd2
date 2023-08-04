@@ -23,6 +23,7 @@ public:
 	HOST DEVICE inline Vector3_t<T>(T s):x(s), y(s), z(s), w(s) {}
 	HOST DEVICE inline Vector3_t<T>(const Vector3_t<T>& v):x(v.x), y(v.y), z(v.z), w(v.w)  {}
 	HOST DEVICE inline Vector3_t<T>(T x0, T y0, T z0) : x(x0), y(y0), z(z0), w(0) {}
+	HOST DEVICE inline Vector3_t<T>(T x0, T y0, T z0, T w0) : x(x0), y(y0), z(z0), w(w0) {}
 	// HOST DEVICE inline Vector3_t<T>(const T* d) : x(d[0]), y(d[1]), z(d[2]), w(0) {}
         HOST DEVICE inline Vector3_t<T>(const float4 a) : x(a.x), y(a.y), z(a.z), w(a.w) {}
 
