@@ -1,12 +1,5 @@
-#include <iostream>
-#include <cstdio>
-
-#include "../SignalManager.h"
+#include "catch_boiler.h"
 #include "../Types.h"
-#include <cuda.h>
-#include <nvfunctional>
-
-#include "type_name.h"
 
 #include <catch2/catch_tostring.hpp>
 namespace Catch {
@@ -17,144 +10,21 @@ namespace Catch {
         }
     };
 }
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-
-
-namespace Tests {
-
-    template<typename Op_t, typename R, typename ...T>
-    __global__ void op_kernel(R* result, T...in) {
-	if (blockIdx.x == 0) {
-	    *result = Op_t::op(in...);
-	}
-    }
-
-
-    // In C++14, how can I unpack a tuple so its elements are passed to a function as arguments?
-    template <typename F, typename Tuple, size_t... I>
-    decltype(auto) apply_impl(F&& f, Tuple&& t, std::index_sequence<I...>)
-    {
-	return std::forward<F>(f)(std::get<I>(std::forward<Tuple>(t))...);
-    }
-    template <typename F, typename Tuple>
-    decltype(auto) apply(F&& f, Tuple&& t)
-    {
-	using Indices = std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>;
-	return apply_impl(std::forward<F>(f), std::forward<Tuple>(t), Indices{});
-    }
-
-    template <typename F, typename Tuple, size_t... I>
-    decltype(auto) apply_each_impl(F&& f, Tuple&& t, std::index_sequence<I...>)
-    {
-	return std::forward<F>(f)(std::get<I>(std::forward<Tuple>(t))...);
-    }
-    template <typename F, typename Tuple>
-    decltype(auto) apply_each(F&& f, Tuple&& t)
-    {
-	using Indices = std::make_index_sequence<std::tuple_size<std::decay_t<Tuple>>::value>;
-	return apply_each_impl(std::forward<F>(f), std::forward<Tuple>(t), Indices{});
-    }
-
-    template<typename T>
-    void call_info(T t) {
-	// INFO( type_name(t) );
-	// UNSCOPED_INFO( type_name<T>() << " " << t );
-    }
-    // template<>
-    // void call_info(double t) {
-    // 	UNSCOPED_INFO( "double " << t );
-    // }
-    // template<>
-    // void call_info(float t) {
-    // 	UNSCOPED_INFO( "double " << t );
-    // 	// INFO( type_name(t) );
-    // 	INFO( "float" );
-    // }
-    // template<>
-    // void call_info(int t) {
-    // 	// INFO( type_name(t) );
-    // 	INFO( "int" );
-    // }
-    
-    template<typename Op_t, typename R, typename ...T>
-    void run_trial( std::string name, R expected_result, T...args) {
-	R *gpu_result_d, gpu_result, cpu_result;
-	cpu_result = Op_t::op(args...);
-	cudaMalloc((void **)&gpu_result_d, sizeof(R));
-	
-	op_kernel<Op_t, R, T...><<<1,1>>>(gpu_result_d, args...);
-	cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost);
-	cudaDeviceSynchronize();
-	
-	INFO( name );
-	// INFO( type_name<T...>() );
-	
-	// auto tmp = std::make_tuple(args...);
-	// for (int i = 0; i < sizeof(T...); ++i) {
-	//     auto& arg = std::get<i>(tmp);
-	//     CAPTURE( arg );
-	// }
-	// auto fn = [](auto a) { CAPTURE( a ); };
-
-	// auto fn = [](auto a) { INFO( a->to_string() ); };
-	// using expander = int[];
-	// (void)expander{0, (void(call_info<T>(std::forward<T>(args))), 0)...};
-
-	CAPTURE( cpu_result );
-	CAPTURE( expected_result );
-	
-	REQUIRE( cpu_result == expected_result );
-	CHECK( cpu_result == gpu_result );
-    }
-}
-
-namespace Tests::Unary {
-    template<typename R, typename T>
-    struct NegateOp { HOST DEVICE static R op(T in) { return static_cast<R>(-in); } };
-
-    template<typename R, typename T>
-    struct NormalizedOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.normalized()); } };
-
-    namespace Matrix3 {
-	template<typename R, typename T>
-	struct DeterminantOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.det()); } };
-
-	template<typename R, typename T>
-	struct NormalizeDetOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.normalized().det()); } };
-
-	// template<typename R, typename T>
-	// struct NormalizeOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.normalized()); } };
-
-
-	
-	template<typename R, typename T>
-	struct InverseOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.inverse()); } };
-
-	template<typename R, typename T>
-	struct TransposeOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.transpose()); } };
-    }
-}
-
-namespace Tests::Binary {
-    // R is return type, T and U are types of operands
-    template<typename R, typename T, typename U> 
-    struct AddOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a+b); } };
-    template<typename R, typename T, typename U> 
-    struct SubOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a-b); } };
-    template<typename R, typename T, typename U> 
-    struct MultOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a*b); } };
-    template<typename R, typename T, typename U> 
-    struct DivOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a/b); } };
-
-    namespace Matrix3 {
-	template<typename R, typename T, typename U> 
-	struct CrossOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a.cross(b)); } };
-    }
-}
+DEF_RUN_TRIAL
 
 namespace Tests::Unary::Matrix3 {
+    template<typename R, typename T>
+    struct DeterminantOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.det()); } };
+
+    template<typename R, typename T>
+    struct NormalizeDetOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.normalized().det()); } };
+	
+    template<typename R, typename T>
+    struct InverseOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.inverse()); } };
+
+    template<typename R, typename T>
+    struct TransposeOp { HOST DEVICE static R op(T in) { return static_cast<R>(in.transpose()); } };
 
     template<typename A, bool is_diag=false, bool check_diag=false>
     void run_tests() {
@@ -204,7 +74,11 @@ namespace Tests::Unary::Matrix3 {
 }
 
 namespace Tests::Binary::Matrix3 {
+    // Custom Operations for Matrix3
+    template<typename R, typename T, typename U> 
+    struct CrossOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a.cross(b)); } };
 
+    // Run
     template<typename A, typename B, bool is_diag=false, bool check_diag=false>
     void run_tests() {
 	using T = Matrix3_t<A, is_diag, check_diag>;

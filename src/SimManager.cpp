@@ -7,7 +7,7 @@ void SimManager::run() {
     // SimSystem sys = SimSystem();
     // Patch p(10,0,0,sys);
 
-    Patch p(10,0,0);
+    Patch p;
 
     //ProxyPatch p2(10,0,0);
 
@@ -28,6 +28,5 @@ void SimManager::run() {
 #ifdef USE_CUDA
 	cudaDeviceSynchronize();
 #endif
-    }
-    
+    }    
 };
