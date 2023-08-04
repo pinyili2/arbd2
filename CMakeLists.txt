@@ -1,5 +1,6 @@
 ## Specify the project
-cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
+# cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.12 FATAL_ERROR) # FOR PYBIND, should be 3.15+?
 
 # option(USE_CUDA "Use CUDA" ON)
 set(USE_CUDA ON)
@@ -163,6 +164,14 @@ add_executable("${PROJECT_NAME}" src/arbd.cpp
 src/SimManager.cu
 src/useful.cu
 )
+
+if(USE_PYBIND)
+  ## https://pybind11.readthedocs.io/en/latest/compiling.html
+  add_subdirectory(extern/pybind11)
+  find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
+  pybind11_add_module("py${PROJECT_NAME}" MODULE src/pyarbd.cpp)
+  target_link_libraries("py${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
+endif()
 
 target_link_libraries("${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
 
