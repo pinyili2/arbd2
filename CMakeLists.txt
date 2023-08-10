@@ -72,6 +72,7 @@ message(STATUS "DEBUG: ${DEBUG}")
 message(STATUS "USE_NCCL: ${USE_NCCL}")
 message(STATUS "USE_NVTX: ${USE_NVTX}")
 message(STATUS "USE_LOGGER: ${USE_LOGGER}")
+message(STATUS "USE_PYBIND: ${USE_PYBIND}")
 
 
 ## Set flags before adding executable 
@@ -166,11 +167,8 @@ src/useful.cu
 )
 
 if(USE_PYBIND)
-  ## https://pybind11.readthedocs.io/en/latest/compiling.html
   add_subdirectory(extern/pybind11)
-  find_package(Python 3.6 COMPONENTS Interpreter Development REQUIRED)
-  pybind11_add_module("py${PROJECT_NAME}" MODULE src/pyarbd.cpp)
-  target_link_libraries("py${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
+  add_subdirectory(src/pybindings)
 endif()
 
 target_link_libraries("${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
