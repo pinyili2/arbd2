@@ -33,6 +33,27 @@ struct MY_ALIGN(16) float4 {
 };
 #endif
 
+// START traits
+// https://stackoverflow.com/questions/55191505/c-compile-time-check-if-method-exists-in-template-type
+#include <type_traits>
+// template<class ...Ts>
+// struct voider{
+//     using type = void;
+// };
+
+// template<class T, class = void>
+// struct has_copy_to_cuda : std::false_type{};
+
+// template<class T>
+// struct has_copy_to_cuda<T, typename voider<decltype(std::declval<T>().copy_to_cuda())>::type> : std::true_type{};
+
+template <typename T, typename = void>
+struct has_copy_to_cuda : std::false_type {};
+
+template <typename T>
+struct has_copy_to_cuda<T, decltype(std::declval<T>().copy_to_cuda(), void())> : std::true_type {};
+// END traits
+
 
 #ifdef USE_CUDA
 #include <cstdio>

@@ -7,7 +7,7 @@
 #include <cuda.h>
 #include <nvfunctional>
 
-#include "type_name.h"
+#include "../type_name.h"
 
 /* #include <catch2/catch_tostring.hpp> */
 /* namespace Catch { */

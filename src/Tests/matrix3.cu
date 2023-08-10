@@ -11,6 +11,8 @@ namespace Catch {
     };
 }
 
+#include "../type_name.h"
+
 DEF_RUN_TRIAL
 
 namespace Tests::Unary::Matrix3 {

@@ -6,6 +6,7 @@
 #pragma once
 #include <memory>
 #include <type_traits> // for std::common_type<T,U>
+#include <sstream>
 
 /**
  * 3D vector utility class with common operations implemented on CPU and GPU.
@@ -22,8 +23,8 @@ public:
     HOST DEVICE inline Vector3_t<T>() : x(T(0)), y(T(0)), z(T(0)), w(T(0)) {}
 	HOST DEVICE inline Vector3_t<T>(T s):x(s), y(s), z(s), w(s) {}
 	HOST DEVICE inline Vector3_t<T>(const Vector3_t<T>& v):x(v.x), y(v.y), z(v.z), w(v.w)  {}
-	HOST DEVICE inline Vector3_t<T>(T x0, T y0, T z0) : x(x0), y(y0), z(z0), w(0) {}
-	HOST DEVICE inline Vector3_t<T>(T x0, T y0, T z0, T w0) : x(x0), y(y0), z(z0), w(w0) {}
+	HOST DEVICE inline Vector3_t<T>(T x, T y, T z) : x(x), y(y), z(z), w(0) {}
+	HOST DEVICE inline Vector3_t<T>(T x, T y, T z, T w) : x(x), y(y), z(z), w(w) {}
 	// HOST DEVICE inline Vector3_t<T>(const T* d) : x(d[0]), y(d[1]), z(d[2]), w(0) {}
         HOST DEVICE inline Vector3_t<T>(const float4 a) : x(a.x), y(a.y), z(a.z), w(a.w) {}
 
@@ -57,6 +58,12 @@ public:
 	}
 #endif
 
+	HOST DEVICE inline Vector3_t<T>& operator=(const Vector3_t<T>& v) {
+		x = v.x;
+		y = v.y;
+		z = v.z;
+		return *this;
+	}
 	HOST DEVICE inline Vector3_t<T>& operator=(const Vector3_t<T>&& v) {
 		x = v.x;
 		y = v.y;
@@ -177,11 +184,16 @@ public:
 		printf("%0.3f %0.3f %0.3f\n", x,y,z);
 	}
 
-	auto to_string() const {
+	auto to_string_old() const {
 	    char s[128];
 	    sprintf(s, "%.10g %.10g %.10g (%.10g)", x, y, z, w);
 	    s[127] = 0;
 	    return std::string(s);
+	}
+	auto to_string() const {
+	    std::ostringstream oss;
+	    oss << x << " " << y << " " << z << " (" << w << ")";
+	    return oss.str();
 	}
 
 	template<typename U>

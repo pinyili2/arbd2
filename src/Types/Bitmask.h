@@ -83,12 +83,13 @@ public:
 
 #ifdef USE_CUDA
     HOST
-    Bitmask* copy_to_cuda() const {
-	Bitmask* tmp_obj_d = nullptr;
+    Bitmask* copy_to_cuda(Bitmask* tmp_obj_d = nullptr) const {
 	Bitmask obj_tmp(0);
 	data_t* mask_d = nullptr;
 	size_t sz = sizeof(data_t) * get_array_size();
-	gpuErrchk(cudaMalloc(&tmp_obj_d, sizeof(Bitmask)));
+	if (tmp_obj_d == nullptr) {
+	    gpuErrchk(cudaMalloc(&tmp_obj_d, sizeof(Bitmask)));
+	}
 	if (sz > 0) {
 	    gpuErrchk(cudaMalloc(&mask_d, sz));
 	    gpuErrchk(cudaMemcpy(mask_d, mask, sz, cudaMemcpyHostToDevice));
@@ -102,7 +103,7 @@ public:
     }
 
     HOST
-    static Bitmask retrieve_from_cuda(Bitmask* obj_d) {
+    static Bitmask copy_from_cuda(Bitmask* obj_d) {
 	Bitmask obj_tmp(0);
 	gpuErrchk(cudaMemcpy(&obj_tmp, obj_d, sizeof(Bitmask), cudaMemcpyDeviceToHost));
 	printf("TEST: %d\n", obj_tmp.len);

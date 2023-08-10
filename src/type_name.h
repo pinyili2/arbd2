@@ -1,3 +1,5 @@
+#pragma once
+
 #include <type_traits>
 #include <typeinfo>
 #ifndef _MSC_VER
@@ -9,6 +11,7 @@
 
 template <typename T, typename ...Extras>
 std::string type_name() {
+    return typeid(T).name();
     using TR = typename std::remove_reference<T>::type;
     std::unique_ptr<char, void(*)(void*)> own
            (

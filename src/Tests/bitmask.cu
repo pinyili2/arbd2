@@ -32,10 +32,12 @@ namespace Tests::Bitmask {
 	    T* b_d = b.copy_to_cuda();
 	    cudaDeviceSynchronize();
 
-	    T b2 = b.retrieve_from_cuda(b_d);
+	    T b2 = b.copy_from_cuda(b_d);
 	    cudaDeviceSynchronize();
-
 	    REQUIRE( b == b2 );
+
+	    b.remove_from_cuda(b_d);
+	    cudaDeviceSynchronize();
 
 	}
     }

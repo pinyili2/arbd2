@@ -11,7 +11,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "type_name.h"
+#include "../type_name.h"
 
 namespace Tests::Vector3 {
     enum BinaryOp_t { ADD, CROSS, DOT, SUB, FINAL };
