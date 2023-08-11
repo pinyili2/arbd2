@@ -12,7 +12,7 @@
 template<typename T>
 class Array {
 public:
-    HOST inline Array<T>() : num(0), values(nullptr) {} // printf("Creating Array1 %x\n",this);
+    HOST DEVICE inline Array<T>() : num(0), values(nullptr) {} // printf("Creating Array1 %x\n",this);
     HOST inline Array<T>(size_t num) : num(num), values(nullptr) {
 	// printf("Constructing Array<%s> %x with values %x\n", type_name<T>().c_str(), this, values);
 	host_allocate();
@@ -43,22 +43,28 @@ public:
 	a.num = 0;		// not needed?
 	// printf("Move-constructed Array<T> with values %x\n",  values);
     }
-    HOST inline Array<T>& operator=(const Array<T>& a) { // copy assignment operator
+    HOST DEVICE inline Array<T>& operator=(const Array<T>& a) { // copy assignment operator
 	num = a.num;
+#ifndef __CUDA_ARCH__
 	host_allocate();
+#endif
 	for (size_t i = 0; i < num; ++i) {
 	    values[i] = a[i];
 	}
-	printf("Copy-operator for Array<T> %x with values %x\n",this, values);
+	// printf("Copy-operator for Array<T> %x with values %x\n",this, values);
+	printf("Copy-operator for Array<T>\n");
 	return *this;
     }
-    HOST inline Array<T>& operator=(Array<T>&& a) { // move assignment operator
+    HOST DEVICE inline Array<T>& operator=(Array<T>&& a) { // move assignment operator
+#ifndef __CUDA_ARCH__
 	host_deallocate();
+#endif
 	num = a.num;
 	values = a.values;
 	a.num = 0;
 	a.values = nullptr;
-	printf("Move-operator for Array<T> %x with values %x\n",this, values);
+	// printf("Move-operator for Array<T> %x with values %x\n",this, values);
+	printf("Move-operator for Array<T>\n");
 	return *this;
     }
     HOST DEVICE inline T& operator[](size_t i) {
@@ -139,6 +145,7 @@ public:
 
     template <typename Dummy = void, typename std::enable_if_t<!has_copy_to_cuda<T>::value, Dummy>* = nullptr>
     HOST static Array<T> copy_from_cuda(Array<T>* dev_ptr) {
+	// TODO add argument: dest = nullptr 
 	// Create host object, copy raw device data over
 	Array<T> tmp(0);
 	if (dev_ptr != nullptr) {
@@ -243,5 +250,5 @@ private:
     }
     
     size_t num;
-    T* values;
+    T* __restrict__ values;
 };
