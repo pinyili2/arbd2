@@ -161,7 +161,6 @@ private:
     std::vector<std::unique_ptr<PatchOp>> nonlocal_computes; // Operations that will be performed on this patch each timestep
 
     // CPU particle arrays
-    
     struct Data {
 	VectorArr* pos_force;
 	VectorArr* momentum;
