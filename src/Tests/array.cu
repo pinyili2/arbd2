@@ -172,6 +172,7 @@ namespace Tests::TestArray {
     HOST DEVICE void inline _copy_helper(size_t& idx, T* __restrict__ out, const T* __restrict__ inp) {
 	out[idx] = inp[idx];
     }
+
     // HOST DEVICE void inline _copy_helper(size_t& idx, float* __restrict__ out, const float* __restrict__ inp) {
     // 	out[idx] = inp[idx];
     // }
@@ -269,6 +270,38 @@ namespace Tests::TestArray {
 	    a_d->remove_from_cuda(a_d);
 	}
     }
+
+    TEST_CASE( "Test sending Arrays", "[Array]" ) {
+	{
+	    // Allocation and deallocation
+	    // printf("Creating v1(10)\n");
+	    Resource loc = Resource{Resource::GPU,0};
+	    
+	    VectorArr v1(10);
+	    for (int i = 0; i < v1.size(); ++i) {
+		v1[i] = Vector3(i+1);
+	    }
+	    VectorArr v2(20);
+	    for (int i = 0; i < v2.size(); ++i) {
+		v2[i] = Vector3(10*i+1);
+	    }
+	    
+	    Array<VectorArr> a(3);
+	    a[0] = v1;
+	    a[1] = v2;
+	    // a[1] = std::move(v2);
+
+	    Proxy<Array<VectorArr>> a_d = send(loc, a);
+	    // Array<VectorArr> a_d_h = a_d->copy_from_cuda(a_d);
+	    
+	    // REQUIRE( a[0][1] == a_d_h[0][1] );
+	    // REQUIRE( a[0][5] == a_d_h[0][5] );
+	    printf("Removing...\n");
+	    a.remove_from_cuda(a_d.addr); // TODO: generalize
+
+	}
+    }
+    
     TEST_CASE( "Test Assigment and copying of Arrays of Arrays of Arrays", "[Array]" ) {
 	{
 	    // Allocation and deallocation
@@ -340,6 +373,6 @@ namespace Tests::TestArray {
 	BENCHMARK("Call num float4 copy (repeat)") {
 	    call_copy_kernel(num, outF4, inpF4);
 	};
-	// */
     }
+    // */
 }

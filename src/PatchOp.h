@@ -16,15 +16,22 @@
 
 class Patch;
 
+
+// describes what should be computed in the system, invariant to changes in decomposition, but doesn't do the work directly. That is left to PatchOp, created from ComputeSpec by a Decomposer.
+class SymbolicOp {
+public:
+        // TODO: implement
+};
+
 /**
  * @brief Abstract base class that operates on Patch data.
  * 
- * @details BasePatchOp is an abstract base class for all classes that
+ * @details PatchOp is an abstract base class for all classes that
  *          operate on Patch data.  It provides the `compute()`
  *          method, which is called by `Patch::compute()` for each
  *          PatchOp attached to a Patch.
  */
-class BasePatchOp {
+class PatchOp {
 public:
     /**
      * @brief Performs the computation for this PatchOp on the given Patch.

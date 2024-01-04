@@ -14,13 +14,13 @@ void SimManager::run() {
     // p.add_compute( std::make_unique<LocalPairForce>() );
     // p.add_compute( std::make_unique<NeighborPairForce>() );
 
-#ifdef USE_CUDA
-    p.add_compute( std::make_unique<BDIntegrateCUDA>() );
-    p.add_compute( std::make_unique<LocalBondedCUDA>() );
-#else
-    p.add_compute( std::make_unique<BDIntegrate>() );
-    p.add_compute( std::make_unique<LocalBonded>() );
-#endif
+// #ifdef USE_CUDA
+//     p.add_compute( std::make_unique<BDIntegrateCUDA>() );
+//     p.add_compute( std::make_unique<LocalBondedCUDA>() );
+// #else
+//     p.add_compute( std::make_unique<BDIntegrate>() );
+//     p.add_compute( std::make_unique<LocalBonded>() );
+// #endif
     
     for (size_t step = 0; step < 10; ++step) {
 	printf("Step\n");

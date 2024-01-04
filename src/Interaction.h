@@ -14,7 +14,7 @@
  * @class LocalInteraction
  * @brief Base class for local interaction
  */
-class LocalInteraction : public BasePatchOp {
+class LocalInteraction : public PatchOp {
 public:
     /**
      * @brief Computes interaction for a given patch

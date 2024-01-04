@@ -49,7 +49,7 @@ namespace LocalOneParticleLoop {
     }
 
     template<size_t block_size=32, bool is_BD=true, typename ...Op_t>
-    class LocalOneParticleLoop : public BasePatchOp {
+    class LocalOneParticleLoop : public PatchOp {
 	void compute(Patch* patch) {
 	    size_t num_blocks = (patch->num+1)/block_size;
 	    if (is_BD) {

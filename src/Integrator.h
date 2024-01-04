@@ -16,7 +16,7 @@
 #include <map>
 #include "PatchOp.h"
 
-class Integrator : public BasePatchOp {
+class Integrator : public PatchOp {
 public:
     virtual void compute(Patch* patch) = 0;
     int num_patches() const { return 1; };

@@ -1,4 +1,5 @@
 add_library("lib${PROJECT_NAME}"
+  ARBDException.cpp
   GPUManager.cpp
   ParticlePatch.cpp
   Integrator.cpp

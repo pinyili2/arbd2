@@ -5,6 +5,7 @@
  *********************************************************************/
 #pragma once
 #include <memory>
+#include <limits>
 #include <type_traits> // for std::common_type<T,U>
 #include <sstream>
 
@@ -162,6 +163,11 @@ public:
 		return 0.0f;
 	}
 
+	HOST DEVICE inline Vector3_t<T> element_floor() {
+	    return Vector3_t<T>( floor(x), floor(y), floor(z) );
+	}
+
+
 	template<typename U>
 	HOST DEVICE static inline auto element_mult(const Vector3_t<T>&& v, const Vector3_t<U>&& w) {
 	    using TU = typename std::common_type<T,U>::type;
@@ -179,7 +185,12 @@ public:
 			sqrt(w.z));
 		return ret;
 	}
+	
+	// Numeric limits
+	HOST DEVICE static inline T highest() { return std::numeric_limits<T>::max(); }
+	HOST DEVICE static inline T lowest() { return std::numeric_limits<T>::lowest(); }
 
+	// String
 	HOST DEVICE inline void print() const {
 		printf("%0.3f %0.3f %0.3f\n", x,y,z);
 	}

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ARBDException.h"
+
 #ifdef __CUDACC__
     #define HOST __host__
     #define DEVICE __device__
@@ -78,11 +80,16 @@ struct has_copy_to_cuda<T, decltype(std::declval<T>().copy_to_cuda(), void())> :
 
 #ifndef gpuErrchk
 #define delgpuErrchk
-#define gpuErrchk(code) { if ((code) != cudaSuccess) {					       \
+#define gpuErrchk(code) { if ((code) != cudaSuccess) {    \
+	    Exception(CUDARuntimeError, " ", cudaGetErrorString(code)); \
+	}}
+#endif
+/*
+define gpuErrchk(code) { if ((code) != cudaSuccess) {					       \
 	fprintf(stderr,"CUDA Error: %s %s %d\n", cudaGetErrorString(code), __FILE__, __LINE__); \
     }}
-#endif
-
+endif
+*/
 #define NUMSTREAMS 8
 
 // GPUs capable of Peer Access 
