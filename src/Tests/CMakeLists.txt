@@ -27,6 +27,12 @@ endif()
 if(USE_NVTX)
   target_link_libraries(arbd_tests PUBLIC nvToolsExt)
 endif()
+if(USE_LOGGER)
+  add_definitions(-DUSE_LOGGER)
+  target_include_directories(arbd_tests PRIVATE ${spdlog_DIR})
+  target_link_libraries(arbd_tests PRIVATE spdlog::spdlog_header_only)
+  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
+endif()
 
 ## catch_discover_tests("${PROJECT_NAME}_TESTS")
 

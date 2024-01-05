@@ -9,6 +9,7 @@
 #include <string>
 #include <cstdarg>
 #include <exception>
+#include "SignalManager.h"
 
 enum ExceptionType {
     UnspeficiedError,

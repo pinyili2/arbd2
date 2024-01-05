@@ -8,7 +8,6 @@
 #include <nvfunctional>
 
 #include "../type_name.h"
-
 /* #include <catch2/catch_tostring.hpp> */
 /* namespace Catch { */
 /*     template<typename T, bool b1, bool b2> */
@@ -34,6 +33,7 @@ namespace Tests {
 namespace Tests {\
 template<typename Op_t, typename R, typename ...T>\
     void run_trial( std::string name, R expected_result, T...args) {\
+    SignalManager::manage_segfault();\
 	R *gpu_result_d, gpu_result, cpu_result;\
 	cpu_result = Op_t::op(args...);\
 	cudaMalloc((void **)&gpu_result_d, sizeof(R));\

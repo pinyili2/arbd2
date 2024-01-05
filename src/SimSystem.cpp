@@ -17,7 +17,7 @@ void CellDecomposer::decompose(SimSystem& sys, ResourceCollection& resources) {
     Vector3 dr = max-min;
 
     // For starters, distribute patches uniformly among available resources
-    Vector3 n_p_v = (dr / cutoff).element_floor(); // ordered z-fast
+    Vector3 n_p_v = (dr / cutoff).element_floor();
     size_t n_r = resources.resources.size();
 
     size_t n_p = static_cast<size_t>(round(n_p_v[0]*n_p_v[1]*n_p_v[2]));

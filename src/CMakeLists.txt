@@ -1,3 +1,4 @@
+
 add_library("lib${PROJECT_NAME}"
   ARBDException.cpp
   GPUManager.cpp
@@ -11,3 +12,11 @@ add_library("lib${PROJECT_NAME}"
   SignalManager.cpp
   PatchOp.cu
 )
+if(USE_LOGGER)
+  add_definitions(-DUSE_LOGGER)
+  target_include_directories("lib${PROJECT_NAME}" PRIVATE ${spdlog_DIR})
+  target_link_libraries("lib${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)	
+  # target_link_libraries("lib${PROJECT_NAME}" spdlog)	
+  # target_link_libraries("${PROJECT_NAME}" spdlog)
+  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
+endif()

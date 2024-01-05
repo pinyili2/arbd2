@@ -6,6 +6,39 @@
 #ifndef SIGNALMANAGER_H_
 #define SIGNALMANAGER_H_
 
+#ifdef USE_LOGGER
+
+#define FMT_HEADER_ONLY
+#include <spdlog/fmt/bundled/core.h>
+#include <spdlog/fmt/bundled/format.h>
+#include <spdlog/spdlog.h>
+
+#ifndef SPDLOG_ACTIVE_LEVEL
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
+#endif
+
+#define TRACE(...) SPDLOG_TRACE(__VA_ARGS__)
+#define DEBUG(...) SPDLOG_DEBUG(__VA_ARGS__)
+// #define DEBUG(...) spdlog::debug(__VA_ARGS__)
+#define INFO(...) SPDLOG_INFO(__VA_ARGS__)
+#define WARN(...) SPDLOG_WARN(__VA_ARGS__)
+#define ERROR(...) SPDLOG_ERROR(__VA_ARGS__)
+#define CRITICAL(...) SPDLOG_CRITICAL(__VA_ARGS__)
+// spdlog::set_level(spdlog::level::trace);
+
+#else
+
+// Disable logger macros
+// NOTE to developers: only use the macros below for logging, only in host code
+#define TRACE(...)
+#define DEBUG(...)
+#define INFO(...)
+#define WARN(...)
+#define ERROR(...)
+#define CRITICAL(...)
+
+#endif
+
 // see http://www.linuxjournal.com/files/linuxjournal.com/linuxjournal/articles/063/6391/6391l3.html
 #include <csignal>
 #include <execinfo.h>

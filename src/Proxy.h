@@ -1,5 +1,6 @@
 #pragma once
 
+#include <future>
 #include <iostream>
 #include "ARBDException.h"
 
@@ -10,7 +11,7 @@ struct Resource {
     /**
      * @brief Enum to specify the type of the resource (e.g., CPU or GPU).
      */
-    enum ResourceType {CPU, GPU};
+    enum ResourceType {CPU, MPI, GPU};
     ResourceType type; ///< Type of the resource.
     size_t id; ///< ID or any other identifier associated with the resource.
     // HOST DEVICE static bool is_local() { // check if thread/gpu idx matches some global idx };
@@ -56,6 +57,55 @@ public:
      */
     Resource location;	    ///< The device (thread/gpu) holding the data represented by the proxy.
     T* addr;		    ///< The address of the underlying object.
+
+    template <typename RetType, typename... Args>
+    RetType callSync(RetType (T::*memberFunc)(Args...), Args... args) {
+        switch (location.type) {
+            case Resource::CPU:
+                return (addr->*memberFunc)(args...);
+            case Resource::GPU:
+                // Handle GPU-specific logic
+                std::cerr << "Error: GPU not implemented in synchronous call." << std::endl;
+                // You may want to throw an exception or handle this case accordingly
+                return RetType{};
+            case Resource::MPI:
+                // Handle MPI-specific logic
+                std::cerr << "Error: MPI not implemented in synchronous call." << std::endl;
+                // You may want to throw an exception or handle this case accordingly
+                return RetType{};
+            default:
+                // Handle other cases or throw an exception
+                std::cerr << "Error: Unknown resource type." << std::endl;
+                // You may want to throw an exception or handle this case accordingly
+                return RetType{};
+        }
+    }
+
+    template <typename RetType, typename... Args>
+    std::future<RetType> callAsync(RetType (T::*memberFunc)(Args...), Args... args) {
+        switch (location.type) {
+            case Resource::CPU:
+                // Handle CPU-specific asynchronous logic
+                return std::async(std::launch::async, [this, memberFunc, args...] {
+                    return (addr->*memberFunc)(args...);
+                });
+            case Resource::GPU:
+                // Handle GPU-specific asynchronous logic
+                std::cerr << "Error: GPU not implemented in asynchronous call." << std::endl;
+                // You may want to throw an exception or handle this case accordingly
+                return std::async(std::launch::async, [] { return RetType{}; });
+            case Resource::MPI:
+                // Handle MPI-specific asynchronous logic
+                std::cerr << "Error: MPI not implemented in asynchronous call." << std::endl;
+                // You may want to throw an exception or handle this case accordingly
+                return std::async(std::launch::async, [] { return RetType{}; });
+            default:
+                // Handle other cases or throw an exception
+                std::cerr << "Error: Unknown resource type." << std::endl;
+                // You may want to throw an exception or handle this case accordingly
+                return std::async(std::launch::async, [] { return RetType{}; });
+        }
+    }
 };
 
 /**
@@ -99,11 +149,11 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T
  */
 template <typename T, typename Dummy = void, typename std::enable_if_t<!has_send_children<T>::value, Dummy>* = nullptr>
 HOST inline Proxy<T> send(const Resource& location, T& obj, T* dest = nullptr) {
-    printf("Sending object %s @%x to device at %x\n", type_name<T>().c_str(), &obj, dest);
-
+    TRACE("...Sending object {} @{} to device at {}", type_name<T>().c_str(), fmt::ptr(&obj), fmt::ptr(dest));
     // Simple objects can simply be copied without worrying about contained objects and arrays
     auto ret = _send_ignoring_children<T>(location, obj, dest);
-    printf("...done\n");        
+    TRACE("...done sending");
+    // printf("...done\n");        
     return ret;
 }
 
@@ -118,11 +168,11 @@ HOST inline Proxy<T> send(const Resource& location, T& obj, T* dest = nullptr) {
  */
 template <typename T, typename Dummy = void, typename std::enable_if_t<has_send_children<T>::value, Dummy>* = nullptr>
 HOST inline Proxy<T> send(const Resource& location, T& obj, T* dest = nullptr) {
-    printf("Sending object %s @%x to device at %x\n", type_name<T>().c_str(), &obj, dest);
+    TRACE("Sending complex object {} @{} to device at {}", type_name<T>().c_str(), fmt::ptr(&obj), fmt::ptr(dest));
     auto dummy = obj.send_children(location); // function is expected to return an object of type obj with all pointers appropriately assigned to valid pointers on location
     Proxy<T> ret = _send_ignoring_children(location, dummy, dest);
-    printf("clearing...\n");
+    TRACE("... clearing dummy complex object");
     dummy.clear();
-    printf("...done\n");    
+    TRACE("... done sending");
     return ret;
 }

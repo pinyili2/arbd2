@@ -1,4 +1,5 @@
 #include "SignalManager.h"
+
 #include <cstdio>
 #include <cstdlib>
 #ifdef SIGNAL
@@ -33,6 +34,9 @@ void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret)
 
 void SignalManager::manage_segfault() 
 {
+#ifdef USE_LOGGER
+    spdlog::set_level(spdlog::level::trace);
+#endif
 	struct sigaction sa;
 
 	sa.sa_sigaction = segfault_handler;
@@ -44,6 +48,10 @@ void SignalManager::manage_segfault()
 
 #else
 void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret) {}
-void SignalManager::manage_segfault() {}
+void SignalManager::manage_segfault() {
+#ifdef USE_LOGGER
+    spdlog::set_level(spdlog::level::trace);
+#endif
+}
 
 #endif
