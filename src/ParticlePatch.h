@@ -146,7 +146,7 @@ public:
 	// Replace with auto? Return number of particles sent?
 	// template<typename T>
 	// size_t send_particles_filtered( Proxy<Data>& destination, T filter ); // = [](size_t idx, Patch::Data d)->bool { return true; } );
-	size_t send_particles_filtered( Proxy<Data>* destination, std::function<bool(size_t,Data)> filter ); // = [](size_t idx, Patch::Data d)->bool { return true; } );
+	size_t send_particles_filtered( Proxy<Data>& destination, std::function<bool(size_t,Data)> filter ); // = [](size_t idx, Patch::Data d)->bool { return true; } );
 
     };
 
@@ -191,7 +191,7 @@ public:
     // template<typename T>
     // size_t send_particles_filtered( Proxy<Patch>& destination, T filter );
     // // [](size_t idx, Patch::Data d)->bool { return true; } );
-    size_t send_particles_filtered( Proxy<Patch>* destination, std::function<bool(size_t,Data)> filter );
+    size_t send_particles_filtered( Proxy<Patch>& destination, std::function<bool(size_t,Data)> filter );
     // [](size_t idx, Patch::Data d)->bool { return true; } );
 
     void clear() {

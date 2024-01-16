@@ -98,7 +98,7 @@ void Patch::compute() {
 
 // template<typename T>
 // size_t Patch::send_particles_filtered( Proxy<Patch>& destination, T filter ) {
-size_t Patch::send_particles_filtered( Proxy<Patch>* destination, std::function<bool(size_t,Patch::Data)> filter ) {
+size_t Patch::send_particles_filtered( Proxy<Patch>& destination, std::function<bool(size_t,Patch::Data)> filter ) {
 // TODO determine who allocates and cleans up temporary data
     // TODO determine if there is a good way to avoid having temporary data (this can be done later if delegated to a reasonable object)
 
@@ -108,28 +108,18 @@ size_t Patch::send_particles_filtered( Proxy<Patch>* destination, std::function<
     // TODO currently everything is sychronous, but that will change; how do we avoid race conditions?
     // E.g. have a single array allocated with known start and end for each PE/Patch?
     
-    Data buffer;		// not sure which object should allocate
-    { 
-    using _filter_t = decltype(filter);
-    // using A = decltype(destination->metadata.data);
-    using A = Proxy<Patch::Data>&;
-    // size_t num_sent = metadata.data.callSync<size_t,A>( &Patch::Data::send_particles_filtered, destination->metadata.data, filter );
-    // size_t num_sent = metadata.data.callSync<size_t,A>( static_cast<size_t (Patch::Data::*)(Proxy<Patch::Data>&, _filter_t)>(&Patch::Data::send_particles_filtered), destination->metadata.data, filter );
-
-    // size_t num_sent = metadata.data.callSync<size_t,A>( &Patch::Data::send_particles_filtered, destination->metadata.data, filter );
-    size_t num_sent = metadata.data.callSync( &Patch::Data::send_particles_filtered, &((*destination)->metadata.data), filter );
-
-    }
-    // size_t num_sent = metadata.data.callSync<size_t,Proxy<Patch::Data>&,_filter_t>( &Patch::Data::send_particles_filtered<_filter_t>, destination->metadata.data, filter );
-    return 0;
+    // Data buffer;		// not sure which object should allocate
+    size_t num_sent = metadata.data.callSync( &Patch::Data::send_particles_filtered,
+					      destination->metadata.data, filter );
+    return num_sent;
 };
 
 // template<typename T>
 // size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>& destination, T filter ) { }
-size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>* destination, std::function<bool(size_t,Patch::Data)> filter ) { 
-    Data buffer;		// not sure which object should allocate
-    // metadata.data.callSync( &Patch::Data::send_particles_filtered, destination, filter );
-    // x
+size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>& destination, std::function<bool(size_t,Patch::Data)> filter ) { 
+    // Data buffer;		// not sure which object should allocate
+    WARN("Patch::Data::send_particles_filtered() was called but is not implemented");
+    // metadata->data.callSync( &Patch::Data::send_particles_filtered, destination, filter );
     return 0;
 };
 

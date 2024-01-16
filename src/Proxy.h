@@ -89,15 +89,16 @@ public:
 				//
 				// A: depends on how Proxy<Proxy<T>>
 				// objects are used
-    
-    template <typename RetType, typename... Args>
-    RetType callSync(RetType (T::*memberFunc)(Args...), Args&&... args) {
+
+    // Use two template parameter packs as suggested here: https://stackoverflow.com/questions/26994969/inconsistent-parameter-pack-deduction-with-variadic-templates
+    template <typename RetType, typename... Args1, typename... Args2>
+    RetType callSync(RetType (T::*memberFunc)(Args1...), Args2&&... args) {
         switch (location.type) {
             case Resource::CPU:
 	    // 	return ([&](auto&&... capturedArgs) {
             //     return (addr->*memberFunc)(std::forward<decltype(capturedArgs)>(capturedArgs)...);
             // })(std::forward<Args>(args)...);
-		return (addr->*memberFunc)(std::forward<Args>(args)...);
+		return (addr->*memberFunc)(std::forward<Args2>(args)...);
             case Resource::GPU:
                 // Handle GPU-specific logic
                 std::cerr << "Error: GPU not implemented in synchronous call." << std::endl;

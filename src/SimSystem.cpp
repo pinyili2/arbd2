@@ -52,9 +52,8 @@ void CellDecomposer::decompose(SimSystem& sys, ResourceCollection& resources) {
 	    using _filter_t = decltype(filter);
 	    // p.callSync<void,Proxy<Patch>,_filter_t>( &Patch::send_particles_filtered<_filter_t>, p2_p, filter );
 	    // p.callSync<size_t, Proxy<Patch>&, _filter_t>(static_cast<size_t (Patch::*)(Proxy<Patch>&, _filter_t)>(&Patch::send_particles_filtered<_filter_t>), p2_p, filter);
-	    p.callSync( &Patch::test ); // DEBUG
 	    // p.callSync<size_t, Proxy<Patch>&>( &Patch::send_particles_filtered, p2_p, filter);
-	    p.callSync( &Patch::send_particles_filtered, &p2_p, filter);
+	    p.callSync( &Patch::send_particles_filtered, p2_p, filter);
 	    
 	    num_particles += p.metadata->num;
 	}
