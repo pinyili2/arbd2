@@ -10,6 +10,7 @@
 
 #include <vector> // std::vector
 #include <memory> // std::make_unique
+#include <functional>
 
 #ifdef USE_CUDA
 #include <cuda.h>
@@ -23,7 +24,12 @@
 
 #include "PatchOp.h"
 
+class Decomposer;
+class CellDecomposer;
+
 class BasePatch {
+    friend Decomposer;
+    friend CellDecomposer;
 public:
     // BasePatch(size_t num, short thread_id, short gpu_id, SimSystem& sys);
     // BasePatch(size_t num, short thread_id, short gpu_id);
@@ -124,6 +130,33 @@ public:
     Patch() : BasePatch() { initialize(); }
     Patch(size_t capacity) : BasePatch(capacity) { initialize(); }
 
+    // Particle data arrays pointing to either CPU or GPU memory
+    struct Data {
+	VectorArr* pos_force;
+	VectorArr* momentum;
+	Array<size_t>* particle_types;
+	Array<size_t>* particle_order;
+
+	HOST DEVICE inline Vector3& get_pos(size_t i) { return (*pos_force)[i*2]; };
+	HOST DEVICE inline Vector3& get_force(size_t i) { return (*pos_force)[i*2+1]; };
+	HOST DEVICE inline Vector3& get_momentum(size_t i) { return (*momentum)[i]; };
+	HOST DEVICE inline size_t& get_type(size_t i) { return (*particle_types)[i]; };
+	HOST DEVICE inline size_t& get_order(size_t i) { return (*particle_order)[i]; };
+
+	// Replace with auto? Return number of particles sent?
+	// template<typename T>
+	// size_t send_particles_filtered( Proxy<Data>& destination, T filter ); // = [](size_t idx, Patch::Data d)->bool { return true; } );
+	size_t send_particles_filtered( Proxy<Data>* destination, std::function<bool(size_t,Data)> filter ); // = [](size_t idx, Patch::Data d)->bool { return true; } );
+
+    };
+
+    // Metadata stored on host even if Data is on device
+    struct Metadata {
+	size_t num;
+	Vector3 min;
+	Vector3 max;
+	Proxy<Data> data;		// actual data may be found elsewhere
+    };
     
     // void deleteParticles(IndexList& p);
     // void addParticles(size_t n, size_t typ);
@@ -149,6 +182,27 @@ public:
     
     // TODO? emplace_point_particles
     void compute();
+
+    // Communication
+    size_t send_particles( Proxy<Patch>* destination ); // Same as send_children?
+    // void send_particles_filtered( Proxy<Patch> destination, std::function<bool(size_t, Patch::Data)> = [](size_t idx, Patch::Data d)->bool { return true; } );
+
+    // Replace with auto? Return number of particles sent?
+    // template<typename T>
+    // size_t send_particles_filtered( Proxy<Patch>& destination, T filter );
+    // // [](size_t idx, Patch::Data d)->bool { return true; } );
+    size_t send_particles_filtered( Proxy<Patch>* destination, std::function<bool(size_t,Data)> filter );
+    // [](size_t idx, Patch::Data d)->bool { return true; } );
+
+    void clear() {
+	WARN("Patch::clear() was called but is not implemented");
+    }
+
+    size_t test() {
+	WARN("Patch::test() was called but is not implemented");
+	return 1;
+    }
+
     
 private:
     void initialize();
@@ -160,14 +214,7 @@ private:
     std::vector<std::unique_ptr<PatchOp>> local_computes; // Operations that will be performed on this patch each timestep
     std::vector<std::unique_ptr<PatchOp>> nonlocal_computes; // Operations that will be performed on this patch each timestep
 
-    // CPU particle arrays
-    struct Data {
-	VectorArr* pos_force;
-	VectorArr* momentum;
-	Array<size_t>* particle_types;
-	Array<size_t>* particle_order;
-    };
-    Proxy<Data> data;		// actual data may be found elsewhere
+    Metadata metadata;		// Usually associated with proxy, but can use it here too
     
     // size_t num_rb;
     // Vector3* rb_pos;
@@ -186,6 +233,46 @@ private:
 
 };
 
+
+/* MOVED
+// template<typename T>
+// size_t Patch::send_particles_filtered( Proxy<Patch>& destination, T filter ) {
+size_t Patch::send_particles_filtered( Proxy<Patch>* destination, std::function<bool(size_t,Patch::Data)> filter ) {
+// TODO determine who allocates and cleans up temporary data
+    // TODO determine if there is a good way to avoid having temporary data (this can be done later if delegated to a reasonable object)
+
+    // TODO think about the design and whether it's possible to have a single array with start/end
+    // TODO think about the design for parallel sending; should a receiver do some work?
+
+    // TODO currently everything is sychronous, but that will change; how do we avoid race conditions?
+    // E.g. have a single array allocated with known start and end for each PE/Patch?
+    
+    Data buffer;		// not sure which object should allocate
+    { 
+    using _filter_t = decltype(filter);
+    // using A = decltype(destination->metadata.data);
+    using A = Proxy<Patch::Data>&;
+    // size_t num_sent = metadata.data.callSync<size_t,A>( &Patch::Data::send_particles_filtered, destination->metadata.data, filter );
+    // size_t num_sent = metadata.data.callSync<size_t,A>( static_cast<size_t (Patch::Data::*)(Proxy<Patch::Data>&, _filter_t)>(&Patch::Data::send_particles_filtered), destination->metadata.data, filter );
+
+    // size_t num_sent = metadata.data.callSync<size_t,A>( &Patch::Data::send_particles_filtered, destination->metadata.data, filter );
+    size_t num_sent = metadata.data.callSync( &Patch::Data::send_particles_filtered, &((*destination)->metadata.data), filter );
+
+    }
+    // size_t num_sent = metadata.data.callSync<size_t,Proxy<Patch::Data>&,_filter_t>( &Patch::Data::send_particles_filtered<_filter_t>, destination->metadata.data, filter );
+    return 0;
+};
+
+// template<typename T>
+// size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>& destination, T filter ) { }
+size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>* destination, std::function<bool(size_t,Patch::Data)> filter ) { 
+    Data buffer;		// not sure which object should allocate
+    // metadata.data.callSync( &Patch::Data::send_particles_filtered, destination, filter );
+    // x
+    return 0;
+};
+
+*/
 
 // // Patch::Patch(size_t num, short thread_id, short gpu_id) {};
 // #ifndef USE_CUDA

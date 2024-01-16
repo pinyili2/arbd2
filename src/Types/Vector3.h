@@ -169,12 +169,42 @@ public:
 
 
 	template<typename U>
+	HOST DEVICE inline auto element_mult(const U w[]) {
+	    using TU = typename std::common_type<T,U>::type;
+	    Vector3_t<TU> ret( x*w[0], y*w[1], z*w[2]);
+	    return ret;
+	}
+	template<typename U>
+	HOST DEVICE inline auto element_mult(const Vector3_t<U>&& w) {
+	    using TU = typename std::common_type<T,U>::type;
+	    Vector3_t<TU> ret( x*w.x, y*w.y, z*w.z);
+	    return ret;
+	}
+	template<typename U>
+	HOST DEVICE inline auto element_mult(const Vector3_t<U>& w) {
+	    using TU = typename std::common_type<T,U>::type;
+	    Vector3_t<TU> ret( x*w.x, y*w.y, z*w.z);
+	    return ret;
+	}
+
+
+	template<typename U>
 	HOST DEVICE static inline auto element_mult(const Vector3_t<T>&& v, const Vector3_t<U>&& w) {
 	    using TU = typename std::common_type<T,U>::type;
 		Vector3_t<TU> ret(
 			v.x*w.x,
 			v.y*w.y,
 			v.z*w.z);
+		return ret;
+	}
+
+	template<typename U>
+	HOST DEVICE static inline auto element_mult(const Vector3_t<T>&& v, const U w[]) {
+	    using TU = typename std::common_type<T,U>::type;
+		Vector3_t<TU> ret(
+			v.x*w[0],
+			v.y*w[1],
+			v.z*w[2]);
 		return ret;
 	}
 

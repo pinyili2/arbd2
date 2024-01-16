@@ -32,16 +32,15 @@ public:
     bool periodic[dim];    
 };
 
-template<>
-class Proxy<Patch> : BasePatch {
-public:
-    Proxy<Patch>(Resource& r, Patch* obj) : location(&r), addr(obj) { };
-    Resource* location;
-    Patch* addr;
-    size_t num;
-    Vector3 min;
-    Vector3 max;    
-};
+// class ProxyPatch : public Proxy<Patch>, public BasePatch {
+// public:
+//     ProxyPatch(Resource& r, Patch* obj) : location(&r), addr(obj) { };
+//     Resource* location;
+//     Patch* addr;
+//     size_t num;
+//     Vector3 min;
+//     Vector3 max;    
+// };
 
 struct ResourceCollection {
     
@@ -85,6 +84,7 @@ class CellDecomposer : public Decomposer {
 
 class SimSystem {
     friend class Decomposer;
+    friend class CellDecomposer;
     friend class SimManager;
 public:
     struct Conf {
@@ -145,10 +145,10 @@ public:
     const Vector3 get_min() const {
 	Vector3 min(Vector3::highest());
 	for (auto& p: patches) {
-	    if (min.x > p.min.x) min.x = p.min.x;
-	    if (min.y > p.min.y) min.y = p.min.y;
-	    if (min.z > p.min.z) min.z = p.min.z;
-	    if (min.w > p.min.w) min.w = p.min.w;
+	    if (min.x > p.metadata->min.x) min.x = p.metadata->min.x;
+	    if (min.y > p.metadata->min.y) min.y = p.metadata->min.y;
+	    if (min.z > p.metadata->min.z) min.z = p.metadata->min.z;
+	    if (min.w > p.metadata->min.w) min.w = p.metadata->min.w;
 	}
 	return min;
     }
@@ -156,10 +156,10 @@ public:
     const Vector3 get_max() const {
 	Vector3 max(Vector3::lowest());
 	for (auto& p: patches) {
-	    if (max.x < p.max.x) max.x = p.max.x;
-	    if (max.y < p.max.y) max.y = p.max.y;
-	    if (max.z < p.max.z) max.z = p.max.z;
-	    if (max.w < p.max.w) max.w = p.max.w;
+	    if (max.x < p.metadata->max.x) max.x = p.metadata->max.x;
+	    if (max.y < p.metadata->max.y) max.y = p.metadata->max.y;
+	    if (max.z < p.metadata->max.z) max.z = p.metadata->max.z;
+	    if (max.w < p.metadata->max.w) max.w = p.metadata->max.w;
 	}
 	return max;
     }
@@ -173,7 +173,7 @@ public:
 	decomp;
     }
 
-private:
+protected:
     Temperature temperature;
     // std::vector<Interactions> interactions; // not quite..
     

@@ -53,7 +53,7 @@ public:
 	    values[i] = a[i];
 	}
 	// printf("Copy-operator for Array<T> %x with values %x\n",this, values);
-	printf("Copy-operator for Array<T>\n");
+	// printf("Copy-operator for Array<T>\n");
 	return *this;
     }
     HOST DEVICE inline Array<T>& operator=(Array<T>&& a) { // move assignment operator
@@ -65,7 +65,7 @@ public:
 	a.num = 0;
 	a.values = nullptr;
 	// printf("Move-operator for Array<T> %x with values %x\n",this, values);
-	printf("Move-operator for Array<T>\n");
+	// printf("Move-operator for Array<T>\n");
 	return *this;
     }
     HOST void clear() {
@@ -143,7 +143,7 @@ public:
 	Array<T> tmp(0);
 	tmp.num = num;
 	tmp.values = values_d;
-	printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
+	// printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
 	return tmp;
     }
     template <typename Dummy = void, typename std::enable_if_t<has_send_children<T>::value, Dummy>* = nullptr>
@@ -159,7 +159,7 @@ public:
 		gpuErrchk(cudaMalloc(&values_d, sz));
 		// Copy values
 		for (size_t i = 0; i < num; ++i) {
-		    printf("Sending_children for children\n");
+		    // printf("Sending_children for children\n");
 		    auto tmp = values[i].send_children(location);
 		    send(location, tmp, values_d+i);
 		    tmp.clear();
@@ -177,7 +177,7 @@ public:
 	Array<T> tmp(0);
 	tmp.num = num;
 	tmp.values = values_d;
-	printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
+	// printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
 	return tmp;
     }
     
@@ -208,7 +208,7 @@ public:
 	gpuErrchk(cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
 	tmp.num = 0;
 	tmp.values = nullptr;
-	printf("Copying Array<%s> %x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, dev_ptr);
+	// printf("Copying Array<%s> %x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, dev_ptr);
 	return dev_ptr;
     }
 
@@ -240,7 +240,7 @@ public:
 	gpuErrchk(cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
 	tmp.num = 0;
 	tmp.values = nullptr;
-	printf("Copying Array %x with values %x to device at %x\n",this, values, dev_ptr);
+	// printf("Copying Array %x with values %x to device at %x\n",this, values, dev_ptr);
 	return dev_ptr;
     }
 
@@ -293,7 +293,7 @@ public:
 
     template <typename Dummy = void, typename std::enable_if_t<!has_copy_to_cuda<T>::value, Dummy>* = nullptr>
     HOST static void remove_from_cuda(Array<T>* dev_ptr, bool remove_self = true) {
-	printf("Removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
+	// printf("Removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
 	if (dev_ptr == nullptr) return;
 	Array<T> tmp(0);
 	gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
@@ -312,7 +312,7 @@ public:
 
     template <typename Dummy = void, typename std::enable_if_t<has_copy_to_cuda<T>::value, Dummy>* = nullptr>
     HOST static void remove_from_cuda(Array<T>* dev_ptr, bool remove_self = true) {
-	printf("Removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
+	// printf("Removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
 	if (dev_ptr == nullptr) return;
 	Array<T> tmp(0);
 	gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
