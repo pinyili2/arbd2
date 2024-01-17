@@ -1,14 +1,18 @@
 #include "SimManager.h"
+#include "Random.h"
 #include <memory>
 
 void SimManager::run() {
-    std::cout << "running" << std::endl;
+    INFO("Running!");
+    // TODO: process a command queue?
 
     // SimSystem sys = SimSystem();
     // Patch p(10,0,0,sys);
 
     Patch p;
 
+    Random* r = Random::GetRandom(Random::Conf{});
+    
     //ProxyPatch p2(10,0,0);
 
     // p.add_compute( std::make_unique<LocalPairForce>() );
@@ -23,7 +27,7 @@ void SimManager::run() {
 // #endif
     
     for (size_t step = 0; step < 10; ++step) {
-	printf("Step\n");
+	INFO("Step {}: random {}", step, r->gaussian());
 	p.compute();
 #ifdef USE_CUDA
 	cudaDeviceSynchronize();

@@ -14,6 +14,11 @@ struct Resource {
     enum ResourceType {CPU, MPI, GPU};
     ResourceType type; ///< Type of the resource.
     size_t id; ///< ID or any other identifier associated with the resource.
+
+    HOST DEVICE bool is_local() const {
+	WARN("Resource::is_local() not implemented; returning true");
+	return true;
+    };
     // HOST DEVICE static bool is_local() { // check if thread/gpu idx matches some global idx };
 };
 
@@ -94,53 +99,48 @@ public:
     template <typename RetType, typename... Args1, typename... Args2>
     RetType callSync(RetType (T::*memberFunc)(Args1...), Args2&&... args) {
         switch (location.type) {
-            case Resource::CPU:
-	    // 	return ([&](auto&&... capturedArgs) {
-            //     return (addr->*memberFunc)(std::forward<decltype(capturedArgs)>(capturedArgs)...);
-            // })(std::forward<Args>(args)...);
+	case Resource::CPU:
+	    if (location.is_local()) {
 		return (addr->*memberFunc)(std::forward<Args2>(args)...);
-            case Resource::GPU:
-                // Handle GPU-specific logic
-                std::cerr << "Error: GPU not implemented in synchronous call." << std::endl;
-                // You may want to throw an exception or handle this case accordingly
-                return RetType{};
-            case Resource::MPI:
-                // Handle MPI-specific logic
-                std::cerr << "Error: MPI not implemented in synchronous call." << std::endl;
-                // You may want to throw an exception or handle this case accordingly
-                return RetType{};
-            default:
-                // Handle other cases or throw an exception
-                std::cerr << "Error: Unknown resource type." << std::endl;
-                // You may want to throw an exception or handle this case accordingly
-                return RetType{};
+	    } else {
+		Exception( NotImplementedError, "Proxy::callSync() non-local CPU calls" );
+	    }
+	case Resource::GPU:
+	    if (location.is_local()) {
+		Exception( NotImplementedError, "Proxy::callSync() local GPU calls" );
+	    } else {
+		Exception( NotImplementedError, "Proxy::callSync() non-local GPU calls" );
+	    }
+	case Resource::MPI:
+	    Exception( NotImplementedError, "MPI sync calls (deprecate?)" );
+	default:
+	    Exception( ValueError, "Proxy::callSync(): Unknown resource type" );
         }
+	return RetType{};
     }
 
-    template <typename RetType, typename... Args>
-    std::future<RetType> callAsync(RetType (T::*memberFunc)(Args...), Args... args) {
+    // TODO generalize to handle void RetType 
+    template <typename RetType, typename... Args1, typename... Args2>
+    std::future<RetType> callAsync(RetType (T::*memberFunc)(Args1...), Args2&&... args) {
         switch (location.type) {
-            case Resource::CPU:
-                // Handle CPU-specific asynchronous logic
-                return std::async(std::launch::async, [this, memberFunc, args...] {
-                    return (addr->*memberFunc)(args...);
-                });
-            case Resource::GPU:
-                // Handle GPU-specific asynchronous logic
-                std::cerr << "Error: GPU not implemented in asynchronous call." << std::endl;
-                // You may want to throw an exception or handle this case accordingly
-                return std::async(std::launch::async, [] { return RetType{}; });
-            case Resource::MPI:
-                // Handle MPI-specific asynchronous logic
-                std::cerr << "Error: MPI not implemented in asynchronous call." << std::endl;
-                // You may want to throw an exception or handle this case accordingly
-                return std::async(std::launch::async, [] { return RetType{}; });
-            default:
-                // Handle other cases or throw an exception
-                std::cerr << "Error: Unknown resource type." << std::endl;
-                // You may want to throw an exception or handle this case accordingly
-                return std::async(std::launch::async, [] { return RetType{}; });
+	case Resource::CPU:
+	    if (location.is_local()) {
+		return (addr->*memberFunc)(std::forward<Args2>(args)...);
+	    } else {
+		Exception( NotImplementedError, "Proxy::callAsync() non-local CPU calls" );
+	    }
+	case Resource::GPU:
+	    if (location.is_local()) {
+		Exception( NotImplementedError, "Proxy::callAsync() local GPU calls" );
+	    } else {
+		Exception( NotImplementedError, "Proxy::callAsync() non-local GPU calls" );
+	    }
+	case Resource::MPI:
+	    Exception( NotImplementedError, "MPI async calls (deprecate?)" );
+	default:
+	    Exception( ValueError, "Proxy::callAsync(): Unknown resource type" );
         }
+	return std::async(std::launch::async, [] { return RetType{}; });
     }
 };
 
@@ -163,15 +163,26 @@ template <typename T>
 HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T* dest = nullptr) {
     switch (location.type) {
     case Resource::GPU:
-	if (dest == nullptr) { // allocate if needed
-	    // printf("   cudaMalloc for array\n");
-	    gpuErrchk(cudaMalloc(&dest, sizeof(T)));
+	if (location.is_local()) {
+	    if (dest == nullptr) { // allocate if needed
+		TRACE("   cudaMalloc for array");
+		gpuErrchk(cudaMalloc(&dest, sizeof(T)));
+	    }
+	    gpuErrchk(cudaMemcpy(dest, &obj, sizeof(T), cudaMemcpyHostToDevice));
+	} else {
+ 	    Exception( NotImplementedError, "`_send_ignoring_children(...)` on non-local GPU" );
 	}
-	gpuErrchk(cudaMemcpy(dest, &obj, sizeof(T), cudaMemcpyHostToDevice));
 	break;
     case Resource::CPU:
-	// not implemented
-	Exception( NotImplementedError, "`_send_ignoring_children(...)` on CPU" );
+	if (location.is_local()) {
+	    if (dest == nullptr) { // allocate if needed
+		TRACE("   Alloc CPU memory for ", decltype(T));
+		dest = new T;
+	    }
+	    memcpy(dest, &obj, sizeof(T));
+	} else {
+	    Exception( NotImplementedError, "`_send_ignoring_children(...)` on non-local CPU" );
+	}
 	break;
     default:
 	// error

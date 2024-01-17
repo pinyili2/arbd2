@@ -3,6 +3,7 @@ add_library("lib${PROJECT_NAME}"
   ARBDException.cpp
   GPUManager.cpp
   ParticlePatch.cpp
+  Random.cu
   SimSystem.cpp
   Integrator.cpp
   Integrator/CPU.cpp
@@ -19,5 +20,7 @@ if(USE_LOGGER)
   target_link_libraries("lib${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)	
   # target_link_libraries("lib${PROJECT_NAME}" spdlog)	
   # target_link_libraries("${PROJECT_NAME}" spdlog)
+  # find_package(fmt)
+  # target_link_libraries("lib${PROJECT_NAME}" PRIVATE fmt::fmt)
   add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
 endif()

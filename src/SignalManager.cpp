@@ -50,7 +50,8 @@ void SignalManager::manage_segfault()
 void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret) {}
 void SignalManager::manage_segfault() {
 #ifdef USE_LOGGER
-    spdlog::set_level(spdlog::level::trace);
+    // Commented when moving to logger.h
+    // spdlog::set_level(spdlog::level::trace);
 #endif
 }
 

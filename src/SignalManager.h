@@ -8,6 +8,10 @@
 
 #ifdef USE_LOGGER
 
+/* #define ARBD_LOG_ACTIVE_LEVEL 0 */
+/* #include "logger.h" */
+
+//*
 #define FMT_HEADER_ONLY
 #include <spdlog/fmt/bundled/core.h>
 #include <spdlog/fmt/bundled/format.h>
@@ -25,6 +29,17 @@
 #define ERROR(...) SPDLOG_ERROR(__VA_ARGS__)
 #define CRITICAL(...) SPDLOG_CRITICAL(__VA_ARGS__)
 // spdlog::set_level(spdlog::level::trace);
+//*/
+
+/*
+#define TRACE(...) ::arbd::log_trace(__VA_ARGS__)
+#define DEBUG(...) ::arbd::log_debug(__VA_ARGS__)
+// #define DEBUG(...) spdlog::debug(__VA_ARGS__)
+#define INFO(...) ::arbd::log_info(__VA_ARGS__)
+#define WARN(...) ::arbd::log_warn(__VA_ARGS__)
+#define ERROR(...) ::arbd::log_error(__VA_ARGS__)
+#define CRITICAL(...) ::arbd::log_critical(__VA_ARGS__)
+//*/
 
 #else
 
