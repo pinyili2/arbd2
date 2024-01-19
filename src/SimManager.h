@@ -32,5 +32,6 @@ private:
     std::vector<PatchOp>  ops;
     
 public:
+
     void run();    
 };

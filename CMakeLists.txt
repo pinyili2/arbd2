@@ -160,7 +160,7 @@ add_subdirectory(src/Tests)
 
 # set(CMAKE_VERBOSE_MAKEFILE True)
 add_executable("${PROJECT_NAME}" src/arbd.cpp
-src/SimManager.cpp
+src/SimManager.cu
 src/useful.cu
 )
 

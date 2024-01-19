@@ -11,8 +11,7 @@ void SimManager::run() {
 
     Patch p;
 
-    Random* r = Random::GetRandom(Random::Conf{});
-    
+    RandomCPU rng{};
     //ProxyPatch p2(10,0,0);
 
     // p.add_compute( std::make_unique<LocalPairForce>() );
@@ -25,12 +24,19 @@ void SimManager::run() {
 //     p.add_compute( std::make_unique<BDIntegrate>() );
 //     p.add_compute( std::make_unique<LocalBonded>() );
 // #endif
-    
+
+    auto tmp = Random::get_gaussian_state(&rng);
+
     for (size_t step = 0; step < 10; ++step) {
-	LOGINFO("Step {}: random {:0.2f}", step, r->gaussian());
+	LOGINFO("Step {}: random {:0.2f}", step, Random::gaussian(&rng,(RandomCPU::state_t*) nullptr));
 	p.compute();
 #ifdef USE_CUDA
 	cudaDeviceSynchronize();
 #endif
-    }    
+    }
+#ifdef USE_CUDA
+    RandomGPU<128>::launch_test_kernel<64>((size_t) 1);
+    cudaDeviceSynchronize();
+#endif
+
 };

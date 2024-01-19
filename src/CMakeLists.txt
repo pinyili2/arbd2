@@ -3,7 +3,6 @@ add_library("lib${PROJECT_NAME}"
   ARBDException.cpp
   GPUManager.cpp
   ParticlePatch.cpp
-  Random.cu
   SimSystem.cpp
   Integrator.cpp
   Integrator/CPU.cpp
