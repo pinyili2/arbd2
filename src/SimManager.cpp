@@ -3,7 +3,7 @@
 #include <memory>
 
 void SimManager::run() {
-    INFO("Running!");
+    LOGINFO("Running!");
     // TODO: process a command queue?
 
     // SimSystem sys = SimSystem();
@@ -27,7 +27,7 @@ void SimManager::run() {
 // #endif
     
     for (size_t step = 0; step < 10; ++step) {
-	INFO("Step {}: random {}", step, r->gaussian());
+	LOGINFO("Step {}: random {:0.2f}", step, r->gaussian());
 	p.compute();
 #ifdef USE_CUDA
 	cudaDeviceSynchronize();

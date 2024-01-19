@@ -118,7 +118,7 @@ size_t Patch::send_particles_filtered( Proxy<Patch>& destination, std::function<
 // size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>& destination, T filter ) { }
 size_t Patch::Data::send_particles_filtered( Proxy<Patch::Data>& destination, std::function<bool(size_t,Patch::Data)> filter ) { 
     // Data buffer;		// not sure which object should allocate
-    WARN("Patch::Data::send_particles_filtered() was called but is not implemented");
+    LOGWARN("Patch::Data::send_particles_filtered() was called but is not implemented");
     // metadata->data.callSync( &Patch::Data::send_particles_filtered, destination, filter );
     return 0;
 };

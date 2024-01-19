@@ -187,10 +187,10 @@ public:
     };
 
     // Methods for generating random values
-    HOST inline float gaussian() {
+    HOST DEVICE inline float gaussian() {
 	return 0;
     };
-    HOST inline float gaussian(size_t idx, size_t thread) {
+    HOST DEVICE inline float gaussian(size_t idx, size_t thread) {
 	return 0;
     };
 
@@ -226,31 +226,448 @@ void RandomImplCUDA_init_kernel(unsigned long seed, curandState_t *state, int nu
        }
 }
 
+// template<size_t NUM_THREADS = 128, size_t buffer_size = 1024, typename T=int>
+// class RandomImplGPUres : public Random {
+// public:
 
-// GPU-resident?
+//     RandomImplGPURes(Random::Conf c, Resource& location) : location{location}, seed{c.seed}, num_states{c.num_threads}, num{0} {
+// 	// Note: NUM_THREADS refers to CUDA threads, whereas c.num_threads refers to (?) number of random numbers to be generated in parallel
+	
+// 	LOGINFO("Creating RandomImplGPUres with seed {}", seed);
+// 	assert( location.type == Resource::GPU );
+// 	LOGINFO("...Sending data");
+
+	
+// 	states_d = states_d.send_children(location);
+// 	buffer_d = buffer_d.send_children(location);
+	    
+// 	// LOGINFO("...Cleaning temporary data");
+// 	// delete [] tmp.states;
+// 	// delete [] tmp.buffer;
+
+// 	// gpuErrchk(cudaMalloc(&(data.states), sizeof(curandState_t) * c.num_threads));
+// 	// int nBlocks = c.num_threads / NUM_THREADS + 1;
+// 	// initKernel<<< nBlocks, NUM_THREADS >>>(seed, data.states, NUM_THREADS);
+// 	// gpuErrchk(cudaDeviceSynchronize());
+
+// 	// TODO consider location whe ncreating generator!
+// 	// Create RNG and set seed
+// 	LOGINFO("...Creating generator");
+// 	curandCreateGenerator(&generator, CURAND_RNG_PSEUDO_XORWOW);
+// 	curandSetPseudoRandomGeneratorSeed( generator, seed );
+
+// 	// Set seed 
+// 	LOGINFO("...Setting seed");
+// 	gpuErrchk(cudaDeviceSynchronize());
+// 	LOGINFO("...synced");
+// 	size_t num_blocks = 1 + (c.num_threads-1)/NUM_THREADS;
+// 	LOGINFO("...launching");
+// 	// LOGINFO("...hmmm {}", (void*) metadata.states);
+// 	RandomImplGPUres_init_kernel<<< num_blocks, NUM_THREADS >>>(seed, states_d.values, num_states);
+// 	LOGINFO("...Kernel launched");
+// 	gpuErrchk(cudaDeviceSynchronize());
+// 	LOGINFO("...Done");
+
+//     // Allocate temporary storage
+
+
+// 	// gpuErrchk(cudaMalloc((void**) &(data.buffer), sizeof(size_t) * buffer_size));
+	    
+//     };
+
+//     // struct Data {
+//     // 	static_assert( sizeof(float) == sizeof(int) );
+//     // 	static_assert( sizeof(float) == sizeof(T) );
+
+//     // 	Data send_children(Resource& location) const {
+//     // 	    Data tmp{};
+//     // 	    tmp.states = states.send_children(location);
+//     // 	    tmp.buffer = buffer.send_children(location);
+//     // 	    return tmp;
+//     // 	};
+//     // 	void clear() {};	    
+//     // };
+
+// private:    
+//     // Proxy<Data> data;
+//     size_t seed;
+//     curandGenerator_t generator;
+//     size_t num_states;
+//     Array<curandState_t> states_d{NUM_THREADS};
+//     Array<T> buffer_d{buffer_size};		// Cast when you need (float) vs int?
+//     Array<T> local_buffer{buffer_size};	// What about Gaussian (float) vs int?
+//     size_t num;		                // number of entries left in local_buffer
+
+//     // Methods for maninpulating the state
+//     void init(size_t num, unsigned long seed, size_t offset) {
+// 	// gpuErrchk(cudaMalloc((void**)&uniform_d, sizeof(float) * RAND_N));
+// 	// gpuErrchk(cudaMalloc((void**)&integer_d, sizeof(unsigned int) * RAND_N));
+// 	// gpuErrchk(cudaMalloc((void**)&gaussian_d, sizeof(float) * RAND_N));
+// 	// integer_h = new unsigned int[RAND_N];
+// 	// uniform_h = new float[RAND_N];
+// 	// gaussian_h = new float[RAND_N];
+// 	// uniform_n = 0;
+// 	// integer_n = 0;
+// 	// gaussian_n = 0;
+// 	// // 
+//     };
+
+// public:    
+//     // RandomImplCUDA<NUM_THREADS,buffer_size> send_children(Resource& location) const {
+//     // 	RandomImplCUDA<NUM_THREADS,buffer_size> tmp{};
+//     // 	tmp.states = states.send_children(location);
+//     // 	tmp.buffer = buffer.send_children(location);
+//     // 	return tmp;
+//     // 	};
+//     // 	void clear() {};	    
+
+//     // TODO: could introduce dual buffer so random numbers can be filled asynchronously
+//     // Methods for generating random values
+//     HOST DEVICE inline float gaussian() {
+// 	if (num == 0) {
+// 	    cuRandchk(curandGenerateUniform( generator, (float*) buffer_d.values, buffer_size ));
+// 	    gpuErrchk(cudaMemcpy(local_buffer.values, buffer_d.values, sizeof(float) * buffer_size, cudaMemcpyDeviceToHost));
+// 	    num = buffer_size;
+// 	}
+// 	return *reinterpret_cast<float*>(&local_buffer[--num]);
+//     };
+//     HOST DEVICE inline float gaussian(size_t idx, size_t thread) {
+// 	return 0;
+//     };
+
+//     // HOST DEVICE inline float gaussian(RandomState* state) {};
+//     HOST DEVICE inline Vector3 gaussian_vector(size_t idx, size_t thread) {
+// 	return Vector3();
+//     };
+// };
+
+
+using curandState = curandStateXORWOW_t;
+template<size_t NUM_THREADS = 128>
+class RandomGPU : public Random {
+public:
+
+    DEVICE RandomGPU(Random::Conf c, Resource& location) : num_states{c.num_threads}, states{nullptr} {
+	// Note: NUM_THREADS refers to CUDA threads, whereas c.num_threads refers to (?) number of random numbers to be generated in parallel
+	// Not sure how this
+	assert( threadIdx.x + blockIdx.x == 0 );
+	
+	LOGINFO("Creating RandomGPU", seed);
+	assert( location.type == Resource::GPU );
+	states = new curandState[num_states];
+    }
+    DEVICE ~RandomGPU() {
+	assert( threadIdx.x + blockIdx.x == 0 );
+	if (states != nullptr) delete [] states;
+	states = nullptr;
+    };
+
+private:    
+    size_t num_states;
+    curandState* states;	// RNG states stored in global memory 
+    
+public:    
+    // Methods for maninpulating the state
+    DEVICE void init(size_t num, unsigned long seed, size_t offset = 0) {
+	// curand_init(unsigned long long seed,
+	// 	    unsigned long long sequence,
+	// 	    unsigned long long offset,
+	// 	    curandStateXORWOW_t *state)
+	assert( states != nullptr );
+	for (size_t idx = threadIdx.x + blockIdx.x*blockDim.x; idx < NUM_THREADS; idx += blockDim.x * gridDim.x) {
+	    curand_init(seed, tidx, offset, curandState &state[idx]);
+	}
+    };
+
+    // // This _might_ be made more generic by using whatever chunk of shm is needed, then returning end of pointer
+    // DEVICE inline void copy_state_to_shm(curandState *shm) {
+    // 	size_t idx = threadIdx.x + blockIdx.x*blockDim.x;
+    // 	states_shm = &shm;
+    // 	for (; idx < NUM_THREADS; idx += blockDim.x * gridDim.x) {
+    // 	    (*states_shm)[idx] = states[idx];
+    // 	}
+    // 	// __syncthreads();
+
+    // }
+    
+    DEVICE inline float gaussian() {
+	size_t idx = threadIdx.x + blockIdx.x*blockDim.x;
+	assert( idx < num_states );
+	return curand_normal(&states[idx]);
+    };
+
+    DEVICE inline float gaussian(curandState& state) { return curand_normal( &state ); };
+
+    // Useful for getting the RNG state for the thread from global memory, putting it in local memory for use
+    DEVICE inline curandState* get_gaussian_state() {
+	size_t& i = threadIdx.x + blockSize.x*blockIdx.x;
+	return (i < num_states) ? &(states[i]) : nullptr;
+    };
+
+    DEVICE inline void set_gaussian_state(curandState& state) {
+	size_t& i = threadIdx.x + blockSize.x*blockIdx.x;
+	if (i < num_states) states[i] = state;
+    };
+
+    DEVICE inline Vector3 gaussian_vector() {
+	return Vector3( gaussian(), gaussian(), gaussian() );
+    };
+
+    DEVICE inline Vector3 gaussian_vector( curandState& state) {
+	return Vector3( gaussian(state), gaussian(state), gaussian(state) );
+    };
+};
+
+
+/*
+ * Note: this implementation (and probably the interface) should be
+ *   reworked. Generating RNs on the GPU doesn't require or benefit
+ *   from the Data buffers, so probably those should be removed from a
+ *   device-resident object. Ideally this object can implement a
+ *   uniform and lightweight interface that enables efficient use
+ *   through the agnostic API provided by the Random class.
+ */
 template<size_t NUM_THREADS = 128, size_t buffer_size = 1024>
 class RandomImplCUDA : public Random {
 public:
+
+    template<typename T>
     struct Data {
-	Data() : states(nullptr), buffer(nullptr), num(0) {};
-	curandState_t *states;
-	size_t* buffer;		// What about Gauss vs int?
-	size_t num;		// Remove?
+	Array<float> buffer{buffer_size};
+	size_t num; // number of unread entries in buffer
+
+	Data send_children(Resource& location) const {
+	    Data tmp{};
+	    tmp.buffer = buffer.send_children(location);
+	    LOGTRACE( "Clearing RANDOM::Data::buffer..." );
+	    buffer.clear(); // Not sure if this should be done here!
+	    return tmp;
+	};
+
+    };
+    
+    RandomImplCUDA(Random::Conf c, Resource& location) : location{location}, seed{c.seed}, num_states{c.num_threads}, num{0} {
+	// Note: NUM_THREADS refers to CUDA threads, whereas c.num_threads refers to (?) number of random numbers to be generated in parallel
+	
+	LOGINFO("Creating RandomImplCUDA with seed {}", seed);
+	assert( location.type == Resource::GPU );
+	LOGINFO("...Sending data");
+
+	// Data tmp;
+	// data = send(location, tmp);	
+	// metadata.buffer = new size_t[buffer_size]; // TODO handle case if RandomImplCUDA is on location
+	// metadata.num = 0;
+
+	states_d = states_d.send_children(location);
+	    
+	// LOGINFO("...Cleaning temporary data");
+	// delete [] tmp.states;
+	// delete [] tmp.buffer;
+
+	// gpuErrchk(cudaMalloc(&(data.states), sizeof(curandState_t) * c.num_threads));
+	// int nBlocks = c.num_threads / NUM_THREADS + 1;
+	// initKernel<<< nBlocks, NUM_THREADS >>>(seed, data.states, NUM_THREADS);
+	// gpuErrchk(cudaDeviceSynchronize());
+
+	// TODO consider location whe ncreating generator!
+	// Create RNG and set seed
+	LOGINFO("...Creating generator");
+	curandCreateGenerator(&generator, CURAND_RNG_PSEUDO_XORWOW);
+	curandSetPseudoRandomGeneratorSeed( generator, seed );
+
+	// Set seed 
+	LOGINFO("...Setting seed");
+	gpuErrchk(cudaDeviceSynchronize());
+	LOGINFO("...synced");
+	size_t num_blocks = 1 + (c.num_threads-1)/NUM_THREADS;
+	LOGINFO("...launching");
+	// LOGINFO("...hmmm {}", (void*) metadata.states);
+	RandomImplCUDA_init_kernel<<< num_blocks, NUM_THREADS >>>(c.seed, states_d.values, num_states);
+	LOGINFO("...Kernel launched");
+	gpuErrchk(cudaDeviceSynchronize());
+	LOGINFO("...Done");
+
+    // Allocate temporary storage
+
+
+	// gpuErrchk(cudaMalloc((void**) &(data.buffer), sizeof(size_t) * buffer_size));
+	    
+    };
+
+    // struct Data {
+    // 	static_assert( sizeof(float) == sizeof(int) );
+    // 	static_assert( sizeof(float) == sizeof(T) );
+
+    // 	Data send_children(Resource& location) const {
+    // 	    Data tmp{};
+    // 	    tmp.states = states.send_children(location);
+    // 	    tmp.buffer = buffer.send_children(location);
+    // 	    return tmp;
+    // 	};
+    // 	void clear() {};	    
+    // };
+
+private:    
+    Resource location;
+    size_t seed;
+    curandGenerator_t generator;
+    size_t num_states;
+    Array<curandState_t> states_d;
+
+    // Buffers for generating numbers from CPU-resident
+    Data<float>* gauss_d;
+    Data<float>* poisson_d;
+    Data<float>* uniform_d;
+    
+    Data<float> gauss;
+    Data<float> poisson;
+    Data<float> uniform;
+    
+	
+    // Methods for maninpulating the state
+    void init(size_t num, unsigned long seed, size_t offset) {
+	// gpuErrchk(cudaMalloc((void**)&uniform_d, sizeof(float) * RAND_N));
+	// gpuErrchk(cudaMalloc((void**)&integer_d, sizeof(unsigned int) * RAND_N));
+	// gpuErrchk(cudaMalloc((void**)&gaussian_d, sizeof(float) * RAND_N));
+	// integer_h = new unsigned int[RAND_N];
+	// uniform_h = new float[RAND_N];
+	// gaussian_h = new float[RAND_N];
+	// uniform_n = 0;
+	// integer_n = 0;
+	// gaussian_n = 0;
+	// // 
+    };
+
+public:    
+    // RandomImplCUDA<NUM_THREADS,buffer_size> send_children(Resource& location) const {
+    // 	RandomImplCUDA<NUM_THREADS,buffer_size> tmp{};
+    // 	tmp.states = states.send_children(location);
+    // 	tmp.buffer = buffer.send_children(location);
+    // 	return tmp;
+    // 	};
+    // 	void clear() {};	    
+
+    // TODO: could introduce dual buffer so random numbers can be filled asynchronously
+    // Methods for generating random values
+    HOST DEVICE inline float gaussian() {
+#ifdef __CUDA__ARCH__
+	size_t& i = threadIdx.x + blockSize.x*blockIdx.x
+	if (i < num_states) {
+	    return curand_normal( &(state_d[i]) );
+	}
+	return 0.0f;
+#else
+	if (num == 0) {
+	    cuRandchk(curandGenerateUniform( generator, (float*) gauss.buffer_d.values, buffer_size ));
+	    gpuErrchk(cudaMemcpy(local_buffer.values, buffer_d.values, sizeof(float) * buffer_size, cudaMemcpyDeviceToHost));
+	    num = buffer_size;
+	}
+	return (&local_buffer[--num]);
+#endif
+    };
+    
+    __device__ inline float gaussian() {
+    };
+    
+    DEVICE inline float gaussian(curandState* state) { return curand_normal( state ); };
+
+    // Useful for getting the RNG state for the thread from global memory, putting it in local memory for use
+    DEVICE inline curandState* get_gaussian_state() {
+	size_t& i = threadIdx.x + blockSize.x*blockIdx.x;
+	if (i < num_states) {
+	    return &(state_d[i]);
+	}
+	return nullptr;
+    };
+
+    DEVICE inline void set_gaussian_state(curandState* state) {
+	size_t& i = threadIdx.x + blockSize.x*blockIdx.x;
+	if (i < num_states) state_d[i] = *state;
+    };
+    
+    // HOST inline float gaussian(size_t idx, size_t thread) {
+    // 	return 0;
+    // };
+
+    // HOST DEVICE inline float gaussian(RandomState* state) {};
+    HOST inline Vector3 gaussian_vector(size_t idx, size_t thread) {
+	return Vector3();
+    };
+    
+    // unsigned int integer() {
+    // 	return 0;
+    // };
+    // unsigned int poisson(float lambda) {
+    // 	return 0;
+    // };
+    // float uniform() {
+    // 	return 0;
+    // };
+};
+
+/* GPU-resident?
+template<size_t NUM_THREADS = 128, size_t buffer_size = 1024>
+class RandomImplCUDA_DEPRECATE : public Random {
+public:
+    struct Data {
+	Data() : states(nullptr), buffer(nullptr), metadata(nullptr) {};
+	// Data(Data&& orig) : num_states(orig.states), states(orig.states), buffer(orig.buffer), num(orig.num) {};
+
+	struct Metadata {
+	    size_t num_states;
+	    size_t num;		// Remove?
+	    
+	};
+	Array<curandState_t> states;
+	size_t* buffer;		// What about Gaussian (float) vs int?
+	// static_assert( sizeof(float) == sizeof(size_t) );
+	// static_assert( sizeof(int) == sizeof(size_t) );
+	Metadata* metadata;
+	
+	Data send_children(Resource& location) const {
+	    const Resource& local = Resource::Local();
+	    Data tmp{*this};
+	    tmp.states = nullptr;
+	    tmp.buffer = nullptr;
+	    
+	    if (local.type == Resource::CPU) {
+		if (location.type == Resource::GPU) {
+		    if (states != nullptr) {
+			gpuErrchk(cudaMalloc(&(tmp.states), sizeof(curandState_t) * num_states));
+			gpuErrchk(cudaMemcpy(tmp.states, states, sizeof(curandState_t) * num_states, cudaMemcpyHostToDevice));
+		    }
+		    if (buffer != nullptr) {
+			gpuErrchk(cudaMalloc(&(tmp.buffer), sizeof(size_t) * buffer_size));
+			gpuErrchk(cudaMemcpy(tmp.buffer, buffer, sizeof(float) * buffer_size, cudaMemcpyHostToDevice));
+		    }
+		} else {
+		    Exception(NotImplementedError, "");
+		}
+	    } else {
+		Exception(NotImplementedError, "");
+	    }
+	    return tmp;
+	};
+	void clear() {
+	    Exception(NotImplementedError, "");	    
+	};
     };
 
     // Metadata stored on host even if Data is on device
     struct Metadata {
  	curandGenerator_t generator;
-	Proxy<Data> data;		// state data may be found elsewhere
-	size_t* buffer;
-	size_t num;
+	curandState_t *states_d;	
+	size_t* buffer_d;    // Device buffer (possibly used)
+	Proxy<Data> data;    // State data that may be found elsewhere
+	size_t* buffer;	     // Local buffer
+	size_t num;	     // Number of elements in local buffer
     };
 
 
-    RandomImplCUDA(Random::Conf c, Resource&& location) {
+    RandomImplCUDA_DEPRECATE(Random::Conf c, Resource& location) {
 	// Note: NUM_THREADS refers to CUDA threads, whereas c.num_threads refers to (?) number of random numbers to be generated in parallel
 
-	INFO("Creating RandomImplCUDA with seed {}", c.seed);
+	LOGINFO("Creating RandomImplCUDA with seed {}", c.seed);
 	
 	assert( location.type == Resource::GPU );
 	
@@ -261,14 +678,14 @@ public:
 	tmp.buffer = new size_t[buffer_size];
 	tmp.num = 0;
 
-	INFO("...Sending data");
+	LOGINFO("...Sending data");
 
 	metadata.data = send(location, tmp);
 	metadata.buffer = new size_t[buffer_size]; // TODO handle case if RandomImplCUDA is on location
 	metadata.num = 0;
 	
 
-	INFO("...Cleaning temporary data");
+	LOGINFO("...Cleaning temporary data");
 	delete [] tmp.states;
 	delete [] tmp.buffer;
 
@@ -279,19 +696,21 @@ public:
 
 	// TODO consider location whe ncreating generator!
 	// Create RNG and set seed
-	INFO("...Creating generator");
+	LOGINFO("...Creating generator");
 	curandCreateGenerator(&(metadata.generator), CURAND_RNG_PSEUDO_XORWOW);
 	curandSetPseudoRandomGeneratorSeed( metadata.generator, c.seed );
 
 	// Set seed 
-	INFO("...Setting seed");
+	LOGINFO("...Setting seed");
 	gpuErrchk(cudaDeviceSynchronize());
-	INFO("...synced");
+	LOGINFO("...synced");
 	size_t num_blocks = 1 + (c.num_threads-1)/NUM_THREADS;
-	RandomImplCUDA_init_kernel<<< num_blocks, NUM_THREADS >>>(c.seed, metadata.data.addr->states, c.num_threads);
-	INFO("...Kernel launched");
+	LOGINFO("...launching");
+	// LOGINFO("...hmmm {}", (void*) metadata.states);
+	RandomImplCUDA_init_kernel<<< num_blocks, NUM_THREADS >>>(c.seed, metadata.states, c.num_threads);
+	LOGINFO("...Kernel launched");
 	gpuErrchk(cudaDeviceSynchronize());
-	INFO("...Done");
+	LOGINFO("...Done");
 
 	// Allocate temporary storage
 
@@ -346,6 +765,7 @@ private:
     
     // void reorder(int *a, int n);
     };
+// */
 #endif
 
 Random* Random::GetRandom(Conf&& conf) {
@@ -365,14 +785,15 @@ Random* Random::GetRandom(Conf&& conf) {
 	if (inserted) {
 	    // Conf not found, so create a new one 
 	    Random* tmp;
-
+	    Resource r{conf.backend == Conf::CUDA ? Resource::GPU : Resource::CPU ,0};
+	    
 	    switch (conf.backend) {
 	    case Conf::CUDA:
 #ifdef USE_CUDA
-		// TODO: replace Resource below / overload GetRandom() so it can target a resource 
-		tmp = new RandomImplCUDA<128,1024>(conf, Resource{Resource::GPU,0} );
+		// TODO: replace Resource below / overload GetRandom() so it can target a resource
+		tmp = new RandomImplCUDA<128,1024>(conf, r );
 #else
-		WARN("Random::GetRandom(): CUDA disabled, creating CPU random instead");
+		LOGWARN("Random::GetRandom(): CUDA disabled, creating CPU random instead");
 		tmp = new RandomImpl();
 #endif
 		break;

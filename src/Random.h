@@ -31,22 +31,39 @@ public:
     };
     // size_t thread_idx;
 
-    struct State;
+    struct State;		// Not sure whether to use something like this to capture the RNG state...
     
     static Random* GetRandom(Conf&& conf);
 
     // Methods for maninpulating the state
     // virtual void init(size_t num, unsigned long seed, size_t offset) = 0;
     
-    // Methods for generating random values
-    virtual inline float gaussian() = 0;
-    virtual inline float gaussian(size_t idx, size_t thread) = 0;
-    // HOST DEVICE inline float gaussian(RandomState* state);
-    virtual inline Vector3 gaussian_vector(size_t idx, size_t thread) = 0;
+    // // Methods for generating random values
+    // // Use of this convenience method is discouraged... maybe remove?
+    // HOST DEVICE virtual inline float gaussian() = 0;
+    // // virtual inline float gaussian(size_t idx, size_t thread) = 0;
+
+    // How can we redesign to avoid using virtual functions for this low-level stuff? Perhaps the GetRandom() approach should be dropped
     
-    virtual unsigned int integer() = 0;
-    virtual unsigned int poisson(float lambda) = 0;
+    // Here we use void pointers to acheive polymorphism; we lose type
+    // safety but gain the ability to have a single approach to invoking Random 
+    HOST DEVICE virtual inline float gaussian(void* state) = 0;
+
+    template<typename S>
+    HOST DEVICE virtual inline S* get_gaussian_state() = 0;
+
+    template<typename S>
+    HOST DEVICE virtual inline void set_gaussian_state(S* state) = 0;
+
+    
+    
+    // HOST DEVICE inline float gaussian(RandomState* state);
+    // virtual inline Vector3 gaussian_vector(size_t idx, size_t thread) = 0;
+
     virtual float uniform() = 0;
+    
+    // virtual unsigned int integer() = 0;
+    // virtual unsigned int poisson(float lambda) = 0;
     
     // void reorder(int *a, int n);
     
@@ -58,39 +75,3 @@ protected:
 	// }
 
 };
-
-// class RandomImpl : public Random {
-// public:
-//     // Methods for maninpulating the state
-//     void init(size_t num, unsigned long seed, size_t offset);
-
-//     // // Methods for generating random values
-//     HOST inline float gaussian();
-//     HOST inline float gaussian(size_t idx, size_t thread);
-//     // HOST DEVICE inline float gaussian(RandomState* state) {};
-//     HOST inline Vector3 gaussian_vector(size_t idx, size_t thread);
-//     unsigned int integer() { return 0; };
-//     unsigned int poisson(float lambda) { return 0; };
-//     float uniform() { return 0; };
-    
-//     // // void reorder(int *a, int n);
-
-// };
-
-#ifdef USE_CUDA
-// class RandomImplCUDA : public Random {
-// public:
-//     // Methods for maninpulating the state
-//     void init(size_t num, unsigned long seed, size_t offset);
-
-//     // // Methods for generating random values
-//     HOST inline float gaussian();
-//     HOST inline float gaussian(size_t idx, size_t thread);
-//     // HOST DEVICE inline float gaussian(RandomState* state) {};
-//     HOST inline Vector3 gaussian_vector(size_t idx, size_t thread);
-//     unsigned int integer() { return 0; };
-//     unsigned int poisson(float lambda) { return 0; };
-//     float uniform() { return 0; };
-
-// };
-#endif

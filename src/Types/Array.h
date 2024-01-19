@@ -11,8 +11,7 @@
 
 // Simple templated array object without resizing capabilities 
 template<typename T>
-class Array {
-public:
+struct Array {
     HOST DEVICE inline Array<T>() : num(0), values(nullptr) {} // printf("Creating Array1 %x\n",this);
     HOST inline Array<T>(size_t num) : num(num), values(nullptr) {
 	// printf("Constructing Array<%s> %x with values %x\n", type_name<T>().c_str(), this, values);
@@ -118,11 +117,11 @@ public:
     template <typename Dummy = void, typename std::enable_if_t<!has_send_children<T>::value, Dummy>* = nullptr>
     HOST inline Array<T> send_children(const Resource& location) {
 	T* values_d = nullptr;
-
+	
 	// Allocate and copy at values_d
 	if (num > 0) { 
 	    size_t sz = sizeof(T) * num;
-	    // printf("   cudaMalloc for %d items\n", num);
+	    LOGINFO("  Array<{}>.send_children(...): cudaMalloc for {} items", type_name<T>(), num);
 	    switch (location.type) {
 	    case Resource::GPU:
 		gpuErrchk(cudaMalloc(&values_d, sz));
@@ -138,12 +137,14 @@ public:
 		Exception( ValueError, "Unknown Resource type" );
 	    }
 	}
+	LOGINFO("  Array<{}>.send_children(...): done copying", type_name<T>());
 
 	// Copy Array with pointers correctly assigned
 	Array<T> tmp(0);
 	tmp.num = num;
 	tmp.values = values_d;
 	// printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
+	LOGINFO("  Array<{}>.send_children(...): done", type_name<T>());
 	return tmp;
     }
     template <typename Dummy = void, typename std::enable_if_t<has_send_children<T>::value, Dummy>* = nullptr>
@@ -350,6 +351,7 @@ private:
 	values = nullptr;
     }
     
+public:
     size_t num;
     T* __restrict__ values;
 };

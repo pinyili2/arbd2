@@ -195,11 +195,11 @@ public:
     // [](size_t idx, Patch::Data d)->bool { return true; } );
 
     void clear() {
-	WARN("Patch::clear() was called but is not implemented");
+	LOGWARN("Patch::clear() was called but is not implemented");
     }
 
     size_t test() {
-	WARN("Patch::test() was called but is not implemented");
+	LOGWARN("Patch::test() was called but is not implemented");
 	return 1;
     }
 

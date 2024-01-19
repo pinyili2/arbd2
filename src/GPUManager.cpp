@@ -27,7 +27,7 @@ GPU::GPU(unsigned int id) : id(id) {
     } else {
 	may_timeout = false;
     }
-    INFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
+    LOGINFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
 	 id, properties.name, timeout_str, properties.major, properties.minor,
 	 (float) properties.clockRate * 10E-7, (float) properties.totalGlobalMem * 7.45058e-10);
     
@@ -59,12 +59,12 @@ void GPU::create_streams() {
 
 void GPU::destroy_streams() {
     int curr;
-    TRACE("Destroying streams");
+    LOGTRACE("Destroying streams");
     if (cudaGetDevice(&curr) == cudaSuccess) { // Avoid errors when program is shutting down
 	gpuErrchk( cudaSetDevice(id) );
 	if (streams_created) {
 	    for (int i = 0; i < NUMSTREAMS; i++) {
-		TRACE("  destroying stream {} at {}\n", i, fmt::ptr((void *) &streams[i]));
+		LOGTRACE("  destroying stream {} at {}\n", i, fmt::ptr((void *) &streams[i]));
 		gpuErrchk( cudaStreamDestroy( streams[i] ) );
 	    }
 	}
@@ -76,7 +76,7 @@ void GPU::destroy_streams() {
 
 void GPUManager::init() {
     gpuErrchk(cudaGetDeviceCount(&nGPUs));
-    INFO("Found {} GPU(s)", nGPUs);
+    LOGINFO("Found {} GPU(s)", nGPUs);
     for (int dev = 0; dev < nGPUs; dev++) {
 	GPU g(dev);
 	allGpus.push_back(g);
@@ -96,7 +96,7 @@ void GPUManager::load_info() {
 }
 
 void GPUManager::init_devices() {
-    INFO("Initializing GPU devices... ");
+    LOGINFO("Initializing GPU devices... ");
     char msg[256] = "";    
     for (unsigned int i = 0; i < gpus.size(); i++) {
     	if (i != gpus.size() - 1 && gpus.size() > 1)
@@ -109,7 +109,7 @@ void GPUManager::init_devices() {
     	cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
     	gpus[i].create_streams();
     }
-    INFO("Initializing GPUs: {}", msg);
+    LOGINFO("Initializing GPUs: {}", msg);
     use(0);
     gpuErrchk( cudaDeviceSynchronize() );
 }
