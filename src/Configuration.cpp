@@ -348,6 +348,12 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	    }
 	}
 
+	std::map<std::string,float> grid_mean_dict;
+	for (const auto& pair : part_grid_dictionary)
+	{
+	    grid_mean_dict.insert({pair.first, pair.second.mean()});
+	}
+
 	// Then assign grid addresses to particles
 	for (int i = 0; i < numParts; i++)
         {
@@ -358,7 +364,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	    {
 		part[i].pmf[j] = &(part_grid_dictionary.find( std::string(partGridFile[i][j]) )->second);
 		part[i].pmf_scale[j] = partGridFileScale[i][j];
-		part[i].meanPmf[j] = part[i].pmf[j]->mean(); // TODO: review how this is used and decide whether to scale
+		part[i].meanPmf[j] = grid_mean_dict.find( std::string(partGridFile[i][j]) )->second * part[i].pmf_scale[j];
 	    }
 		if (partForceXGridFile[i].length() != 0) {
 			part[i].forceXGrid = new BaseGrid(partForceXGridFile[i].val());
