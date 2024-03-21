@@ -636,8 +636,6 @@ void GrandBrownTown::run()
 
     int numBlocks = ((num+num_rb_attached_particles) * numReplicas) / NUM_THREADS + (((num+num_rb_attached_particles) * numReplicas) % NUM_THREADS == 0 ? 0 : 1);
     int tl = temperatureGridFile.length();
-    Vector3 *force_d;
-    gpuErrchk(cudaMalloc((void**)&force_d, sizeof(Vector3)*(num+num_rb_attached_particles+numGroupSites) * numReplicas));
 
     printf("Configuration: %d particles | %d replicas\n", num, numReplicas);
     for (int i=0; i< gpuman.gpus.size(); ++i) {
@@ -1046,13 +1044,13 @@ void GrandBrownTown::run()
 	if (get_energy) {
 	    compute_position_dependent_force_for_rb_attached_particles
 		<<< numBlocks, NUM_THREADS >>> (
-		    internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
+		    internal -> getPos_d()[0],
+		    internal -> getForceInternal_d()[0], internal -> getEnergy(),
 		    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
 	} else {
 	    compute_position_dependent_force_for_rb_attached_particles
 		<<< numBlocks, NUM_THREADS >>> (
-		    internal -> getPos_d()[0],
-		    internal -> getForceInternal_d()[0], internal -> getEnergy(),
+		    internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
 		    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
 	}
 	POP_NVTX
@@ -1266,7 +1264,6 @@ void GrandBrownTown::run()
      else if (tot_min > 0) printf("%dm%.1fs\n", tot_min, tot_sec);
      else printf("%.2fs\n", tot_sec);
 
-     gpuErrchk(cudaFree(force_d));
 } // GrandBrownTown::run()
 
 // --------------------------------------------
