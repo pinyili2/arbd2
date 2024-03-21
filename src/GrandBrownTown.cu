@@ -646,10 +646,16 @@ void GrandBrownTown::run()
 
     //float total_energy = 0.f;
     // Main loop over Brownian dynamics steps
+
+    float kinetic_energy = 0.0f;
+    float potential_energy = 0.0f;
+    
+    bool get_energy = false;
+    bool print_energy = false;
+    
     for (long int s = 1; s < steps; s++)
     {
       PUSH_NVTX("Main loop timestep",0)
-        bool get_energy = ((s % outputEnergyPeriod) == 0);
         //At the very first time step, the force is computed
         if(s == 1)
         {
@@ -750,13 +756,13 @@ void GrandBrownTown::run()
 		if (get_energy) {
 		    compute_position_dependent_force_for_rb_attached_particles
 			<<< numBlocks, NUM_THREADS >>> (
-			    internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
+			    internal -> getPos_d()[0],
+			    internal -> getForceInternal_d()[0], internal -> getEnergy(),
 			    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
 		} else {
 		    compute_position_dependent_force_for_rb_attached_particles
 			<<< numBlocks, NUM_THREADS >>> (
-			    internal -> getPos_d()[0],
-			    internal -> getForceInternal_d()[0], internal -> getEnergy(),
+			    internal -> getPos_d()[0], internal -> getForceInternal_d()[0],
 			    internal -> getType_d(), part_d, electricField, num, num_rb_attached_particles, numReplicas, ParticleInterpolationType);
 		}
 	    }
@@ -795,17 +801,14 @@ void GrandBrownTown::run()
 
         }//if step == 1
 
-	PUSH_NVTX("Clear particle energy data",1)
-	internal->clear_energy();
 	gpuman.sync();
-	POP_NVTX
 
 	PUSH_NVTX("Integrate particles",2)
         if(particle_dynamic == String("Langevin"))
-            updateKernelBAOAB<<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+            updateKernelBAOAB<s == 1><<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
         else if(particle_dynamic == String("NoseHooverLangevin"))
             //kernel for Nose-Hoover Langevin dynamic
-            updateKernelNoseHooverLangevin<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), 
+            updateKernelNoseHooverLangevin<s == 1><<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), 
             internal -> getRan_d(), internal -> getForceInternal_d()[0], internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d,
             randoGen_d, numReplicas, ParticleInterpolationType);
         ////For Brownian motion
@@ -953,10 +956,32 @@ void GrandBrownTown::run()
 	  POP_NVTX
 	}
 
+	if (get_energy) {
+	    PUSH_NVTX("Fetch particle energy data",1)
+	    thrust::device_ptr<float> en_d(internal->getEnergy());
+	    potential_energy = (thrust::reduce(en_d, en_d+(num+num_rb_attached_particles)*numReplicas)) / numReplicas;
+	    if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
+	    {
+		gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
+		kinetic_energy = KineticEnergy();
+	    }
+	    gpuman.sync();
+	    POP_NVTX	
+	}
+	
+	get_energy = (((s+1) % outputEnergyPeriod) == 0) || (((s+1) % outputPeriod) == 0);
+	print_energy = ((s % outputEnergyPeriod) == 0);
+
+	if (get_energy) {
+	    PUSH_NVTX("Clear particle energy data",1)
+	    internal->clear_energy();
+	    POP_NVTX	
+	}
+	    
         if (imd_on && clientsock)
             internal->setForceInternalOnDevice(imdForces); // TODO ensure replicas are mutually exclusive with IMD // TODO add multigpu support with IMD
 	else {
-	  PUSH_NVTX("Clear particle forces",2)
+	    PUSH_NVTX("Clear particle forces",2)
             internal->clear_force();
 	    #ifdef USE_NCCL
 	    if (gpuman.gpus.size() > 1) {
@@ -1135,7 +1160,7 @@ void GrandBrownTown::run()
 
            remember(t);
         }
-        if (get_energy)
+        if (print_energy)
         {
                 wkf_timer_stop(timerS);
                 t = s * timestep;
@@ -1149,27 +1174,15 @@ void GrandBrownTown::run()
 
                 // Do the output
                 printf("\rStep %ld [%.2f%% complete | %.3f ms/step | %.3f ns/day]",s, percent, msPerStep, nsPerDay);
-        //}
-        //if (get_energy)
-        //{
 
                 // Copy positions from GPU to CPU.
                 //gpuErrchk(cudaMemcpy(pos, internal->getPos_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
-                float e = 0.f;
-                float V = 0.f;
-                thrust::device_ptr<float> en_d(internal->getEnergy());
-                V = (thrust::reduce(en_d, en_d+(num+num_rb_attached_particles)*numReplicas)) / numReplicas;
-                if(particle_dynamic == String("Langevin") || particle_dynamic == String("NoseHooverLangevin"))
-                {
-                    gpuErrchk(cudaMemcpy(momentum, internal->getMom_d(), sizeof(Vector3)*num*numReplicas,cudaMemcpyDeviceToHost));
-                    e = KineticEnergy();
-                }   
                 std::fstream energy_file;
                 energy_file.open( (outFilePrefixes[0]+".energy.dat").c_str(), std::fstream::out | std::fstream::app);
                 if(energy_file.is_open())
                 {
-                    energy_file << "Kinetic Energy: " << e*num*0.5f*(2.388458509e-1) << " (kT) "<< std::endl;
-                    energy_file << "Potential Energy: " << V << " (kcal/mol) " << std::endl;
+                    energy_file << "Kinetic Energy: " << kinetic_energy*num*0.5f*(2.388458509e-1) << " (kT) "<< std::endl;
+                    energy_file << "Potential Energy: " << potential_energy << " (kcal/mol) " << std::endl;
                     energy_file.close();
                 }
                 else

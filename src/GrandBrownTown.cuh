@@ -61,6 +61,7 @@ ForceEnergy compute_position_dependent_force(
 
 
 ////The kernel is for Nose-Hoover Langevin dynamics
+template <bool need_position_dep_force = false>
 __global__ void 
 updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ momentum, float* random, 
                                Vector3* __restrict__ forceInternal, int type[], BrownianParticleType* part[], 
@@ -72,9 +73,12 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
     {
 	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
-	ForceEnergy fe = compute_position_dependent_force(
-	    pos, forceInternal, type, part, electricField, scheme, idx );
-
+	ForceEnergy fe;
+	if (need_position_dep_force) {
+	    fe = compute_position_dependent_force(
+		pos, forceInternal, type, part, electricField, scheme, idx );
+	}
+	
         int t = type[idx];
         Vector3 r0  = pos[idx];
         Vector3 p0  = momentum[idx];
@@ -82,7 +86,10 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
 
         const BrownianParticleType& pt = *part[t];
 
-        Vector3 force = forceInternal[idx] + fe.f;
+	if (need_position_dep_force) {
+	    forceInternal[idx] = forceInternal[idx] + fe.f;
+	}
+        Vector3 force = forceInternal[idx];
         #ifdef Debug
         forceInternal[idx] = -force;
         #endif
@@ -152,6 +159,7 @@ updateKernelNoseHooverLangevin(Vector3* __restrict__ pos, Vector3* __restrict__ 
 //The original BBK kernel is no longer used since the random numbers should be reused 
 //which is not possible in GPU code.
 //Han-Yi Chou
+template <bool need_position_dep_force = false>
 __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __restrict__ forceInternal,
                                   int type[], BrownianParticleType* part[], float kT, BaseGrid* kTGrid, 
                                   float electricField,int tGridLength, float timestep,
@@ -165,8 +173,11 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
     {
 	idx = (idx % num) + (idx/num) * (num+num_rb_attached_particles);
 
-	ForceEnergy fe = compute_position_dependent_force(
-	    pos, forceInternal, type, part, electricField, scheme, idx );
+	ForceEnergy fe;
+	if (need_position_dep_force) {
+	    fe = compute_position_dependent_force(
+		pos, forceInternal, type, part, electricField, scheme, idx );
+	}
 	// if (get_energy) energy[idx] += fe.e;
 
         int t = type[idx];
@@ -174,7 +185,11 @@ __global__ void updateKernelBAOAB(Vector3* pos, Vector3* momentum, Vector3* __re
         Vector3 p0 = momentum[idx];
         const BrownianParticleType& pt = *part[t];
 
-        Vector3 force = forceInternal[idx] + fe.f;
+	if (need_position_dep_force) { // only needed at ts == 1
+	    forceInternal[idx] = forceInternal[idx] + fe.f;
+	}
+	Vector3 force = forceInternal[idx];
+	
 #ifdef Debug
         forceInternal[idx] = -force;
 #endif
@@ -249,6 +264,7 @@ __global__ void LastUpdateKernelBAOAB(Vector3* pos,Vector3* momentum, Vector3* _
         Vector3 p0 = momentum[idx];
 
         Vector3 force = forceInternal[idx] + fe.f;
+        forceInternal[idx] = forceInternal[idx] + fe.f; // Adding position-dep force so it doesn't need to be calculated in the "plain" kernel 
 #ifdef Debug
         forceInternal[idx] = -force;
 #endif
