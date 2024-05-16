@@ -9,6 +9,8 @@ larger systems and accelerating to the hardware limits, while making
 it easier to maintain diverse features. In particular we are seeking
 speed and good scaling on multi-GPU clusters.
 
+It is currently non-functional as many developments remain.
+
 ## Building
 
 ### Dependencies
@@ -44,10 +46,10 @@ devices with compute capability >=2.0, but there are no guarantees.
 
 ## Authors
 
-ARBD is developed by the Aksimentiev group
+ARBD2 is being developed by the Aksimentiev group
 (http://bionano.physics.illinois.edu).
 
-Please direct questions or problems to Chris.
+  - Christopher Maffeo <mailto:cmaffeo2@illinois.edu>
+  - Han-yi Chao
 
-- Christopher Maffeo <cmaffeo2@illinois.edu>
-- Han-yi Chao
+Please direct questions or problems to Chris.
