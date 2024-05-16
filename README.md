@@ -1,4 +1,4 @@
-# Atomic Resolution Brownian Dynamics (ARBD) - Nov 22
+# Atomic Resolution Brownian Dynamics (ARBD) - May 24
 
 Brownian dynamics (BD) simulation is method for studying biomolecules,
 ions, and nanomaterials that balances detail with computational
@@ -21,15 +21,18 @@ offered without warranty.
 
 ### Dependencies
 
-Only tested on Linux with:
+Linux workstation with CUDA-compatible GPU (minimum 3.5 compute capability)
   - CMake >= 3.9
   - gcc >= 4.9
-  - cuda >= 9.0
+  - cuda >= 9.0  (> 11.5 recommended)
 
 ### Build process
 
 From the root arbd directory (where this README is found), run:
 ```
+## Determine the compute capability of your CUDA-enabled graphics card
+export CMAKE_CUDA_ARCHITECTURES="35;50;75;80"   ;# especially important for CMake < 3.24.0
+## export CUDA_INCLUDE_DIRS="$CUDA_HOME/include" ;# optionally be explicit about cuda include paths; usually not needed
 cmake -S src -B build &&
 (
   cd build
@@ -46,11 +49,6 @@ compilation fails due to the compiler being unable to find <cuda.h>.
 Note that ARBD has been developed using CUDA-9.0 and targets NVIDIA
 GPUs featuring 6.0 compute capability. The code should work with
 devices with compute capability >=2.0, but there are no guarantees.
-
-Older versions of CUDA are not compatible with SM 6.0, so you may need
-to change the SMS variable in the makefile, or specify it as an
-argument to make.
-
 
 ## Usage
 
@@ -70,35 +68,24 @@ counting from 0.
 If you publish results obtained using ARBD, please cite the
 following manuscripts:
 
-"DNA base-calling from a nanopore using a Viterbi algorithm"
-Winston Timp, Jeffrey Comer, and Aleksei Aksimentiev
-Biophys J 102(10) L37-9 (2012)
-
 "Predicting the DNA sequence dependence of nanopore ion current using atomic-resolution Brownian dynamics"
 Jeffrey Comer and Aleksei Aksimentiev.
 J Phys Chem C Nanomater Interfaces 116:3376-3393 (2012).
 
-"Atoms-to-microns model for small solute transport through sticky nanochannels"
-Rogan Carr, Jeffrey Comer, Mark D. Ginsberg, and Aleksei Aksimentiev
-Lab Chip 11(22) 3766-73 (2011)
-
-
 ## Authors
 
 ARBD is developed by the Aksimentiev group
-(http://bionano.physics.illinois.edu) as a part of the NIH Center for
-Macromolecular Modeling and Bioinformatics (http://www.ks.uiuc.edu/).
+(http://bionano.physics.illinois.edu).
 
 Please direct questions or problems to Chris.
 
-Christopher Maffeo <cmaffeo2@illinois.edu>
-Han-yi Chao
-Jeffrey Comer
-Max Belkin
-Emmanual Guzman
-Justin Dufresne
-Terrance Howard
-
+- Christopher Maffeo <cmaffeo2@illinois.edu>
+- Han-yi Chao
+- Jeffrey Comer
+- Max Belkin
+- Emmanual Guzman
+- Justin Dufresne
+- Terrance Howard
 
 ## Outstanding issues
 
