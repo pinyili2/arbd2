@@ -1,6 +1,6 @@
-#ifndef GPU_MANAGER_H
-#define GPU_MANAGER_H
+#pragma once
 
+#ifdef USE_CUDA
 #include <cstdio>
 #include <vector>
 #include <cuda.h>

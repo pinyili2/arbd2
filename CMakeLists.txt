@@ -7,6 +7,7 @@ endif()
 
 # option(USE_CUDA "Use CUDA" ON)
 set(USE_CUDA ON)
+set(USE_MPI OFF)
 
 ## specify the C++ standard
 set(CMAKE_CXX_STANDARD 14)
@@ -97,40 +98,13 @@ set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 
 # set(CMAKE_VERBOSE_MAKEFILE True)
 add_executable("${PROJECT_NAME}" src/arbd.cpp
-  src/Configuration.cpp
-  src/FlowForce.cpp
-  src/GPUManager.cpp
-  src/Scatter.cpp
+  src/ParticlePatch.cpp
+  src/Integrator.cpp
+  src/Integrator/CPU.cpp
+  src/Integrator/CUDA.cu
   src/SignalManager.cpp
-  src/WKFUtils.cpp
-  src/Angle.cu
-  src/BaseGrid.cu
-  src/BrownianParticle.cu
-  src/BrownianParticleType.cpp
-  src/RigidBodyController.cu
-  src/RigidBody.cu
-  src/RigidBodyGrid.cu
-  src/RigidBodyType.cu
-  src/CellDecomposition.cu
-  src/ComputeForce.cuh
-  src/ComputeForce.cu
-  src/ComputeGridGrid.cuh
-  src/ComputeGridGrid.cu
-  src/CudaUtil.cu
-  src/CudaUtil.cuh
-  src/Dihedral.cu
-  src/Exclude.cu
-  src/GrandBrownTown.cu
-  src/GrandBrownTown.cuh
-  src/imd.cpp
-  src/vmdsock.cpp
-  src/JamesBond.cu
-  src/RandomCUDA.cu
-  src/Reservoir.cu
-  src/TabulatedAngle.cu
-  src/TabulatedDihedral.cu
-  src/TabulatedMethods.cuh
-  src/TabulatedPotential.cu
+  src/GPUManager.cpp
+  src/SimManager.cpp
   src/useful.cu
   )
 

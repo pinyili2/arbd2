@@ -1,4 +1,5 @@
 #include "GPUManager.h"
+#ifdef USE_CUDA
 
 #ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -183,4 +184,6 @@ void GPUManager::init_comms() {
     }
     NCCLCHECK(ncclCommInitAll(comms, gpus.size(), gpu_ids));
 }
+#endif
+
 #endif

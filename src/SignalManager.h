@@ -24,8 +24,6 @@
 #endif
 #endif
 
-
-
 namespace SignalManager 
 {
 

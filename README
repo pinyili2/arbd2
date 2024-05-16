@@ -1,0 +1,112 @@
+/==========================================================\
+| Atomic Resolution Brownian Dynamics (ARBD) - beta Oct 19 |
+\==========================================================/
+
+Brownian dynamics (BD) simulation is method for studying biomolecules, ions, and
+nanomaterials that balances detail with computational efficiency.
+
+ARBD supports tabulated non-bonded and bonded interactions between BD
+particles that can also be influenced by grid-specified
+potentials. Uniquely, ARBD also allows grid-specified densities and
+potentials to be associated with rigid body particles that rotate and
+translate to represent larger molecules. Most importantly, the code is
+designed to run quickly on modern NVIDIA GPUs.
+
+ARBD is a rewrite of the BrownianMover code, moving almost all computations to
+the GPU and enabling grid-specified particle models. Please be aware that ARBD
+is being actively developed and is offered without warranty.
+
+
+/==========\
+| Building |
+\==========/
+
+To build, please run `make' in the src directory.
+
+If your CUDA toolkit is installed in a nonstandard location, you may specify
+that location using the CUDA_PATH environment variable. For example:
+make CUDA_PATH=/nonstandard/path/to/cuda
+
+Note that ARBD has been developed using CUDA-8.0 and targets NVIDIA GPUs featuring
+6.0 compute capability. The code should work with devices with compute capability >=2.0,
+but there are no guarantees.
+
+Older versions of CUDA are not compatible with SM 6.0, so you may need to change
+the SMS variable in the makefile, or specify it as an argument to make.
+
+
+/==============\
+| Installation |
+\==============/
+
+Please explore the examples in the 'tests' directory.
+
+For example, try the following commands:
+
+cd tests/argon-small
+mkdir output
+../../src/arbd BrownDyn.bd output/BrownDyn > output/BrownDyn.log
+
+You may use the '-g n' option to specify the n-th GPU on your machine, counting from 0.
+
+If you fail to compile and link the applications, we recommend running
+`make clean` to remove object files. Sometimes we have encountered
+CUDA related errors in binaries built in a "dirty" environment.
+
+
+/========\
+| Citing |
+\========/
+
+If you publish results obtained using ARBD, please cite the following manuscripts:
+
+"DNA base-calling from a nanopore using a Viterbi algorithm"
+Winston Timp, Jeffrey Comer, and Aleksei Aksimentiev
+Biophys J 102(10) L37-9 (2012)
+
+"Predicting the DNA sequence dependence of nanopore ion current using atomic-resolution Brownian dynamics"
+Jeffrey Comer and Aleksei Aksimentiev.
+J Phys Chem C Nanomater Interfaces 116:3376-3393 (2012).
+
+"Atoms-to-microns model for small solute transport through sticky nanochannels"
+Rogan Carr, Jeffrey Comer, Mark D. Ginsberg, and Aleksei Aksimentiev
+Lab Chip 11(22) 3766-73 (2011)
+
+
+/=========\
+| Authors |
+\=========/
+
+ARBD is developed by the Aksimentiev group (http://bionano.physics.illinois.edu)
+as a part of the NIH Center for Macromolecular Modeling and Bioinformatics
+(http://www.ks.uiuc.edu/).
+
+Please direct questions or problems to Chris.
+
+Christopher Maffeo <cmaffeo2@illinois.edu>
+Han-yi Chao
+Jeffrey Comer
+Max Belkin
+Emmanual Guzman
+Justin Dufresne
+Terrance Howard
+
+
+/====================\
+| Outstanding issues |
+\====================/
+
+-- Not implemented --
+
+* There are no checks to ensure that pairlists are recalculated before
+  particles further than the pairlist distance move to within the
+  cutoff
+
+-- Bugs --
+
+* A large amount of GPU memory for pairlists is allocated statically,
+  which may cause out-of-memory crashes in older hardware
+
+* If the number of pairs in the system exceeds the length of the array
+  allocated for pairlists, the non-bonded kernel will try to access
+  forbidden regions of memory, causing a crash
