@@ -33,7 +33,7 @@ From the root arbd directory (where this README is found), run:
 ## Determine the compute capability of your CUDA-enabled graphics card
 export CMAKE_CUDA_ARCHITECTURES="35;50;75;80"   ;# especially important for CMake < 3.24.0
 ## export CUDA_INCLUDE_DIRS="$CUDA_HOME/include" ;# optionally be explicit about cuda include paths; usually not needed
-cmake -S src -B build &&
+cmake -S . -B build &&
 (
   cd build
   make -j
