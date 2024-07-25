@@ -805,12 +805,18 @@ void GrandBrownTown::run()
 
 	PUSH_NVTX("Integrate particles",2)
         if(particle_dynamic == String("Langevin"))
-            updateKernelBAOAB<s == 1><<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+	    if (s == 1) {
+		updateKernelBAOAB<true><<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+	    } else {
+		updateKernelBAOAB<false><<< numBlocks, NUM_THREADS >>>(internal->getPos_d()[0], internal->getMom_d(), internal->getForceInternal_d()[0], internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+	    }
         else if(particle_dynamic == String("NoseHooverLangevin"))
             //kernel for Nose-Hoover Langevin dynamic
-            updateKernelNoseHooverLangevin<s == 1><<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), 
-            internal -> getRan_d(), internal -> getForceInternal_d()[0], internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d,
-            randoGen_d, numReplicas, ParticleInterpolationType);
+	    if (s == 1) {
+		updateKernelNoseHooverLangevin<true><<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getRan_d(), internal -> getForceInternal_d()[0], internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+	    } else {
+		updateKernelNoseHooverLangevin<false><<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getRan_d(), internal -> getForceInternal_d()[0], internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+	    }
         ////For Brownian motion
         else
             updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getForceInternal_d()[0], internal -> getType_d(),
