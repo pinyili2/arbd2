@@ -2,44 +2,7 @@
 
 #include <future>
 #include <iostream>
-#include "ARBDException.h"
-
-/**
- * @brief Represents a resource that can store data and perform computations.
- */
-struct Resource {
-    /**
-     * @brief Enum to specify the type of the resource (e.g., CPU or GPU).
-     */
-    enum ResourceType {CPU, MPI, GPU};
-    ResourceType type; ///< Type of the resource.
-    size_t id; ///< ID or any other identifier associated with the resource.
-
-    // Q: should this return True for GPU that is attached/assigned to current thread? Currently assuming yes.
-    HOST DEVICE bool is_local() const {
-	bool ret = true;
-// #ifdef __CUDA_ACC__
-// 	ret = (type == GPU);
-// #else
-// 	ret = (type == CPU);
-// #endif
-	LOGWARN("Resource::is_local() not fully implemented; returning {}",ret);
-	return ret;
-    };
-    // HOST DEVICE static bool is_local() { // check if thread/gpu idx matches some global idx };
-
-    static Resource Local() {
-	LOGWARN("Resource::Local() not properly implemented");
-#ifdef __CUDA_ACC__
-	return Resource{ GPU, 0 };
-#else
-	return Resource{ CPU, 0 };
-#endif
-    };
-    bool operator==(const Resource& other) const { return type == other.type && id == other.id; };
-	
-};
-
+#include "Resource.h"
 
 // START traits
 // These ugly bits of code help implement SFINAE in C++14 and should likely be removed if a newer standard is adopted 

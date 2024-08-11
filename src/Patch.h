@@ -39,6 +39,7 @@ private:
     // Particle data
     size_t num_particles;
 
+    idx_t* global_idx;		// global index of particle
     size_t* type_ids;
     Pos* pos;
     Force* force;
