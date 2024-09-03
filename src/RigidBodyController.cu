@@ -395,7 +395,7 @@ bool RigidBodyController::load_restart_coordinates(const char* filename) {
 		}
 
 		RigidBody& rb = rigidBodyByType[i][j];
-		printf("Assinging positions %d %d %f\n",i,j, (float) strtod(tokenList[2],NULL));
+		printf("Assigning positions %d %d %f\n",i,j, (float) strtod(tokenList[2],NULL));
 		rb.position = Vector3(
 			(float) strtod(tokenList[2],NULL), (float) strtod(tokenList[3],NULL), (float) strtod(tokenList[4],NULL));
 		rb.orientation = Matrix3(
@@ -940,7 +940,7 @@ void RigidBodyForcePair::processGPUForces(BaseGrid* sys) {
 	// printf("torque: %s\n", t.toString().val());
 }
 
-void RigidBodyController::print(int step) {
+void RigidBodyController::print(long int step) {
 	// modeled after outputExtendedData() in Controller.C
     if (conf.numRigidTypes <= 0) return;
 	if ( step >= 0 ) {
@@ -1023,7 +1023,7 @@ void RigidBodyController::printLegend(std::ofstream &file) {
 		 << " velX  velY  velZ"
 		 << " angVelX angVelY angVelZ" << std::endl;
 }
-void RigidBodyController::printData(int step,std::ofstream &file) {
+void RigidBodyController::printData(long int step, std::ofstream &file) {
 	// tell RBs to integrate
 	for (int i = 0; i < rigidBodyByType.size(); i++) {
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {

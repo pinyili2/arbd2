@@ -113,7 +113,7 @@ public:
     void update_attached_particle_positions(Vector3* pos_d, Vector3* force_d, float* energy_d, BaseGrid* sys_d, int num, int num_rb_attached_particles, int numReplicas);
         void clearForceAndTorque(); 
         void KineticEnergy();
-        void print(int step);
+        void print(long int step);
         //void printEnergyData(std::fstream &file);
         float getEnergy(float (RigidBody::*get)());
 private:
@@ -123,7 +123,7 @@ private:
 
 	//void print(int step);
 	void printLegend(std::ofstream &file);
-	void printData(int step, std::ofstream &file);
+	void printData(long int step, std::ofstream &file);
 public:
 	RigidBodyType** rbType_d;
 
