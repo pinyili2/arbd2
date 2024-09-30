@@ -52,14 +52,18 @@ private:
     unitCell[0] = box.ex().length();
     unitCell[2] = box.ey().length();
     unitCell[5] = box.ez().length();
-    
-    float bc = box.ey().dot(box.ez());
-    float ac = box.ex().dot(box.ez());
-    float ab = box.ex().dot(box.ey());
+
+    double bc = box.ey().dot(box.ez());
+    double ac = box.ex().dot(box.ez());
+    double ab = box.ex().dot(box.ey());
 
     unitCell[1] = bc/unitCell[0]/unitCell[2]/pi*180.0f;
     unitCell[3] = ac/unitCell[0]/unitCell[5]/pi*180.0f;
-    unitCell[4] = ab/unitCell[0]/unitCell[1]/pi*180.0f;
+    unitCell[4] = ab/unitCell[2]/unitCell[5]/pi*180.0f;
+
+    unitCell[1] = unitCell[1] > 1.0 ? 1.0 : unitCell[1] < -1.0 ? -1.0 : unitCell[1];
+    unitCell[3] = unitCell[3] > 1.0 ? 1.0 : unitCell[3] < -1.0 ? -1.0 : unitCell[3];
+    unitCell[4] = unitCell[4] > 1.0 ? 1.0 : unitCell[4] < -1.0 ? -1.0 : unitCell[4];
   }
 
 public:
