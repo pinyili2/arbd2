@@ -135,14 +135,17 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	posLast = new Vector3[(num+num_rb_attached_particles) * simNum];
 
 	{
-	    int pidx = 0;
-	    for (int i = 0; i < numRigidTypes; i++) { // Loop over RB types
-		RigidBodyType &rbt = rigidBody[i];
-		for (int j = 0; j < rbt.num; ++j) { // Loop over RBs
-		    for (const int& t: rbt.get_attached_particle_types()) {
-			type[num+pidx] = t;
-			serial[num+pidx] = num+pidx;
-			pidx++;
+	    for (size_t replica = 0; replica < simNum; ++replica) {
+		int pidx = 0;
+		for (int i = 0; i < numRigidTypes; i++) { // Loop over RB types
+		    RigidBodyType &rbt = rigidBody[i];
+		    for (int j = 0; j < rbt.num; ++j) { // Loop over RBs
+			for (const int& t: rbt.get_attached_particle_types()) {
+			    size_t _idx = num+pidx+replica*(num+num_rb_attached_particles);
+			    type[_idx] = t;
+			    serial[_idx] = num+pidx;
+			    pidx++;
+			}
 		    }
 		}
 	    }
@@ -167,6 +170,17 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 		loadRestart(restartCoordinates.val()); 
 		printf("Loaded %d restart coordinates from `%s'.\n", num, restartCoordinates.val());
 		printf("Particle numbers specified in the configuration file will be ignored.\n");
+
+		// Copy restart data to replicas
+		for (size_t replica = 1; replica < simNum; ++replica) {
+		    for (size_t i = 0; i < num; ++i) {
+			size_t _idx = i+replica*(num+num_rb_attached_particles);
+			type[_idx] = type[i];
+			serial[_idx] = serial[i];
+			pos[_idx] = pos[i];
+		    }
+		}
+
 		loadedCoordinates = true;
                 //Han-Yi Chou Langevin dynamic
                 if (ParticleDynamicType == String("Langevin") || ParticleDynamicType == String("NoseHooverLangevin"))
@@ -209,7 +223,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 						currType = j;
 
 				for (int s = 0; s < simNum; ++s)
-				    type[i + s*num] = currType;
+				    type[i + s*(num+num_rb_attached_particles)] = currType;
 
 				serial[i] = currSerial++;
 
@@ -2191,19 +2205,19 @@ void Configuration::readRestraints() {
 //populate the type list and serial list
 void Configuration::populate() {
     for (int repID = 0; repID < simNum; ++repID) {
-                const int offset = repID * num;
-                int pn = 0;
-                int p = 0;
-                for (int i = 0; i < num; ++i) {
-                        type[i + offset] = p;
-                        serial[i + offset] = currSerial++;
+	const int offset = repID * (num+num_rb_attached_particles);
+	int pn = 0;
+	int p = 0;
+	for (int i = 0; i < num; ++i) {
+	    type[i + offset] = p;
+	    serial[i + offset] = currSerial++;
 
-                        if (++pn >= part[p].num) {
-                                p++;
-                                pn = 0;
-                        }
-                }
-        }
+	    if (++pn >= part[p].num) {
+		p++;
+		pn = 0;
+	    }
+	}
+    }
 }
 
 bool Configuration::readBondFile(const String& value, int currBond) {
