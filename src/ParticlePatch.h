@@ -33,8 +33,28 @@ class BasePatch {
 public:
     // BasePatch(size_t num, short thread_id, short gpu_id, SimSystem& sys);
     // BasePatch(size_t num, short thread_id, short gpu_id);
-    BasePatch() : num(0), capacity(0) {}
-    BasePatch(size_t capacity) : num(0), capacity(capacity) {}
+    BasePatch() : num(0), capacity(0), patch_idx(++global_patch_idx) {}
+    BasePatch(size_t capacity) : num(0), capacity(capacity), patch_idx(++global_patch_idx) {}
+    
+    // Copy constructor
+    BasePatch(const BasePatch& other) : num(other.num), capacity(other.capacity), patch_idx(++global_patch_idx) {
+    	LOGTRACE("Copy constructing {} @{}", type_name<*this>().c_str(), fmt::ptr(this));
+}
+    // Move constructor
+    BasePatch(BasePatch&& other) : num(std::move(other.num)), capacity(std::move(other.capacity)), patch_idx(std::move(other.patch_idx)) {
+	LOGTRACE("Move constructing {} @{}", type_name<*this>().c_str(), fmt::ptr(this));
+    }
+    // Move assignment operator
+    BasePatch& operator=(BasePatch&& other) {
+	LOGTRACE("Move assigning {} @{}", type_name<*this>().c_str(), fmt::ptr(this));
+	num = std::move(other.num);
+	capacity = std::move(other.capacity);
+	patch_idx = std::move(other.patch_idx);
+	// lower_bound = std::move(other.lower_bound);
+	// upper_bound = std::move(other.upper_bound);
+	return *this;
+    }
+
     // ~BasePatch();
     
 protected:
@@ -44,11 +64,14 @@ protected:
     // short thread_id;		// MPI
     // short gpu_id;		// -1 if GPU unavailable
 
-    static size_t patch_idx;		// Unique ID across ranks
+    static size_t global_patch_idx;		// Unique ID across ranks // TODO: preallocate regions that will be used, or offload this to a parallel singleton class
+    /* const */ size_t patch_idx;		// Unique ID across ranks
 
+    // Q: should we have different kinds of patches? E.g. Spheres? This specialization _could_ go into subclass, or we could have a ptr to a Region class that can have different implementations
     Vector3 lower_bound;
     Vector3 upper_bound;
 };
+
 
 // class PatchProxy {
 //     // 
@@ -127,11 +150,22 @@ protected:
 // Storage class that should be
 class Patch : public BasePatch {
 public:
-    Patch() : BasePatch() { initialize(); }
+    Patch() : BasePatch(), metadata() { LOGINFO("Creating Patch"); initialize(); LOGINFO("Done Creating Patch"); }
     Patch(size_t capacity) : BasePatch(capacity) { initialize(); }
 
     // Particle data arrays pointing to either CPU or GPU memory
     struct Data {
+	Data(const size_t capacity = 0) {
+	    if (capacity == 0) {
+		pos_force = momentum = nullptr;
+		particle_types = particle_order = nullptr;
+	    } else {
+		pos_force = new VectorArr(capacity);
+		momentum = new VectorArr(capacity);
+		particle_types = new Array<size_t>(capacity);
+		particle_order = new Array<size_t>(capacity);
+	    }
+	}
 	VectorArr* pos_force;
 	VectorArr* momentum;
 	Array<size_t>* particle_types;
@@ -152,7 +186,11 @@ public:
 
     // Metadata stored on host even if Data is on device
     struct Metadata {
+	Metadata() : num(0), capacity(0), min(0), max(0), data() {};
+	Metadata(const Patch& p) : num(p.metadata.num), capacity(p.metadata.capacity), min(p.metadata.min), max(p.metadata.max), data(p.metadata.data) {};
+	Metadata(const Metadata& other) : num(other.num), capacity(other.capacity), min(other.min), max(other.max), data(other.data) {};
 	size_t num;
+	size_t capacity;
 	Vector3 min;
 	Vector3 max;
 	Proxy<Data> data;		// actual data may be found elsewhere
@@ -203,7 +241,6 @@ public:
 	return 1;
     }
 
-    
 private:
     void initialize();
     

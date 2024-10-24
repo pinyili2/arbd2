@@ -8,8 +8,11 @@
 #include "GPUManager.h"
 
 
-HOST DEVICE size_t current_thread_idx();
-    
+/**
+ * @brief Routine that returns the index of the calling resource,
+ * regardless of whether it an MPI rank or a GPU.
+ */
+HOST DEVICE size_t caller_id();
 
 
 /**
@@ -25,29 +28,21 @@ struct Resource {
     Resource* parent; ///< Parent resource; nullptr unless type is GPU
         
     /**
-     * @brief Checks if the resource is running on the calling thread. 
+     * @brief Check if resource is local to the calling thread. 
      */
-    HOST DEVICE bool is_running() const {
-	bool ret = true;
-// #ifdef __CUDA_ACC__
-// 	ret = (type == GPU);
-// #else
-// 	ret = (type == CPU);
-// #endif
-	return ret;
-    }
-
-    // Q: should this return True for GPU that is attached/assigned to current thread? Currently assuming yes.
     HOST DEVICE bool is_local() const {
 	bool ret = true;
-#ifdef __CUDA_ACC__
+#ifdef __CUDACC__
 	ret = (type == GPU);
-	LOGWARN("Resource::is_local() not fully implemented on GPU devices; returning {}",ret);
+	LOGWARN("Resource::is_local(): called from GPU but not fully implemented on GPU devices, returning {}",ret);
 #else
+	LOGINFO("Resource::is_local() out of CUDACC...");
 	if (type == GPU && parent != nullptr) {
+	    LOGINFO("Resource::is_local(): called from CPU for resource on GPU, checking parent...");
 	    ret = parent->is_local();
 	} else {
-	    ret = (current_thread_idx() == id);
+	    ret = (caller_id() == id);
+	    LOGINFO("Resource::is_local(): called from CPU, returning {}", ret);
 	}
 #endif
 	return ret;
@@ -56,7 +51,7 @@ struct Resource {
 
     static Resource Local() {
 	LOGWARN("Resource::Local() not properly implemented");
-#ifdef __CUDA_ACC__
+#ifdef __CUDACC__
 	return Resource{ GPU, 0 };
 #else
 	return Resource{ CPU, 0 };
@@ -65,4 +60,3 @@ struct Resource {
     bool operator==(const Resource& other) const { return type == other.type && id == other.id; };
 	
 };
-

@@ -18,6 +18,10 @@ inline void cuRandAssert(curandStatus code, const char *file, int line, bool abo
 		if (abort) exit(code);
 	}
 }
+// #else
+// #define QUALIFIERS __host__ __device__
+// #include <curand_kernel.h>
+// #undef QUALIFIERS
 #endif
 
 namespace Random {
@@ -45,6 +49,41 @@ namespace Random {
 }
 
 class RandomCPU {
+public:
+    using state_t = void;
+
+    // Methods for maninpulating the state
+    void init(size_t num, unsigned long seed, size_t offset) {
+	// 
+    };
+
+    // Methods for generating random values
+    HOST DEVICE inline float gaussian(state_t* state) {
+	LOGWARN("RandomCPU::gaussian(): not implemented");
+	return 0;
+    };
+
+    HOST DEVICE inline state_t* get_gaussian_state() { return nullptr; };
+
+    HOST DEVICE inline void set_gaussian_state(state_t* state) {};
+
+    // // HOST DEVICE inline float gaussian(RandomState* state) {};
+    // HOST inline Vector3 gaussian_vector(size_t idx, size_t thread) {
+    // 	return Vector3();
+    // };
+    // unsigned int integer() {
+    // 	return 0;
+    // };
+    // unsigned int poisson(float lambda) {
+    // 	return 0;
+    // };
+    // float uniform() {
+    // 	return 0;
+    // };
+    // void reorder(int *a, int n);
+};
+
+class RandomCPUOld {
 public:
     using state_t = void;
 
@@ -157,6 +196,7 @@ public:
 	gpuErrchk(cudaMalloc((void**)&(rng->states), sizeof(state_t)*num_states));
 	gpuErrchk(cudaMemcpy(dest, rng, sizeof(RNG),cudaMemcpyHostToDevice));
 	rng->states = nullptr;
+	// Since we avoided constructuer, don't call `delete rng;`
 	return dest;
     }
 	
