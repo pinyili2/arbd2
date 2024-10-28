@@ -576,8 +576,6 @@ void RigidBodyController::updateForces(Vector3* pos_d, Vector3* force_d, int s, 
 		for (int j = 0; j < rigidBodyByType[i].size(); j++) {
 			RigidBody& rb = rigidBodyByType[i][j];
 			rb.callGridParticleForceKernel( pos_d, force_d, s, energy, get_energy, scheme, sys, sys_d, particleForces_d, particleForce_offset, pfo_idx );
-                        rb.addTorque(rb.t -> constantTorque);
-                        rb.addForce(rb.t -> constantForce);
 		}
 	}
 

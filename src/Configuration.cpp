@@ -1257,13 +1257,7 @@ int Configuration::readParameters(const char * config_file) {
 		} else if (param == String("rotDamping")) {
 		    if (currRB < 0) exit(1);
 			rigidBody[currRB].rotDamping = stringToVector3( value );
-		} else if (param == String("constantTorque"))
-                        rigidBody[currRB].constantTorque = stringToVector3( value );
-                else if (param == String("constantForce"))
-                        rigidBody[currRB].constantForce = stringToVector3( value );
-                else if (param == String("vectorTorque"))
-                        rigidBody[currRB].vectorTorque = stringToVector3( value ); 
-		else if (param == String("attachedParticles")) {
+		} else if (param == String("attachedParticles")) {
 			rigidBody[currRB].append_attached_particle_file(value);
 		} else if (param == String("densityGrid")) {
 		    if (currRB < 0) exit(1);
