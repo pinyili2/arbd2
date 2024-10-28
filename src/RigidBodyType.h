@@ -77,9 +77,6 @@ public:
 	Vector3 rotDamping;
 	Vector3 transForceCoeff;
 	Vector3 rotTorqueCoeff;
-        Vector3 constantTorque;
-        Vector3 constantForce;
-        Vector3 vectorTorque; 
 
 	Vector3 initPos;	
 	Matrix3 initRot;

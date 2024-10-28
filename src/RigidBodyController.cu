@@ -1023,7 +1023,9 @@ void RigidBodyController::printLegend(std::ofstream &file) {
 		 << " rotYX rotYY rotYZ"
 		 << " rotZX rotZY rotZZ"
 		 << " velX  velY  velZ"
-		 << " angVelX angVelY angVelZ" << std::endl;
+		 << " angVelX angVelY angVelZ" 
+		 << " Fx      Fy      Fz"
+		 << " Tx      Ty      Tz"<< std::endl;
 }
 void RigidBodyController::printData(long int step, std::ofstream &file) {
 	// tell RBs to integrate
@@ -1041,8 +1043,12 @@ void RigidBodyController::printData(long int step, std::ofstream &file) {
 			v = rb.getVelocity();
 			file << std::setprecision(10) <<" "<< v.x <<" "<< v.y <<" "<< v.z;
 			v = rb.getAngularVelocity();
-			file << std::setprecision(10) <<" "<< v.x <<" "<< v.y <<" "<< v.z
-					 << std::endl;
+			file << std::setprecision(10) <<" "<< v.x <<" "<< v.y <<" "<< v.z;
+			v = rb.getForce();
+			file << std::setprecision(10) <<" "<< v.x <<" "<< v.y <<" "<< v.z;
+			v = rb.getTorque();
+			file << std::setprecision(10) <<" "<< v.x <<" "<< v.y <<" "<< v.z; 
+			file << std::endl;
 		}
 	}
 }

@@ -65,6 +65,8 @@ class RigidBody { // host side representation of rigid bodies
 	HOST DEVICE inline Vector3 transformBodyToLab(Vector3 v) const { return orientation*v + position; }
 	HOST DEVICE inline Vector3 getPosition() const { return position; }
 	HOST DEVICE inline Matrix3 getOrientation() const { return orientation; }
+	HOST DEVICE inline Vector3 getForce() const { return constantForce; }
+	HOST DEVICE inline Vector3 getTorque() const { return constantTorque; }	
 	// HOST DEVICE inline Matrix3 getBasis() const { return orientation; }
 	HOST DEVICE inline BigReal getMass() const { return t->mass; }
 	//HOST DEVICE inline Vector3 getVelocity() const { return momentum/t->mass; }
@@ -103,7 +105,9 @@ private:
 	Vector3 position;		  /* position of center of mass */
 	// Q = orientation.transpose(); in Dullweber et al
 	Matrix3 orientation;					/* rotation that brings RB coordinates into the lab frame */
-
+    Vector3 constantTorque;
+    Vector3 constantForce;
+    Vector3 vectorTorque; 
 	Vector3 momentum;		 /* in lab frame */
 	Vector3 angularMomentum; // angular momentum along corresponding principal axes
         Vector3 W1,W2;
