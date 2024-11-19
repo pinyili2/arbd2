@@ -4,83 +4,139 @@
 #include "Types.h"
 #include "Proxy.h"
 #include <map>
-
+#include <vector>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #ifdef USE_CUDA
 #include <curand_kernel.h>
 #include <curand.h>
+#include <cassert>
+#include <mutex>
+#include <iostream>
 
 #define cuRandchk(ans) { cuRandAssert((ans), __FILE__, __LINE__); }
 inline void cuRandAssert(curandStatus code, const char *file, int line, bool abort=true) {
-	if (code != CURAND_STATUS_SUCCESS) {
-		fprintf(stderr, "CURAND Error: %d (%s:%d)\n", code, file, line);
-		if (abort) exit(code);
-	}
+    if (code != CURAND_STATUS_SUCCESS) {
+        fprintf(stderr, "CURAND Error: %d (%s:%d)\n", code, file, line);
+        if (abort) exit(code);
+    }
 }
-// #else
-// #define QUALIFIERS __host__ __device__
-// #include <curand_kernel.h>
-// #undef QUALIFIERS
 #endif
 
+// Forward declarations
+template<size_t num_states = 128>
+class RandomCPU;
+
+template<size_t num_states = 128>
+class RandomGPU;
+
 namespace Random {
+
     // Interface
     template<typename RNG>
-    HOST DEVICE inline typename RNG::state_t* get_gaussian_state(RNG *random) {
-	// return nullptr;
-	return random->get_gaussian_state();
-    }
+    HOST DEVICE inline typename RNG::state_t* get_gaussian_state(RNG* random);
 
     template<typename RNG>
-    HOST DEVICE void set_gaussian_state(RNG *random, typename RNG::state_t* state) {
-	return random->set_gaussian_state(state);
-    }
-
-    // template<typename RNG>
-    // HOST DEVICE auto gaussian(RNG __restrict__ * random, typename RNG::state_t __restrict__ * state) {
-    // 	return random->gaussian(state);
-    // }
+    HOST DEVICE inline void set_gaussian_state(RNG* random, typename RNG::state_t* state);
 
     template<typename RNG>
-    HOST DEVICE float gaussian(RNG *random, typename RNG::state_t* state) {
-	return random->gaussian(state);
+    HOST DEVICE inline float gaussian(RNG* random, typename RNG::state_t* state = nullptr);
+    
+    // Host-only implementations for RandomCPU
+    template<size_t num_states>
+    HOST inline typename RandomCPU<num_states>::state_t* get_gaussian_state(RandomCPU<num_states>* random) {
+        return random->get_gaussian_state();
     }
-}
 
+    template<size_t num_states>
+    HOST inline void set_gaussian_state(RandomCPU<num_states>* random, typename RandomCPU<num_states>::state_t* state) {
+        random->set_gaussian_state(state);
+    }
+
+    template<size_t num_states>
+    HOST inline float gaussian(RandomCPU<num_states>* random, typename RandomCPU<num_states>::state_t* state) {
+        return random->gaussian(state);
+    }
+
+    // Device implementations for RandomGPU
+    template<size_t num_states>
+    HOST DEVICE inline typename RandomGPU<num_states>::state_t* get_gaussian_state(RandomGPU<num_states>* random) {
+        return random->get_gaussian_state();
+    }
+
+    template<size_t num_states>
+    HOST DEVICE inline void set_gaussian_state(RandomGPU<num_states>* random, typename RandomGPU<num_states>::state_t* state) {
+        random->set_gaussian_state(state);
+    }
+
+    template<size_t num_states>
+    HOST DEVICE inline float gaussian(RandomGPU<num_states>* random, typename RandomGPU<num_states>::state_t* state) {
+        return random->gaussian(state);
+    }
+
+} // namespace Random
+
+template<size_t num_states>
 class RandomCPU {
+    static_assert(num_states > 0);
 public:
-    using state_t = void;
+    using state_t = curandGenerator_t;
 
-    // Methods for maninpulating the state
-    void init(size_t num, unsigned long seed, size_t offset) {
-	// 
-    };
+    HOST RandomCPU() : generator{nullptr}, buffer_index{2} {
+        // Create a pseudo-random number generator
+        cuRandchk(curandCreateGeneratorHost(&generator, CURAND_RNG_PSEUDO_DEFAULT));
+    }
 
-    // Methods for generating random values
-    HOST DEVICE inline float gaussian(state_t* state) {
-	LOGWARN("RandomCPU::gaussian(): not implemented");
-	return 0;
-    };
+    HOST ~RandomCPU() {
+        // Destroy the generator
+        if (generator) {
+            cuRandchk(curandDestroyGenerator(generator));
+            generator = nullptr;
+        }
+    }
 
-    HOST DEVICE inline state_t* get_gaussian_state() { return nullptr; };
+    HOST void init(unsigned long seed, size_t offset = 0) {
+        cuRandchk(curandSetPseudoRandomGeneratorSeed(generator, seed));
+        // Set the offset if needed
+        if (offset > 0) {
+            cuRandchk(curandSetGeneratorOffset(generator, offset));
+        }
+    }
 
-    HOST DEVICE inline void set_gaussian_state(state_t* state) {};
+    // Generate a single Gaussian random number
+    HOST float gaussian(state_t* state = nullptr) {
+        if (buffer_index >= 2) {
+            // Buffer is empty, generate new random numbers
+            cuRandchk(curandGenerateNormal(generator, buffer, 2, 0.0f, 1.0f));
+            buffer_index = 0;
+        }
+        // Return the next number from the buffer
+        return buffer[buffer_index++];
+    }
 
-    // // HOST DEVICE inline float gaussian(RandomState* state) {};
-    // HOST inline Vector3 gaussian_vector(size_t idx, size_t thread) {
-    // 	return Vector3();
-    // };
-    // unsigned int integer() {
-    // 	return 0;
-    // };
-    // unsigned int poisson(float lambda) {
-    // 	return 0;
-    // };
-    // float uniform() {
-    // 	return 0;
-    // };
-    // void reorder(int *a, int n);
+    // Get the current generator state
+    HOST state_t* get_gaussian_state() {
+        return &generator;
+    }
+
+    // Set the generator state (not commonly used with cuRAND Host API)
+    HOST void set_gaussian_state(state_t* state) {
+        if (state != nullptr) {
+            generator = *state;
+        }
+    }
+
+    // Generate a 3D vector of Gaussian random numbers
+    HOST Vector3 gaussian_vector(state_t* state = nullptr) {
+        float vals[4]; // Request 4 numbers to satisfy the multiple of 2 requirement
+        cuRandchk(curandGenerateNormal(generator, vals, 4, 0.0f, 1.0f));
+        return Vector3(vals[0], vals[1], vals[2]);
+    }
+
+private:
+    state_t generator;
+    float buffer[2]; // Buffer to store extra random numbers
+    int buffer_index; // Index to track usage
 };
 
 class RandomCPUOld {
@@ -160,11 +216,11 @@ public:
 
 
 // Forward declarations
-template<size_t num_states> class RandomGPU;
+//
 template<size_t num_states>
 __global__ void RandomGPU__test_kernel(RandomGPU<num_states>* rng, size_t num_vals, float* buf, unsigned long seed, size_t offset);
 
-template<size_t num_states = 128>
+template<size_t num_states>
 class RandomGPU {
     static_assert(num_states > 0);
 public:
@@ -198,7 +254,7 @@ public:
 	rng->states = nullptr;
 	// Since we avoided constructuer, don't call `delete rng;`
 	return dest;
-    }
+   }
 	
     HOST DEVICE inline float gaussian(state_t* state) {
 #ifdef __CUDA_ARCH__    
@@ -261,7 +317,7 @@ public:
 	if (rng_was_null) cudaFree( rng );
 	cudaFree( buf_d );
 	delete[] buf;
-    };
+    }
 
 private:
     state_t* states;	// RNG states stored in global memory 

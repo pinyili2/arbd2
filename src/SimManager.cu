@@ -10,10 +10,20 @@ void SimManager::run() {
     // Patch p(10,0,0,sys);
 
     Patch p;
-    LOGINFO("here2!");
+    LOGINFO("init patcj");
 //*
-    RandomCPU rng{};
-    LOGINFO("there2!");
+    RandomCPU<> rng{};
+    LOGINFO("init RandomCPU");
+    rng.init(124);
+    for (int i = 0; i < 10; ++i) {
+        float randNum = rng.gaussian();
+        std::cout << "Random Gaussian Number: " << randNum << std::endl;
+    }
+
+    // Generate a random vector
+    Vector3 randVec = rng.gaussian_vector();
+    std::cout << "Random Gaussian Vector: (" << randVec.x << ", " << randVec.y << ", " << randVec.z << ")" << std::endl;
+
     // RandomAcc rng{};
     //ProxyPatch p2(10,0,0);
 
