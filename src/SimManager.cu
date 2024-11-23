@@ -26,6 +26,20 @@ void SimManager::run() {
 
     // RandomAcc rng{};
     //ProxyPatch p2(10,0,0);
+// ||||||| Stash base
+//     RandomCPU rng{};
+//     LOGINFO("there2!");
+//     // RandomAcc rng{};
+//     //ProxyPatch p2(10,0,0);
+// =======
+//     // RandomCPU rng{};
+//     // LOGINFO("there2!");
+//     RandomAcc rng1{};
+//     RandomTest rng{};
+//     // rng.set<decltype(rng1)>(&rng1);
+//     rng.set(&rng1);
+//     // ProxyPatch p2(10,0,0);
+// >>>>>>> Stashed changes
 
     // p.add_compute( std::make_unique<LocalPairForce>() );
     // p.add_compute( std::make_unique<NeighborPairForce>() );
@@ -38,21 +52,27 @@ void SimManager::run() {
 //     p.add_compute( std::make_unique<LocalBonded>() );
 // #endif
 
+    
     LOGINFO("here!");
-    auto tmp = Random::get_gaussian_state(&rng);
+    // auto state = rng.get_gaussian_state<decltype(rng1)>();
+    auto state = rng.get_gaussian_state();
     LOGINFO("there!");
     for (size_t step = 0; step < 10; ++step) {
 	LOGINFO("where!");
-	LOGINFO("Step {:d}: random", step); // {:0.2f}", step, Random::gaussian(&rng,(RandomCPU::state_t*) nullptr));
+	// LOGINFO("Step {:d}: random", step); // {:0.2f}", step, Random::gaussian(&rng,(RandomCPU::state_t*) nullptr));
+	LOGINFO("Step {:d}: random {:0.2f}", step, rng.gaussian(state));
 	p.compute();
 #ifdef USE_CUDA
 	cudaDeviceSynchronize();
 #endif
     }
     // */
-// #ifdef USE_CUDA
-//     RandomGPU<128>::launch_test_kernel<64>((size_t) 1);
-//     cudaDeviceSynchronize();
-// #endif
+#ifdef USE_CUDA
+    RandomGPU_template<128>::launch_test_kernel<64>((size_t) 1);
+    cudaDeviceSynchronize();
+
+    RandomGPU::launch_test_kernel<128,64>((size_t) 1);
+    cudaDeviceSynchronize();
+#endif
 
 };

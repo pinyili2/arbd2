@@ -40,6 +40,11 @@ struct has_send_children : std::false_type {};
 template <typename T>
 struct has_send_children<T, decltype(std::declval<T>().send_children(Resource{Resource::CPU,0}), void())> : std::true_type {};
 
+template <typename T, typename = void>
+struct has_no_send : std::false_type {};
+template <typename T>
+struct has_no_send<T, decltype(std::declval<T>().no_send, void())> : std::true_type {};
+
 // template <typename T, typename = void>
 // struct has_metadata : std::false_type {};
 // template <typename _tT>
@@ -143,6 +148,8 @@ struct Proxy {
     /**
      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
      */
+    static_assert(!std::is_same<T, Proxy>::value, "Cannot make a Proxy of a Proxy object");
+
     Proxy() : location(Resource{Resource::CPU,0}), addr(nullptr), metadata(nullptr) {
 	LOGINFO("Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
     };
@@ -433,6 +440,7 @@ HOST inline Proxy<T>& send(const Resource& location, T& obj, T* dest = nullptr) 
  */
 template <typename T, typename Dummy = void, typename std::enable_if_t<has_send_children<T>::value, Dummy>* = nullptr>
 HOST inline Proxy<T> send(const Resource& location, T& obj, T* dest = nullptr) {
+    // static_assert(!has_no_send<T>());
     LOGINFO("Sending complex object {} @{} to device at {}", type_name<T>().c_str(), fmt::ptr(&obj), fmt::ptr(dest));
     auto dummy = obj.send_children(location); // function is expected to return an object of type obj with all pointers appropriately assigned to valid pointers on location
     Proxy<T> ret = _send_ignoring_children<T>(location, dummy, dest);
@@ -449,6 +457,7 @@ HOST inline Proxy<T> send(const Resource& location, T& obj, T* dest = nullptr) {
 // Proxy will be blank.
 template<typename T, typename... Args>
 Proxy<T> construct_remote(Resource location, Args&&...args) {
+    //static_assert(!has_no_send<T>());
     switch (location.type) {
     case Resource::CPU:
 	if (location.is_local()) {
