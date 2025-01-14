@@ -752,6 +752,7 @@ void GrandBrownTown::run()
                 }
             }//if inter-particle force
 
+	    //Update particle positions for rigid bodies
 	    if (num_rb_attached_particles > 0) {
 		if (get_energy) {
 		    compute_position_dependent_force_for_rb_attached_particles

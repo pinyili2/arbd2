@@ -13,6 +13,13 @@
 __device__
 Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion, Vector3 diffGrad,
 						 float timestep, BaseGrid *sys, Random *randoGen, int num);
+class GrandBrownTown {
+public:
+	void initializeCUDAGraph();
+private:
+    cudaGraphExec_t graphExec;
+    cudaStream_t mainStream;
+}
 
 inline __device__
 ForceEnergy compute_position_dependent_force(
