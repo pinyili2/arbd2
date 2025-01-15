@@ -546,7 +546,74 @@ GrandBrownTown::~GrandBrownTown() {
 	
 		
 }
+void GrandBrownTown::initCUDAGraph() {
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+    
+    // Begin graph capture
+    cudaStreamBeginCapture(stream, cudaStreamCaptureModeGlobal);
+    
+    // Capture all the operations from original run():
+        if(particle_dynamic == String("Langevin")){
+			updateKernelBAOAB<false><<< numBlocks, NUM_THREADS >>>(
+				internal->getPos_d()[0], 
+				internal->getMom_d(), 
+				internal->getForceInternal_d()[0], 
+				internal->getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+		}
+		
+        else if(particle_dynamic == String("NoseHooverLangevin"))
+		{updateKernelNoseHooverLangevin<false><<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getMom_d(), internal -> getRan_d(), internal -> getForceInternal_d()[0], internal -> getType_d(), part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas, ParticleInterpolationType);
+	    }
+        ////For Brownian motion
+        else
+            updateKernel<<< numBlocks, NUM_THREADS >>>(internal -> getPos_d()[0], internal -> getForceInternal_d()[0], internal -> getType_d(),
+                                                       part_d, kT, kTGrid_d, electricField, tl, timestep, num, num_rb_attached_particles, sys_d, randoGen_d, numReplicas,
+                                                       internal->getEnergy(), get_energy, ParticleInterpolationType);
 
+
+        if(rigidbody_dynamic == String("Langevin"))
+        {
+            for(int i = 0; i < numReplicas; ++i)
+            {
+                RBC[i]->integrateDLM(sys, 0);
+                RBC[i]->integrateDLM(sys, 1);
+            }
+        }
+        else
+		{
+            for(int i = 0; i < numReplicas; ++i)
+            {
+                RBC[i]->integrate(sys, s);
+                #pragma omp ordered
+                RBC[i]->print(s);
+            }
+        }
+
+	//"Update rigid body attached particle positions",3)
+	if (num_rb_attached_particles > 0) {
+	    #pragma omp parallel for
+	    for(int i = 0; i < numReplicas; ++i) {
+		RBC[i]->update_attached_particle_positions(
+		    internal->getPos_d()[0]+num+i*(num+num_rb_attached_particles),
+		    internal->getForceInternal_d()[0]+num+i*(num+num_rb_attached_particles),
+		    internal->getEnergy()+num+i*(num+num_rb_attached_particles),
+		    sys_d, num, num_rb_attached_particles, numReplicas);
+	    }
+	}
+	// Clear rigid forces and torques
+	for(int i = 0; i < numReplicas; ++i) 
+            RBC[i]->clearForceAndTorque();
+
+    // End capture and create executable graph
+    cudaGraph_t graph;
+    cudaStreamEndCapture(stream, &graph);
+    cudaGraphInstantiate(&graphExec, graph, nullptr, nullptr, 0);
+    
+    // Cleanup
+    cudaGraphDestroy(graph);
+    mainStream = stream;
+}
 //Nose Hoover is now implement for particles.
 void GrandBrownTown::run()
 {
