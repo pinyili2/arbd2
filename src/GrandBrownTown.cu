@@ -604,7 +604,12 @@ void GrandBrownTown::initCUDAGraph() {
 	// Clear rigid forces and torques
 	for(int i = 0; i < numReplicas; ++i) 
             RBC[i]->clearForceAndTorque();
-
+	if (numGroupSites > 0)
+	    updateGroupSites<<<(numGroupSites*numReplicas/32+1),32>>>(internal->getPos_d()[0], groupSiteData_d, num + num_rb_attached_particles, numGroupSites, numReplicas);
+	if (get_energy) {
+	    internal->clear_energy();
+	}
+	
     // End capture and create executable graph
     cudaGraph_t graph;
     cudaStreamEndCapture(stream, &graph);

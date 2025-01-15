@@ -15,7 +15,7 @@ Vector3 step(Vector3& r0, float kTlocal, Vector3 force, float diffusion, Vector3
 						 float timestep, BaseGrid *sys, Random *randoGen, int num);
 class GrandBrownTown {
 public:
-	void initializeCUDAGraph();
+	void initCUDAGraph();
 private:
     cudaGraphExec_t graphExec;
     cudaStream_t mainStream;
