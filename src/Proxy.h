@@ -7,7 +7,7 @@
 #include "cuda.h"
 #include "cuda_runtime.h"
 
-// template<typename T, typename...Args1, typename... Args2>
+// template<type_name T, typename...Args1, typename... Args2>
 // __global__ void proxy_sync_call_kernel_noreturn(T* addr, (T::*memberFunc(Args1...)), Args2...args);
 
 #ifdef __CUDACC__
@@ -40,14 +40,14 @@ struct has_send_children : std::false_type {};
 template <typename T>
 struct has_send_children<T, decltype(std::declval<T>().send_children(Resource{Resource::CPU,0}), void())> : std::true_type {};
 
-// template <typename T, typename = void>
+// template <type_name T, typename = void>
 // struct has_metadata : std::false_type {};
-// template <typename _tT>
+// template <type_name _tT>
 // struct has_metadata<T, decltype(std::declval<T>()::Metadata, void())> : std::true_type {};
 
 template <typename...>
 using void_t = void;
-// struct Metadata_t<T, decltype(std::declval<typename T::Metadata>(), void())> : T::Metadata { }; 
+// struct Metadata_t<T, decltype(std::declval<type_name T::Metadata>(), void())> : T::Metadata { }; 
 // END traits
 
 // Used by Proxy class 
@@ -61,10 +61,10 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
     Metadata_t(const T& obj) : T::Metadata(obj) {};
     Metadata_t(const Metadata_t<T>& other) : T::Metadata(other) {};
 };
-// struct Metadata_t<T, decltype(std::declval<typename T::Metadata>(), void())> : T::Metadata { }; 
+// struct Metadata_t<T, decltype(std::declval<type_name T::Metadata>(), void())> : T::Metadata { }; 
 
 
-// template<typename T, typename std::enable_if_t<std::is_arithmetic<T>::value>* = nullptr>
+// template<type_name T, typename std::enable_if_t<std::is_arithmetic<T>::value>* = nullptr>
 // struct Proxy {
 //     /**
 //      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
@@ -135,8 +135,8 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
     // 	metadata = new_proxy.metadata;
     // }
 
-// C++17 way: template<typename T, typename Metadata = std::void_t<typename T::Metadata>>
-// C++14 way: template<typename T, typename Metadata = typename std::conditional<has_metadata<T>::value, typename T::Metadata, void>::type>
+// C++17 way: template<type_name T, typename Metadata = std::void_t<typename T::Metadata>>
+// C++14 way: template<type_name T, typename Metadata = typename std::conditional<has_metadata<T>::value, typename T::Metadata, void>::type>
 // Neither needed!
 template<typename T, typename Enable = void>
 struct Proxy {
@@ -160,13 +160,13 @@ struct Proxy {
     };
     // Copy constructor
     //Proxy(const Proxy<T>& other) : location(other.location), addr(other.addr), metadata(nullptr) {
-	//LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+	//LOGINFO(Copy Constructing Proxy<{}> @{}, type_name<T>().c_str(), fmt::ptr(this));
 	//if (other.metadata != nullptr) {
 	//    const Metadata_t<T>& tmp = *(other.metadata);
 	//    metadata = new Metadata_t<T>(tmp);
 	//}
     //};
-	//Copy #2 
+	//Copy2 
 	Proxy(const Proxy<T>& other) 
         : location(other.location), addr(nullptr), metadata(nullptr) {
         LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
@@ -355,7 +355,8 @@ struct Proxy {
                 gpuErrchk(cudaFree(dest));
                 return result;
 		//Exception( NotImplementedError, "Proxy::callAsync() local GPU calls" );
-	    } else {
+	    }); 
+	    else {
             return std::async(std::launch::async, [this, memberFunc, args...] {
                 size_t target_device = location.id;
                 int current_device;
@@ -372,7 +373,7 @@ struct Proxy {
                 gpuErrchk(cudaSetDevice(current_device));
                 return result;
 		//Exception( NotImplementedError, "Proxy::callAsync() non-local GPU calls" );
-	    }
+	    })};
 	    break;
 	case Resource::MPI:
        #ifdef USE_MPI
@@ -401,8 +402,8 @@ struct Proxy {
 	return std::async(std::launch::async, [] { return RetType{}; });
     }
 };
-template<typename T, typename... Args>
-__global__ void proxy_sync_call_kernel_noreturn(T* addr, void (T::*memberFunc)(Args...), Args... args) {
+template<typename H, typename... Args>
+__global__ void proxy_sync_call_kernel(T* addr, void (T::*memberFunc)(Args...), Args... args) {
     if (blockIdx.x == 0 && threadIdx.x == 0) {
         (addr->*memberFunc)(args...);
     }
@@ -424,14 +425,14 @@ void callSync(void (T::*memberFunc)(Args1...), Args2&&... args) {
        break;
    case Resource::GPU:
        if (location.is_local()) {
-           proxy_sync_call_kernel_noreturn<T, Args2...><<<1,32>>>(addr, memberFunc, args...);
+           proxy_sync_call_kernel<T, Args2...><<<1,32>>>(addr, memberFunc, args...);
            gpuErrchk(cudaDeviceSynchronize());
        } else {
            int current_device;
            gpuErrchk(cudaGetDevice(&current_device));
            gpuErrchk(cudaSetDevice(location.id));
            
-           proxy_sync_call_kernel_noreturn<T, Args2...><<<1,32>>>(addr, memberFunc, args...);
+           proxy_sync_call_kernel<T, Args2...><<<1,32>>>(addr, memberFunc, args...);
            gpuErrchk(cudaDeviceSynchronize());
            
            gpuErrchk(cudaSetDevice(current_device));
@@ -535,7 +536,7 @@ std::future<RetType> callAsync(RetType (T::*memberFunc)(Args1...), Args2&&... ar
 
 // Specialization for bool/int/float types that do not have member functions
 template<typename T>
-struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
+struct Proxy<T, type_name std::enable_if_t<std::is_arithmetic<T>::value>> {
     /**
      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
      */
@@ -564,9 +565,9 @@ struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
 // class Proxy<int> {
 
 //     // Define Metadata types using SFINAE
-//     // template<typename=void> struct Metadata_t { };
+//     // template<type_name=void> struct Metadata_t { };
 //     // template<> struct Metadata_t<void_t<T::Metadata>> : T::Metadata { };
-//     // template<typename=void> struct Metadata_t { };
+//     // template<type_name=void> struct Metadata_t { };
 //     // template<> struct Metadata_t<void_t<T::Metadata>> : T::Metadata { };
 //     // using Metadata_t = Metadata_t<T>;
     
@@ -594,10 +595,10 @@ struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
 
 
 // // Partial specialization
-// template<typename T>
-// using Proxy<T> = Proxy<T, std::void_t<typename T::Metadata>>
-// // template<typename T>
-// // class Proxy<T, typename T::Metadata> { };
+// template<type_name T>
+// using Proxy<T> = Proxy<T, std::void_t<type_name T::Metadata>>
+// // template<type_name T>
+// // class Proxy<T, type_name T::Metadata> { };
 
 
 /**
