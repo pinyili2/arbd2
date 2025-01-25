@@ -23,7 +23,7 @@ __global__ void proxy_sync_call_kernel(RetType* result, T* addr, RetType (T::*me
 template<typename T, typename... Args>
 __global__ void constructor_kernel(T* __restrict__ devptr, Args...args) {
     if (blockIdx.x == 0) {
-	devptr = new T{::cuda::std::forward<Args>(args)...};
+	new (devptr) T{::cuda::std::forward<Args>(args)...};
     }
 }
 #endif
@@ -72,7 +72,9 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
 // template<type_name T, typename std::enable_if_t<std::is_arithmetic<T>::value>* = nullptr>
 // struct Proxy {
 //     /**
-//      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
+// * @brief 
+// * 
+//* @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
 //      */
 //     Proxy() : location{Resource{Resource::CPU,0}}, addr{nullptr} {};
 //     Proxy(const Resource& r, T* obj) : location{r}, addr{obj} {};
@@ -173,78 +175,136 @@ struct Proxy {
     //};
 	//Copy2 
 	Proxy(const Proxy<T>& other) : location(other.location), addr(nullptr), metadata(nullptr) {
-        LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
-        
-        if (other.addr != nullptr) {
-            // Deep copy the data based on resource type
+    LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+    
+    if (other.addr != nullptr) {
+        try {
             switch (location.type) {
                 case Resource::CPU:
-                    addr = new T(*other.addr);
+                    try {
+                        addr = new T(*other.addr);
+                    } catch (const std::bad_alloc& e) {
+                        LOGERROR("Memory allocation failed in CPU copy: {}", e.what());
+                        throw;
+                    }
                     break;
+                    
                 case Resource::GPU:
                 #ifdef USE_CUDA
-                    if (cudaMalloc(&addr, sizeof(T)) == cudaSuccess) {
-                        cudaMemcpy(addr, other.addr, sizeof(T), cudaMemcpyDeviceToDevice);
+                    {
+                        cudaError_t err = cudaMalloc(&addr, sizeof(T));
+                        if (err != cudaSuccess) {
+                            LOGERROR("CUDA malloc failed: {}", cudaGetErrorString(err));
+                            throw std::runtime_error("CUDA malloc failed");
+                        }
+                        
+                        err = cudaMemcpy(addr, other.addr, sizeof(T), cudaMemcpyDeviceToDevice);
+                        if (err != cudaSuccess) {
+                            cudaFree(addr);
+                            addr = nullptr;
+                            LOGERROR("CUDA memcpy failed: {}", cudaGetErrorString(err));
+                            throw std::runtime_error("CUDA memcpy failed");
+                        }
                     }
+                #else
+                    LOGERROR("CUDA support not enabled");
+                    throw std::runtime_error("CUDA support not enabled");
                 #endif
                     break;
+                    
                 default:
-                    LOGERROR("Unsupported resource type in copy constructor");
+                    throw std::runtime_error("Unsupported resource type in copy constructor");
             }
+        } catch (...) {
+            // Cleanup on failure
+            if (addr != nullptr) {
+                if (location.type == Resource::GPU) {
+                    #ifdef USE_CUDA
+                    cudaFree(addr);
+                    #endif
+                } else {
+                    delete addr;
+                }
+                addr = nullptr;
+            }
+            throw;
         }
+    }
 
-        if (other.metadata != nullptr) {
+    // Copy metadata after successful data copy
+    if (other.metadata != nullptr) {
+        try {
             metadata = new Metadata_t<T>(*other.metadata);
+        } catch (...) {
+            // Clean up on metadata copy failure
+            if (addr != nullptr) {
+                if (location.type == Resource::GPU) {
+                    #ifdef USE_CUDA
+                    cudaFree(addr);
+                    #endif
+                } else {
+                    delete addr;
+                }
+                addr = nullptr;
+            }
+            throw;
         }
-    };
-
-    Proxy<T>& operator=(const Proxy<T>& other) {
-	if (this != &other) {
-	    // Free existing resources.
-	    if (metadata != nullptr) delete metadata;
-	    location = other.location;
-	    addr = other.addr;
-	    const Metadata_t<T>& tmp = *(other.metadata);
-	    metadata = new Metadata_t<T>(tmp); // copy construct!
-	    // std::copy(other.metadata, other.metadata + sizeof(Metadata_t<T>), metadata);
-      }
-      return *this;
-    };
-
-    Proxy(Proxy<T>&& other) noexcept: addr(nullptr), metadata(nullptr) {
-	LOGINFO("Move Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
-	location = other.location;
-	addr = other.addr;
-	// For now we avoid std::move, but we may choose to change this behavior
-	// const Metadata_t<T>& tmp = *(other.metadata);
-	metadata = other.metadata;
-	other.metadata = nullptr;
-	other.addr = nullptr;
-    };
+    }
+    }
 
     Proxy& operator=(Proxy<T>&& other) noexcept {
     if (this != &other) {
-        delete metadata;
+        // Safely delete existing metadata
+        if (metadata != nullptr) {
+            delete metadata;
+            metadata = nullptr;
+        }
+        // Clean up existing addr if needed
+        if (addr != nullptr) {
+            if (location.type == Resource::GPU) {
+                #ifdef USE_CUDA
+                cudaFree(addr);
+                #endif
+            } else {
+                delete addr;
+            }
+            addr = nullptr;
+        }
+
         location = other.location;
         addr = other.addr;
         metadata = other.metadata;
+        
+        // Clear other's pointers
         other.addr = nullptr;
         other.metadata = nullptr;
     }
     return *this;
     }
 
+    Proxy(Proxy<T>&& other) noexcept: addr(nullptr), metadata(nullptr) {
+    LOGINFO("Move Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+    location = other.location;
+    addr = other.addr;
+    // For now we avoid std::move, but we may choose to change this behavior
+    // const Metadata_t<T>& tmp = *(other.metadata);
+    metadata = other.metadata;
+    other.metadata = nullptr;
+    other.addr = nullptr;
+    }
+
+
     ~Proxy() {
-	LOGINFO("Deconstructing Proxy<{}> @{} with metadata @{}", type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(metadata));
-	if (metadata != nullptr) delete metadata;
-    };
+    LOGINFO("Deconstructing Proxy<{}> @{} with metadata @{}", type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(metadata));
+    if (metadata != nullptr) delete metadata;
+    }
     
     /**
      * @brief Overloaded operator-> returns the address of the underlying object.
      * @return The address of the underlying object.
      */
-    auto operator->() { return addr; };
-    auto operator->() const { return addr; };
+    auto operator->() { return addr; }
+    auto operator->() const { return addr; }
 
     /**
      * @brief The resource associated with the data represented by the proxy.
@@ -282,7 +342,7 @@ struct Proxy {
 		    gpuErrchk(cudaMalloc(&dest, sizeof(RetType)));
 		    proxy_sync_call_kernel<T, RetType, Args2...><<<1,32>>>(dest, addr, addr->*memberFunc, args...);
 		    // proxy_sync_call_kernel<><<<1,32>>>(dest, addr, addr->*memberFunc, args...);
-		    gpuErrchk(cudaMemcpy(dest, &obj, sizeof(RetType), cudaMemcpyHostToDevice));
+		    gpuErrchk(cudaMemcpy(dest, &obj, sizeof(RetType), cudaMemcpyDeviceToHost));
 		    gpuErrchk(cudaFree(dest));
 		    return obj;
 		} else {
@@ -594,30 +654,32 @@ Proxy<T> construct_remote(Resource location, Args&&...args) {
 	}
 	break;
     case Resource::GPU:
-#ifdef __CUDACC__
-	if (location.is_local()) {
-	    T* devptr;
-	    LOGWARN("construct_remote: TODO: switch to device associated with location");
-	    gpuErrchk(cudaMalloc(&devptr, sizeof(T)));
-	    constructor_kernel<<<1,32>>>(devptr, std::forward<Args>(args)...);
-	    gpuErrchk(cudaDeviceSynchronize());
-	    LOGWARN("construct_remote: proxy.metadata not set");
-	    return Proxy<T>(location);
-	    // Exception( NotImplementedError, "cunstruct_remote() local GPU call" );
-	    // Note: this only support basic RetType objects
-	    // T* dest;
-	    // T obj;
-	    // gpuErrchk(cudaMalloc(&dest, sizeof(RetType)));
-	    // proxy_sync_call_kernel<T, RetType, Args2...><<<1,32>>>(dest, addr, addr->*memberFunc, args...);
-	    // 	gpuErrchk(cudaMemcpy(dest, &obj, sizeof(RetType), cudaMemcpyHostToDevice));
-	    // 	gpuErrchk(cudaFree(dest));
-	} else {
-	    Exception( NotImplementedError, "cunstruct_remote() non-local GPU call" );
-	}
-#else
-	Exception( NotImplementedError, "construct_remote() for GPU only defined for files compiled with nvvc" );
-#endif	    		
-	break;
+    #ifdef __CUDACC__
+        if (location.is_local()) {
+            T* devptr;
+            // Switch to correct device before allocation and construction
+            int current_device;
+            gpuErrchk(cudaGetDevice(&current_device));
+            gpuErrchk(cudaSetDevice(location.id));
+
+            gpuErrchk(cudaMalloc(&devptr, sizeof(T)));
+            constructor_kernel<<<1,32>>>(devptr, std::forward<Args>(args)...);
+            gpuErrchk(cudaDeviceSynchronize());
+            
+            // Switch back to original device
+            gpuErrchk(cudaSetDevice(current_device));
+            
+            // Create proxy with correct location info
+            Proxy<T> proxy(location);
+            proxy.addr = devptr;
+            return proxy;
+        } else {
+            Exception(NotImplementedError, "construct_remote() non-local GPU call");
+        }
+    #else
+	    Exception( NotImplementedError, "construct_remote() for GPU only defined for files compiled with nvvc" );
+    #endif	    		
+	    break;
     case Resource::MPI:
 	Exception( NotImplementedError, "construct_remote() for MPI" );
 	break;
