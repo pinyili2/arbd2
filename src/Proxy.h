@@ -162,85 +162,41 @@ struct Proxy {
 	LOGINFO("Constructing Proxy<{}> @{} wrapping @{} with metadata @{}",
 		type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(&obj), fmt::ptr(metadata));
     };
-    // Copy constructor
-    //Proxy(const Proxy<T>& other) : location(other.location), addr(other.addr), metadata(nullptr) {
-	//LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
-	//if (other.metadata != nullptr) {
-	//    const Metadata_t<T>& tmp = *(other.metadata);
-	//    metadata = new Metadata_t<T>(tmp);
-	//}};
-    Proxy(const Proxy<T>& other) : location(other.location), addr(nullptr), metadata(nullptr) {
+        // Copy constructor
+    Proxy(const Proxy<T>& other) : location(other.location), addr(other.addr), metadata(nullptr) {
         LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
-        
-        if (other.addr != nullptr) {
-            // Deep copy the data based on resource type
-            switch (location.type) {
-                case Resource::CPU:
-                    addr = new T(*other.addr);
-                    break;
-                case Resource::GPU:
-                #ifdef USE_CUDA
-                    if (cudaMalloc(&addr, sizeof(T)) == cudaSuccess) {
-                        cudaMemcpy(addr, other.addr, sizeof(T), cudaMemcpyDeviceToDevice);
-                    }
-                #endif
-                    break;
-                default:
-                    LOGERROR("Unsupported resource type in copy constructor");
-            }
-        }
-
         if (other.metadata != nullptr) {
-            metadata = new Metadata_t<T>(*other.metadata);
+            const Metadata_t<T>& tmp = *(other.metadata);
+            metadata = new Metadata_t<T>(tmp);
         }
     };
     Proxy<T>& operator=(const Proxy<T>& other) {
-    if (this != &other) {
-        // Free existing resources.
-        if (metadata != nullptr) delete metadata;
-        location = other.location;
-        addr = other.addr;
-        if (other.metadata != nullptr) {
+        if (this != &other) {
+            // Free existing resources.
+            if (metadata != nullptr) delete metadata;
+            location = other.location;
+            addr = other.addr;
             const Metadata_t<T>& tmp = *(other.metadata);
             metadata = new Metadata_t<T>(tmp); // copy construct!
-        } else {
-            metadata = nullptr;
-        }
+            // std::copy(other.metadata, other.metadata + sizeof(Metadata_t<T>), metadata);
       }
-    Proxy(Proxy<T>&& other) noexcept: addr(nullptr), metadata(nullptr) {
-    LOGINFO("Move Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
-    location = other.location;
-    addr = other.addr;
-    if (other.metadata != nullptr) {
-        metadata = other.metadata;
-        other.metadata = nullptr;
-    }
-    other.addr = nullptr;
-    if (other.metadata != nullptr) {
-        metadata = other.metadata;
-    } else {
-        metadata = nullptr;
-    }
-	other.metadata = nullptr;
-	other.addr = nullptr;
+      return *this;
     };
-
-    Proxy& operator=(Proxy<T>&& other) noexcept {
-    if (this != &other) {
-        delete metadata;
+    Proxy(Proxy<T>&& other) : addr(nullptr), metadata(nullptr) {
+        LOGINFO("Move Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
         location = other.location;
         addr = other.addr;
+        // For now we avoid std::move, but we may choose to change this behavior
+        // const Metadata_t<T>& tmp = *(other.metadata);
         metadata = other.metadata;
-        other.addr = nullptr;
         other.metadata = nullptr;
-    }
-    return *this;
-    }
-
-    ~Proxy() {
-	LOGINFO("Deconstructing Proxy<{}> @{} with metadata @{}", type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(metadata));
-	if (metadata != nullptr) delete metadata;
     };
+    ~Proxy() {
+        LOGINFO("Deconstructing Proxy<{}> @{} with metadata @{}", type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(metadata));
+        if (metadata != nullptr) delete metadata;
+    };
+
+
     
     /**
      * @brief Overloaded operator-> returns the address of the underlying object.
