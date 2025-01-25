@@ -14,7 +14,7 @@
 #include <cuda/std/utility>
 // Kernels
 template<typename T, typename RetType, typename...Args>
-__global__ void proxy_sync_call_kernel(RetType* result, T* addr, RetType (T::*memberFunc(Args...)), Args...args) {
+__global__ void proxy_sync_call_kernel(RetType* result, T* addr, RetType (T::*memberFunc)(Args...), Args...args) {
     if (blockIdx.x == 0) {
 	*result = (addr->*memberFunc)(args...);
     }
@@ -349,12 +349,13 @@ struct Proxy {
 	    }
 	    break;
 	case Resource::GPU:
+	#ifdef __CUDACC__
 	    if (location.is_local()) {
             return std::async(std::launch::async, [this, memberFunc, args...] {
                 RetType* dest;
                 RetType result;
                 gpuErrchk(cudaMalloc(&dest, sizeof(RetType)));
-                proxy_sync_call_kernel<T, RetType, Args2...><<<1,32>>>(dest, addr, memberFunc, args...);
+                proxy_sync_call_kernel<T, RetType, Args...><<<1,32>>>(dest, addr, memberFunc, args...);
                 gpuErrchk(cudaMemcpy(&result, dest, sizeof(RetType), cudaMemcpyDeviceToHost));
                 gpuErrchk(cudaFree(dest));
                 return result;
@@ -369,7 +370,7 @@ struct Proxy {
                RetType* dest;
                RetType result;
                gpuErrchk(cudaMalloc(&dest, sizeof(RetType)));
-               proxy_sync_call_kernel<T, RetType, Args2...><<<1,32>>>(dest, addr, memberFunc, args...);
+               proxy_sync_call_kernel<T, RetType, Args...><<<1,32>>>(dest, addr, memberFunc, args...);
                gpuErrchk(cudaMemcpy(&result, dest, sizeof(RetType), cudaMemcpyDeviceToHost));
                gpuErrchk(cudaFree(dest));
                
@@ -377,6 +378,9 @@ struct Proxy {
                return result;
            });
        }
+       #else
+	Exception(NotImplementedError, "Async MPI calls require USE_MPI flag");
+       #endif
        break;
    case Resource::MPI:
        #ifdef USE_MPI
