@@ -355,7 +355,7 @@ struct Proxy {
                 RetType* dest;
                 RetType result;
                 gpuErrchk(cudaMalloc(&dest, sizeof(RetType)));
-                proxy_sync_call_kernel<T, RetType, Args...><<<1,32>>>(dest, addr, memberFunc, args...);
+                proxy_sync_call_kernel<T, RetType, Args2...><<<1,32>>>(dest, addr, memberFunc, args...);
                 gpuErrchk(cudaMemcpy(&result, dest, sizeof(RetType), cudaMemcpyDeviceToHost));
                 gpuErrchk(cudaFree(dest));
                 return result;
@@ -370,7 +370,7 @@ struct Proxy {
                RetType* dest;
                RetType result;
                gpuErrchk(cudaMalloc(&dest, sizeof(RetType)));
-               proxy_sync_call_kernel<T, RetType, Args...><<<1,32>>>(dest, addr, memberFunc, args...);
+               proxy_sync_call_kernel<T, RetType, Args2...><<<1,32>>>(dest, addr, memberFunc, args...);
                gpuErrchk(cudaMemcpy(&result, dest, sizeof(RetType), cudaMemcpyDeviceToHost));
                gpuErrchk(cudaFree(dest));
                
