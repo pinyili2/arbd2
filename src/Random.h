@@ -195,7 +195,7 @@ template<size_t num_states> class RandomGPU_template; // This templated version 
 // template<size_t num_states>
 // __global__ void RandomGPU_template__test_kernel(RandomGPU_template<num_states>* rng, size_t num_vals, float* buf, unsigned long seed, size_t offset);
 
-class RandomGPU;
+//class RandomGPU;
 template<typename RNG>
 __global__ void RandomGPU__test_kernel(RNG* rng, size_t num_vals, float* buf, unsigned long seed, size_t offset=0);
 
