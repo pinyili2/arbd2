@@ -29,6 +29,10 @@ inline void cuRandAssert(curandStatus code, const char *file, int line, bool abo
 
 class RandomBackend;
 
+template<size_t num_states> class RandomCPU;
+#ifdef USE_CUDA
+template<size_t num_states> class RandomGPU;
+#endif
 
 // class RandomBackend {
 //     // TBD
@@ -67,6 +71,7 @@ namespace Random {
     }
 
     // Device implementations for RandomGPU
+    #ifdef USE_CUDA
     template<size_t num_states>
     HOST DEVICE inline typename RandomGPU<num_states>::state_t* get_gaussian_state(RandomGPU<num_states>* random) {
         return random->get_gaussian_state();
@@ -81,6 +86,7 @@ namespace Random {
     HOST DEVICE inline float gaussian(RandomGPU<num_states>* random, typename RandomGPU<num_states>::state_t* state) {
         return random->gaussian(state);
     }
+    #endif
 
 } // namespace Random
 
