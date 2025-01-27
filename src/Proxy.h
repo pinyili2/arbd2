@@ -308,6 +308,7 @@ struct Proxy {
 	    }
 	    break;
 	case Resource::GPU:
+	    case Resource::GPU:
 	#ifdef __CUDACC__
 	    if (location.is_local()) {
             return std::async(std::launch::async, [this, memberFunc, args...] {
