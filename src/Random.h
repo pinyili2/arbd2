@@ -1,4 +1,6 @@
 // Random.h
+//Clean version for compile purposes
+
 #pragma once
 
 #include "GPUManager.h"
