@@ -2093,8 +2093,8 @@ void Configuration::readProductPotentials() {
 			// Try to match a type
 			String n = tokenList[i];
 			n.lower();
-			if (n == "bond") { type = DIHEDRAL; type_specified = true; }
-			else if (n == "angle")  { type = DIHEDRAL; type_specified = true; }
+			if (n == "bond") { type = ΒΟΝD; type_specified = true; }
+			else if (n == "angle")  { type = ANGLE; type_specified = true; }
 			else if (n == "dihedral")  { type = DIHEDRAL; type_specified = true; }
 			else if (n == "vecangle") { type = VECANGLE; type_specified = true; }
 			else { // Not a type, therefore a path to a potential
