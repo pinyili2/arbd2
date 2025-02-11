@@ -28,4 +28,6 @@ public:
 	void print();
 };
 
+using Vecangle = Dihedral;
+
 #endif

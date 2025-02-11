@@ -285,6 +285,7 @@ Configuration::Configuration(const char* config_file, int simNum, bool debug) :
 	if (readBondsFromFile) readBonds();
 	if (readAnglesFromFile) readAngles();
 	if (readDihedralsFromFile) readDihedrals();
+	if (readVecanglesFromFile) readVecangles();
 	if (readRestraintsFromFile) readRestraints();
 	if (readBondAnglesFromFile) readBondAngles();
 	if (readProductPotentialsFromFile) readProductPotentials();
@@ -660,6 +661,7 @@ Configuration::~Configuration() {
 	if (excludeMap != NULL) delete[] excludeMap;
 	if (angles != NULL) delete[] angles;
 	if (dihedrals != NULL) delete[] dihedrals;
+	if (vecangles != NULL) delete[] vecangles;
 	if (bondAngles != NULL) delete[] bondAngles;
 	if (productPotentials != NULL) delete[] productPotentials;
 
@@ -675,6 +677,7 @@ Configuration::~Configuration() {
 	delete[] angleTableFile;
 
 	delete[] dihedralTableFile;
+	delete[] vecangleTableFile;
 
 	//if (type_d != NULL) {
 		//gpuErrchk(cudaFree(type_d));
@@ -904,6 +907,11 @@ void Configuration::setDefaults() {
 	dihedrals = NULL;
 	numTabDihedralFiles = 0;
 
+	readVecanglesFromFile = false;
+	numVecangles = 0;
+	vecangles = NULL;
+	numTabVecangleFiles = 0;
+
 	readBondAnglesFromFile = false;
 	numBondAngles = 0;
 	bondAngles = NULL;
@@ -992,11 +1000,15 @@ int Configuration::readParameters(const char * config_file) {
 	int dtfcap = 10;
 	dihedralTableFile = new String[dtfcap];
 
+	int vatfcap = 10;
+	vecangleTableFile = new String[vatfcap];
+
 	int currPart = -1;
 	int currTab = -1;
 	int currBond = -1;
 	int currAngle = -1;
 	int currDihedral = -1;
+	int currVecangle = -1;
 	int currRB = -1;
 
 	int partClassPart =  0;
@@ -1229,6 +1241,24 @@ int Configuration::readParameters(const char * config_file) {
 			}
 			if (readDihedralFile(value, ++currDihedral))
 				numTabDihedralFiles++;
+		} else if (param == String("inputVecangles")) {
+			if (readVecanglesFromFile) {
+				printf("WARNING: More than one vecangle file specified. Ignoring new vecangle file.\n");
+			} else {
+				vecangleFile = value;
+				readVecanglesFromFile = true;
+			}
+		} else if (param == String("tabulatedVecangleFile")) {
+			if (numTabVecangleFiles >= dtfcap) {
+				String * temp = vecangleTableFile;
+				dtfcap *= 2;
+				vecangleTableFile = new String[dtfcap];
+				for (int j = 0; j < numTabVecangleFiles; j++)
+					vecangleTableFile[j] = temp[j];
+				delete[] temp;
+			}
+			if (readVecangleFile(value, ++currVecangle))
+				numTabVecangleFiles++;
 		} else if (param == String("inputRestraints")) {
 			if (readRestraintsFromFile) {
 				printf("WARNING: More than one restraint file specified. Ignoring new restraint file.\n");
@@ -2003,6 +2033,70 @@ void Configuration::readDihedrals() {
 	// 	dihedrals[i].print();
 }
 
+void Configuration::readVecangles() {
+	FILE* inp = fopen(vecangleFile.val(), "r");
+	char line[256];
+	int capacity = 256;
+	numVecangles = 0;
+	vecangles = new Vecangle[capacity];
+
+	// If the vecangle file cannot be found, exit the program
+	if (inp == NULL) {
+		printf("WARNING: Could not open `%s'.\n", vecangleFile.val());
+		printf("This simulation will not use vecangles.\n");
+		return;
+	}
+
+	while(fgets(line, 256, inp)) {
+		if (line[0] == '#') continue;
+		String s(line);
+		int numTokens = s.tokenCount();
+		String* tokenList = new String[numTokens];
+		s.tokenize(tokenList);
+
+		// Legitimate VECANGLE inputs have 6 tokens
+		// VECANGLE | INDEX1 | INDEX2 | INDEX3 | INDEX4 | FILENAME
+		// Any angle input line without exactly 6 tokens should be discarded
+		if (numTokens != 6) {
+			printf("WARNING: Invalid vecangle input line: %s\n", line);
+			continue;
+		}
+
+		// Discard any empty line
+		if (tokenList == NULL)
+			continue;
+
+		int ind1 = atoi(tokenList[1].val());
+		int ind2 = atoi(tokenList[2].val());
+		int ind3 = atoi(tokenList[3].val());
+		int ind4 = atoi(tokenList[4].val());
+		String file_name = tokenList[5];
+		//printf("file_name %s\n", file_name.val());
+		if (ind1 >= num+num_rb_attached_particles+numGroupSites or
+		    ind2 >= num+num_rb_attached_particles+numGroupSites or
+		    ind3 >= num+num_rb_attached_particles+numGroupSites or
+		    ind4 >= num+num_rb_attached_particles+numGroupSites)
+			continue;
+
+		if (numVecangles >= capacity) {
+			Vecangle* temp = vecangles;
+			capacity *= 2;
+			vecangles = new Vecangle[capacity];
+			for (int i = 0; i < numVecangles; ++i)
+				vecangles[i] = temp[i];
+			delete[] temp;
+		}
+
+		Vecangle d(ind1, ind2, ind3, ind4, file_name);
+		vecangles[numVecangles++] = d;
+		delete[] tokenList;
+	}
+	std::sort(vecangles, vecangles + numVecangles, compare());
+
+	// for(int i = 0; i < numVecangles; i++)
+	// 	vecangles[i].print();
+}
+
 void Configuration::readBondAngles() {
 	FILE* inp = fopen(bondAngleFile.val(), "r");
 	char line[256];
@@ -2121,7 +2215,7 @@ void Configuration::readProductPotentials() {
 			// Try to match a type
 			String n = tokenList[i];
 			n.lower();
-			if (n == "bond") { type = ΒΟΝD; type_specified = true; }
+			if (n == "bond") { type = BOND; type_specified = true; }
 			else if (n == "angle")  { type = ANGLE; type_specified = true; }
 			else if (n == "dihedral")  { type = DIHEDRAL; type_specified = true; }
 			else if (n == "vecangle") { type = VECANGLE; type_specified = true; }
@@ -2307,6 +2401,26 @@ bool Configuration::readDihedralFile(const String& value, int currDihedral) {
 	dihedralTableFile[currDihedral] = tokenList[0];
 
 	// printf("Tabulated Dihedral Potential: %s\n", dihedralTableFile[currDihedral].val() );
+
+	return true;
+}
+bool Configuration::readVecangleFile(const String& value, int currVecangle) {
+	int numTokens = value.tokenCount();
+	if (numTokens != 1) {
+		printf("ERROR: Invalid tabulatedVecangleFile: %s, numTokens = %d\n", value.val(), numTokens);
+		return false;
+	}
+
+	String* tokenList = new String[numTokens];
+	value.tokenize(tokenList);
+	if (tokenList == NULL) {
+		printf("ERROR: Invalid tabulatedVecangleFile: %s; tokenList is NULL\n", value.val());
+		return false;
+	}
+
+	vecangleTableFile[currVecangle] = tokenList[0];
+
+	// printf("Tabulated Vecangle Potential: %s\n", vecangleTableFile[currVecangle].val() );
 
 	return true;
 }
