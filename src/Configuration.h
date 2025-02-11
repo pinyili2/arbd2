@@ -237,6 +237,7 @@ public:
 	String* partForceXGridFile;
 	String* partForceYGridFile;
 	String* partForceZGridFile;
+	float **partForceGridScale;
 	String* partTableFile;
 	String* partReservoirFile;
 	int* partTableIndex0;
