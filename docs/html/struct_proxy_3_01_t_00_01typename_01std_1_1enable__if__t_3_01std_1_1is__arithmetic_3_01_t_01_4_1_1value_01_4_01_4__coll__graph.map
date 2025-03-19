@@ -1,0 +1,6 @@
+<map id="Proxy&lt; T, typename std::enable_if_t&lt; std::is_arithmetic&lt; T &gt;::value &gt; &gt;" name="Proxy&lt; T, typename std::enable_if_t&lt; std::is_arithmetic&lt; T &gt;::value &gt; &gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,354,141,784"/>
+<area shape="rect" id="Node000002" href="$struct_resource.html" title="Represents a resource that can store data and perform computations." alt="" coords="17,5,129,291"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="76,290,76,337,71,337,71,290"/>
+<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="130,113,148,124,154,134,156,148,153,164,146,174,142,171,148,162,151,148,149,136,144,127,128,118"/>
+</map>

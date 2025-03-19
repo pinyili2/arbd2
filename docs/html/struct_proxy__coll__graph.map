@@ -1,0 +1,6 @@
+<map id="Proxy&lt; T, Enable &gt;" name="Proxy&lt; T, Enable &gt;">
+<area shape="rect" id="Node000001" title="Default constructor initializes the location to a default CPU resource and the address to nullptr." alt="" coords="5,354,131,639"/>
+<area shape="rect" id="Node000002" href="$struct_resource.html" title="Represents a resource that can store data and perform computations." alt="" coords="12,5,124,291"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="71,290,71,337,65,337,65,290"/>
+<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="125,113,143,124,149,134,151,148,148,164,141,174,137,171,143,162,145,148,144,136,139,127,122,118"/>
+</map>

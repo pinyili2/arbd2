@@ -1,0 +1,5 @@
+<map id="LocalInteraction" name="LocalInteraction">
+<area shape="rect" id="Node000001" title="Base class for local interaction." alt="" coords="5,139,128,264"/>
+<area shape="rect" id="Node000002" href="$class_patch_op.html" title="Abstract base class that operates on Patch data." alt="" coords="12,5,121,91"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="69,106,69,139,64,139,64,106"/>
+</map>

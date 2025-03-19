@@ -1,0 +1,9 @@
+<map id="Proxy::Proxy" name="Proxy::Proxy">
+<area shape="rect" id="Node000001" title="Default constructor initializes the location to a default CPU resource and the address to nullptr." alt="" coords="172,55,269,80"/>
+<area shape="rect" id="Node000002" href="$struct_proxy.html#ab2a89bbf10c8c2b269194dada2f79230" title=" " alt="" coords="5,5,124,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="162,52,107,34,108,29,164,47"/>
+<area shape="rect" id="Node000003" href="$struct_proxy.html#a73875289d6951709663f01f0111dc5ea" title=" " alt="" coords="16,55,113,80"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="156,70,113,70,113,65,156,65"/>
+<area shape="rect" id="Node000004" href="$struct_proxy.html#a6f732df1504fd22b21a8a381a0e75f6c" title=" " alt="" coords="16,104,113,130"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="164,88,108,106,107,101,162,83"/>
+</map>

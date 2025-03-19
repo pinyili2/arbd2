@@ -1,0 +1,7 @@
+<map id="has_copy_to_cuda&lt; T, decltype(std::declval&lt; T &gt;().copy_to_cuda(), void())&gt;" name="has_copy_to_cuda&lt; T, decltype(std::declval&lt; T &gt;().copy_to_cuda(), void())&gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="42,119,187,229"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,104,71"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="77,83,93,118,88,120,73,86"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="128,5,221,71"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="157,86,141,120,136,118,152,83"/>
+</map>

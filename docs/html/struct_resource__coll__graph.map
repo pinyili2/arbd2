@@ -1,0 +1,4 @@
+<map id="Resource" name="Resource">
+<area shape="rect" id="Node000001" title="Represents a resource that can store data and perform computations." alt="" coords="5,5,117,291"/>
+<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="118,93,128,99,137,110,142,126,144,148,141,174,133,192,128,190,136,173,139,148,137,128,132,112,125,103,116,98"/>
+</map>

@@ -1,0 +1,9 @@
+<map id="_send_ignoring_children" name="_send_ignoring_children">
+<area shape="rect" id="Node000001" title="Default constructor initializes the location to a default CPU resource and the address to nullptr." alt="" coords="344,35,504,60"/>
+<area shape="rect" id="Node000002" href="$_proxy_8h.html#af2a94f202f1349de56c2b6e3c83c6653" title="Template function to send simple objects to a specified location without considering child objects...." alt="" coords="247,35,296,60"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="328,50,296,50,296,45,328,45"/>
+<area shape="rect" id="Node000003" href="$class_cell_decomposer.html#a71cd3e7937ba084c371cbef520c7c18b" title=" " alt="" coords="5,5,199,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="231,43,179,34,180,29,232,38"/>
+<area shape="rect" id="Node000004" href="$struct_array.html#a9f98edd1f66cbfd4798f93856cca0e66" title=" " alt="" coords="23,55,181,96"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="232,57,182,65,181,60,231,51"/>
+</map>

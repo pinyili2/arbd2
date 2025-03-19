@@ -1,0 +1,15 @@
+<map id="Patch::remove_from_cuda" name="Patch::remove_from_cuda">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,180,56"/>
+<area shape="rect" id="Node000002" href="$class_patch.html#a65fdd4bb128b8f50c1b9dcc008f20360" title=" " alt="" coords="228,31,325,56"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="180,41,212,41,212,46,180,46"/>
+<area shape="rect" id="Node000003" href="$class_base_patch.html#ac5aaed48813943399e399306bf65b3ff" title=" " alt="" coords="373,5,530,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="325,34,357,29,358,34,326,39"/>
+<area shape="rect" id="Node000004" href="$class_patch.html#a26674c1dfa48589475b6aebedf22a540" title=" " alt="" coords="396,55,507,80"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="326,47,382,55,381,61,325,53"/>
+<area shape="rect" id="Node000005" href="$_proxy_8h.html#afb9dda58c843b31e8dac126684652a6f" title=" " alt="" coords="578,55,701,80"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="507,65,563,65,563,70,507,70"/>
+<area shape="rect" id="Node000006" href="$struct_resource.html#af1cd6f9ec077d52cae924faa84070ad6" title="Check if resource is local to the calling thread." alt="" coords="749,55,878,80"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="701,65,733,65,733,70,701,70"/>
+<area shape="rect" id="Node000007" href="$_resource_8h.html#ac42f6e1cb301b7ece1afd149bed39d9f" title="Get current resource index (device ID or MPI rank)" alt="" coords="926,55,995,80"/>
+<area shape="poly" id="edge6_Node000006_Node000007" title=" " alt="" coords="879,65,910,65,910,70,879,70"/>
+</map>

@@ -1,0 +1,5 @@
+<map id="SimSystem::Conf" name="SimSystem::Conf">
+<area shape="rect" id="Node000001" title=" " alt="" coords="16,168,133,294"/>
+<area shape="rect" id="Node000002" href="$class_decomposer.html" title=" " alt="" coords="5,5,144,105"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="77,105,77,151,72,151,72,105"/>
+</map>

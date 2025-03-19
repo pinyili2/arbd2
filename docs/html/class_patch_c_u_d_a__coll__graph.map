@@ -1,0 +1,22 @@
+<map id="PatchCUDA" name="PatchCUDA">
+<area shape="rect" id="Node000001" title=" " alt="" coords="117,1928,237,2174"/>
+<area shape="rect" id="Node000002" href="$class_patch.html" title=" " alt="" coords="97,1514,258,1879"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="180,1894,180,1929,175,1929,175,1894"/>
+<area shape="rect" id="Node000003" href="$class_base_patch.html" title=" " alt="" coords="96,1165,216,1451"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="167,1465,170,1514,165,1514,162,1465"/>
+<area shape="rect" id="Node000004" href="$struct_patch_1_1_metadata.html" title=" " alt="" coords="240,1225,349,1391"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="272,1391,240,1498,235,1497,267,1390"/>
+<area shape="rect" id="Node000005" href="$struct_proxy.html" title=" " alt="" coords="224,837,365,1102"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="297,1102,297,1208,292,1208,292,1102"/>
+<area shape="rect" id="Node000006" href="$struct_resource.html" title="Represents a resource that can store data and perform computations." alt="" coords="5,489,117,774"/>
+<area shape="poly" id="edge5_Node000005_Node000006" title=" " alt="" coords="119,712,217,851,212,854,115,715"/>
+<area shape="poly" id="edge6_Node000006_Node000006" title=" " alt="" coords="118,597,136,607,142,618,144,631,141,647,134,658,130,655,136,645,139,631,137,619,132,611,116,601"/>
+<area shape="rect" id="Node000007" href="$struct_patch_1_1_data.html" title=" " alt="" coords="214,539,375,724"/>
+<area shape="poly" id="edge7_Node000005_Node000007" title=" " alt="" coords="297,724,297,820,292,820,292,724"/>
+<area shape="rect" id="Node000008" href="$struct_array.html" title=" " alt="" coords="160,5,283,411"/>
+<area shape="poly" id="edge8_Node000007_Node000008" title=" " alt="" coords="255,410,264,464,275,522,270,523,259,465,250,411"/>
+<area shape="rect" id="Node000009" href="$struct_array.html" title=" " alt="" coords="307,5,429,411"/>
+<area shape="poly" id="edge9_Node000007_Node000009" title=" " alt="" coords="350,411,341,465,328,523,323,522,336,464,345,410"/>
+<area shape="rect" id="Node000010" href="$struct_metadata__t.html" title=" " alt="" coords="399,581,531,681"/>
+<area shape="poly" id="edge10_Node000005_Node000010" title=" " alt="" coords="443,682,371,824,367,821,438,680"/>
+</map>
