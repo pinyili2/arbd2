@@ -1,4 +1,6 @@
 var searchData=
 [
-  ['productpotentialconf_0',['ProductPotentialConf',['../class_product_potential_conf.html',1,'']]]
+  ['scatter_0',['Scatter',['../class_scatter.html',1,'']]],
+  ['simplepotential_1',['SimplePotential',['../class_simple_potential.html',1,'']]],
+  ['string_2',['String',['../class_string.html',1,'']]]
 ];

@@ -24,6 +24,7 @@
 /* @license-end */
 </script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
 </head>
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
@@ -34,7 +35,7 @@
   <td id="projectalign">
    <div id="projectname">ARBD C++ Library
    </div>
-   <div id="projectbrief">Acceleration of Rigid Body Dynamics</div>
+   <div id="projectbrief">Atomic Resolution Brownian Dynamics</div>
   </td>
     <td>        <div id="MSearchBox" class="MSearchBoxInactive">
         <span class="left">
@@ -1172,23 +1173,48 @@ $(function(){initNavTree('_compute_force_8cuh_source.html',''); initResizable(tr
 <div class="line"><a id="l01064" name="l01064"></a><span class="lineno"> 1064</span>    // }</div>
 <div class="line"><a id="l01065" name="l01065"></a><span class="lineno"> 1065</span>    }</div>
 <div class="line"><a id="l01066" name="l01066"></a><span class="lineno"> 1066</span>}</div>
-<div class="line"><a id="l01067" name="l01067"></a><span class="lineno"> 1067</span> </div>
+<div class="line"><a id="l01067" name="l01067"></a><span class="lineno"> 1067</span>template&lt;bool get_energy&gt;</div>
 <div class="line"><a id="l01068" name="l01068"></a><span class="lineno"> 1068</span>__global__</div>
-<div class="line"><a id="l01069" name="l01069"></a><span class="lineno"> 1069</span>void computeHarmonicRestraints(Vector3* force, const Vector3* __restrict__ pos,</div>
+<div class="line"><a id="l01069" name="l01069"></a><span class="lineno"> 1069</span>void computeTabulatedVecangles(Vector3* force, const Vector3* __restrict__ pos,</div>
 <div class="line"><a id="l01070" name="l01070"></a><span class="lineno"> 1070</span>                   const BaseGrid* __restrict__ sys,</div>
-<div class="line"><a id="l01071" name="l01071"></a><span class="lineno"> 1071</span>                   int numRestraints, const int2* const __restrict__ restraintList,</div>
-<div class="line"><a id="l01072" name="l01072"></a><span class="lineno"> 1072</span>                   const Vector3* __restrict__ r0, const float* __restrict__ k) {</div>
+<div class="line"><a id="l01071" name="l01071"></a><span class="lineno"> 1071</span>                   int numVecangles, const int4* const __restrict__ vecangleList_d,</div>
+<div class="line"><a id="l01072" name="l01072"></a><span class="lineno"> 1072</span>                   const int* __restrict__ vecanglePotList_d, TabulatedVecanglePotential** tableVecangle, float* energy=nullptr) {</div>
 <div class="line"><a id="l01073" name="l01073"></a><span class="lineno"> 1073</span> </div>
-<div class="line"><a id="l01074" name="l01074"></a><span class="lineno"> 1074</span>    // Loop over ALL dihedrals in ALL replicas</div>
-<div class="line"><a id="l01075" name="l01075"></a><span class="lineno"> 1075</span>    for (int i = threadIdx.x+blockIdx.x*blockDim.x; i &lt; numRestraints; i+=blockDim.x*gridDim.x) {</div>
-<div class="line"><a id="l01076" name="l01076"></a><span class="lineno"> 1076</span>    const int&amp; id = restraintList[i].x;</div>
-<div class="line"><a id="l01077" name="l01077"></a><span class="lineno"> 1077</span>    const int&amp; rid = restraintList[i].y;</div>
-<div class="line"><a id="l01078" name="l01078"></a><span class="lineno"> 1078</span> </div>
-<div class="line"><a id="l01079" name="l01079"></a><span class="lineno"> 1079</span>    const Vector3 dr = sys-&gt;wrapDiff(pos[id]-r0[rid]);</div>
-<div class="line"><a id="l01080" name="l01080"></a><span class="lineno"> 1080</span>    Vector3 f = -k[rid]*dr;</div>
-<div class="line"><a id="l01081" name="l01081"></a><span class="lineno"> 1081</span>    atomicAdd( &amp;force[ id ], f );</div>
-<div class="line"><a id="l01082" name="l01082"></a><span class="lineno"> 1082</span>    }</div>
-<div class="line"><a id="l01083" name="l01083"></a><span class="lineno"> 1083</span>}</div>
+<div class="line"><a id="l01074" name="l01074"></a><span class="lineno"> 1074</span>    // int currVecangle = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID</div>
+<div class="line"><a id="l01075" name="l01075"></a><span class="lineno"> 1075</span> </div>
+<div class="line"><a id="l01076" name="l01076"></a><span class="lineno"> 1076</span>    // Loop over ALL vecangles in ALL replicas</div>
+<div class="line"><a id="l01077" name="l01077"></a><span class="lineno"> 1077</span>    for (int i = threadIdx.x+blockIdx.x*blockDim.x; i &lt; numVecangles; i+=blockDim.x*gridDim.x) {</div>
+<div class="line"><a id="l01078" name="l01078"></a><span class="lineno"> 1078</span>        const int4&amp; ids = vecangleList_d[i];</div>
+<div class="line"><a id="l01079" name="l01079"></a><span class="lineno"> 1079</span>        const int&amp; id = vecanglePotList_d[i];</div>
+<div class="line"><a id="l01080" name="l01080"></a><span class="lineno"> 1080</span>        TabulatedVecanglePotential* __restrict__ p = tableVecangle[ id ];</div>
+<div class="line"><a id="l01081" name="l01081"></a><span class="lineno"> 1081</span>        float tmp = p-&gt;compute_value( pos, sys, ids);</div>
+<div class="line"><a id="l01082" name="l01082"></a><span class="lineno"> 1082</span>        float2 ef = p-&gt;compute_energy_and_deriv(tmp);</div>
+<div class="line"><a id="l01083" name="l01083"></a><span class="lineno"> 1083</span>        p-&gt;apply_force(pos,sys,force, ids, ef.y);</div>
+<div class="line"><a id="l01084" name="l01084"></a><span class="lineno"> 1084</span>        if (get_energy) {</div>
+<div class="line"><a id="l01085" name="l01085"></a><span class="lineno"> 1085</span>            atomicAdd( &amp;energy[ids.x], ef.x*0.25 );</div>
+<div class="line"><a id="l01086" name="l01086"></a><span class="lineno"> 1086</span>            atomicAdd( &amp;energy[ids.y], ef.x*0.25 );</div>
+<div class="line"><a id="l01087" name="l01087"></a><span class="lineno"> 1087</span>            atomicAdd( &amp;energy[ids.z], ef.x*0.25 );</div>
+<div class="line"><a id="l01088" name="l01088"></a><span class="lineno"> 1088</span>            atomicAdd( &amp;energy[ids.w], ef.x*0.25 );</div>
+<div class="line"><a id="l01089" name="l01089"></a><span class="lineno"> 1089</span>        }</div>
+<div class="line"><a id="l01090" name="l01090"></a><span class="lineno"> 1090</span>    }</div>
+<div class="line"><a id="l01091" name="l01091"></a><span class="lineno"> 1091</span>}</div>
+<div class="line"><a id="l01092" name="l01092"></a><span class="lineno"> 1092</span> </div>
+<div class="line"><a id="l01093" name="l01093"></a><span class="lineno"> 1093</span>__global__</div>
+<div class="line"><a id="l01094" name="l01094"></a><span class="lineno"> 1094</span>void computeHarmonicRestraints(Vector3* force, const Vector3* __restrict__ pos,</div>
+<div class="line"><a id="l01095" name="l01095"></a><span class="lineno"> 1095</span>                   const BaseGrid* __restrict__ sys,</div>
+<div class="line"><a id="l01096" name="l01096"></a><span class="lineno"> 1096</span>                   int numRestraints, const int2* const __restrict__ restraintList,</div>
+<div class="line"><a id="l01097" name="l01097"></a><span class="lineno"> 1097</span>                   const Vector3* __restrict__ r0, const float* __restrict__ k) {</div>
+<div class="line"><a id="l01098" name="l01098"></a><span class="lineno"> 1098</span> </div>
+<div class="line"><a id="l01099" name="l01099"></a><span class="lineno"> 1099</span>    // Loop over ALL dihedrals in ALL replicas</div>
+<div class="line"><a id="l01100" name="l01100"></a><span class="lineno"> 1100</span>    for (int i = threadIdx.x+blockIdx.x*blockDim.x; i &lt; numRestraints; i+=blockDim.x*gridDim.x) {</div>
+<div class="line"><a id="l01101" name="l01101"></a><span class="lineno"> 1101</span>    const int&amp; id = restraintList[i].x;</div>
+<div class="line"><a id="l01102" name="l01102"></a><span class="lineno"> 1102</span>    const int&amp; rid = restraintList[i].y;</div>
+<div class="line"><a id="l01103" name="l01103"></a><span class="lineno"> 1103</span> </div>
+<div class="line"><a id="l01104" name="l01104"></a><span class="lineno"> 1104</span>    const Vector3 dr = sys-&gt;wrapDiff(pos[id]-r0[rid]);</div>
+<div class="line"><a id="l01105" name="l01105"></a><span class="lineno"> 1105</span>    Vector3 f = -k[rid]*dr;</div>
+<div class="line"><a id="l01106" name="l01106"></a><span class="lineno"> 1106</span>    atomicAdd( &amp;force[ id ], f );</div>
+<div class="line"><a id="l01107" name="l01107"></a><span class="lineno"> 1107</span>    }</div>
+<div class="line"><a id="l01108" name="l01108"></a><span class="lineno"> 1108</span>}</div>
 </div><!-- fragment --></div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->

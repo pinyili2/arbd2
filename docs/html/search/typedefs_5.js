@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['wkf_5ftimerhandle_0',['wkf_timerhandle',['../_w_k_f_utils_8h.html#a9a54cfe163d2a7e7ba5b98fcc81c8858',1,'WKFUtils.h']]]
+  ['vecangle_0',['Vecangle',['../_configuration_8h.html#a87c2330253ab75754fc5c41c5213ef2e',1,'Configuration.h']]]
 ];

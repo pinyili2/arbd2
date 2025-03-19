@@ -32,6 +32,8 @@ var class_configuration =
     [ "readProductPotentials", "class_configuration.html#aa345d018e688ae3e2e9093f166ec93de", null ],
     [ "readRestraints", "class_configuration.html#a24a9420249ffe5224b092514f32cb872", null ],
     [ "readTableFile", "class_configuration.html#a7816d12e6f140a2e05bfb82a1111b7a3", null ],
+    [ "readVecangleFile", "class_configuration.html#af8a3627f66ad20158b5576b45b0c3786", null ],
+    [ "readVecangles", "class_configuration.html#a27a4e8c2fc7b21d1ad12af3fa88f29ec", null ],
     [ "setDefaults", "class_configuration.html#a940f1e839ad911e8eafea12f2325ae21", null ],
     [ "stringToMatrix3", "class_configuration.html#a580efe16575d692c3dd2e32aeb3a6710", null ],
     [ "stringToVector3", "class_configuration.html#a4bced025cfefb94e7c7fb3c0ad2e1436", null ],
@@ -104,6 +106,8 @@ var class_configuration =
     [ "numTabAngleFiles", "class_configuration.html#a0ed59c421eab37416a3a81a0d63cae6c", null ],
     [ "numTabBondFiles", "class_configuration.html#a44daf5b67569c2a37da9f693800fb224", null ],
     [ "numTabDihedralFiles", "class_configuration.html#a727e62a3db4819529bb79e4459799267", null ],
+    [ "numTabVecangleFiles", "class_configuration.html#aa1699f7de55bb5d6d132d25ffe7ebad4", null ],
+    [ "numVecangles", "class_configuration.html#abac27bb52e9296388fa1a4fba082ad99", null ],
     [ "origin", "class_configuration.html#a9cfe1f8714e194c7e3a7c4a780580586", null ],
     [ "outputEnergyPeriod", "class_configuration.html#a95123d181543bc8be1c215b45b13058a", null ],
     [ "outputFormat", "class_configuration.html#a521c561907748e83e06ed7177d3fcd58", null ],
@@ -116,6 +120,7 @@ var class_configuration =
     [ "part_grid_dictionary_d", "class_configuration.html#a637d0c236fe344d343e68bccaafa2e3f", null ],
     [ "partDiffusionGridFile", "class_configuration.html#aaf5d719d3ddb1f2159896e0986dafbfe", null ],
     [ "partFile", "class_configuration.html#a6cb5f1afea5468d0c08ad2a5b57c60ed", null ],
+    [ "partForceGridScale", "class_configuration.html#a86e4a91e8be794153056d5b4c4f28677", null ],
     [ "partForceXGridFile", "class_configuration.html#a77f288058a86f75e76dbcd26da1446a8", null ],
     [ "partForceYGridFile", "class_configuration.html#acc2425ac309ac509537535d04174d468", null ],
     [ "partForceZGridFile", "class_configuration.html#a394b9849c218f9b97175ea7ec8893c51", null ],
@@ -144,6 +149,7 @@ var class_configuration =
     [ "readPartsFromFile", "class_configuration.html#ad4f8042997840b5fbad2f263d4d8210b", null ],
     [ "readProductPotentialsFromFile", "class_configuration.html#aeca42fc8efe24ad5e5f59fcd4194b5c6", null ],
     [ "readRestraintsFromFile", "class_configuration.html#ad4797d4e72cb909a41f700af399f118c", null ],
+    [ "readVecanglesFromFile", "class_configuration.html#aa46e408d839e940d4546568efd846e71", null ],
     [ "restartCoordinates", "class_configuration.html#a43db56decbaf3d54dfc6d40b80f33dfc", null ],
     [ "restartMomentum", "class_configuration.html#a6cac3ec3bf8da21e99aba6903a3c48b3", null ],
     [ "restartRBCoordinates", "class_configuration.html#acfd95ac48ff66b9d748d338e85022e92", null ],
@@ -172,5 +178,8 @@ var class_configuration =
     [ "tGrid", "class_configuration.html#abad1c60fc631a876b977c3da9041b4a1", null ],
     [ "timeLast", "class_configuration.html#a50fd31ccc94f667064c53e0b226535ab", null ],
     [ "timestep", "class_configuration.html#aa78ce512e0cd18a4d5e416846db575bf", null ],
-    [ "type", "class_configuration.html#a670f87fd6d319f65335a5fc3be406767", null ]
+    [ "type", "class_configuration.html#a670f87fd6d319f65335a5fc3be406767", null ],
+    [ "vecangleFile", "class_configuration.html#a50a9cb2f2e9472b2d5b579f8adf4ee95", null ],
+    [ "vecangles", "class_configuration.html#ad11486b06defaee62cc2a7c21f247add", null ],
+    [ "vecangleTableFile", "class_configuration.html#a274f2e4a906c9f190f1ae1e012c0c326", null ]
 ];

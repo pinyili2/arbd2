@@ -47,8 +47,6 @@ var dir_68267d1309a1af8e8297ef4c3efbcdba =
     [ "nvtx_defs.h", "nvtx__defs_8h.html", "nvtx__defs_8h" ],
     [ "OverlordGrid.h", "_overlord_grid_8h.html", "_overlord_grid_8h" ],
     [ "ProductPotential.h", "_product_potential_8h.html", "_product_potential_8h" ],
-    [ "Proxy2.h", "_proxy2_8h.html", "_proxy2_8h" ],
-    [ "Proxy_test.cpp", "_proxy__test_8cpp.html", "_proxy__test_8cpp" ],
     [ "Random.h", "_random_8h.html", "_random_8h" ],
     [ "RandomCPU.h", "_random_c_p_u_8h.html", "_random_c_p_u_8h" ],
     [ "RandomCUDA.cu", "_random_c_u_d_a_8cu.html", null ],

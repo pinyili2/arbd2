@@ -104,6 +104,8 @@ var class_grand_brown_town =
     [ "numTabAngleFiles", "class_grand_brown_town.html#a31d618f38b23e0ede521b8d08321ab8b", null ],
     [ "numTabBondFiles", "class_grand_brown_town.html#a1aeea922c7bccf76cd5bb6408876c97f", null ],
     [ "numTabDihedralFiles", "class_grand_brown_town.html#a5c380a72184fc8ac36cde2e8c76ffb9f", null ],
+    [ "numTabVecangleFiles", "class_grand_brown_town.html#aa9f5fc9e7fc1c0d83d6f6796723874be", null ],
+    [ "numVecangles", "class_grand_brown_town.html#a01952db56db2b48696a4a5f6323cd149", null ],
     [ "outCurrFiles", "class_grand_brown_town.html#a9a2f4e19ec4eb8e929c41707e26ab667", null ],
     [ "outFilePrefixes", "class_grand_brown_town.html#aa4b51e0a7363808a3590f1992f1e526e", null ],
     [ "outMomentumFilePrefixes", "class_grand_brown_town.html#a153faab6b7eb6b5fdd36b623ac68b79c", null ],
@@ -139,6 +141,7 @@ var class_grand_brown_town =
     [ "readDihedralsFromFile", "class_grand_brown_town.html#af7c0abbcdfd2f84e1fd71069d37327f0", null ],
     [ "readExcludesFromFile", "class_grand_brown_town.html#a1dafe8326bdaa1f0f427364cf5cab60d", null ],
     [ "readPartsFromFile", "class_grand_brown_town.html#a6b550e4306c03c526bb2e031391e12f3", null ],
+    [ "readVecanglesFromFile", "class_grand_brown_town.html#a63d410ef57bc21e4895dc0d5c1543238", null ],
     [ "restartCoordinates", "class_grand_brown_town.html#a5edb68fb5c364406693a5b24b9e9c462", null ],
     [ "restartFiles", "class_grand_brown_town.html#a4e25c2c9e08c20240d3033a61a089f3f", null ],
     [ "restartMomentumFiles", "class_grand_brown_town.html#a3771b80287cc8ed6bd5f64dd0c44a4fe", null ],
@@ -160,5 +163,10 @@ var class_grand_brown_town =
     [ "timeLast", "class_grand_brown_town.html#ab6259971a6103f9094f8ae5a41041456", null ],
     [ "timestep", "class_grand_brown_town.html#a14c609c78f08657eb2df55f91c3f0e10", null ],
     [ "type", "class_grand_brown_town.html#a8a93348629dfe56c649f042a757b3884", null ],
+    [ "vecangleFile", "class_grand_brown_town.html#ad399b5848496f208cc1211bf90aca9d4", null ],
+    [ "vecangleList", "class_grand_brown_town.html#afa1eb9a4e95e00c4e964912a496ff299", null ],
+    [ "vecanglePotList", "class_grand_brown_town.html#a7f621e12ec27201310206300924d3b2c", null ],
+    [ "vecangles", "class_grand_brown_town.html#a13e7c4eb3c163626cbc851b9ddcbcef0", null ],
+    [ "vecangleTableFile", "class_grand_brown_town.html#a038a6347934286f6d240889e8d34e95f", null ],
     [ "writers", "class_grand_brown_town.html#a6c9ba5ac6e087f2343050a6886afbc1c", null ]
 ];

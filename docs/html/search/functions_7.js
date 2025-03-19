@@ -74,11 +74,12 @@ var searchData=
   ['gettype_5fd_71',['getType_d',['../class_compute_force.html#aee5aa76a6c20bbab410fcd3239f0e316',1,'ComputeForce']]],
   ['getuniquegridnum_72',['getUniqueGridNum',['../class_overlord_grid.html#a5105d56e0b325cbf6850e31d77ea82f5',1,'OverlordGrid']]],
   ['getvalue_73',['getValue',['../class_base_grid.html#a915e7d856bf50bc2cb3f2ed12867ea24',1,'BaseGrid::getValue(int j) const'],['../class_base_grid.html#a18e39ac80d626e29d5af42a96e207e7d',1,'BaseGrid::getValue(int ix, int iy, int iz) const'],['../class_reader.html#add6244766306e098b805b439e68161ec',1,'Reader::getValue()'],['../class_rigid_body_grid.html#ab9b7d16fec343f720e0822275d84a076',1,'RigidBodyGrid::getValue(int j) const'],['../class_rigid_body_grid.html#abfc4152b2a7b96347521ddb3b103494f',1,'RigidBodyGrid::getValue(int ix, int iy, int iz) const']]],
-  ['getvelocity_74',['getVelocity',['../class_rigid_body.html#a8de276d9eb7a5218ff5215e9534ed1b6',1,'RigidBody']]],
-  ['getvolume_75',['getVolume',['../class_base_grid.html#af92d30d117cb17892fbab73be39e0734',1,'BaseGrid']]],
-  ['gpu_76',['GPU',['../class_g_p_u.html#aebf928f5ba392c214a4cc88af4ceeee9',1,'GPU']]],
-  ['gpucontroller_77',['GPUcontroller',['../class_g_p_ucontroller.html#abce559b3c63ff8412e595b2c2f568e95',1,'GPUcontroller']]],
-  ['gpupeer_78',['GPUPeer',['../struct_g_p_u_peer.html#ad151bc3481998d486d069b79fa1fa428',1,'GPUPeer::GPUPeer()'],['../struct_g_p_u_peer.html#aa27f567e4673531122a4555c00b4ff4f',1,'GPUPeer::GPUPeer(int gpu)']]],
-  ['grandbrowntown_79',['GrandBrownTown',['../class_grand_brown_town.html#a057538f05cfd7df42ffb555e11ebfe16',1,'GrandBrownTown::GrandBrownTown(const char *configFile, const char *outArg, bool debug, bool imd_on, unsigned int imd_port, int numReplicas=0)'],['../class_grand_brown_town.html#ab501447584f20d32d1992460bbe79318',1,'GrandBrownTown::GrandBrownTown(const Configuration &amp;c, const char *outArg, bool debug, bool imd_on, unsigned int imd_port, int numReplicas=0)']]],
-  ['grow_80',['grow',['../class_string.html#a4593d5f324cbc03f147949420fa629c0',1,'String']]]
+  ['getvecangles_5fd_74',['getVecangles_d',['../class_compute_force.html#a514bb0b050b3c8eb2b9f04a0e4d2d83f',1,'ComputeForce']]],
+  ['getvelocity_75',['getVelocity',['../class_rigid_body.html#a8de276d9eb7a5218ff5215e9534ed1b6',1,'RigidBody']]],
+  ['getvolume_76',['getVolume',['../class_base_grid.html#af92d30d117cb17892fbab73be39e0734',1,'BaseGrid']]],
+  ['gpu_77',['GPU',['../class_g_p_u.html#aebf928f5ba392c214a4cc88af4ceeee9',1,'GPU']]],
+  ['gpucontroller_78',['GPUcontroller',['../class_g_p_ucontroller.html#abce559b3c63ff8412e595b2c2f568e95',1,'GPUcontroller']]],
+  ['gpupeer_79',['GPUPeer',['../struct_g_p_u_peer.html#ad151bc3481998d486d069b79fa1fa428',1,'GPUPeer::GPUPeer()'],['../struct_g_p_u_peer.html#aa27f567e4673531122a4555c00b4ff4f',1,'GPUPeer::GPUPeer(int gpu)']]],
+  ['grandbrowntown_80',['GrandBrownTown',['../class_grand_brown_town.html#a057538f05cfd7df42ffb555e11ebfe16',1,'GrandBrownTown::GrandBrownTown(const char *configFile, const char *outArg, bool debug, bool imd_on, unsigned int imd_port, int numReplicas=0)'],['../class_grand_brown_town.html#ab501447584f20d32d1992460bbe79318',1,'GrandBrownTown::GrandBrownTown(const Configuration &amp;c, const char *outArg, bool debug, bool imd_on, unsigned int imd_port, int numReplicas=0)']]],
+  ['grow_81',['grow',['../class_string.html#a4593d5f324cbc03f147949420fa629c0',1,'String']]]
 ];

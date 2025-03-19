@@ -1,5 +1,7 @@
 <map id="SimplePotential::apply_vecangle_force" name="SimplePotential::apply_vecangle_force">
-<area shape="rect" id="Node000001" title=" " alt="" coords="205,5,356,46"/>
-<area shape="rect" id="Node000002" href="$class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,5,157,46"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="189,28,157,28,157,23,189,23"/>
+<area shape="rect" id="Node000001" title=" " alt="" coords="205,39,356,79"/>
+<area shape="rect" id="Node000002" href="$class_simple_potential.html#a44bcd96a9f18b151d44485ce9ea9365c" title=" " alt="" coords="5,5,157,46"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="189,46,157,41,157,36,190,41"/>
+<area shape="rect" id="Node000003" href="$class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,71,157,111"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="190,76,157,81,157,76,189,71"/>
 </map>

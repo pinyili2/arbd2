@@ -12,7 +12,7 @@ var searchData=
   ['namd_5fseparatewaters_9',['NAMD_SeparateWaters',['../namd__common_8h.html#a62c66714cc84b3c7bd6fb809fc05e683',1,'namd_common.h']]],
   ['namd_5fstringdup_10',['NAMD_stringdup',['../namd__common_8h.html#a05662f7895b92a210317eb82200fc323',1,'namd_common.h']]],
   ['namd_5fwrite_11',['NAMD_write',['../_dcd_writer_8h.html#a709a4fe243ebb8365fb48fd6108fcc39',1,'DcdWriter.h']]],
-  ['name_12',['name',['../class_brownian_particle_type.html#a0c41e05e9df0fdaaf984f9c6c0060525',1,'BrownianParticleType::name'],['../class_configuration.html#abd052ed67ff59244daa133bd86aad9c2',1,'Configuration::name'],['../class_grand_brown_town.html#ae0e00cfa47c0c5d2a97d6611a35a6e6c',1,'GrandBrownTown::name'],['../struct_test_struct_1_1_metadata.html#a30b54597ce44d2f39b2f3adc78e96df0',1,'TestStruct::Metadata::name'],['../class_rigid_body.html#a3b11719680cec94bb74df655e3cc0ce3',1,'RigidBody::name'],['../class_rigid_body_type.html#a32484283895c778944747e9c9804a624',1,'RigidBodyType::name']]],
+  ['name_12',['name',['../class_brownian_particle_type.html#a0c41e05e9df0fdaaf984f9c6c0060525',1,'BrownianParticleType::name'],['../class_configuration.html#abd052ed67ff59244daa133bd86aad9c2',1,'Configuration::name'],['../class_grand_brown_town.html#ae0e00cfa47c0c5d2a97d6611a35a6e6c',1,'GrandBrownTown::name'],['../class_rigid_body.html#a3b11719680cec94bb74df655e3cc0ce3',1,'RigidBody::name'],['../class_rigid_body_type.html#a32484283895c778944747e9c9804a624',1,'RigidBodyType::name']]],
   ['ncells_13',['nCells',['../class_cell_decomposition.html#a6f8080e50227c6c773d55693b7eb4355',1,'CellDecomposition']]],
   ['nearestindex_14',['nearestIndex',['../class_base_grid.html#a8a3d4f7766c1838283a3febfdadaec87',1,'BaseGrid']]],
   ['neigh_15',['neigh',['../class_compute_force.html#a06028346326fe01663a5874d5f70f63a',1,'ComputeForce']]],
@@ -71,8 +71,10 @@ var searchData=
   ['numtabbondfiles_68',['numTabBondFiles',['../class_compute_force.html#aa5b4ed7f98b3305d2f006d2cf8b82ced',1,'ComputeForce::numTabBondFiles'],['../class_configuration.html#a44daf5b67569c2a37da9f693800fb224',1,'Configuration::numTabBondFiles'],['../class_grand_brown_town.html#a1aeea922c7bccf76cd5bb6408876c97f',1,'GrandBrownTown::numTabBondFiles']]],
   ['numtabdihedralfiles_69',['numTabDihedralFiles',['../class_compute_force.html#a68990e9493ce3494c01a0ff8d0259d50',1,'ComputeForce::numTabDihedralFiles'],['../class_configuration.html#a727e62a3db4819529bb79e4459799267',1,'Configuration::numTabDihedralFiles'],['../class_grand_brown_town.html#a5c380a72184fc8ac36cde2e8c76ffb9f',1,'GrandBrownTown::numTabDihedralFiles']]],
   ['numtablepots_70',['numTablePots',['../class_compute_force.html#a62d62afc8a009343315a5343c70de6ce',1,'ComputeForce']]],
-  ['nvtx_5fdefs_2eh_71',['nvtx_defs.h',['../nvtx__defs_8h.html',1,'']]],
-  ['nx_72',['nx',['../class_base_grid.html#a1684ccf76bf27e66966c7d981018a0de',1,'BaseGrid::nx'],['../class_rigid_body_grid.html#aeef4a5400fdb40a1c23ca0e03d74e176',1,'RigidBodyGrid::nx']]],
-  ['ny_73',['ny',['../class_base_grid.html#aee4f275fedca26eae130df0d4a32fbba',1,'BaseGrid::ny'],['../class_rigid_body_grid.html#a72070f80f5d8a5773d4416348c582587',1,'RigidBodyGrid::ny']]],
-  ['nz_74',['nz',['../class_base_grid.html#ac74335896688e04c2d1cfe04d6c97deb',1,'BaseGrid::nz'],['../class_rigid_body_grid.html#a3f618053ad05859477dc843e9e696880',1,'RigidBodyGrid::nz']]]
+  ['numtabvecanglefiles_71',['numTabVecangleFiles',['../class_compute_force.html#ac35917ae438a08666cf321b7a20909d6',1,'ComputeForce::numTabVecangleFiles'],['../class_configuration.html#aa1699f7de55bb5d6d132d25ffe7ebad4',1,'Configuration::numTabVecangleFiles'],['../class_grand_brown_town.html#aa9f5fc9e7fc1c0d83d6f6796723874be',1,'GrandBrownTown::numTabVecangleFiles']]],
+  ['numvecangles_72',['numVecangles',['../class_compute_force.html#adb7934768c21d170cd1f555fef20d0a3',1,'ComputeForce::numVecangles'],['../class_configuration.html#abac27bb52e9296388fa1a4fba082ad99',1,'Configuration::numVecangles'],['../class_grand_brown_town.html#a01952db56db2b48696a4a5f6323cd149',1,'GrandBrownTown::numVecangles']]],
+  ['nvtx_5fdefs_2eh_73',['nvtx_defs.h',['../nvtx__defs_8h.html',1,'']]],
+  ['nx_74',['nx',['../class_base_grid.html#a1684ccf76bf27e66966c7d981018a0de',1,'BaseGrid::nx'],['../class_rigid_body_grid.html#aeef4a5400fdb40a1c23ca0e03d74e176',1,'RigidBodyGrid::nx']]],
+  ['ny_75',['ny',['../class_base_grid.html#aee4f275fedca26eae130df0d4a32fbba',1,'BaseGrid::ny'],['../class_rigid_body_grid.html#a72070f80f5d8a5773d4416348c582587',1,'RigidBodyGrid::ny']]],
+  ['nz_76',['nz',['../class_base_grid.html#ac74335896688e04c2d1cfe04d6c97deb',1,'BaseGrid::nz'],['../class_rigid_body_grid.html#a3f618053ad05859477dc843e9e696880',1,'RigidBodyGrid::nz']]]
 ];

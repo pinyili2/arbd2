@@ -1,4 +1,4 @@
 var searchData=
 [
-  ['void_5ft_0',['void_t',['../_proxy2_8h.html#ab8ddf9531fc4ac7ce28574db20c8f20e',1,'Proxy2.h']]]
+  ['tabulatedvecanglepotential_0',['TabulatedVecanglePotential',['../_tabulated_potential_8h.html#a5fab145c06f4c7e8bf01ceca24f8d5d4',1,'TabulatedPotential.h']]]
 ];

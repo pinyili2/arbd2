@@ -24,6 +24,7 @@
 /* @license-end */
 </script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
+<link href="doxygen-awesome.css" rel="stylesheet" type="text/css"/>
 </head>
 <body>
 <div id="top"><!-- do not remove this div, it is closed by doxygen! -->
@@ -34,7 +35,7 @@
   <td id="projectalign">
    <div id="projectname">ARBD C++ Library
    </div>
-   <div id="projectbrief">Acceleration of Rigid Body Dynamics</div>
+   <div id="projectbrief">Atomic Resolution Brownian Dynamics</div>
   </td>
     <td>        <div id="MSearchBox" class="MSearchBoxInactive">
         <span class="left">
@@ -137,6 +138,8 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:ae3d1ac937802b96944a64492d52077a4"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a58e9c4b25d8203c83904cba2fb6e569d" id="r_a58e9c4b25d8203c83904cba2fb6e569d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#abbbcf3c42c997889127cc676754a6fea">HOST</a> <a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a58e9c4b25d8203c83904cba2fb6e569d">compute_value</a> (const Vector3 *__restrict__ pos, const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__ sys, const int *__restrict__ particles) const</td></tr>
 <tr class="separator:a58e9c4b25d8203c83904cba2fb6e569d"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a6ae08fa0fb020fb09ac54595c986cc95" id="r_a6ae08fa0fb020fb09ac54595c986cc95"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#abbbcf3c42c997889127cc676754a6fea">HOST</a> <a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a6ae08fa0fb020fb09ac54595c986cc95">compute_value</a> (const Vector3 *__restrict__ pos, const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__ sys, const int4 &amp;particles) const</td></tr>
+<tr class="separator:a6ae08fa0fb020fb09ac54595c986cc95"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a224323cdb7352e17368c1c2802ad54b5" id="r_a224323cdb7352e17368c1c2802ad54b5"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#abbbcf3c42c997889127cc676754a6fea">HOST</a> <a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> float2&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a224323cdb7352e17368c1c2802ad54b5">compute_energy_and_deriv</a> (float value)</td></tr>
 <tr class="separator:a224323cdb7352e17368c1c2802ad54b5"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a511d473ee78468875943b3a490877b4d" id="r_a511d473ee78468875943b3a490877b4d"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#abbbcf3c42c997889127cc676754a6fea">HOST</a> <a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> float&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a511d473ee78468875943b3a490877b4d">compute_bond</a> (const Vector3 *__restrict__ pos, const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__ sys, int i, int j) const</td></tr>
@@ -154,6 +157,8 @@ Public Member Functions</h2></td></tr>
 <tr class="separator:a33fd01eb23e2ade637e07bf903ecfeaf"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a43141a3fc66da68be9772a4335f9b468" id="r_a43141a3fc66da68be9772a4335f9b468"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a43141a3fc66da68be9772a4335f9b468">apply_force</a> (const Vector3 *__restrict__ pos, const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__ sys, Vector3 *__restrict__ forces, int *particles, float energy_deriv) const</td></tr>
 <tr class="separator:a43141a3fc66da68be9772a4335f9b468"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a44bcd96a9f18b151d44485ce9ea9365c" id="r_a44bcd96a9f18b151d44485ce9ea9365c"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a44bcd96a9f18b151d44485ce9ea9365c">apply_force</a> (const Vector3 *__restrict__ pos, const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__ sys, Vector3 *__restrict__ forces, const int4 &amp;particles, float energy_deriv) const</td></tr>
+<tr class="separator:a44bcd96a9f18b151d44485ce9ea9365c"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a0415c8e5f54e54fca2f5c707ec34cc70" id="r_a0415c8e5f54e54fca2f5c707ec34cc70"><td class="memItemLeft" align="right" valign="top">__device__ void&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a0415c8e5f54e54fca2f5c707ec34cc70">apply_bond_force</a> (const Vector3 *__restrict__ pos, const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__ sys, Vector3 *__restrict__ force, int i, int j, float energy_deriv) const</td></tr>
 <tr class="separator:a0415c8e5f54e54fca2f5c707ec34cc70"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a9b82c4b13c466d6b84650a42209e444b" id="r_a9b82c4b13c466d6b84650a42209e444b"><td class="memItemLeft" align="right" valign="top"><a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> <a class="el" href="struct_simple_potential_1_1_two_vector3.html">TwoVector3</a>&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="#a9b82c4b13c466d6b84650a42209e444b">get_angle_force</a> (const Vector3 &amp;ab, const Vector3 &amp;bc, float energy_deriv) const</td></tr>
@@ -322,7 +327,7 @@ Public Attributes</h2></td></tr>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00442">442</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00480">480</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -340,9 +345,11 @@ Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_aa02327c562cdc88cc438561aebdb2755_icgraph.png" border="0" usemap="#aclass_simple_potential_aa02327c562cdc88cc438561aebdb2755_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_aa02327c562cdc88cc438561aebdb2755_icgraph" id="aclass_simple_potential_aa02327c562cdc88cc438561aebdb2755_icgraph">
-<area shape="rect" title=" " alt="" coords="205,5,356,46"/>
-<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,5,157,46"/>
-<area shape="poly" title=" " alt="" coords="189,28,157,28,157,23,189,23"/>
+<area shape="rect" title=" " alt="" coords="205,39,356,79"/>
+<area shape="rect" href="class_simple_potential.html#a44bcd96a9f18b151d44485ce9ea9365c" title=" " alt="" coords="5,5,157,46"/>
+<area shape="poly" title=" " alt="" coords="189,46,157,41,157,36,190,41"/>
+<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,71,157,111"/>
+<area shape="poly" title=" " alt="" coords="190,76,157,81,157,76,189,71"/>
 </map>
 </div>
 
@@ -395,7 +402,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00362">362</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00399">399</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -411,9 +418,11 @@ Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_a0415c8e5f54e54fca2f5c707ec34cc70_icgraph.png" border="0" usemap="#aclass_simple_potential_a0415c8e5f54e54fca2f5c707ec34cc70_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_a0415c8e5f54e54fca2f5c707ec34cc70_icgraph" id="aclass_simple_potential_a0415c8e5f54e54fca2f5c707ec34cc70_icgraph">
-<area shape="rect" title=" " alt="" coords="205,5,356,46"/>
-<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,5,157,46"/>
-<area shape="poly" title=" " alt="" coords="189,28,157,28,157,23,189,23"/>
+<area shape="rect" title=" " alt="" coords="205,39,356,79"/>
+<area shape="rect" href="class_simple_potential.html#a44bcd96a9f18b151d44485ce9ea9365c" title=" " alt="" coords="5,5,157,46"/>
+<area shape="poly" title=" " alt="" coords="189,46,157,41,157,36,190,41"/>
+<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,71,157,111"/>
+<area shape="poly" title=" " alt="" coords="190,76,157,81,157,76,189,71"/>
 </map>
 </div>
 
@@ -476,7 +485,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00460">460</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00498">498</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -492,16 +501,88 @@ Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_a3df60708f47403ae8f438a5f1a999e6e_icgraph.png" border="0" usemap="#aclass_simple_potential_a3df60708f47403ae8f438a5f1a999e6e_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_a3df60708f47403ae8f438a5f1a999e6e_icgraph" id="aclass_simple_potential_a3df60708f47403ae8f438a5f1a999e6e_icgraph">
-<area shape="rect" title=" " alt="" coords="205,5,356,46"/>
-<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,5,157,46"/>
-<area shape="poly" title=" " alt="" coords="189,28,157,28,157,23,189,23"/>
+<area shape="rect" title=" " alt="" coords="205,39,356,79"/>
+<area shape="rect" href="class_simple_potential.html#a44bcd96a9f18b151d44485ce9ea9365c" title=" " alt="" coords="5,5,157,46"/>
+<area shape="poly" title=" " alt="" coords="189,46,157,41,157,36,190,41"/>
+<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,71,157,111"/>
+<area shape="poly" title=" " alt="" coords="190,76,157,81,157,76,189,71"/>
+</map>
+</div>
+
+</div>
+</div>
+<a id="a44bcd96a9f18b151d44485ce9ea9365c" name="a44bcd96a9f18b151d44485ce9ea9365c"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a44bcd96a9f18b151d44485ce9ea9365c">&#9670;&#160;</a></span>apply_force() <span class="overload">[1/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> void SimplePotential::apply_force </td>
+          <td>(</td>
+          <td class="paramtype">const Vector3 *__restrict__</td>          <td class="paramname"><span class="paramname"><em>pos</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__</td>          <td class="paramname"><span class="paramname"><em>sys</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">Vector3 *__restrict__</td>          <td class="paramname"><span class="paramname"><em>forces</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int4 &amp;</td>          <td class="paramname"><span class="paramname"><em>particles</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">float</td>          <td class="paramname"><span class="paramname"><em>energy_deriv</em></span>&#160;) const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00382">382</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_simple_potential_a44bcd96a9f18b151d44485ce9ea9365c_cgraph.png" border="0" usemap="#aclass_simple_potential_a44bcd96a9f18b151d44485ce9ea9365c_cgraph" alt=""/></div>
+<map name="aclass_simple_potential_a44bcd96a9f18b151d44485ce9ea9365c_cgraph" id="aclass_simple_potential_a44bcd96a9f18b151d44485ce9ea9365c_cgraph">
+<area shape="rect" title=" " alt="" coords="5,104,157,145"/>
+<area shape="rect" href="class_simple_potential.html#aa02327c562cdc88cc438561aebdb2755" title=" " alt="" coords="205,136,356,177"/>
+<area shape="poly" title=" " alt="" coords="158,134,190,139,189,144,157,139"/>
+<area shape="rect" href="class_simple_potential.html#a0415c8e5f54e54fca2f5c707ec34cc70" title=" " alt="" coords="205,5,356,46"/>
+<area shape="poly" title=" " alt="" coords="119,101,203,57,216,51,219,55,206,61,121,106"/>
+<area shape="rect" href="class_simple_potential.html#a3df60708f47403ae8f438a5f1a999e6e" title=" " alt="" coords="205,71,356,111"/>
+<area shape="poly" title=" " alt="" coords="157,109,189,104,190,109,158,114"/>
+<area shape="rect" href="class_simple_potential.html#a04e5fa85f6d0363d97ba491a4894cc95" title=" " alt="" coords="205,201,356,242"/>
+<area shape="poly" title=" " alt="" coords="122,143,206,186,219,192,216,197,203,191,119,147"/>
+<area shape="rect" href="_tabulated_angle_8h.html#a765995cfb1a2fe93b4c19a7397dfa4a2" title=" " alt="" coords="432,113,515,138"/>
+<area shape="poly" title=" " alt="" coords="356,142,415,132,416,137,357,147"/>
+<area shape="rect" href="class_simple_potential.html#a9b82c4b13c466d6b84650a42209e444b" title=" " alt="" coords="404,167,542,207"/>
+<area shape="poly" title=" " alt="" coords="357,166,389,171,388,176,356,171"/>
+<area shape="poly" title=" " alt="" coords="332,44,357,57,438,102,436,107,355,61,329,49"/>
+<area shape="poly" title=" " alt="" coords="357,102,416,113,415,118,356,107"/>
+<area shape="poly" title=" " alt="" coords="331,198,355,186,403,153,422,143,425,148,405,157,357,191,333,203"/>
+<area shape="poly" title=" " alt="" coords="356,205,388,200,389,205,357,211"/>
 </map>
 </div>
 
 </div>
 </div>
 <a id="a43141a3fc66da68be9772a4335f9b468" name="a43141a3fc66da68be9772a4335f9b468"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a43141a3fc66da68be9772a4335f9b468">&#9670;&#160;</a></span>apply_force()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a43141a3fc66da68be9772a4335f9b468">&#9670;&#160;</a></span>apply_force() <span class="overload">[2/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -542,7 +623,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00345">345</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00366">366</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -627,7 +708,7 @@ Here is the call graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00500">500</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00538">538</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -645,9 +726,11 @@ Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_a04e5fa85f6d0363d97ba491a4894cc95_icgraph.png" border="0" usemap="#aclass_simple_potential_a04e5fa85f6d0363d97ba491a4894cc95_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_a04e5fa85f6d0363d97ba491a4894cc95_icgraph" id="aclass_simple_potential_a04e5fa85f6d0363d97ba491a4894cc95_icgraph">
-<area shape="rect" title=" " alt="" coords="205,5,356,46"/>
-<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,5,157,46"/>
-<area shape="poly" title=" " alt="" coords="189,28,157,28,157,23,189,23"/>
+<area shape="rect" title=" " alt="" coords="205,39,356,79"/>
+<area shape="rect" href="class_simple_potential.html#a44bcd96a9f18b151d44485ce9ea9365c" title=" " alt="" coords="5,5,157,46"/>
+<area shape="poly" title=" " alt="" coords="189,46,157,41,157,36,190,41"/>
+<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,71,157,111"/>
+<area shape="poly" title=" " alt="" coords="190,76,157,81,157,76,189,71"/>
 </map>
 </div>
 
@@ -695,7 +778,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00274">274</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00288">288</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -710,13 +793,16 @@ Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_afda00705e057064dd8d97f986061e69b_icgraph.png" border="0" usemap="#aclass_simple_potential_afda00705e057064dd8d97f986061e69b_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_afda00705e057064dd8d97f986061e69b_icgraph" id="aclass_simple_potential_afda00705e057064dd8d97f986061e69b_icgraph">
-<area shape="rect" title=" " alt="" coords="442,29,612,70"/>
-<area shape="poly" title=" " alt="" coords="563,16,549,10,527,8,506,10,494,15,489,21,491,28,486,29,484,19,491,10,505,5,527,3,551,5,565,11"/>
-<area shape="rect" href="class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,29,176,70"/>
-<area shape="poly" title=" " alt="" coords="426,49,394,48,224,48,176,49,176,44,224,43,394,43,426,44"/>
-<area shape="rect" href="class_simple_potential.html#ae6fc80ea04d4a2c5e068146769d7a946" title=" " alt="" coords="224,57,394,98"/>
-<area shape="poly" title=" " alt="" coords="427,65,395,69,394,64,426,60"/>
-<area shape="poly" title=" " alt="" coords="208,67,176,63,177,58,209,62"/>
+<area shape="rect" title=" " alt="" coords="442,49,612,90"/>
+<area shape="poly" title=" " alt="" coords="563,36,549,30,527,28,506,30,494,35,489,41,491,48,486,49,484,39,491,30,505,25,527,23,551,25,565,31"/>
+<area shape="rect" href="class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,5,176,46"/>
+<area shape="poly" title=" " alt="" coords="435,48,394,40,280,30,176,27,176,22,281,25,394,35,436,43"/>
+<area shape="rect" href="class_simple_potential.html#a6ae08fa0fb020fb09ac54595c986cc95" title=" " alt="" coords="5,83,176,123"/>
+<area shape="poly" title=" " alt="" coords="438,97,394,104,281,112,176,111,176,105,280,106,394,99,437,91"/>
+<area shape="rect" href="class_simple_potential.html#ae6fc80ea04d4a2c5e068146769d7a946" title=" " alt="" coords="224,49,394,90"/>
+<area shape="poly" title=" " alt="" coords="427,72,395,72,395,67,427,67"/>
+<area shape="poly" title=" " alt="" coords="208,52,176,46,177,40,209,47"/>
+<area shape="poly" title=" " alt="" coords="209,88,177,93,176,87,208,82"/>
 </map>
 </div>
 
@@ -754,7 +840,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00292">292</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00313">313</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 
 </div>
 </div>
@@ -795,15 +881,17 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00268">268</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00282">282</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_a511d473ee78468875943b3a490877b4d_icgraph.png" border="0" usemap="#aclass_simple_potential_a511d473ee78468875943b3a490877b4d_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_a511d473ee78468875943b3a490877b4d_icgraph" id="aclass_simple_potential_a511d473ee78468875943b3a490877b4d_icgraph">
-<area shape="rect" title=" " alt="" coords="224,13,429,38"/>
+<area shape="rect" title=" " alt="" coords="224,46,429,72"/>
 <area shape="rect" href="class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,5,176,46"/>
-<area shape="poly" title=" " alt="" coords="208,28,176,28,176,23,208,23"/>
+<area shape="poly" title=" " alt="" coords="216,46,176,40,177,35,216,41"/>
+<area shape="rect" href="class_simple_potential.html#a6ae08fa0fb020fb09ac54595c986cc95" title=" " alt="" coords="5,71,176,111"/>
+<area shape="poly" title=" " alt="" coords="212,77,177,82,176,77,211,72"/>
 </map>
 </div>
 
@@ -856,15 +944,17 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00307">307</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00328">328</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_abd1d6a8ef41fac9135ce7b574020379c_icgraph.png" border="0" usemap="#aclass_simple_potential_abd1d6a8ef41fac9135ce7b574020379c_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_abd1d6a8ef41fac9135ce7b574020379c_icgraph" id="aclass_simple_potential_abd1d6a8ef41fac9135ce7b574020379c_icgraph">
-<area shape="rect" title=" " alt="" coords="224,5,394,46"/>
+<area shape="rect" title=" " alt="" coords="224,39,394,79"/>
 <area shape="rect" href="class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,5,176,46"/>
-<area shape="poly" title=" " alt="" coords="208,28,176,28,176,23,208,23"/>
+<area shape="poly" title=" " alt="" coords="208,46,176,41,177,36,209,41"/>
+<area shape="rect" href="class_simple_potential.html#a6ae08fa0fb020fb09ac54595c986cc95" title=" " alt="" coords="5,71,176,111"/>
+<area shape="poly" title=" " alt="" coords="209,76,177,81,176,76,208,71"/>
 </map>
 </div>
 
@@ -893,7 +983,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00258">258</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00272">272</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -908,7 +998,7 @@ Here is the call graph for this function:</div>
 </div>
 </div>
 <a id="a58e9c4b25d8203c83904cba2fb6e569d" name="a58e9c4b25d8203c83904cba2fb6e569d"></a>
-<h2 class="memtitle"><span class="permalink"><a href="#a58e9c4b25d8203c83904cba2fb6e569d">&#9670;&#160;</a></span>compute_value()</h2>
+<h2 class="memtitle"><span class="permalink"><a href="#a58e9c4b25d8203c83904cba2fb6e569d">&#9670;&#160;</a></span>compute_value() <span class="overload">[1/2]</span></h2>
 
 <div class="memitem">
 <div class="memproto">
@@ -945,6 +1035,60 @@ Here is the call graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_a58e9c4b25d8203c83904cba2fb6e569d_cgraph.png" border="0" usemap="#aclass_simple_potential_a58e9c4b25d8203c83904cba2fb6e569d_cgraph" alt=""/></div>
 <map name="aclass_simple_potential_a58e9c4b25d8203c83904cba2fb6e569d_cgraph" id="aclass_simple_potential_a58e9c4b25d8203c83904cba2fb6e569d_cgraph">
+<area shape="rect" title=" " alt="" coords="5,54,176,95"/>
+<area shape="rect" href="class_simple_potential.html#afda00705e057064dd8d97f986061e69b" title=" " alt="" coords="477,61,647,101"/>
+<area shape="poly" title=" " alt="" coords="130,51,174,32,223,17,281,7,326,3,372,6,430,17,474,31,515,50,513,55,472,36,428,22,372,11,326,8,281,12,224,22,176,37,132,56"/>
+<area shape="rect" href="class_simple_potential.html#a511d473ee78468875943b3a490877b4d" title=" " alt="" coords="224,32,429,58"/>
+<area shape="poly" title=" " alt="" coords="176,61,208,57,208,62,176,66"/>
+<area shape="rect" href="class_simple_potential.html#abd1d6a8ef41fac9135ce7b574020379c" title=" " alt="" coords="241,82,412,123"/>
+<area shape="poly" title=" " alt="" coords="176,82,226,88,225,93,176,87"/>
+<area shape="rect" href="class_simple_potential.html#ae6fc80ea04d4a2c5e068146769d7a946" title=" " alt="" coords="241,147,412,188"/>
+<area shape="poly" title=" " alt="" coords="136,93,225,132,245,139,243,144,223,137,134,98"/>
+<area shape="poly" title=" " alt="" coords="518,61,516,51,523,41,539,36,562,34,588,36,603,42,601,47,586,41,562,39,540,41,526,46,521,52,523,59"/>
+<area shape="poly" title=" " alt="" coords="392,144,428,132,497,105,499,110,430,137,394,149"/>
+</map>
+</div>
+
+</div>
+</div>
+<a id="a6ae08fa0fb020fb09ac54595c986cc95" name="a6ae08fa0fb020fb09ac54595c986cc95"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a6ae08fa0fb020fb09ac54595c986cc95">&#9670;&#160;</a></span>compute_value() <span class="overload">[2/2]</span></h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname"><a class="el" href="_tabulated_potential_8h.html#abbbcf3c42c997889127cc676754a6fea">HOST</a> <a class="el" href="_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22">DEVICE</a> float SimplePotential::compute_value </td>
+          <td>(</td>
+          <td class="paramtype">const Vector3 *__restrict__</td>          <td class="paramname"><span class="paramname"><em>pos</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const <a class="el" href="class_base_grid.html">BaseGrid</a> *__restrict__</td>          <td class="paramname"><span class="paramname"><em>sys</em></span>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">const int4 &amp;</td>          <td class="paramname"><span class="paramname"><em>particles</em></span>&#160;) const</td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel inline">inline</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00257">257</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<div class="dynheader">
+Here is the call graph for this function:</div>
+<div class="dyncontent">
+<div class="center"><img src="class_simple_potential_a6ae08fa0fb020fb09ac54595c986cc95_cgraph.png" border="0" usemap="#aclass_simple_potential_a6ae08fa0fb020fb09ac54595c986cc95_cgraph" alt=""/></div>
+<map name="aclass_simple_potential_a6ae08fa0fb020fb09ac54595c986cc95_cgraph" id="aclass_simple_potential_a6ae08fa0fb020fb09ac54595c986cc95_cgraph">
 <area shape="rect" title=" " alt="" coords="5,54,176,95"/>
 <area shape="rect" href="class_simple_potential.html#afda00705e057064dd8d97f986061e69b" title=" " alt="" coords="477,61,647,101"/>
 <area shape="poly" title=" " alt="" coords="130,51,174,32,223,17,281,7,326,3,372,6,430,17,474,31,515,50,513,55,472,36,428,22,372,11,326,8,281,12,224,22,176,37,132,56"/>
@@ -1008,7 +1152,7 @@ Here is the call graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00283">283</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00297">297</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the call graph for this function:</div>
 <div class="dyncontent">
@@ -1025,9 +1169,11 @@ Here is the caller graph for this function:</div>
 <div class="dyncontent">
 <div class="center"><img src="class_simple_potential_ae6fc80ea04d4a2c5e068146769d7a946_icgraph.png" border="0" usemap="#aclass_simple_potential_ae6fc80ea04d4a2c5e068146769d7a946_icgraph" alt=""/></div>
 <map name="aclass_simple_potential_ae6fc80ea04d4a2c5e068146769d7a946_icgraph" id="aclass_simple_potential_ae6fc80ea04d4a2c5e068146769d7a946_icgraph">
-<area shape="rect" title=" " alt="" coords="224,5,394,46"/>
+<area shape="rect" title=" " alt="" coords="224,39,394,79"/>
 <area shape="rect" href="class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,5,176,46"/>
-<area shape="poly" title=" " alt="" coords="208,28,176,28,176,23,208,23"/>
+<area shape="poly" title=" " alt="" coords="208,46,176,41,177,36,209,41"/>
+<area shape="rect" href="class_simple_potential.html#a6ae08fa0fb020fb09ac54595c986cc95" title=" " alt="" coords="5,71,176,111"/>
+<area shape="poly" title=" " alt="" coords="209,76,177,81,176,76,208,71"/>
 </map>
 </div>
 
@@ -1065,7 +1211,7 @@ Here is the caller graph for this function:</div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00379">379</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00416">416</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">
@@ -1076,9 +1222,12 @@ Here is the caller graph for this function:</div>
 <area shape="poly" title=" " alt="" coords="388,47,356,41,357,36,389,42"/>
 <area shape="rect" href="class_simple_potential.html#a04e5fa85f6d0363d97ba491a4894cc95" title=" " alt="" coords="205,71,356,111"/>
 <area shape="poly" title=" " alt="" coords="389,76,357,81,356,76,388,70"/>
-<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,39,157,79"/>
-<area shape="poly" title=" " alt="" coords="190,44,157,49,157,44,189,38"/>
-<area shape="poly" title=" " alt="" coords="189,79,157,74,157,69,190,74"/>
+<area shape="rect" href="class_simple_potential.html#a44bcd96a9f18b151d44485ce9ea9365c" title=" " alt="" coords="5,5,157,46"/>
+<area shape="poly" title=" " alt="" coords="189,28,157,28,157,23,189,23"/>
+<area shape="rect" href="class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,71,157,111"/>
+<area shape="poly" title=" " alt="" coords="203,54,146,73,145,67,201,49"/>
+<area shape="poly" title=" " alt="" coords="201,68,145,49,146,44,203,63"/>
+<area shape="poly" title=" " alt="" coords="189,94,157,94,157,88,189,88"/>
 </map>
 </div>
 
@@ -1113,7 +1262,7 @@ template&lt;bool is_periodic&gt; </div>
 </table>
 </div><div class="memdoc">
 
-<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00325">325</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
+<p class="definition">Definition at line <a class="el" href="_tabulated_potential_8h_source.html#l00346">346</a> of file <a class="el" href="_tabulated_potential_8h_source.html">TabulatedPotential.h</a>.</p>
 <div class="dynheader">
 Here is the caller graph for this function:</div>
 <div class="dyncontent">

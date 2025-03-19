@@ -7,6 +7,7 @@ var _tabulated_potential_8h =
     [ "SimplePotential::TwoVector3", "struct_simple_potential_1_1_two_vector3.html", "struct_simple_potential_1_1_two_vector3" ],
     [ "DEVICE", "_tabulated_potential_8h.html#a775d096fbc3988fb7ed858b79ef44e22", null ],
     [ "HOST", "_tabulated_potential_8h.html#abbbcf3c42c997889127cc676754a6fea", null ],
+    [ "TabulatedVecanglePotential", "_tabulated_potential_8h.html#a5fab145c06f4c7e8bf01ceca24f8d5d4", null ],
     [ "SimplePotentialType", "_tabulated_potential_8h.html#a402926c0d76ee7776b1c1c92ec1de74a", [
       [ "UNSET", "_tabulated_potential_8h.html#a402926c0d76ee7776b1c1c92ec1de74aaec1d962808cbb9cf1b89a5cdd6197923", null ],
       [ "BOND", "_tabulated_potential_8h.html#a402926c0d76ee7776b1c1c92ec1de74aa173a95f5ec8cbbebfdc6c651cdea6a96", null ],
