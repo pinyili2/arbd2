@@ -69,6 +69,7 @@ public:
 	bool addBondPotential(String fileName, int ind, Bond* bonds, BondAngle* bondAngles);
 	bool addAnglePotential(String fileName, int ind, Angle* angles, BondAngle* bondAngles);
 	bool addDihedralPotential(String fileName, int ind, Dihedral* dihedrals);
+	bool addVecanglePotential(String fileName, int ind, Vecangle* vecangles);
 
 	void decompose();
 	
@@ -95,7 +96,7 @@ public:
 	
 	//MLog: new copy function to allocate memory required by ComputeForce class.
 	void copyToCUDA(Vector3* forceInternal, Vector3* pos);
-	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles,
+	void copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, Vecangle* vecangles, const Restraint* const restraints, const BondAngle* const bondAngles,
 			const XpotMap simple_potential_map,
 			const std::vector<SimplePotential> simple_potentials,
 			const ProductPotentialConf* const product_potential_confs);
@@ -103,7 +104,7 @@ public:
         void copyToCUDA(Vector3* forceInternal, Vector3* pos, Vector3* mom, float* random);
 	
 	// void createBondList(int3 *bondList);
-    void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *bondAngleList, int2 *restraintList);
+    void copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *vecangleList, int *vecanglePotList, int4 *bondAngleList, int2 *restraintList);
 	    
 	//MLog: because of the move of a lot of private variables, some functions get starved necessary memory access to these variables, below is a list of functions that return the specified private variable.
     std::vector<Vector3*> getPos_d()
@@ -160,6 +161,11 @@ public:
 		return dihedrals_d;
 	}
 
+	Vecangle* getVecangles_d()
+	{
+		return vecangles_d;
+	}
+
 	int3* getBondList_d()
 	{
 		return bondList_d;
@@ -207,6 +213,8 @@ private:
 	int numTabAngleFiles;
 	int numDihedrals;
 	int numTabDihedralFiles;
+	int numVecangles;
+	int numTabVecangleFiles;
 
 	int numGroupSites;
 	int* comSiteParticles;
@@ -217,6 +225,7 @@ private:
 	TabulatedPotential **tableBond;
 	TabulatedAnglePotential **tableAngle;
 	TabulatedDihedralPotential **tableDihedral;
+	TabulatedVecanglePotential **tableVecangle;
 	const BaseGrid* sys;
 	float switchStart, switchLen, electricConst, cutoff2;
 	CellDecomposition decomp;
@@ -237,6 +246,7 @@ private:
 	TabulatedPotential **tableBond_d, **tableBond_addr;
 	TabulatedAnglePotential **tableAngle_d, **tableAngle_addr;
 	TabulatedDihedralPotential **tableDihedral_d, **tableDihedral_addr;
+	TabulatedVecanglePotential **tableVecangle_d, **tableVecangle_addr;
 
 	// Pairlists
 	float pairlistdist2;
@@ -273,6 +283,7 @@ private:
 
 	Angle* angles_d;
 	Dihedral* dihedrals_d;
+	Vecangle* vecangles_d;
 
 	int numBondAngles;
 	BondAngle* bondAngles_d;
@@ -290,6 +301,8 @@ private:
 	int4* angleList_d;
 	int4* dihedralList_d;
 	int* dihedralPotList_d;
+	int4* vecangleList_d;
+	int* vecanglePotList_d;
         int2* restraintList_d;
     
 	int numRestraints;

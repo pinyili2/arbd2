@@ -188,6 +188,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	bondTableFile = c.bondTableFile;
 	angleTableFile = c.angleTableFile;
 	dihedralTableFile = c.dihedralTableFile;
+	vecangleTableFile = c.vecangleTableFile;
 
 	// Other parameters.
 	switchStart = c.switchStart;
@@ -201,6 +202,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	numExcludes = c.numExcludes;
 	numAngles = c.numAngles;
 	numDihedrals = c.numDihedrals;
+	numVecangles = c.numVecangles;
 	partTableIndex0 = c.partTableIndex0;
 	partTableIndex1 = c.partTableIndex1;
 
@@ -220,7 +222,9 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	numTabAngleFiles = c.numTabAngleFiles;
 
 	dihedrals = c.dihedrals;
+	vecangles = c.vecangles;
 	numTabDihedralFiles = c.numTabDihedralFiles;
+	numTabVecangleFiles = c.numTabVecangleFiles;
 
 	bondAngles = c.bondAngles;
 
@@ -262,7 +266,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	internal = new ComputeForce(c, numReplicas);
 
 	//MLog: I did the other halve of the copyToCUDA function from the Configuration class here, keep an eye on any mistakes that may occur due to the location.
-	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.restraints, c.bondAngles, c.simple_potential_ids, c.simple_potentials, c.productPotentials );
+	internal -> copyToCUDA(c.simNum, c.type, c.bonds, c.bondMap, c.excludes, c.excludeMap, c.angles, c.dihedrals, c.vecangles, c.restraints, c.bondAngles, c.simple_potential_ids, c.simple_potentials, c.productPotentials );
 	if (numGroupSites > 0) init_cuda_group_sites();
 
 	// TODO: check for duplicate potentials 
@@ -311,6 +315,13 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 		for (int p = 0; p < numTabDihedralFiles; p++)
 			if (dihedralTableFile[p].length() > 0)
 				internal->addDihedralPotential(dihedralTableFile[p].val(), p, dihedrals);
+	}
+
+	if (c.readVecanglesFromFile) {
+		printf("Loading %d tabulated vecangle potentials...\n", numTabVecangleFiles);
+		for (int p = 0; p < numTabVecangleFiles; p++)
+			if (vecangleTableFile[p].length() > 0)
+				internal->addVecanglePotential(vecangleTableFile[p].val(), p, vecangles);
 	}
 
 	auto _get_index = [this](int idx, int replica) {
@@ -377,6 +388,20 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	    }
 	}
 	}
+	if (numVecangles > 0) {
+	vecangleList = new int4[ (numVecangles) * numReplicas ];
+	vecanglePotList = new  int[ (numVecangles) * numReplicas ];
+	for(int k = 0 ; k < numReplicas; k++) {
+	    for(int i = 0; i < numVecangles; ++i) {
+			if (vecangles[i].tabFileIndex == -1) {
+				fprintf(stderr,"Error: vecanglefile '%s' was not read with tabulatedVecangleFile command.\n", vecangles[i].fileName.val());
+				exit(1);
+			}
+			vecangleList[i+k*numVecangles] = make_int4( _get_index(vecangles[i].ind1,k), _get_index(vecangles[i].ind2,k), _get_index(vecangles[i].ind3,k), _get_index(vecangles[i].ind4,k) );
+		vecanglePotList[i+k*numVecangles] = vecangles[i].tabFileIndex;
+	    }
+	}
+	}
 
 	if (numBondAngles > 0) {
 	bondAngleList = new int4[ (numBondAngles*2) * numReplicas ];
@@ -422,7 +447,7 @@ GrandBrownTown::GrandBrownTown(const Configuration& c, const char* outArg,
 	    }
 	}
 	
-	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList,bondAngleList,restraintList);
+	internal->copyBondedListsToGPU(bondList,angleList,dihedralList,dihedralPotList,vecangleList,vecanglePotList,bondAngleList,restraintList);
 	if (c.numRestraints > 0) delete[] restraintList;
 	
 	forceInternal = new Vector3[(num+num_rb_attached_particles+numGroupSites)*numReplicas];
@@ -481,6 +506,10 @@ GrandBrownTown::~GrandBrownTown() {
 	if (numDihedrals > 0) {
 		delete[] dihedralList;
 		delete[] dihedralPotList;
+	}
+	if (numVecangles > 0) {
+		delete[] vecangleList;
+		delete[] vecanglePotList;
 	}
         if(randoGen->states != NULL)
             {

@@ -37,6 +37,7 @@
 #include "Angle.h"
 #include "Configuration.h"
 #include "Dihedral.h"
+#include "TabulatedPotential.h"
 /* #include "RigidBody.h" */
 /* #include "RigidBodyType.h" */
 /* #include "RigidBodyGrid.h" */
@@ -228,6 +229,7 @@ private:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+	int numVecangles;
 
     int num_rb_attached_particles;
 
@@ -239,11 +241,13 @@ private:
 	String excludeFile;
 	String angleFile;
 	String dihedralFile;
+	String vecangleFile;
 	bool readPartsFromFile;
 	bool readBondsFromFile;
 	bool readExcludesFromFile;
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
+	bool readVecanglesFromFile;
 	String* partGridFile;
 	String* partDiffusionGridFile;
 	String* partForceXGridFile;
@@ -274,6 +278,12 @@ private:
 	int numTabDihedralFiles;
 	int4 *dihedralList;
 	int  *dihedralPotList;
+
+	Vecangle* vecangles;
+	String* vecangleTableFile;
+	int numTabVecangleFiles;
+	int4 *vecangleList;
+	int  *vecanglePotList;
 
 	int numBondAngles;
 	BondAngle* bondAngles;

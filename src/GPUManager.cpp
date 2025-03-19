@@ -18,7 +18,13 @@ std::vector<GPU> GPUManager::allGpus, GPUManager::gpus, GPUManager::notimeouts;
 
 GPU::GPU(unsigned int id) : id(id) {
     cudaSetDevice(id);
+#ifndef CUDART_VERSION
+#error CUDART_VERSION Undefined!
+#elif (CUDART_VERSION < 12000)
     cudaGetDeviceProperties(&properties, id);
+#else
+    cudaGetDeviceProperties_v2(&properties, id);
+#endif
     printf("[%d] %s ", id, properties.name);
     if (properties.kernelExecTimeoutEnabled) {
 	printf("(may timeout) ");

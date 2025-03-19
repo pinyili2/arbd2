@@ -48,7 +48,8 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
     numBonds(c.numBonds), numTabBondFiles(c.numTabBondFiles),
     numExcludes(c.numExcludes), numAngles(c.numAngles),
     numTabAngleFiles(c.numTabAngleFiles), numDihedrals(c.numDihedrals),
-    numTabDihedralFiles(c.numTabDihedralFiles), numRestraints(c.numRestraints),
+    numTabDihedralFiles(c.numTabDihedralFiles), numVecangles(c.numVecangles),
+    numTabVecangleFiles(c.numTabVecangleFiles), numRestraints(c.numRestraints),
     numBondAngles(c.numBondAngles), numProductPotentials(c.numProductPotentials),
     numGroupSites(c.numGroupSites),
     numReplicas(numReplicas) {
@@ -142,6 +143,17 @@ ComputeForce::ComputeForce(const Configuration& c, const int numReplicas = 1) :
 		tableDihedral[i] = NULL;
 	}
 	gpuErrchk(cudaMalloc(&tableDihedral_d, sizeof(TabulatedDihedralPotential*) * numTabDihedralFiles));
+
+	// Create the vecangle table
+	tableVecangle = new TabulatedVecanglePotential*[numTabVecangleFiles];
+	tableVecangle_addr = new TabulatedVecanglePotential*[numTabVecangleFiles];
+	vecangleList_d = NULL;
+	tableVecangle_d = NULL;
+	for (int i = 0; i < numTabVecangleFiles; i++) {
+		tableVecangle_addr[i] = NULL;
+		tableVecangle[i] = NULL;
+	}
+	gpuErrchk(cudaMalloc(&tableVecangle_d, sizeof(TabulatedVecanglePotential*) * numTabVecangleFiles));
 
 	{	// allocate device for pairlists
 		// RBTODO: select maxpairs in better way; add assertion in kernel to avoid going past this
@@ -302,6 +314,11 @@ ComputeForce::~ComputeForce() {
 			gpuErrchk( cudaFree(dihedrals_d) );
 			gpuErrchk( cudaFree(dihedralList_d) );
 			gpuErrchk( cudaFree(dihedralPotList_d) );
+		}
+		if (numVecangles > 0) {
+			gpuErrchk( cudaFree(vecangles_d) );
+			gpuErrchk( cudaFree(vecangleList_d) );
+			gpuErrchk( cudaFree(vecanglePotList_d) );
 		}
 		if (numExcludes > 0) {
 			gpuErrchk( cudaFree(excludes_d) );
@@ -504,6 +521,41 @@ bool ComputeForce::addDihedralPotential(String fileName, int ind, Dihedral dihed
 			sizeof(TabulatedDihedralPotential), cudaMemcpyHostToDevice));
 	gpuErrchk(cudaMemcpy(tableDihedral_d, tableDihedral_addr,
 			sizeof(TabulatedDihedralPotential*) * numTabDihedralFiles, cudaMemcpyHostToDevice));
+	t.pot = NULL;
+	return true;
+}
+bool ComputeForce::addVecanglePotential(String fileName, int ind, Vecangle vecangles[])
+{
+	for (int i = 0; i < numVecangles; i++)
+		if (vecangles[i].fileName == fileName)
+			vecangles[i].tabFileIndex = ind;
+
+	gpuErrchk(cudaMemcpyAsync(vecangles_d, vecangles, sizeof(Vecangle) * numVecangles,
+			cudaMemcpyHostToDevice));
+
+	if (tableVecangle[ind] != NULL) {
+		delete tableVecangle[ind];
+		gpuErrchk(cudaFree(tableVecangle_addr[ind]));
+		tableVecangle[ind] = NULL;
+		tableVecangle_addr[ind] = NULL;
+	}
+
+	tableVecangle[ind] = new TabulatedVecanglePotential(fileName,VECANGLE);
+	TabulatedVecanglePotential t = TabulatedVecanglePotential(*tableVecangle[ind]);
+
+	// Copy tableAngle[ind] to the device
+	float *pot;
+	int size = tableVecangle[ind]->size;
+	gpuErrchk(cudaMalloc(&pot, sizeof(float) * size));
+	gpuErrchk(cudaMemcpyAsync(pot, tableVecangle[ind]->pot,
+			sizeof(float) * size, cudaMemcpyHostToDevice));
+	t.pot = pot;
+
+	gpuErrchk(cudaMalloc(&tableVecangle_addr[ind], sizeof(TabulatedVecanglePotential)));
+	gpuErrchk(cudaMemcpyAsync(tableVecangle_addr[ind], &t,
+			sizeof(TabulatedVecanglePotential), cudaMemcpyHostToDevice));
+	gpuErrchk(cudaMemcpy(tableVecangle_d, tableVecangle_addr,
+			sizeof(TabulatedVecanglePotential*) * numTabVecangleFiles, cudaMemcpyHostToDevice));
 	t.pot = NULL;
 	return true;
 }
@@ -763,6 +815,18 @@ float ComputeForce::computeTabulated(bool get_energy) {
 	    computeTabulatedDihedrals<<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numDihedrals*numReplicas, 
                 dihedralList_d, dihedralPotList_d, tableDihedral_d, energies_d, get_energy);
         }
+	if (vecangleList_d != NULL && tableVecangle_d != NULL)
+        {
+            //if(get_energy)
+		//computeTabulatedVecangles<<<nb, numThreads>>>(forceInternal_d[0], pos_d[0], sys_d[0], numVecangles*numReplicas, vecangleList_d, vecanglePotList_d, tableVecangle_d);
+	    if (get_energy) {
+		computeTabulatedVecangles<true><<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numVecangles*numReplicas,
+                vecangleList_d, vecanglePotList_d, tableVecangle_d, energies_d);
+	    } else {
+		computeTabulatedVecangles<false><<<nb, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numVecangles*numReplicas,
+                vecangleList_d, vecanglePotList_d, tableVecangle_d);
+	}
+        }
 
 	// TODO: Sum energy
 	if (restraintIds_d != NULL )
@@ -812,6 +876,16 @@ float ComputeForce::computeTabulatedFull(bool get_energy) {
 																							  tableDihedral_d, numDihedrals,
 																								num+num_rb_attached_particles, sys_d[0], energies_d,
 																								get_energy);
+	gpuErrchk(cudaDeviceSynchronize());
+	if (get_energy) {
+		computeTabulatedVecangles<true><<<numBlocks, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numVecangles*numReplicas,
+                vecangleList_d, vecanglePotList_d, tableVecangle_d, energies_d);
+	    } else {
+		computeTabulatedVecangles<false><<<numBlocks, numThreads, 0, gpuman.get_next_stream()>>>(forceInternal_d[0], pos_d[0], sys_d[0], numVecangles*numReplicas,
+                vecangleList_d, vecanglePotList_d, tableVecangle_d);
+	}
+
+
 	// Calculate the energy based on the array created by the kernel
 	if (get_energy) {
 		gpuErrchk(cudaDeviceSynchronize());
@@ -891,7 +965,7 @@ void ComputeForce::setForceInternalOnDevice(Vector3* f) {
 	gpuErrchk(cudaMemcpy(forceInternal_d[0], f, sizeof(Vector3) * tot_num, cudaMemcpyHostToDevice));
 }
 
-void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, const Restraint* const restraints, const BondAngle* const bondAngles, const XpotMap simple_potential_map, const std::vector<SimplePotential> simple_potentials, const ProductPotentialConf* const product_potential_confs)
+void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap, Exclude* excludes, int2* excludeMap, Angle* angles, Dihedral* dihedrals, Vecangle* vecangles, const Restraint* const restraints, const BondAngle* const bondAngles, const XpotMap simple_potential_map, const std::vector<SimplePotential> simple_potentials, const ProductPotentialConf* const product_potential_confs)
 {
     assert(simNum == numReplicas); // Not sure why we have both of these things
     int tot_num_with_rb = (num+num_rb_attached_particles) * simNum;
@@ -938,6 +1012,13 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 		gpuErrchk(cudaMemcpyAsync(dihedrals_d, dihedrals,
 												 		  sizeof(Dihedral) * numDihedrals,
 														 	cudaMemcpyHostToDevice));
+	}
+	if (numVecangles > 0) {
+		// Vecangles_d
+		gpuErrchk(cudaMalloc(&vecangles_d, sizeof(Vecangle) * numVecangles));
+		gpuErrchk(cudaMemcpyAsync(vecangles_d, vecangles,
+					  sizeof(Vecangle) * numVecangles,
+					  cudaMemcpyHostToDevice));
 	}
 
 	if (numRestraints > 0) {
@@ -1079,7 +1160,7 @@ void ComputeForce::copyToCUDA(int simNum, int *type, Bond* bonds, int2* bondMap,
 // 	}
 // }
 
-void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4* bondAngleList, int2* restraintList) {
+void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *dihedralList, int *dihedralPotList, int4 *vecangleList, int *vecanglePotList, int4* bondAngleList, int2* restraintList) {
 	size_t size;
 
 	if (numBonds > 0) {
@@ -1102,6 +1183,16 @@ void ComputeForce::copyBondedListsToGPU(int3 *bondList, int4 *angleList, int4 *d
     size = numDihedrals * numReplicas * sizeof(int);
     gpuErrchk( cudaMalloc( &dihedralPotList_d, size ) );
     gpuErrchk( cudaMemcpyAsync( dihedralPotList_d, dihedralPotList, size, cudaMemcpyHostToDevice) );
+	}
+
+	if (numVecangles > 0) {
+    size = numVecangles * numReplicas * sizeof(int4);
+    gpuErrchk( cudaMalloc( &vecangleList_d, size ) );
+    gpuErrchk( cudaMemcpyAsync( vecangleList_d, vecangleList, size, cudaMemcpyHostToDevice) );
+
+    size = numVecangles * numReplicas * sizeof(int);
+    gpuErrchk( cudaMalloc( &vecanglePotList_d, size ) );
+    gpuErrchk( cudaMemcpyAsync( vecanglePotList_d, vecanglePotList, size, cudaMemcpyHostToDevice) );
 	}
 
 	if (numBondAngles > 0) {

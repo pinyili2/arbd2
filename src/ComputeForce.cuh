@@ -1064,6 +1064,31 @@ void computeTabulatedDihedrals(Vector3* force, const Vector3* __restrict__ pos,
 	// }
     }
 }
+template<bool get_energy>
+__global__
+void computeTabulatedVecangles(Vector3* force, const Vector3* __restrict__ pos,
+			       const BaseGrid* __restrict__ sys,
+			       int numVecangles, const int4* const __restrict__ vecangleList_d,
+			       const int* __restrict__ vecanglePotList_d, TabulatedVecanglePotential** tableVecangle, float* energy=nullptr) {
+
+	// int currVecangle = blockIdx.x * blockDim.x + threadIdx.x; // first particle ID
+
+    // Loop over ALL vecangles in ALL replicas
+	for (int i = threadIdx.x+blockIdx.x*blockDim.x; i < numVecangles; i+=blockDim.x*gridDim.x) {
+		const int4& ids = vecangleList_d[i];
+		const int& id = vecanglePotList_d[i];
+		TabulatedVecanglePotential* __restrict__ p = tableVecangle[ id ];
+		float tmp = p->compute_value( pos, sys, ids);
+		float2 ef = p->compute_energy_and_deriv(tmp);
+		p->apply_force(pos,sys,force, ids, ef.y);
+		if (get_energy) {
+		    atomicAdd( &energy[ids.x], ef.x*0.25 );
+		    atomicAdd( &energy[ids.y], ef.x*0.25 );
+		    atomicAdd( &energy[ids.z], ef.x*0.25 );
+		    atomicAdd( &energy[ids.w], ef.x*0.25 );
+		}
+	}
+}
 
 __global__
 void computeHarmonicRestraints(Vector3* force, const Vector3* __restrict__ pos,

@@ -40,6 +40,7 @@
 // Forward declerations
 class Angle;
 class Dihedral;
+using Vecangle = Dihedral;
 struct Restraint;
 
 class Configuration {
@@ -49,6 +50,7 @@ class Configuration {
 		bool operator()(const Exclude& lhs, const Exclude& rhs);
 		bool operator()(const Angle& lhs, const Angle& rhs);
 		bool operator()(const Dihedral& lhs, const Dihedral& rhs);
+	    // bool operator()(const Vecangle& lhs, const Vecangle& rhs);
 		bool operator()(const BondAngle& lhs, const BondAngle& rhs);
 		bool operator()(const ProductPotentialConf& lhs, const ProductPotentialConf& rhs);
 	};
@@ -66,6 +68,7 @@ class Configuration {
 	void addExclusion(int ind1, int ind2);
 	void buildExcludeMap();
 	void readDihedrals();
+	void readVecangles();
 	void readRestraints();
 	void readBondAngles();
 
@@ -74,6 +77,7 @@ class Configuration {
 	bool readBondFile(const String& value, int currBond);
 	bool readAngleFile(const String& value, int currAngle);
 	bool readDihedralFile(const String& value, int currDihedral);
+	bool readVecangleFile(const String& value, int currVecangle);
 
 	bool readBondAngleFile(const String& value, const String& bondfile1, const String& bondfile2, int currBondAngle);
 
@@ -207,6 +211,7 @@ public:
 	int numExcludes;
 	int numAngles;
 	int numDihedrals;
+	int numVecangles;
 	int numBondAngles;
 	int numRestraints;
 	int* numPartsOfType;
@@ -215,6 +220,7 @@ public:
 	String excludeFile;
 	String angleFile;
 	String dihedralFile;
+	String vecangleFile;
 	String restraintFile;
 	String bondAngleFile;
 	bool readPartsFromFile;
@@ -223,6 +229,7 @@ public:
 	bool readExcludesFromFile;
 	bool readAnglesFromFile;
 	bool readDihedralsFromFile;
+	bool readVecanglesFromFile;
 	bool readBondAnglesFromFile;
 	bool readRestraintsFromFile;
 	//String* partGridFile;
@@ -237,6 +244,7 @@ public:
 	String* partForceXGridFile;
 	String* partForceYGridFile;
 	String* partForceZGridFile;
+	float **partForceGridScale;
 	String* partTableFile;
 	String* partReservoirFile;
 	int* partTableIndex0;
@@ -262,6 +270,10 @@ public:
 	Dihedral* dihedrals;
 	String* dihedralTableFile;
 	int numTabDihedralFiles;
+
+        Vecangle* vecangles;
+	String* vecangleTableFile;
+	int numTabVecangleFiles;
 
 	BondAngle* bondAngles;
 

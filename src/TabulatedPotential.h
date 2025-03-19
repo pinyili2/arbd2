@@ -254,6 +254,20 @@ public:
 	    val = compute_vecangle(pos, sys, particles[0], particles[1], particles[2], particles[3]);
 	return val;
     }
+    HOST DEVICE inline float compute_value(const Vector3* __restrict__ pos,
+					   const BaseGrid* __restrict__ sys,
+					   const int4& particles) const {
+	float val;
+	if (type == BOND)
+	    val = compute_bond(pos, sys, particles.x, particles.y);
+	else if (type == ANGLE)
+	    val = compute_angle(pos, sys, particles.x, particles.y, particles.z);
+	else if (type == DIHEDRAL)
+	    val = compute_dihedral(pos, sys, particles.x, particles.y, particles.z, particles.w);
+	else if (type == VECANGLE)
+	    val = compute_vecangle(pos, sys, particles.x, particles.y, particles.z, particles.w);
+	return val;
+    }
 
     HOST DEVICE inline float2 compute_energy_and_deriv(float value) {
 	float2 ret;
@@ -285,8 +299,15 @@ public:
 					      int i, int j, int k, int l) const {
 	const Vector3 ab = sys->wrapDiff(pos[j] - pos[i]);
 	const Vector3 bc = sys->wrapDiff(pos[l] - pos[k]);
-	const Vector3 ac = bc+ab;
-	return compute_angle( ab.length2(), bc.length2(), ac.length2() );
+	const Vector3 ac = bc-ab;
+	float tmp = compute_angle( ab.length2(), bc.length2(), ac.length2() );
+	// printf("i,j,r_ij: %d %d %f %f %f\n",
+	//        i,j, ab.x,ab.y,ab.z);
+	// printf("k,l,r_kl: %d %d %f %f %f\n",
+	//        k,l, bc.x,bc.y,bc.z);
+	// printf("i,j,k,l, theta: %d %d %d %d %f\n",
+	//        i,j,k,l, tmp);
+	return tmp;
     }
 
     HOST DEVICE inline float compute_angle(float distab2, float distbc2, float distac2) const {
@@ -358,6 +379,22 @@ public:
 	    apply_vecangle_force(pos, sys, forces, particles[0], particles[1],
 				 particles[2], particles[3], energy_deriv);
     }
+    DEVICE inline void apply_force(const Vector3* __restrict__ pos,
+				   const BaseGrid* __restrict__ sys,
+				   Vector3* __restrict__ forces,
+				   const int4& particles, float energy_deriv) const {
+	if (type == BOND)
+	    apply_bond_force(pos, sys, forces, particles.x, particles.y, energy_deriv);
+	else if (type == ANGLE)
+	    apply_angle_force(pos, sys, forces, particles.x, particles.y,
+			     particles.z, energy_deriv);
+	else if (type == DIHEDRAL)
+	    apply_dihedral_force(pos, sys, forces, particles.x, particles.y,
+				 particles.z, particles.w, energy_deriv);
+	else if (type == VECANGLE)
+	    apply_vecangle_force(pos, sys, forces, particles.x, particles.y,
+				 particles.z, particles.w, energy_deriv);
+    }
 
     __device__ inline void apply_bond_force(const Vector3* __restrict__ pos,
 					const BaseGrid* __restrict__ sys,
@@ -397,9 +434,10 @@ public:
 
 	float sin = sqrtf(1.0f - cos*cos);
 	energy_deriv /= abs(sin) > 1e-3 ? sin : 1e-3; // avoid singularity
-	if (abs(sin) < 1e-3) {
-	    printf("BAD ANGLE: sin, cos, energy_deriv, distab, distbc, distac2: (%f %f %f %f %f)\n",
-		   sin,cos,energy_deriv,distab,distbc);	}
+	if (abs(sin) <= 1e-3) {
+	    printf("BAD ANGLE: sin, cos, energy_deriv, distab, distbc, distac2: (%f %f %f %f %f %f)\n",
+		   sin,cos,energy_deriv,ab.length(),bc.length(),sqrt(distac2));
+	}
 
 	// Calculate the forces
 	TwoVector3 force;
@@ -504,20 +542,24 @@ public:
 
 #ifdef __CUDA_ARCH__
 
-	const Vector3 ab = -sys->wrapDiff(pos[j] - pos[i]);
-	const Vector3 bc = -sys->wrapDiff(pos[k] - pos[j]);
+	const Vector3 ab = sys->wrapDiff(pos[j] - pos[i]);
+	const Vector3 cd = -sys->wrapDiff(pos[l] - pos[k]);
 	// const Vector3 ac = sys->wrapDiff(pos[k] - pos[i]);
 
-	TwoVector3 f = get_angle_force(ab,bc, energy_deriv);
+	TwoVector3 f = get_angle_force(ab,cd, energy_deriv);
 
+	// printf("i,j,k,l, df, f1, f2: %d %d %d %d %f (%f %f %f) (%f %f %f)\n",
+	//        i,j,k,l, energy_deriv, f.v1.x, f.v1.y, f.v1.z, f.v2.x, f.v2.y, f.v2.z);
 	atomicAdd( &force[i], f.v1 );
 	atomicAdd( &force[j], -f.v1 );
-	atomicAdd( &force[k], -f.v2 );
-	atomicAdd( &force[l], f.v2 );
+	atomicAdd( &force[k], f.v2 );
+	atomicAdd( &force[l], -f.v2 );
 #endif
     }
 
 };
+
+using TabulatedVecanglePotential = SimplePotential;
 
 #ifndef delgpuErrchk
 #undef  delgpuErrchk
