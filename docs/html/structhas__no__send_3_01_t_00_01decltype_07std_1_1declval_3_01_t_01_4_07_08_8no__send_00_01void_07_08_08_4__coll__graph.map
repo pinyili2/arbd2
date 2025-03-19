@@ -1,0 +1,7 @@
+<map id="has_no_send&lt; T, decltype(std::declval&lt; T &gt;().no_send, void())&gt;" name="has_no_send&lt; T, decltype(std::declval&lt; T &gt;().no_send, void())&gt;">
+<area shape="rect" id="Node000001" title=" " alt="" coords="32,119,197,213"/>
+<area shape="rect" id="Node000002" title=" " alt="" coords="5,5,104,71"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="78,83,95,118,90,120,74,85"/>
+<area shape="rect" id="Node000003" title=" " alt="" coords="128,5,221,71"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="156,85,139,120,134,118,151,83"/>
+</map>

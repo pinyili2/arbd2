@@ -1,0 +1,9 @@
+<map id="SimplePotential::compute_angle" name="SimplePotential::compute_angle">
+<area shape="rect" id="Node000001" title=" " alt="" coords="442,29,612,70"/>
+<area shape="poly" id="edge1_Node000001_Node000001" title=" " alt="" coords="563,16,549,10,527,8,506,10,494,15,489,21,491,28,486,29,484,19,491,10,505,5,527,3,551,5,565,11"/>
+<area shape="rect" id="Node000002" href="$class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,29,176,70"/>
+<area shape="poly" id="edge2_Node000001_Node000002" title=" " alt="" coords="426,49,394,48,224,48,176,49,176,44,224,43,394,43,426,44"/>
+<area shape="rect" id="Node000003" href="$class_simple_potential.html#ae6fc80ea04d4a2c5e068146769d7a946" title=" " alt="" coords="224,57,394,98"/>
+<area shape="poly" id="edge3_Node000001_Node000003" title=" " alt="" coords="427,65,395,69,394,64,426,60"/>
+<area shape="poly" id="edge4_Node000003_Node000002" title=" " alt="" coords="208,67,176,63,177,58,209,62"/>
+</map>

@@ -1,0 +1,10 @@
+<map id="SimplePotential::get_angle_force" name="SimplePotential::get_angle_force">
+<area shape="rect" id="Node000001" title=" " alt="" coords="404,39,542,79"/>
+<area shape="rect" id="Node000002" href="$class_simple_potential.html#aa02327c562cdc88cc438561aebdb2755" title=" " alt="" coords="205,5,356,46"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="388,47,356,41,357,36,389,42"/>
+<area shape="rect" id="Node000004" href="$class_simple_potential.html#a04e5fa85f6d0363d97ba491a4894cc95" title=" " alt="" coords="205,71,356,111"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="389,76,357,81,356,76,388,70"/>
+<area shape="rect" id="Node000003" href="$class_simple_potential.html#a43141a3fc66da68be9772a4335f9b468" title=" " alt="" coords="5,39,157,79"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="190,44,157,49,157,44,189,38"/>
+<area shape="poly" id="edge4_Node000004_Node000003" title=" " alt="" coords="189,79,157,74,157,69,190,74"/>
+</map>

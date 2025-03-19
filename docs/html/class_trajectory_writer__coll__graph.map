@@ -1,0 +1,7 @@
+<map id="TrajectoryWriter" name="TrajectoryWriter">
+<area shape="rect" id="Node000001" title=" " alt="" coords="57,449,189,1014"/>
+<area shape="rect" id="Node000002" href="$class_string.html" title=" " alt="" coords="5,5,113,371"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="78,370,84,424,85,431,80,432,79,425,73,371"/>
+<area shape="rect" id="Node000003" href="$class_dcd_writer.html" title=" " alt="" coords="138,95,239,281"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="180,281,162,432,157,431,175,280"/>
+</map>
