@@ -1,9 +1,0 @@
-<map id="vector_arr_to_numpy_array" name="vector_arr_to_numpy_array">
-<area shape="rect" id="Node000001" title=" " alt="" coords="533,5,677,46"/>
-<area shape="rect" id="Node000002" href="$pytypes_8cpp.html#ab6b1e286f0ccbf1a628b91ad5e0ce251" title=" " alt="" coords="343,13,485,38"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="518,28,486,28,486,23,518,23"/>
-<area shape="rect" id="Node000003" href="$pytypes_8cpp.html#a04886a22dec667a7cf40768cf12dc984" title=" " alt="" coords="204,13,295,38"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="327,28,295,28,295,23,327,23"/>
-<area shape="rect" id="Node000004" href="$pyarbd_8cpp.html#a5cc7e9d493ff4c267a54b23e11d1c065" title=" " alt="" coords="5,13,156,38"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="188,28,156,28,156,23,188,23"/>
-</map>

@@ -1,9 +1,0 @@
-<map id="Integrator" name="Integrator">
-<area shape="rect" id="Node000001" title=" " alt="" coords="73,139,183,244"/>
-<area shape="rect" id="Node000003" href="$class_b_d_integrate.html" title=" " alt="" coords="5,292,115,377"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="99,259,82,293,78,291,94,256"/>
-<area shape="rect" id="Node000004" href="$class_langevin_integrate.html" title=" " alt="" coords="139,292,255,377"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="162,256,179,291,175,293,158,259"/>
-<area shape="rect" id="Node000002" href="$class_patch_op.html" title="Abstract base class that operates on Patch data." alt="" coords="73,5,183,91"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="131,106,131,139,125,139,125,106"/>
-</map>

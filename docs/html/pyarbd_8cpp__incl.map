@@ -1,9 +1,0 @@
-<map id="src/pybindings/pyarbd.cpp" name="src/pybindings/pyarbd.cpp">
-<area shape="rect" id="Node000001" title=" " alt="" coords="146,5,320,31"/>
-<area shape="rect" id="Node000002" title=" " alt="" coords="5,79,146,105"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="207,34,117,75,115,70,205,29"/>
-<area shape="rect" id="Node000003" title=" " alt="" coords="170,79,296,105"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="236,31,236,63,230,63,230,31"/>
-<area shape="rect" id="Node000004" title=" " alt="" coords="319,79,461,105"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="261,29,351,70,348,75,258,34"/>
-</map>

@@ -1,6 +1,0 @@
-<map id="SimSystem::SimSystem" name="SimSystem::SimSystem">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,29,171,55"/>
-<area shape="rect" id="Node000002" href="$class_sim_system.html#aa14558f2ae232bd1d199e3befe7472f5" title=" " alt="" coords="219,29,390,55"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="171,40,203,40,203,45,171,45"/>
-<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="268,31,261,21,266,11,280,5,304,3,331,5,344,12,342,17,329,10,304,8,281,10,269,15,267,20,273,27"/>
-</map>

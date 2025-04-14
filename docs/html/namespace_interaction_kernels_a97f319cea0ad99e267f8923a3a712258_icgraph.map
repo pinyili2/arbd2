@@ -1,5 +1,0 @@
-<map id="InteractionKernels::HarmonicBonds" name="InteractionKernels::HarmonicBonds">
-<area shape="rect" id="Node000001" title=" " alt="" coords="208,5,334,46"/>
-<area shape="rect" id="Node000002" href="$class_local_bonded.html#a450b4ed1834d52b20f91457e415a770e" title="Computes interaction for a given patch." alt="" coords="5,13,160,38"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="192,28,160,28,160,23,192,23"/>
-</map>

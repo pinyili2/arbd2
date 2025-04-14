@@ -1,9 +1,0 @@
-<map id="index_to_ijk" name="index_to_ijk">
-<area shape="rect" id="Node000001" title=" " alt="" coords="247,55,337,80"/>
-<area shape="rect" id="Node000002" href="$class_cell_decomposer.html#a71cd3e7937ba084c371cbef520c7c18b" title=" " alt="" coords="5,5,199,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="231,54,198,45,157,34,158,29,199,40,232,48"/>
-<area shape="rect" id="Node000003" href="$_types_8h.html#a2dec8d55643398ac1817c383b245c8cd" title=" " alt="" coords="57,55,147,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="231,70,147,70,147,65,231,65"/>
-<area shape="rect" id="Node000004" href="$_types_8h.html#afa4e34d09d4acb6eece28c07de628ed8" title=" " alt="" coords="57,104,147,130"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="232,87,199,95,148,109,147,103,198,90,231,81"/>
-</map>

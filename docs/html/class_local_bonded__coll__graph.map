@@ -1,7 +1,0 @@
-<map id="LocalBonded" name="LocalBonded">
-<area shape="rect" id="Node000001" title=" " alt="" coords="12,312,121,397"/>
-<area shape="rect" id="Node000002" href="$class_local_interaction.html" title="Base class for local interaction." alt="" coords="5,139,128,264"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="69,279,69,312,64,312,64,279"/>
-<area shape="rect" id="Node000003" href="$class_patch_op.html" title="Abstract base class that operates on Patch data." alt="" coords="12,5,121,91"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="69,106,69,139,64,139,64,106"/>
-</map>

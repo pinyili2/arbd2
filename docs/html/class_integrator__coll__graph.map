@@ -1,5 +1,0 @@
-<map id="Integrator" name="Integrator">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,139,115,244"/>
-<area shape="rect" id="Node000002" href="$class_patch_op.html" title="Abstract base class that operates on Patch data." alt="" coords="5,5,115,91"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="63,106,63,139,57,139,57,106"/>
-</map>

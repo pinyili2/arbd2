@@ -1,9 +1,0 @@
-<map id="Resource::Resource" name="Resource::Resource">
-<area shape="rect" id="Node000001" title=" " alt="" coords="202,55,343,80"/>
-<area shape="rect" id="Node000002" href="$struct_resource.html#a574be70561039e6e0130e80b45f432d6" title=" " alt="" coords="21,5,138,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,53,132,34,133,29,205,48"/>
-<area shape="rect" id="Node000003" href="$struct_resource.html#a5a2b169aedbdc269d4966f5bb023fd74" title=" " alt="" coords="5,55,154,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="186,70,154,70,154,65,186,65"/>
-<area shape="rect" id="Node000004" href="$struct_resource.html#aafc2407224aeae0dc7fbcffed520906a" title=" " alt="" coords="9,104,150,130"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="205,87,133,106,132,101,204,82"/>
-</map>

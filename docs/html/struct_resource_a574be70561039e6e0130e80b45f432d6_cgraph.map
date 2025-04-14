@@ -1,7 +1,0 @@
-<map id="Resource::Local" name="Resource::Local">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,122,56"/>
-<area shape="rect" id="Node000002" href="$_resource_8h.html#ac42f6e1cb301b7ece1afd149bed39d9f" title="Get current resource index (device ID or MPI rank)" alt="" coords="206,5,275,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="121,33,190,23,191,28,122,38"/>
-<area shape="rect" id="Node000003" href="$struct_resource.html#ab1fe2e7ea5c9a1cb3c35c11fc267bf24" title=" " alt="" coords="170,55,311,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="122,49,155,53,154,58,121,54"/>
-</map>

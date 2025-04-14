@@ -1,7 +1,0 @@
-<map id="BasePatch::BasePatch" name="BasePatch::BasePatch">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,163,56"/>
-<area shape="rect" id="Node000002" href="$class_base_patch.html#ac5aaed48813943399e399306bf65b3ff" title=" " alt="" coords="211,5,368,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="163,31,195,27,195,32,163,36"/>
-<area shape="rect" id="Node000003" href="$type__name_8h.html#a07d62e9a6d345f0208b53940e0b34c86" title=" " alt="" coords="247,55,332,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="163,50,232,58,231,63,163,55"/>
-</map>
