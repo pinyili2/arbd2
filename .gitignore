@@ -7,6 +7,5 @@ TAGS
 BD_example*
 arbd
 runBrownCUDA
-!arbd.cpp
 arbd*
 *.tar

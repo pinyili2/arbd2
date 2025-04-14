@@ -1,6 +1,5 @@
 ## Specify the project
-# cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
-cmake_minimum_required(VERSION 3.12 FATAL_ERROR) # FOR PYBIND, should be 3.15+?
+cmake_minimum_required(VERSION 3.9 FATAL_ERROR)
 
 # option(USE_CUDA "Use CUDA" ON)
 set(USE_CUDA ON)
@@ -31,10 +30,8 @@ if(${USE_CUDA} AND NOT CMAKE_CUDA_ARCHITECTURES)
   endif()
 endif()
 
-set(USE_MPI OFF)
-
 ## specify the C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Set a default build type if none was specified
@@ -65,14 +62,14 @@ endif()
 option(DEBUG "Build with debug flags" False)
 option(USE_NCCL "Use NCCL for single node GPU peer communication" False)
 option(USE_NVTX "Build with NVTX profiling ranges" False)
-option(USE_LOGGER "Build with SPDLog" True)
 
 # (not yet optional) message(STATUS "USE_CUDA: ${USE_CUDA}")
 message(STATUS "DEBUG: ${DEBUG}")
-message(STATUS "USE_NCCL: ${USE_NCCL}")
+if(${USE_CUDA})
+  message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+  message(STATUS "USE_NCCL: ${USE_NCCL}")
+endif()
 message(STATUS "USE_NVTX: ${USE_NVTX}")
-message(STATUS "USE_LOGGER: ${USE_LOGGER}")
-message(STATUS "USE_PYBIND: ${USE_PYBIND}")
 
 
 ## Set flags before adding executable 
@@ -85,11 +82,6 @@ if(USE_CUDA)
   endif()
   # message(STATUS "CUDA_INC: ${CUDA_INCLUDE_DIRS}")
   include_directories(${CUDA_INCLUDE_DIRS})
-
-  if(NOT DEFINED CMAKE_CUDA_STANDARD)
-    set(CMAKE_CUDA_STANDARD 17)
-    # set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-  endif()
 endif()
 
 if(DEBUG)
@@ -104,28 +96,6 @@ endif()
 if(USE_NCCL)
   add_definitions(-DUSE_NCCL)
   target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
-endif()
-if(USE_LOGGER)
-  # set(spdlog_DIR "extern/spdlog/include/spdlog")
-  # set(CMAKE_spdlog_DIR "${spdlog_DIR}")
-  # find_package(spdlog REQUIRED)
-  set(spdlog_DIR "extern/spdlog/include")
-  set(CMAKE_spdlog_DIR "${spdlog_DIR}")
-  add_subdirectory(extern/spdlog)
-  # find_package(spdlog REQUIRED)
-  include_directories(${spdlog_DIR})
-  set(SPDLOG_LEVEL SPDLOG_LEVEL_DEBUG)
-
-  # target_include_directories("lib${PROJECT_NAME}" PRIVATE ${spdlog_DIR})
-  # target_include_directories("${PROJECT_NAME}" PRIVATE ${spdlog_DIR})
-
-  # if(DEFINED ENV{CUDA_INCLUDE_DIRS})
-  #   set(CUDA_INCLUDE_DIRS $ENV{CUDA_INCLUDE_DIRS})
-  # endif()
-  # target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)
-  # target_link_libraries("lib${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)	
-  # target_link_libraries("lib${PROJECT_NAME}" spdlog)	
-  # target_link_libraries("${PROJECT_NAME}" spdlog)	
 endif()
 
 ## Two lines below needed?
@@ -150,47 +120,54 @@ endif()
 set(CMAKE_MACOSX_RPATH 1)	# Unsure if this works for CMAKE_BUIlD_RPATH, or just CMAKE_INSTALL_RPATH
 set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 
-## Set up doctest
-# option(ENABLE_DOCTESTS "Include tests in the library. Setting this to OFF will remove all doctest related code.
-#                     Tests in tests/*.cpp will still be enabled." ON)
-# set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
-# include(doctest)
-
-## Add subdirectories
-add_subdirectory(src)
-add_subdirectory(src/Tests)
-
 # set(CMAKE_VERBOSE_MAKEFILE True)
 add_executable("${PROJECT_NAME}" src/arbd.cpp
-src/SimManager.cu
-src/useful.cu
-)
-
-if(USE_PYBIND)
-  add_subdirectory(extern/pybind11)
-  add_subdirectory(src/pybindings)
-endif()
-
-target_link_libraries("${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
+  src/Configuration.cpp
+  src/FlowForce.cpp
+  src/GPUManager.cpp
+  src/Scatter.cpp
+  src/SignalManager.cpp
+  src/WKFUtils.cpp
+  src/Angle.cu
+  src/BaseGrid.cu
+  src/BrownianParticle.cu
+  src/BrownianParticleType.cpp
+  src/RigidBodyController.cu
+  src/RigidBody.cu
+  src/RigidBodyGrid.cu
+  src/RigidBodyType.cu
+  src/CellDecomposition.cu
+  src/ComputeForce.cuh
+  src/ComputeForce.cu
+  src/ComputeGridGrid.cuh
+  src/ComputeGridGrid.cu
+  src/CudaUtil.cu
+  src/CudaUtil.cuh
+  src/Dihedral.cu
+  src/Exclude.cu
+  src/GrandBrownTown.cu
+  src/GrandBrownTown.cuh
+  src/imd.cpp
+  src/vmdsock.cpp
+  src/JamesBond.cu
+  src/RandomCUDA.cu
+  src/Reservoir.cu
+  src/TabulatedAngle.cu
+  src/TabulatedDihedral.cu
+  src/TabulatedMethods.cuh
+  src/TabulatedPotential.cu
+  src/useful.cu
+  )
 
 ## Add optional libraries
 if(USE_CUDA)
-  target_link_libraries("${PROJECT_NAME}" PUBLIC curand)
+  target_link_libraries("${PROJECT_NAME}" PRIVATE curand)
 endif()
 if(USE_NCCL)
-  target_link_libraries("${PROJECT_NAME}" PUBLIC nccl)
+  target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
 endif()
 if(USE_NVTX)
-  target_link_libraries("${PROJECT_NAME}" PUBLIC nvToolsExt)
-endif()
-if(USE_LOGGER)
-  add_definitions(-DUSE_LOGGER)
-  # include_directories(${spdlog_DIR})
-  target_include_directories("${PROJECT_NAME}" PRIVATE ${spdlog_DIR})
-  target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)
-  # find_package(fmt)
-  # target_link_libraries("${PROJECT_NAME}" PRIVATE fmt::fmt)
-  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
+  target_link_libraries("${PROJECT_NAME}" PRIVATE nvToolsExt)
 endif()
 
 install(TARGETS "${PROJECT_NAME}")

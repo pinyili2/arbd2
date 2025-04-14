@@ -1,0 +1,7 @@
+<map id="imd_recv_fcoords" name="imd_recv_fcoords">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,130,31"/>
+<area shape="rect" id="Node000002" href="$imd_8cpp.html#a0b07a4bc655329204452fd9015e4abd9" title=" " alt="" coords="178,5,259,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="130,16,162,16,162,21,130,21"/>
+<area shape="rect" id="Node000003" href="$vmdsock_8cpp.html#a7d4bb49a5d4b7525ca99e2f44c01d5e4" title=" " alt="" coords="307,5,413,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="260,16,291,16,291,21,260,21"/>
+</map>
