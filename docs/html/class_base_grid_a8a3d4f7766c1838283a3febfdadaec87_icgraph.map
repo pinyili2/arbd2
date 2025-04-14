@@ -1,0 +1,13 @@
+<map id="BaseGrid::nearestIndex" name="BaseGrid::nearestIndex">
+<area shape="rect" id="Node000001" title=" " alt="" coords="322,96,480,122"/>
+<area shape="rect" id="Node000002" href="$class_overlord_grid.html#ad7354950d8d8721e977a9f3f48d7b8dc" title=" " alt="" coords="103,5,274,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="363,90,273,46,239,34,241,29,275,41,365,86"/>
+<area shape="rect" id="Node000003" href="$class_overlord_grid.html#ae3793044efb9e28f638a70963be7a91e" title=" " alt="" coords="107,55,270,96"/>
+<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="306,97,270,91,271,86,307,91"/>
+<area shape="rect" id="Node000004" href="$class_overlord_grid.html#a0bce14a660123e598eed0c9caf11f4f5" title=" " alt="" coords="107,120,270,161"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="307,126,270,131,270,126,306,120"/>
+<area shape="rect" id="Node000006" href="$class_overlord_grid.html#ad72eb55ecaf5e469e27e83492380adfb" title=" " alt="" coords="107,186,270,226"/>
+<area shape="poly" id="edge5_Node000001_Node000006" title=" " alt="" coords="363,132,275,175,246,188,244,183,273,170,360,127"/>
+<area shape="rect" id="Node000005" href="$grid_sample_def_8c.html#a0ddf1224851353fc92bfbff6f499fa97" title=" " alt="" coords="5,128,55,154"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="92,144,55,144,55,138,92,138"/>
+</map>

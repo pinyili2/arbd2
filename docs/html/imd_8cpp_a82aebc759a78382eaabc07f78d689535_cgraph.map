@@ -1,0 +1,7 @@
+<map id="imd_recv_energies" name="imd_recv_energies">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,136,31"/>
+<area shape="rect" id="Node000002" href="$imd_8cpp.html#a0b07a4bc655329204452fd9015e4abd9" title=" " alt="" coords="184,5,265,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="136,16,168,16,168,21,136,21"/>
+<area shape="rect" id="Node000003" href="$vmdsock_8cpp.html#a7d4bb49a5d4b7525ca99e2f44c01d5e4" title=" " alt="" coords="313,5,419,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="266,16,297,16,297,21,266,21"/>
+</map>

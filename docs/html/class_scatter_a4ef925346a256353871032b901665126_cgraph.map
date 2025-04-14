@@ -1,0 +1,9 @@
+<map id="Scatter::Scatter" name="Scatter::Scatter">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,119,56"/>
+<area shape="rect" id="Node000002" href="$class_scatter.html#aa18f1d42bc1c8c2fc51dbd66df15d263" title=" " alt="" coords="167,31,280,56"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="119,41,151,41,151,46,119,46"/>
+<area shape="rect" id="Node000003" href="$class_scatter.html#a3b241a61bb3fd568ddaf085bb7dfb2e7" title=" " alt="" coords="328,5,501,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="280,33,312,29,313,34,281,39"/>
+<area shape="rect" id="Node000004" href="$class_scatter.html#ae0325f937efaff94dcc2578d56d10078" title=" " alt="" coords="332,55,498,80"/>
+<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="281,48,316,52,316,58,280,53"/>
+</map>

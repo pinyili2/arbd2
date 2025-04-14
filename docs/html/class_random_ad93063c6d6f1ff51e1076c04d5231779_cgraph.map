@@ -1,0 +1,7 @@
+<map id="Random::gaussian" name="Random::gaussian">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,136,31"/>
+<area shape="rect" id="Node000002" href="$class_random.html#a3ef9c2c8ecd525354641024c82fc2271" title=" " alt="" coords="184,5,305,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="136,16,168,16,168,21,136,21"/>
+<area shape="rect" id="Node000003" href="$class_random.html#a69e9c4952e0bfe9f6b20c25e9cdc7479" title=" " alt="" coords="353,5,455,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="306,16,337,16,337,21,306,21"/>
+</map>
