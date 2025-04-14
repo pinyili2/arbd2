@@ -1,0 +1,11 @@
+<map id="imd_handshake" name="imd_handshake">
+<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,118,56"/>
+<area shape="rect" id="Node000002" href="$imd_8cpp.html#a041a2550ae4d2c4b5de99b378b8335ba" title=" " alt="" coords="168,5,248,31"/>
+<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="118,31,152,25,153,30,118,36"/>
+<area shape="rect" id="Node000004" href="$imd_8cpp.html#ac972114bbde87867178aed1f349d8db1" title=" " alt="" coords="166,55,250,80"/>
+<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="118,50,151,55,150,61,118,55"/>
+<area shape="rect" id="Node000003" href="$imd_8cpp.html#a4f98a49842f116b5bb56ecfde41a8714" title=" " alt="" coords="314,5,391,31"/>
+<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="248,16,298,16,298,21,248,21"/>
+<area shape="rect" id="Node000005" href="$vmdsock_8cpp.html#a4c140e00e55ef00ab5aa9b42be786e6c" title=" " alt="" coords="298,55,407,80"/>
+<area shape="poly" id="edge4_Node000004_Node000005" title=" " alt="" coords="250,65,282,65,282,70,250,70"/>
+</map>

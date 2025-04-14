@@ -1,15 +1,21 @@
-# Atomic Resolution Brownian Dynamics (ARBD 2.0-alpha)
+# Atomic Resolution Brownian Dynamics (ARBD) - May 24
 
 Brownian dynamics (BD) simulation is method for studying biomolecules,
 ions, and nanomaterials that balances detail with computational
 efficiency.
 
-This development branch of ARBD has the aim of scaling ARBD up to
-larger systems and accelerating to the hardware limits, while making
-it easier to maintain diverse features. In particular we are seeking
-speed and good scaling on multi-GPU clusters.
+ARBD supports tabulated non-bonded and bonded interactions between BD
+particles that can also be influenced by grid-specified
+potentials. Uniquely, ARBD also allows grid-specified densities and
+potentials to be associated with rigid body particles that rotate and
+translate to represent larger molecules. Most importantly, the code is
+designed to run quickly on modern NVIDIA GPUs.
 
-It is currently non-functional as many developments remain.
+ARBD is a rewrite of the BrownianMover code, moving almost all
+computations to the GPU and enabling grid-specified particle
+models. Please be aware that ARBD is being actively developed and is
+offered without warranty.
+
 
 ## Building
 
@@ -19,18 +25,15 @@ Linux workstation with CUDA-compatible GPU (minimum 3.5 compute capability)
   - CMake >= 3.9
   - gcc >= 4.9
   - cuda >= 9.0  (> 11.5 recommended)
-  - spdlog >= 1.10.0 (note: this is normally installed to extern/spdlog by running `git submodule update --init` from this directory)
 
 ### Build process
-
-From the root arbd directory (where this README is found), ensure you have spdlog installed to the extern directory, usually by running `git submodule update --init`.
 
 From the root arbd directory (where this README is found), run:
 ```
 ## Determine the compute capability of your CUDA-enabled graphics card
 export CMAKE_CUDA_ARCHITECTURES="35;50;75;80"   ;# especially important for CMake < 3.24.0
 ## export CUDA_INCLUDE_DIRS="$CUDA_HOME/include" ;# optionally be explicit about cuda include paths; usually not needed
-cmake -S src -B build &&
+cmake -S . -B build &&
 (
   cd build
   make -j
@@ -47,13 +50,48 @@ Note that ARBD has been developed using CUDA-9.0 and targets NVIDIA
 GPUs featuring 6.0 compute capability. The code should work with
 devices with compute capability >=2.0, but there are no guarantees.
 
+## Usage
+
+Please explore the examples in the 'tests' directory.
+
+For example, try the following commands:
+
+cd tests/argon-small
+mkdir output
+../../src/arbd BrownDyn.bd output/BrownDyn > output/BrownDyn.log
+
+You may use the '-g n' option to specify the n-th GPU on your machine,
+counting from 0.
+
+## Citing
+
+If you publish results obtained using ARBD, please cite the
+following manuscripts:
+
+"Predicting the DNA sequence dependence of nanopore ion current using atomic-resolution Brownian dynamics"
+Jeffrey Comer and Aleksei Aksimentiev.
+J Phys Chem C Nanomater Interfaces 116:3376-3393 (2012).
+
 ## Authors
 
-ARBD2 is being developed by the Aksimentiev group
+ARBD is developed by the Aksimentiev group
 (http://bionano.physics.illinois.edu).
 
-  - Christopher Maffeo <mailto:cmaffeo2@illinois.edu>
-  - Han-yi Chou
-  - Pin-Yi Li <mailto:pinyili2@illinois.edu>
+Please direct questions or problems to Chris.
 
-Please direct questions, problems or suggestions to Chris.
+- Christopher Maffeo <cmaffeo2@illinois.edu>
+- Han-yi Chao
+- Jeffrey Comer
+- Max Belkin
+- Emmanual Guzman
+- Justin Dufresne
+- Terrance Howard
+
+## Outstanding issues
+
+* There are no checks to ensure that pairlists are recalculated before
+  particles further than the pairlist distance move to within the
+  cutoff
+
+* A large amount of GPU memory for pairlists is allocated statically,
+  which may cause out-of-memory crashes in older hardware
