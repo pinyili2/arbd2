@@ -1,7 +1,0 @@
-<map id="SimplePotential::compute_bond" name="SimplePotential::compute_bond">
-<area shape="rect" id="Node000001" title=" " alt="" coords="224,46,429,72"/>
-<area shape="rect" id="Node000002" href="$class_simple_potential.html#a58e9c4b25d8203c83904cba2fb6e569d" title=" " alt="" coords="5,5,176,46"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="216,46,176,40,177,35,216,41"/>
-<area shape="rect" id="Node000003" href="$class_simple_potential.html#a6ae08fa0fb020fb09ac54595c986cc95" title=" " alt="" coords="5,71,176,111"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="212,77,177,82,176,77,211,72"/>
-</map>

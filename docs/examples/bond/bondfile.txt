@@ -1,1 +1,0 @@
-BOND REPLACE 0 1 dummy-pot.dat

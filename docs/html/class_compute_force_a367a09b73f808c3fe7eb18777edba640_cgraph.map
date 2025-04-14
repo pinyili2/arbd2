@@ -1,7 +1,0 @@
-<map id="ComputeForce::computeFull" name="ComputeForce::computeFull">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,192,56"/>
-<area shape="rect" id="Node000002" href="$class_compute_force.html#af3c06467660182ca632b65d9fd7f1dea" title=" " alt="" coords="240,5,458,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="192,31,224,28,224,33,192,37"/>
-<area shape="rect" id="Node000003" href="$class_compute_force.html#a196d111c02bf3165137ee589b4ca4689" title=" " alt="" coords="251,55,446,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="192,50,236,54,235,59,192,55"/>
-</map>

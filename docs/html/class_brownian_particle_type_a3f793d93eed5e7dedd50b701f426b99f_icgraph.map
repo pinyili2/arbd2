@@ -1,7 +1,0 @@
-<map id="BrownianParticleType::clear" name="BrownianParticleType::clear">
-<area shape="rect" id="Node000001" title=" " alt="" coords="217,39,364,79"/>
-<area shape="rect" id="Node000002" href="$class_brownian_particle_type.html#a693d2b9b9c36324f3b744163e2a31497" title=" " alt="" coords="13,5,161,46"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="201,47,161,40,161,35,202,42"/>
-<area shape="rect" id="Node000003" href="$class_brownian_particle_type.html#aa653f6d34db0171ceb4924d9aebb4a83" title=" " alt="" coords="5,71,169,111"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="202,76,170,81,169,75,201,70"/>
-</map>

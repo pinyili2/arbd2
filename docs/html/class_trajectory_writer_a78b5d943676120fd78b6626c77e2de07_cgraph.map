@@ -1,9 +1,0 @@
-<map id="TrajectoryWriter::TrajectoryWriter" name="TrajectoryWriter::TrajectoryWriter">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,47,185,88"/>
-<area shape="rect" id="Node000002" href="$class_trajectory_writer.html#af2804613550f11efdfc65cf2cc8de937" title=" " alt="" coords="235,5,446,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="185,47,257,32,258,37,186,52"/>
-<area shape="rect" id="Node000003" href="$class_trajectory_writer.html#a4d0387757e4e1245f218ae211a9bf840" title=" " alt="" coords="233,55,448,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="185,65,217,65,217,70,185,70"/>
-<area shape="rect" id="Node000004" href="$class_trajectory_writer.html#a03e42afba7e08cc22b9bff0d909bb1c4" title=" " alt="" coords="240,104,440,130"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="186,83,258,98,257,103,185,88"/>
-</map>

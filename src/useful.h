@@ -26,7 +26,26 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+
+#ifdef USE_CUDA
 #include <cuda_runtime.h>
+#else
+struct float4 {
+    float4() : x(0), y(0), z(0), w(0) {};
+    float4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {};
+    float4 operator+(const float4&& o) {
+	return float4(x+o.x,y+o.y,z+o.z,w+o.w);
+	// float4 r;
+	// r.x = x+o.x; r.y = y+o.y; r.z = z+o.z; r.w = w+o.w;
+	// return r;
+    };
+    float4 operator*(const float&& s) {
+	return float4(x*s,y*s,z*s,w*s);
+    };
+    
+    float x,y,z,w;
+};
+#endif
 
 // using namespace std;
 
@@ -35,6 +54,8 @@ bool isReal(char c);
 bool isInt(char c);
 
 int firstSpace(const char* s, int max);
+
+
 
 
 /*class int2 {

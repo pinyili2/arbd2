@@ -1,15 +1,19 @@
-///////////////////////////////////////////////////////////////////////
-// Author: Jeff Comer <jcomer2@illinois.edu>
-#include <cstdio>
+#ifdef USE_MPI
+#include <mpi.h>
+#endif
+
+#ifdef USE_CUDA
 #include <cuda.h>
+#endif
+
+#include <cstdio>
 #include <sstream>
 
-#include "useful.h"
-#include "GrandBrownTown.h"
-#include "Configuration.h"
+// #include "useful.h"
 #include "GPUManager.h"
-
 #include "SignalManager.h"
+
+#include "SimManager.h"
 
 // using namespace std;
 using std::max;
@@ -17,6 +21,31 @@ using std::max;
 const unsigned int kIMDPort = 71992;
 
 int main(int argc, char* argv[]) {
+
+#ifdef USE_MPI
+    MPI_Init(NULL, NULL);
+
+    // Get the number of processes
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    // Get the rank of the process
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    // Get the name of the processor
+    char processor_name[MPI_MAX_PROCESSOR_NAME];
+    int name_len;
+    MPI_Get_processor_name(processor_name, &name_len);
+
+    // Print off a hello world message
+    printf("Hello world from processor %s, rank %d out of %d processors\n",
+           processor_name, world_rank, world_size);
+
+    // Finalize the MPI environment.
+    MPI_Finalize();
+#endif
+
     SignalManager::manage_segfault();
 
 	if (argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
@@ -39,28 +68,30 @@ int main(int argc, char* argv[]) {
 #ifdef VERSION
 	    printf("%s %s\n", argv[0], VERSION);
 #else
-	    printf("%s Nov 2016 (alpha)\n", argv[0]);
+	    printf("%s unknown version\n", argv[0]);
 #endif
 		return 0;
 	} else if (argc == 2 && (strcmp(argv[1], "--info") == 0)) {
-		// --info
-		GPUManager::load_info();
-		printf("Returning\n");
-		// size_t n_gpus = max(GPUManager::gpus.size(), 1lu);
-		return 0;
+#ifdef USE_CUDA
+	    GPUManager::load_info();
+#else
+	    printf("ARBD not compiled with CUDA support\n");
+#endif
+	    printf("Returning\n");
+	    return 0;
 	} else if (argc < 3) {
 		printf("%s: missing arguments\n", argv[0]);
     printf("Try '%s --help' for more information.\n", argv[0]);
     return 1;
   }
-	// printf("Everything's great when you're...BrownTown\n");
-	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n");
-	printf("  |    Atomic Resolution Brownian Dynamics    |\n");
-	printf("  –––––––––––––––––––––––––––––––––––––––––––––\n");
-	GPUManager::init();
+	printf("--- Atomic Resolution Brownian Dynamics ---\n");
 
-	size_t n_gpus = GPUManager::allGpuSize();
+	size_t n_gpus = 0;
+#ifdef USE_CUDA
+	GPUManager::init();
+	n_gpus = GPUManager::allGpuSize();
 	std::vector<unsigned int> gpuIDs;
+#endif
 	
 	bool debug = false, safe = false;
 	int replicas = 1;
@@ -80,6 +111,8 @@ int main(int argc, char* argv[]) {
 			num_flags++;
 
 		} else if (strcmp(arg, "-g") == 0 || strcmp(arg, "--gpu") == 0) {
+#ifdef USE_CUDA
+		    /*
 		    String argval(argv[pos+1]);
 		    int nTokens = argval.tokenCount(',');
 		    String* tokens = new String[nTokens];
@@ -90,18 +123,22 @@ int main(int argc, char* argv[]) {
 			    printf("ERROR: Invalid argument given to %s: %s\n", arg, tokens[i].val());
 				return 1;
 			}
-			std::vector<unsigned int>::iterator it;
-			it = std::find(gpuIDs.begin(), gpuIDs.end(), arg_val);
-			if (it != gpuIDs.end()) {
-			    printf("WARNING: ignoring repeated GPU ID %d\n", arg_val);
-			} else {
-			    gpuIDs.push_back(arg_val);
-			}
+			// std::vector<unsigned int>::iterator it;
+			// it = std::find(gpuIDs.begin(), gpuIDs.end(), arg_val);
+			// if (it != gpuIDs.end()) {
+			//     printf("WARNING: ignoring repeated GPU ID %d\n", arg_val);
+			// } else {
+			gpuIDs.push_back(arg_val);
+			// }
 		    }
 		    delete[] tokens;
 		    safe = false;
 		    num_flags += 2;
-			
+		    */
+#else
+		    printf("ARBD compiled without CUDA support. Exiting.\n");
+		    return 1;
+#endif			
 		} else if (strcmp(arg, "-r") == 0 || strcmp(arg, "--replicas") == 0) {
 			int arg_val = atoi(argv[pos + 1]);
 			if (arg_val <= 0) {
@@ -140,27 +177,30 @@ int main(int argc, char* argv[]) {
 	    return 1;
 	}
 
+#ifdef USE_CUDA
 	GPUManager::safe(safe);
 	if (gpuIDs.size() == 0)
 	    gpuIDs.push_back( GPUManager::getInitialGPU() );
 
 	#ifndef USE_NCCL
 	if (gpuIDs.size() > 1) {
-	    printf("ERROR: more than one GPU requires compilation with USE_NCCL flag\n");
+	    Exception(ValueError, "Using more than one GPU requires compilation with USE_NCCL flag");
 	    return 1;
 	}
 	#endif
 
 	GPUManager::select_gpus(gpuIDs);
+#endif
 
-	Configuration config(configFile, replicas, debug);
-	config.copyToCUDA();
-	// GPUManager::set(0);
-
-	GrandBrownTown brown(config, outArg,
-			debug, imd_on, imd_port, replicas);
-
-	brown.run();
+	SimManager sim;
+	sim.run();
+	
+	// Configuration config(configFile, replicas, debug);
+	// config.copyToCUDA();
+	// // GPUManager::set(0);
+	// GrandBrownTown brown(config, outArg,
+	// 		debug, imd_on, imd_port, replicas);
+	// brown.run();
   return 0;
 
 }

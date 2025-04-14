@@ -1,7 +1,0 @@
-<map id="wkf_timer_timenow" name="wkf_timer_timenow">
-<area shape="rect" id="Node000001" title="report elapsed time in seconds" alt="" coords="5,31,140,56"/>
-<area shape="rect" id="Node000002" href="$_w_k_f_utils_8cpp.html#a87fdd4cda65e45a886a645a0d7fa1b44" title="stop a timer" alt="" coords="188,5,298,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="140,31,172,26,172,31,140,36"/>
-<area shape="rect" id="Node000003" href="$_w_k_f_utils_8cpp.html#a5c5e7e2c38cf8cfc54627a3d3b2c96ae" title="report elapsed time in seconds" alt="" coords="188,55,298,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="140,50,172,55,172,60,140,56"/>
-</map>

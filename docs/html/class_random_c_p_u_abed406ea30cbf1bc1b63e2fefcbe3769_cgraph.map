@@ -1,7 +1,0 @@
-<map id="RandomCPU::gaussian" name="RandomCPU::gaussian">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,165,31"/>
-<area shape="rect" id="Node000002" href="$class_random_c_p_u.html#aabdf494a3d1343054a889b9ce8d538be" title=" " alt="" coords="213,5,363,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="165,16,197,16,197,21,165,21"/>
-<area shape="rect" id="Node000003" href="$class_random_c_p_u.html#a11cc12ab9e2808597980bc77c24a0ed3" title=" " alt="" coords="411,5,542,31"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="363,16,395,16,395,21,363,21"/>
-</map>

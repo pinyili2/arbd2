@@ -1,8 +1,0 @@
-<map id="OverlordGrid::link" name="OverlordGrid::link">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,128,31"/>
-<area shape="rect" id="Node000002" href="$class_base_grid.html#aedf9d1402ce84155fbb2f0e586f09fb5" title=" " alt="" coords="346,5,483,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="128,16,331,16,331,21,128,21"/>
-<area shape="rect" id="Node000003" href="$class_overlord_grid.html#a561a08bc576eb38f94b5630ad5c4494b" title=" " alt="" coords="176,31,298,56"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="128,25,161,29,160,35,127,30"/>
-<area shape="poly" id="edge3_Node000003_Node000002" title=" " alt="" coords="298,32,330,27,331,33,299,37"/>
-</map>

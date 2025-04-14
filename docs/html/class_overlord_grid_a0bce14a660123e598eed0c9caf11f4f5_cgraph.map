@@ -1,7 +1,0 @@
-<map id="OverlordGrid::interpolatePotential" name="OverlordGrid::interpolatePotential">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,23,168,64"/>
-<area shape="rect" id="Node000002" href="$class_base_grid.html#ac9fb1bbcdd35f85e45c97a9ca4cf9cfb" title=" " alt="" coords="221,5,369,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="168,31,205,26,206,32,168,36"/>
-<area shape="rect" id="Node000003" href="$class_base_grid.html#a8a3d4f7766c1838283a3febfdadaec87" title=" " alt="" coords="216,55,374,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="168,50,201,54,200,59,168,55"/>
-</map>
