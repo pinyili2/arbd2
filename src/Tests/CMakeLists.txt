@@ -1,4 +1,13 @@
-find_package(Catch2 3 REQUIRED)
+#find_package(Catch2 3 REQUIRED)
+Include(FetchContent)
+
+FetchContent_Declare(
+  Catch2
+  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+  GIT_TAG        v3.4.0 # or a later release
+)
+
+FetchContent_MakeAvailable(Catch2)
 
 # include(doctest)
 include(Catch) # contains some cmake macros that will help with discovery of tests
@@ -10,6 +19,7 @@ matrix3.cu
 vector3_precision.cu
 bitmask.cu
 array.cu
+proxytest.cu
 )
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
 set_property(TARGET arbd_tests PROPERTY CXX_STANDARD 14)
