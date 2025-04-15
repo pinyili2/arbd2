@@ -3,7 +3,7 @@
 #include <future>
 #include <iostream>
 #include "Resource.h"
-
+#include "type_name.h"
 #include "cuda.h"
 #include "cuda_runtime.h"
 
@@ -458,8 +458,39 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T
 	    }
 	    gpuErrchk(cudaMemcpy(dest, &obj, sizeof(T), cudaMemcpyHostToDevice));
 	} else {
- 	    Exception( NotImplementedError, "`_send_ignoring_children(...)` on non-local GPU" );
-	}
+		int current_device;
+            gpuErrchk(cudaGetDevice(&current_device)); // Get current device
+
+            // Switch to target device
+            gpuErrchk(cudaSetDevice(location.id));
+
+            // Allocate memory on target device if needed
+            if (dest == nullptr) {
+                LOGTRACE("   cudaMalloc on device {}", location.id);
+                gpuErrchk(cudaMalloc(&dest, sizeof(T)));
+            }
+
+            // Enable peer access if possible
+            int can_access;
+            gpuErrchk(cudaDeviceCanAccessPeer(&can_access, location.id, current_device));
+            
+            if (can_access) {
+                gpuErrchk(cudaDeviceEnablePeerAccess(current_device, 0));
+                // Copy data directly between devices
+                gpuErrchk(cudaMemcpy(dest, &obj, sizeof(T), cudaMemcpyDeviceToDevice));
+                gpuErrchk(cudaDeviceDisablePeerAccess(current_device));
+            } else {
+                // If peer access not available, use staged transfer through host
+                T* host_temp = new T;
+                gpuErrchk(cudaMemcpy(host_temp, &obj, sizeof(T), cudaMemcpyDeviceToHost));
+                gpuErrchk(cudaMemcpy(dest, host_temp, sizeof(T), cudaMemcpyHostToDevice));
+                delete host_temp;
+            }
+
+            // Switch back to original device
+            gpuErrchk(cudaSetDevice(current_device));
+        }
+ 	    //Exception( NotImplementedError, "`_send_ignoring_children(...)` on non-local GPU" );
 #else
 	Exception( NotImplementedError, "USE_CUDA is not enabled" );
 #endif

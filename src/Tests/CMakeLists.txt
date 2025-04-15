@@ -19,6 +19,7 @@ matrix3.cu
 vector3_precision.cu
 bitmask.cu
 array.cu
+proxytest.cu
 )
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
 set_property(TARGET arbd_tests PROPERTY CXX_STANDARD 14)
