@@ -1,6 +1,6 @@
 #pragma once
-#include "../GPUManager.h"
-#include "../ParticlePatch.h"
+#include "../Backend/GPU/GPUManager.h"
+#include "ParticlePatch.h"
 
 class PatchCUDA : public Patch {
 public:

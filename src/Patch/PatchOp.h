@@ -52,5 +52,3 @@ private:
 };
 
 
-#include "Integrator.h"
-#include "Interaction.h"
