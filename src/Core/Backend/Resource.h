@@ -4,7 +4,7 @@
 #include <mpi.h>
 #endif
 
-#include "ARBDException.h"
+#include "../ARBDException.h"
 #include "GPUManager.h"
 
 /**

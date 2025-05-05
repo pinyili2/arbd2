@@ -2,7 +2,7 @@
 
 #include <future>
 #include <iostream>
-#include "Resource.h"
+#include "Backend/Resource.h"
 
 #include "cuda.h"
 #include "cuda_runtime.h"

@@ -1,5 +1,5 @@
 #pragma once
-#include "../Interaction.h"
+#include "Interaction.h"
 
 class LocalBonded : public LocalInteraction {
 public:

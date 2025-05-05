@@ -1,5 +1,5 @@
 #pragma once
-#include "../Interaction.h"
+#include "Interaction.h"
 
 #ifdef USE_CUDA
 class LocalBondedCUDA : public LocalInteraction {

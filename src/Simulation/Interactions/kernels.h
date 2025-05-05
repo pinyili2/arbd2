@@ -1,7 +1,7 @@
 #pragma once
 
 // #include "../useful.h"
-#include "../Types.h"
+#include "../../Core/Types.h"
 
 #ifdef __CUDACC__
     #define HOST __host__

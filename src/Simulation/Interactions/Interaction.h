@@ -8,7 +8,7 @@
 #include <cassert>
 #include <iostream>
 #include <map>
-#include "PatchOp.h"
+#include "../../Patch/PatchOp.h"
 
 /**
  * @class LocalInteraction
