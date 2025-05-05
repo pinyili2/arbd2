@@ -5,11 +5,11 @@ add_library("lib${PROJECT_NAME}"
   GPUManager.cpp
   ParticlePatch.cpp
   #SimSystem.cpp
-  Integrator.cpp
-  Integrator/CPU.cpp
-  Integrator/CUDA.cu
-  Interaction.cpp
-  Interaction/CPU.cpp
+  Simulation/Integrator.cpp
+  Simulation/Integrator/CPU.cpp
+  Simulation/Integrator/CUDA.cu
+  Core/Interaction.cpp
+  Core/Interaction/CPU.cpp
   Interaction/CUDA.cu
   SignalManager.cpp
   PatchOp.cu

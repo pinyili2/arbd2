@@ -116,6 +116,6 @@ protected:
 // };
 
 
-#include "Interaction/kernels.h"
-#include "Interaction/CUDA.h"
-#include "Interaction/CPU.h"
+#include "kernels.h"
+#include "GPUInteraction.h"
+#include "CPUInteraction.h"
