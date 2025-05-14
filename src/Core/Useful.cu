@@ -4,7 +4,7 @@
 ///////////////////////////////////////////////////////////////////////
 // Useful classes.
 // Author: Jeff Comer <jcomer2@illinois.edu>
-#include "useful.h"
+#include "Useful.h"
 #include <cuda.h>
 
 

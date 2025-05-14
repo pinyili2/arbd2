@@ -4,8 +4,8 @@
 #pragma once
 
 #include "GPUManager.h"
-#include "Types.h"
-#include "Proxy.h"
+#include "../Types.h"
+#include "../Proxy.h"
 #include <map>
 #include <vector>
 #include <memory>

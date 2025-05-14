@@ -15,6 +15,7 @@ target_sources(arbd_lib PRIVATE
     "Core/Types/Bitmask.h"
     "Core/Types/Matrix3.h"
     "Core/Types/Vector3.h"
+    "Core/Backend/Resource.h"
 
     "ARBDException.h" # Assuming these are moved from original Core/
     "ARBDException.cpp"

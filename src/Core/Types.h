@@ -5,7 +5,7 @@
 #include <memory>    // For std::unique_ptr
 #include <cstring>
 
-#include "type_name.h"
+#include "TypeName.h"
 
 // Utility function used by types to return std::string using format syntax
 inline std::string string_format(const std::string fmt_str, ...) {

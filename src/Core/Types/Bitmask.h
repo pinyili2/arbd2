@@ -4,26 +4,34 @@
 #include <cstdlib>
 #include <cassert>
 #include <initializer_list>
+#include <string>
+#include <memory>
+#include <algorithm>
 
 
 class BitmaskBase {
-public:
-    BitmaskBase(const size_t len) : len(len) {}
-    HOST DEVICE
-    virtual void set_mask(size_t i, bool value) = 0;
-    HOST DEVICE
-    virtual bool get_mask(size_t i) const = 0;
-    size_t get_len() const { return len; }
-    virtual void print() {
-	for (int i = 0; i < len; ++i) {
-	    printf("%d", static_cast<int>(get_mask(i)) );
-	}
-	printf("\n");
-    }
-    
-protected:
-    size_t len;
-};
+	public:
+		BitmaskBase(const size_t len) : len(len) {}
+		virtual ~BitmaskBase() = default;
+		
+		HOST DEVICE
+		virtual void set_mask(size_t i, bool value) = 0;
+		
+		HOST DEVICE
+		virtual bool get_mask(size_t i) const = 0;
+		
+		size_t get_len() const { return len; }
+		
+		virtual void print() const {
+			for (size_t i = 0; i < len; ++i) {
+				printf("%d", static_cast<int>(get_mask(i)));
+			}
+			printf("\n");
+		}
+		
+	protected:
+		size_t len;
+	};
 
 // Don't use base because virtual member functions require device malloc
 class Bitmask {
@@ -157,73 +165,3 @@ private:
     const static idx_t data_stride = CHAR_BIT * sizeof(data_t)/sizeof(char);
     data_t* __restrict__ mask;
 };
-
-/*
-template<size_t chunk_size>
-class SparseBitmask : public BitmaskBase {
-public:
-    SparseBitmask(const size_t len) : BitmaskBase(len) {
-	assert( sparse_size > 0 );
-	meta_len = (len-1)/data_stride + 1;
-	meta_mask = Bitmask(meta_len);
-    }
-    ~Bitmask() { delete[] mask; }
-
-    void set_mask(size_t i, bool value) {
-	assert(i < len);
-	size_t meta_i = i/data_stride;
-	// TODO: keep track of
-	
-	// bool is_set = get_mask(i);
-	// if ((!is_set) && value) {
-	//     mask[ci] = mask[ci] + (1 << (i-ci*data_stride));
-	// } else if (is_set && (!value)) {
-	//     mask[ci] = mask[ci] - (1 << (i-ci*data_stride));
-	// }
-    }
-    size_t meta_idx_to_char_idx(size_t meta_idx) {
-	return meta_idx * CHAR_BIT;
-    }
-
-    bool get_mask(size_t i) {
-	// assert(i < len);
-	// size_t ci = i/data_stride;
-	// return mask[ci] & (1 << (i-ci*data_stride));
-    }
-    
-private:
-    const static size_t data_stride = CHAR_BIT*spare_size;
-    size_t meta_len;
-    Bitmask meta_mask;
-    std::vector<char> mask;
-};
-*/
-
-/*
-bool test_Bitmask() {
-    for (int i: {8,9,20}) {
-	Bitmask b = Bitmask(i);
-	for (int j: {0,3,10,19}) {
-	    if (j < i) b.set_mask(j,1);
-	}
-	printf("Testing Bitmask(%d)\n", i);
-	b.print();
-	b.set_mask(3,1);
-	b.print();
-	b.set_mask(3,1);
-	b.print();
-	b.set_mask(3,0);
-	b.print();
-	b.set_mask(2,0);
-	b.print();
-    }
-    return true;
-}
-// */
-
-/*
-int main(int argc, char* argv[]) {
-    test_Bitmask();
-    return 1;
-}
-//*/

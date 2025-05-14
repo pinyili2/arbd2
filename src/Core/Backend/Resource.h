@@ -4,15 +4,15 @@
 #include <mpi.h>
 #endif
 
-#include "../ARBDException.h"
-#include "GPUManager.h"
+#include "ARBDException.h"
+#include "GPU/GPUManager.h"
 
 /**
  * @brief Get current resource index (device ID or MPI rank)
  */
 HOST DEVICE inline size_t caller_id() {
 #ifdef USE_CUDA
-    if (cudaGetDevice(nullptr) == cudaSuccess) {  // Are we in a CUDA context?
+    if (cudaGetDevice(nullptr) == cudaSuccess) { 
         int device;
         cudaGetDevice(&device);
         return static_cast<size_t>(device);

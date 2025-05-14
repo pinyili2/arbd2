@@ -3,8 +3,8 @@
 #include <cstdio>
 #include <cstdlib>
 #ifdef SIGNAL
-#include "common.h"
-//#include "ARBDException.h"
+#include "Common.h"
+#include "ARBDException.h"
 
 void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret) 
 {
