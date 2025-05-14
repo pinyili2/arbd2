@@ -1,0 +1,4 @@
+Integrate, Modernize & Test src/Core/Types: Merge useful.h content (Vector3, Matrix3), Types.h, Array.h, Bitmask.h. Modernize (namespaces, constexpr, etc.). Add/update unit tests (../Tests/Core/Types).
+Integrate, Modernize & Test Merge common.h, namd_common.h, SignalManager.*, type_name.h. Integrate ARBDException.* from ver1. 
+Modernize. Add tests (../Tests/Core, ../Tests/Utils).
+CMake: Define arbd_core_types_utils static library target. Ensure compilation.
