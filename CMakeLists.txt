@@ -68,14 +68,6 @@ option(USE_NCCL "Use NCCL for single node GPU peer communication" False)
 option(USE_NVTX "Build with NVTX profiling ranges" False)
 option(USE_LOGGER "Build with SPDLog" True)
 
-# (not yet optional) message(STATUS "USE_CUDA: ${USE_CUDA}")
-message(STATUS "DEBUG: ${DEBUG}")
-message(STATUS "USE_NCCL: ${USE_NCCL}")
-message(STATUS "USE_NVTX: ${USE_NVTX}")
-message(STATUS "USE_LOGGER: ${USE_LOGGER}")
-message(STATUS "USE_PYBIND: ${USE_PYBIND}")
-
-
 ## Set flags before adding executable 
 # configure_file(TutorialConfig.h.in TutorialConfig.h)
 if(USE_CUDA)
@@ -160,7 +152,6 @@ set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 ## Add subdirectories
 add_subdirectory(src)
 add_subdirectory(src/Tests)
-add_subdirectory(src/Core)
 
 # set(CMAKE_VERBOSE_MAKEFILE True)
 add_executable("${PROJECT_NAME}" src/arbd.cpp
@@ -196,3 +187,19 @@ if(USE_LOGGER)
 endif()
 
 install(TARGETS "${PROJECT_NAME}")
+message(STATUS "---------------------------------------------------------")
+message(STATUS "Project Configuration Summary for ${PROJECT_NAME}:")
+message(STATUS "  Build Type:         ${CMAKE_BUILD_TYPE}")
+message(STATUS "  C++ Standard:       ${CMAKE_CXX_STANDARD}")
+if(USE_CUDA)
+  message(STATUS "  CUDA Enabled:       YES")
+  message(STATUS "  CUDA Standard:      ${CMAKE_CUDA_STANDARD}")
+  message(STATUS "  CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
+else()
+  message(STATUS "  CUDA Enabled:       NO")
+endif()
+message(STATUS "  Logger (spdlog):    ${USE_LOGGER} (Active Level: ${ARBD_SPDLOG_LEVEL})")
+message(STATUS "  NVTX Profiling:     ${USE_NVTX}")
+message(STATUS "  NCCL Support:       ${USE_NCCL}")
+message(STATUS "  Python Bindings:    ${USE_PYBIND}")
+message(STATUS "---------------------------------------------------------")
