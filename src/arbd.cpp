@@ -37,16 +37,12 @@ using std::max;
 // Consider moving constants to a dedicated configuration header or class
 const unsigned int kDefaultIMDPort = 71992;
 
-// Forward declaration for a potential argument parsing struct/class (future refactoring)
 struct ProgramOptions {
     std::string configFile;
     std::string outputFile;
-    // int seed = 0; // Example for later
-    // Other options will be added here
 };
 
-// Basic argument parsing (to be significantly expanded and modernized later)
-// For Week 1, we'll keep it very simple.
+
 bool parse_basic_args(int argc, char* argv[], ProgramOptions& opts) {
     if (argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
         printf("Usage: %s [OPTIONS] CONFIGFILE OUTPUT [SEED]\n", argv[0]);
@@ -68,9 +64,7 @@ bool parse_basic_args(int argc, char* argv[], ProgramOptions& opts) {
         return false; // Indicates version was shown, program should exit
     } else if (argc == 2 && (strcmp(argv[1], "--info") == 0)) {
 #ifdef USE_CUDA
-        // GPUManager::load_info(); // This might be too complex for Week 1
-                                  // It depends on GPUManager being fully modernized.
-                                  // Let's keep it stubbed for now.
+
         printf("CUDA is enabled.\n");
         // Add a very simple device query here for Week 1 if possible
         int deviceCount = 0;
@@ -155,8 +149,6 @@ int main(int argc, char* argv[]) {
 #ifdef USE_CUDA
     std::cout << "Initializing GPU Manager..." << std::endl;
     // GPUManager::init(); // Call the static init method
-                        // This will be modernized to handle multi-GPU selection later.
-                        // For Week 1, it might just pick GPU 0 or do minimal setup.
     // GPUManager::select_gpus({0}); // Example: Select GPU 0 for now
     // size_t n_gpus = GPUManager::allGpuSize();
     // std::cout << "Number of available GPUs: " << n_gpus << std::endl;

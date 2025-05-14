@@ -4,28 +4,28 @@
 # The executable in the parent scope will link against this.
 add_library(arbd_lib) # Using a fixed name "arbd_lib" for clarity
 
-# --- Source Files for the Library (Minimal for Month 1) ---
 # List source files relative to the current directory (src/).
 # These paths reflect your TARGET capitalized directory structure.
 target_sources(arbd_lib PRIVATE
     # Core C++ files for initial modernization
-    "Core/Common.h"
-    "Core/Types.h"
-    "Core/Types/Array.h"
-    "Core/Types/Bitmask.h"
-    "Core/Types/Matrix3.h"
-    "Core/Types/Vector3.h"
-    "Core/Backend/Resource.h"
-
-    "ARBDException.h" # Assuming these are moved from original Core/
+    "ARBDException.h"
     "ARBDException.cpp"
-    "Core/SignalManager.h"   # Assuming these are moved from original Core/
+    "Core/Common.h"
+    "Core/SignalManager.h" 
     "Core/SignalManager.cpp"
     "Core/TypeName.h" 
 
-    # Math utilities (from original Core/useful.*)
-    "Core/useful.h"
-    "Core/useful.cu" # Add this to ensure CUDA compilation path works for the library
+    #"Core/Types.h"
+    #"Core/Types/Array.h"
+    #"Core/Types/Bitmask.h"
+    #"Core/Types/Matrix3.h"
+    #"Core/Types/Vector3.h"
+    #"Core/MemoryManager.h"
+    #"Core/Proxy.h"
+    #"Core/Backend/GPU/CudaMemory.h"
+    #"Core/Backend/Resource.h"
+    #"Core/Backend/GPU/GPUManager.h"
+
 )
 
 # --- Include Directories for the Library ---
