@@ -1,4 +1,4 @@
-// SimManager.cu
+// SimManager.cu, from GrandBorwnTown.cu/cuh...etc
 #include "SimManager.h"
 #include "Random.h"
 #include <memory>

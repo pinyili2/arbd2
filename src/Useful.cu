@@ -1,9 +1,8 @@
+//Look at Types, try to merge
+
 #ifndef USEFUL_CU
 #define USEFUL_CU
 
-///////////////////////////////////////////////////////////////////////
-// Useful classes.
-// Author: Jeff Comer <jcomer2@illinois.edu>
 #include "Useful.h"
 #include <cuda.h>
 

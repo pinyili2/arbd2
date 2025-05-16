@@ -29,15 +29,15 @@ inline std::string string_format(const std::string fmt_str, ...) {
 
 
 // Includes of various types (allows those to be used simply by including Types.h)
-#include "Types/Vector3.h"
-#include "Types/Matrix3.h"
+#include "Vector3.h"
+#include "Matrix3.h"
 
 using Vector3 = Vector3_t<float>;
 using Matrix3 = Matrix3_t<float,false>;
 
-#include "Types/Bitmask.h"
+#include "Bitmask.h"
 
-#include "Types/Array.h"
+#include "Array.h"
 using VectorArr = Array<Vector3>;
 
 // Helpful routines

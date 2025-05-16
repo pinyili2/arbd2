@@ -1,6 +1,7 @@
 ///////////////////////////////////////////////////////////////////////
 // Useful classes.
 // Author: Jeff Comer <jcomer2@illinois.edu>
+//Look at Types, try to merge
 #ifndef USEFUL_H
 #define USEFUL_H
 
