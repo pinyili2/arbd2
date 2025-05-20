@@ -1,34 +1,9 @@
 
-cmake_minimum_required(VERSION 3.15 FATAL_ERROR) # FOR PYBIND, should be 3.15+?
+cmake_minimum_required(VERSION 3.25 FATAL_ERROR) 
 
 # option(USE_CUDA "Use CUDA" ON)
 set(USE_CUDA ON)
 
-if(${USE_CUDA} AND NOT CMAKE_CUDA_ARCHITECTURES)
-  if(${CMAKE_VERSION} VERSION_LESS "3.18.0")
-    message("CMake support for CUDA prior to CMake 3.18 may not work well; consider switching to a more recent version of CMake if you encounter errors at compile- or run-time.")
-  endif()
-  if(${CMAKE_VERSION} VERSION_LESS "3.24.0") 
-    message("CMAKE_CUDA_ARCHITECTURES not specified; checking GPUs on your system for CUDA architecture...")
-    execute_process(COMMAND nvidia-smi --query-gpu=compute_cap --format=csv,noheader
-    COMMAND sort
-    COMMAND uniq
-    COMMAND tr "\\n" " "
-    COMMAND sed "s/ \\(.\\)/,\\1/g"
-    TIMEOUT 1
-    RESULT_VARIABLE GPU_QUERY_RESULT
-    OUTPUT_VARIABLE GPU_QUERY_OUTPUT
-    )
-    if (GPU_QUERY_RESULT EQUAL 0)
-      set(CMAKE_CUDA_ARCHITECTURES ${GPU_QUERY_OUTPUT})
-    else()
-      message("CUDA architecture could not be found! Guessing SM 7.5")  
-      set(CMAKE_CUDA_ARCHITECTURES 7.5)
-    endif()
-  else()
-    set(CMAKE_CUDA_ARCHITECTURES native)
-  endif()
-endif()
 
 set(USE_MPI OFF)
 

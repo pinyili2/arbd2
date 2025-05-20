@@ -9,6 +9,8 @@
 #include <string>
 #include <cstdarg>
 #include <exception>
+#include <source_location> // C++20 for std::source_location
+
 #include "SignalManager.h"
 
 //struct ExceptionType {
@@ -39,6 +41,12 @@ class _ARBDException : public std::exception
   public:
     // UPDATED: Constructor signature uses the new enum class
     _ARBDException(const std::string& location, ExceptionType type, const std::string &ss, ...); 
+    _ARBDException(
+        ExceptionType type,
+        const std::string &message_format, 
+        const std::source_location& location = std::source_location::current(), 
+        ... 
+    );  
     virtual const char* what() const noexcept; 
 };
 

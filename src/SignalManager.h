@@ -96,7 +96,3 @@ namespace SignalManager
 }
 
 #endif /* SIGNALMANAGER_H_ */
-
-struct BacktraceSymbolsDeleter {
-    void operator()(char** p) const { if (p) std::free(p); }
-};
