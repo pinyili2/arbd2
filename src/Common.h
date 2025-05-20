@@ -95,21 +95,15 @@ namespace NAMD{
 
 
 enum class MessageTag : int {
-  SimParams = 100,
-  StaticParams = 101,
-  Molecule = 102,
-  Full=104,
-  FullForce=105,
-  Dpm=106,
-    // ...
+  SIMPARAMS=100,	//  Tag for SimParameters class
+  STATICPARAMS=101,	//  Tag for Parameters class
+  MOLECULE=102, //  Tag for Molecule class
+  FULL=104,
+  FULLFORCE=105,
+  DPMTA=106
 };
 // message tags
-//#define SIMPARAMSTAG	100	//  Tag for SimParameters class
-//#define STATICPARAMSTAG 101	//  Tag for Parameters class
-//#define MOLECULETAG	102	//  Tag for Molecule class
-//#define FULLTAG	104
-//#define FULLFORCETAG 105
-//#define DPMTATAG 106
+
 
 
 
