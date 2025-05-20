@@ -28,6 +28,33 @@ HOST DEVICE inline size_t caller_id() {
 #endif
 }
 
+
+class FileHandle {
+  FILE* m_file = nullptr;
+public:
+  FileHandle(const char* filename, const char* mode) : m_file(std::fopen(filename, mode)) {
+      if (!m_file) {
+        throw std::runtime_error(std::string("FileHandle: Failed to open file '") +filename + "' with mode '" + mode + "'.");}
+  }
+  ~FileHandle() {
+      if (m_file) {
+            std::fclose(m_file);
+            m_file = nullptr; // Good practice to nullify after closing
+        }
+  }
+  // Delete copy constructor/assignment
+  FileHandle(const FileHandle&) = delete;
+  FileHandle& operator=(const FileHandle&) = delete;
+  // Allow move
+  FileHandle(FileHandle&& other) noexcept : m_file(other.m_file) { other.m_file = nullptr; }
+  FileHandle& operator=(FileHandle&& other) noexcept { /* ... */ }
+
+  FILE* get() const { return m_file; }
+  // operator FILE*() const { return m_file; } // If implicit conversion is desired
+};
+// Usage: FileHandle my_file("data.txt", "r"); // Automatically closes
+
+
 /**
  * @brief Resource representation for heterogeneous computing
  */

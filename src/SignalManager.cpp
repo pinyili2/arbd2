@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #ifdef SIGNAL
 #include "Common.h"
 #include "ARBDException.h"
@@ -12,22 +13,25 @@ void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret)
     //if(sig != SIGSEGV) 
         //throw ARBDException("segfault_handler should handle segmentation faults only, got %d", sig);
     void *trace[16];
-    char **messages = (char **) NULL;
-    int i, trace_size = 0;
+    int trace_size = 0;
     ucontext_t *uc = (ucontext_t *) secret;
-    //write to stdout for now
-    fprintf(stdout, "Segmentation fault identified, faulty address is %p, from %p", info->si_addr, (void *) uc->uc_mcontext.gregs[MY_REG_RIP]);
+
+    // Using fmt for modern string formatting
+    fmt::print(stdout, "Segmentation fault identified, faulty address is {}, from {}\n", 
+              (void*)info->si_addr, (void*)uc->uc_mcontext.gregs[MY_REG_RIP]);
 
     trace_size = backtrace(trace, 16);
     /* overwrite sigaction with caller's address */
     trace[1] = (void *) uc->uc_mcontext.gregs[MY_REG_RIP];
 
-    messages = backtrace_symbols(trace, trace_size);
-    /* skip first stack frame (points here) */
-    
-    fprintf(stdout, "Execution path:");
-    for (i = 1; i < trace_size; ++i) 
-        fprintf(stdout, "\t[bt] %s\n", messages[i]);
+    // Use smart pointer with custom deleter for messages
+    char **messages = nullptr;
+    messages = (char **) backtrace_symbols(trace, trace_size);
+
+    fmt::print(stdout, "Execution path:\n");
+    for (int i = 1; i < trace_size; ++i) {
+        fmt::print(stdout, "\t[bt] {}\n", messages[i]);
+    }
     //throw here or just exit ?
     exit(0);
 }

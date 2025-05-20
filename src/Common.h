@@ -10,73 +10,40 @@
 
 #ifndef COMMON_H
 #define COMMON_H
+#include <cstdio>      // For FILE*, fopen, fclose, etc. (C++ wrapper for <stdio.h>)
+#include <cstdint>     // For std::int32_t, std::int64_t, std::uint32_t, etc.
+#include <climits>     // For limits of integral types (C++ wrapper for <limits.h>)
+#include <string>      // For std::string
+#include <stdexcept>   // For std::runtime_error and other standard exceptions
+#include <vector>      // Example, if needed for other utilities in this file
+#include <cmath>       // For mathematical functions like std::sqrt, std::abs, etc.
+#include <filesystem>  // For C++17+ file system operations (optional, if replacing POSIX/C-style file ops)
 
-#include <sys/stat.h>
+// Use std::int32_t now
 
-#if !defined(WIN32) || defined(__CYGWIN__)
-#include <unistd.h>
-#endif
-#include <stdio.h>
-#include <limits.h>
-
-#if ( INT_MAX == 2147483647L )
-typedef	int	int32;
-#elif ( SHRT_MAX == 2147483647L )
-typedef	short	int32;
-#endif
-
-#ifdef _MSC_VER
-typedef __int64 int64;
-#else
-#if ( INT_MAX == 9223372036854775807LL )
-typedef int int64;
-#elif ( LONG_MAX == 9223372036854775807LL )
-typedef long int64;
-#else
-typedef long long int64;
-#endif
-#endif
-// USe std::int32_t now
-
-#if defined(PLACEMENT_NEW)
-void * ::operator new (size_t, void *p) { return p; }
-#elif defined(PLACEMENT_NEW_GLOBAL)
-void * operator new (size_t, void *p) { return p; }
-#endif
 //use new instead
 
 
-constexpr float COLOUMB 332.0636f
-constexpr float BOLTZMAN 0.001987191f
-constexpr float TIMEFACTOR 48.88821f
-constexpr float PRESSUREFACTOR 6.95E4f
-constexpr float PDBVELFACTOR 20.45482706f
-constexpr float PDBVELINVFACTOR (1.0f/PDBVELFACTOR)
-constexpr float PNPERKCALMOL 69.479f
+constexpr float COULOMB = 332.0636f;
+constexpr float BOLTZMANN = 0.001987191f;
+constexpr float TIMEFACTOR = 48.88821f;
+constexpr float PRESSUREFACTOR = 6.95E4f;
+constexpr float PDBVELFACTOR = 20.45482706f
+constexpr float PDBVELINVFACTOR =1.0f/PDBVELFACTOR;
+constexpr float PNPERKCALMOL = 69.479f;
 
-#ifndef PI
-constexpr float PI	3.141592653589793f
-#endif
+constexpr float PI = 3.141592653589793f;
 
-#ifndef TWOPI
-constexpr float TWOPI	2.0f * PI
-#endif
+constexpr float TWOPI= 2.0f * PI;
 
-#ifndef ONE
-constexpr float ONE	1.000000000000000f
-#endif
+constexpr float ONE = 1.000000000000000f;
 
-#ifndef ZERO
-constexpr float ZERO	0.000000000000000f
-#endif
+constexpr float ZERO = 0.000000000000000f;
 
-#ifndef SMALLRAD
-constexpr float SMALLRAD      0.0005f
-#endif
+constexpr float SMALLRAD = 0.0005f;
 
-#ifndef SMALLRAD2
-constexpr float SMALLRAD2     SMALLRAD*SMALLRAD
-#endif
+constexpr float SMALLRAD2 = SMALLRAD*SMALLRAD;
+
 
 /* Define the size for Real and BigReal.  Real is usually mapped to float */
 /* and BigReal to double.  To get BigReal mapped to float, use the 	  */
@@ -95,52 +62,35 @@ using BigReal = float;
 #endif
 
 typedef int Bool;
+constexpr std::string_view STRINGNULL = '\0';
+constexpr int MAX_NEIGHBORS = 27;
 
-
-#ifndef STRINGNULL
-#define STRINGNULL '\0'
-#endif
-
-#define MAX_NEIGHBORS 27
-
-typedef int Bool;
 
 class Communicate;
 
 // global functions
 
-namespace NAMDUtils{
+namespace NAMD{
+  void quit(const char *);
+  void die(const char *);
+  void err(const char *);  // also prints strerror(errno)
+  void bug(const char *);
+  void backup_file(const char *filename, const char *extension = 0);
+  char *stringdup(const char *);
 
+  constexpr int SeparateWaters = 0;
+
+  constexpr int ComputeNonbonded_SortAtoms = 0;
+  constexpr int ComputeNonbonded_SortAtoms_LessBranches = 1;
+  constexpr int WAT_TIP3 = 0;
+  constexpr int WAT_TIP4 = 1;
+  constexpr int CYCLE_BARRIER = 0;
+  constexpr int PME_BARRIER = 0;
+  constexpr int STEP_BARRIER = 0;
+
+  constexpr int USE_BARRIER = (CYCLE_BARRIER || PME_BARRIER || STEP_BARRIER);
 
 }
-void NAMD_quit(const char *);
-void NAMD_die(const char *);
-void NAMD_err(const char *);  // also prints strerror(errno)
-void NAMD_bug(const char *);
-void NAMD_backup_file(const char *filename, const char *extension = 0);
-// void NAMD_write(int fd, const void *buf, size_t count); // NAMD_die on error
-char *NAMD_stringdup(const char *);
-
-class FileHandle {
-  FILE* m_file = nullptr;
-public:
-  FileHandle(const char* filename, const char* mode) : m_file(std::fopen(filename, mode)) {
-      if (!m_file) { /* throw or handle error */ }
-  }
-  ~FileHandle() {
-      if (m_file) std::fclose(m_file);
-  }
-  // Delete copy constructor/assignment
-  FileHandle(const FileHandle&) = delete;
-  FileHandle& operator=(const FileHandle&) = delete;
-  // Allow move
-  FileHandle(FileHandle&& other) noexcept : m_file(other.m_file) { other.m_file = nullptr; }
-  FileHandle& operator=(FileHandle&& other) noexcept { /* ... */ }
-
-  FILE* get() const { return m_file; }
-  // operator FILE*() const { return m_file; } // If implicit conversion is desired
-};
-// Usage: FileHandle my_file("data.txt", "r"); // Automatically closes
 
 
 
@@ -161,20 +111,7 @@ enum class MessageTag : int {
 //#define FULLFORCETAG 105
 //#define DPMTATAG 106
 
-#define CYCLE_BARRIER   0
-#define PME_BARRIER     0
-#define STEP_BARRIER    0
 
-#define USE_BARRIER   (CYCLE_BARRIER || PME_BARRIER || STEP_BARRIER)
-
-#define NAMD_SeparateWaters    0
-
-#define NAMD_ComputeNonbonded_SortAtoms                   0
-#define NAMD_ComputeNonbonded_SortAtoms_LessBranches    1
-
-// plf -- alternate water models
-#define WAT_TIP3 0
-#define WAT_TIP4 1
 
 #endif
 
