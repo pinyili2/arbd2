@@ -89,9 +89,14 @@
 
 namespace SignalManager 
 {
-
     void segfault_handler(int sig, siginfo_t *info, void *secret);
     void manage_segfault();
+    static volatile sig_atomic_t shutdown_requested;  // Flag for shutdown coordination
+    static bool is_shutdown_requested() { return shutdown_requested != 0; }
 }
 
 #endif /* SIGNALMANAGER_H_ */
+
+struct BacktraceSymbolsDeleter {
+    void operator()(char** p) const { if (p) std::free(p); }
+};

@@ -51,18 +51,23 @@ constexpr float SMALLRAD2 = SMALLRAD*SMALLRAD;
 using Real = float;
 using BigReal = float;
 
+using Bool = bool;
+
 #ifndef FALSE
-#define FALSE 0
-#define TRUE 1
+    #define FALSE false 
+#endif
+#ifndef TRUE
+    #define TRUE true  
 #endif
 
 #ifndef NO
-#define NO 0
-#define YES 1
+    #define NO false   
+#endif
+#ifndef YES
+    #define YES true  
 #endif
 
-typedef int Bool;
-constexpr std::string_view STRINGNULL = '\0';
+constexpr char STRING_NULL_CHAR = '\0';
 constexpr int MAX_NEIGHBORS = 27;
 
 
