@@ -3,7 +3,7 @@
 
 #include "../SignalManager.h"
 /* #include "../Types.h" */
-#include "../GPUManager.h"
+#include "../Backend/GPU/GPUManager.h"
 #include <cuda.h>
 #include <nvfunctional>
 

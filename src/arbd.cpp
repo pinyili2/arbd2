@@ -4,10 +4,6 @@
 #endif
 
 #ifdef USE_CUDA
-// It's good practice to include specific CUDA headers as needed,
-// but <cuda_runtime.h> is common for runtime API calls.
-// For now, <cuda.h> might be what your GPUManager expects for driver API,
-// or it might expect <cuda_runtime.h>. This will be clarified as GPUManager is modernized.
 #include <cuda_runtime.h> // Or <cuda.h> depending on GPUManager's needs
 #endif
 
@@ -17,13 +13,13 @@
 #include <vector>    // For std::vector (modern C++)
 #include <iostream>  // For std::cout, std::endl (modern C++)
 #include <algorithm> // For std::max (though using std::max from <algorithm> is preferred)
+#include "SignalManager.h"
 
 // Include paths will be relative to the "src" directory after reorganization
 // and with proper include directories set in CMake.
 // Example: #include "Core/Common/GPUManager.h"
 // For now, using the paths as they might be in your current, more organized structure.
 //#include "Core/Backend/Gpu/GPUManager.h" // Assuming GPUManager.h is here after reorg
-//#include "Core/SignalManager.h"          // Assuming SignalManager.h is here
 //#include "Simulation/Engine/SimManager.h"  // Assuming SimManager.h is here
 
 
@@ -124,9 +120,6 @@ int main(int argc, char* argv[]) {
     // }
 #endif
 
-    // Setup signal handling early
-    // Assuming SignalManager is already modernized or simple enough for Week 1.
-    // The include path will be "Core/SignalManager.h" or similar after reorg.
     SignalManager::manage_segfault();
 
     ProgramOptions options;

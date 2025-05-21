@@ -2,39 +2,32 @@
 
 # Define the library that will contain most of your project's code.
 # The executable in the parent scope will link against this.
-add_library(arbd_lib) # Using a fixed name "arbd_lib" for clarity
+add_library(arbd_lib)
 
-# List source files relative to the current directory (src/).
-# These paths reflect your TARGET capitalized directory structure.
-target_sources(arbd_lib PRIVATE
-    # Core C++ files for initial modernization
-    "ARBDException.h"
-    "ARBDException.cpp"
-    "Common.h"
-    "SignalManager.h" 
-    "SignalManager.cpp"
-    "TypeName.h" 
+# Set modern C++ requirements
+target_compile_features(arbd_lib PUBLIC cxx_std_20)
 
-    #"Types.h"
-    #"Array.h"
-    #"Bitmask.h"
-    #"Matrix3.h"
-    #"Vector3.h"
-    #"MemoryManager.h"
-    #"Proxy.h"
-    #"Backend/GPU/CudaMemory.h"
-    #"Backend/Resource.h"
-    #"Backend/GPU/GPUManager.h"
-
+target_sources(arbd_lib 
+    PRIVATE
+        ARBDException.cpp
+        SignalManager.cpp
+    PUBLIC
+        ARBDException.h
+        SignalManager.h
+        Common.h
+        TypeName.h
 )
 
 # --- Include Directories for the Library ---
+
 target_include_directories(arbd_lib
     PUBLIC
-        "${CMAKE_CURRENT_SOURCE_DIR}"
-    # PRIVATE
-        # Example: "${CMAKE_CURRENT_SOURCE_DIR}/Backend/Gpu/internal_details"
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/internal
 )
+
 
 # --- Compile Definitions & Options for the Library ---
 if(USE_LOGGER) # Option from parent scope
@@ -52,9 +45,6 @@ if(USE_NCCL) # Option from parent scope
     target_compile_definitions(arbd_lib PRIVATE USE_NCCL)
 endif()
 
-# --- Linking for the Library ---
-# Link libraries that arbd_lib *itself* needs for its implementation.
-# If these are only needed by the final executable, they are linked there.
 if(USE_CUDA)
     # If libarbd uses CUDA runtime functions directly in its implementation
     # (not just in headers exposed to the executable).
@@ -83,4 +73,11 @@ endif()
 #   target_link_libraries(arbd_lib PRIVATE nccl) # Fallback
 # endif()
 
+install(TARGETS arbd_lib
+    EXPORT arbd-targets
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    RUNTIME DESTINATION bin
+    INCLUDES DESTINATION include
+)
 message(STATUS "Configuring library: arbd_lib")
