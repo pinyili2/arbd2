@@ -34,7 +34,7 @@ endif()
 set(USE_MPI OFF)
 
 ## specify the C++ standard
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 # Set a default build type if none was specified
@@ -106,10 +106,10 @@ if(USE_NCCL)
   target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
 endif()
 if(USE_LOGGER)
-  # set(spdlog_DIR "extern/spdlog/include/spdlog")
+  set(spdlog_DIR "extern/spdlog/include/spdlog")
   # set(CMAKE_spdlog_DIR "${spdlog_DIR}")
-  # find_package(spdlog REQUIRED)
-  set(spdlog_DIR "extern/spdlog/include")
+  find_package(spdlog REQUIRED)
+  #set(spdlog_DIR "extern/spdlog/include")
   set(CMAKE_spdlog_DIR "${spdlog_DIR}")
   add_subdirectory(extern/spdlog)
   # find_package(spdlog REQUIRED)

@@ -10,3 +10,4 @@ runBrownCUDA
 !arbd.cpp
 arbd*
 *.tar
+build

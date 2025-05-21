@@ -27,9 +27,9 @@
 #define LOGCRITICAL(...) LOGHELPER("critical",__VA_ARGS__)
 #else
 #define FMT_HEADER_ONLY
+#include <spdlog/spdlog.h>
 #include <spdlog/fmt/bundled/core.h>
 #include <spdlog/fmt/bundled/format.h>
-#include <spdlog/spdlog.h>
 
 #ifndef SPDLOG_ACTIVE_LEVEL
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_TRACE
