@@ -3,8 +3,8 @@
 #include <cstdio>
 
 // #include "useful.h"
-#include "../SignalManager.h"
-#include "../Types.h"
+#include "SignalManager.h"
+#include "Types.h"
 #include <cuda.h>
 #include <nvfunctional>
 

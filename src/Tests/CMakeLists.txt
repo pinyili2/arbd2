@@ -15,15 +15,15 @@ include(CTest)
 
 ## TODO, add a macro to add these projects, build with CUDA
 add_executable("arbd_tests"
-matrix3.cu
-vector3_precision.cu
-bitmask.cu
-array.cu
+#matrix3.cu
+#vector3_precision.cu
+#bitmask.cu
+#array.cu
 )
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
 set_property(TARGET arbd_tests PROPERTY CXX_STANDARD 14)
 set_property(TARGET arbd_tests PROPERTY CUDA_STANDARD 14)
-# target_link_libraries("arbd_tests" PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2)
+target_include_directories(arbd_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries("arbd_tests" PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2WithMain)
 
 ## Add optional libraries

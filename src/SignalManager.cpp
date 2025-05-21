@@ -39,7 +39,7 @@
 #include <cstdlib>
 #include <memory>
 #include <unistd.h>
-#ifdef SIGNAL
+#include <execinfo.h>
 #include "Common.h"
 
 struct BacktraceSymbolsDeleter {
@@ -76,7 +76,7 @@ void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret) {
     write(STDERR_FILENO, msg, sizeof(msg) - 1);
 
     trace_size = backtrace(trace, 16);
-    trace[1] = (void *)uc->uc_mcontext.gregs[MY_REG_RIP];
+    trace[1] = (void *)uc->uc_mcontext.gregs[REG_RIP];
 
     std::unique_ptr<char*, BacktraceSymbolsDeleter> messages_ptr;
 

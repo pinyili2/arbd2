@@ -1,5 +1,5 @@
 #include "catch_boiler.h"
-#include "../Types.h"
+#include "Types/Types.h"
 
 #include <catch2/catch_tostring.hpp>
 namespace Catch {

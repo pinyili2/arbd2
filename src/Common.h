@@ -35,9 +35,7 @@ namespace arbd::constants {
 
 // Use inline variables for configuration constants
 inline constexpr int MAX_NEIGHBORS = 27;
-/* Define the size for Real and BigReal.  Real is usually mapped to float */
-/* and BigReal to double.  To get BigReal mapped to float, use the 	  */
-/* -DSHORTREALS compile time option					  */
+
 using Real = float;
 using BigReal = float;
 
@@ -67,7 +65,7 @@ class Communicate;
 namespace NAMD{
   void quit(const char *);
   void die(const char *);
-  void err(const char *);  // also prints strerror(errno)
+  void err(const char *); 
   void bug(const char *);
   void backup_file(const char *filename, const char *extension = 0);
   char *stringdup(const char *);

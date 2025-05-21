@@ -1,15 +1,9 @@
 
 cmake_minimum_required(VERSION 3.25 FATAL_ERROR) 
 
-# option(USE_CUDA "Use CUDA" ON)
-set(USE_CUDA ON)
-set(USE_MPI OFF)
+option(USE_CUDA "Use CUDA" ON)
 
 
-# Add CUDA if enabled
-if(USE_CUDA)
-    enable_language(CUDA)
-endif()
 
 # Use target_compile_features instead of setting standards directly
 set(CMAKE_CXX_STANDARD 20)
@@ -17,6 +11,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(USE_CUDA)
+    
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_EXTENSIONS OFF)
@@ -150,9 +145,14 @@ endif()
 
 target_link_libraries("${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
 
-## Add optional libraries
 if(USE_CUDA)
-  target_link_libraries("${PROJECT_NAME}" PUBLIC curand)
+  find_package(CUDAToolkit REQUIRED)
+  target_link_libraries(${PROJECT_NAME}
+        PRIVATE
+        CUDA::cuda_driver
+        CUDA::cudart
+        CUDA::curand
+        CUDA::cublas)
 endif()
 if(USE_NCCL)
   target_link_libraries("${PROJECT_NAME}" PUBLIC nccl)
@@ -169,21 +169,4 @@ if(USE_LOGGER)
   # target_link_libraries("${PROJECT_NAME}" PRIVATE fmt::fmt)
   add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
 endif()
-
-install(TARGETS "${PROJECT_NAME}")
-message(STATUS "---------------------------------------------------------")
-message(STATUS "Project Configuration Summary for ${PROJECT_NAME}:")
-message(STATUS "  Build Type:         ${CMAKE_BUILD_TYPE}")
-message(STATUS "  C++ Standard:       ${CMAKE_CXX_STANDARD}")
-if(USE_CUDA)
-  message(STATUS "  CUDA Enabled:       YES")
-  message(STATUS "  CUDA Standard:      ${CMAKE_CUDA_STANDARD}")
-  message(STATUS "  CUDA Architectures: ${CMAKE_CUDA_ARCHITECTURES}")
-else()
-  message(STATUS "  CUDA Enabled:       NO")
-endif()
-message(STATUS "  Logger (spdlog):    ${USE_LOGGER} (Active Level: ${ARBD_SPDLOG_LEVEL})")
-message(STATUS "  NVTX Profiling:     ${USE_NVTX}")
-message(STATUS "  NCCL Support:       ${USE_NCCL}")
-message(STATUS "  Python Bindings:    ${USE_PYBIND}")
-message(STATUS "---------------------------------------------------------")
+       

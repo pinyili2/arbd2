@@ -1,6 +1,4 @@
-// SignalManager.h - Recommended Version
-#ifndef SIGNALMANAGER_H_
-#define SIGNALMANAGER_H_
+#pragma once
 
 
 #include <csignal> 
@@ -78,5 +76,3 @@ namespace SignalManager {
     inline bool is_shutdown_requested() { return shutdown_requested != 0; }
 
 } 
-
-#endif /* SIGNALMANAGER_H_ */

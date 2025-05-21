@@ -5,7 +5,7 @@
 #include <memory>    // For std::unique_ptr
 #include <cstring>
 
-#include "TypeName.h"
+#include "Types/TypeName.h"
 
 // Utility function used by types to return std::string using format syntax
 inline std::string string_format(const std::string fmt_str, ...) {
@@ -29,15 +29,15 @@ inline std::string string_format(const std::string fmt_str, ...) {
 
 
 // Includes of various types (allows those to be used simply by including Types.h)
-#include "Vector3.h"
-#include "Matrix3.h"
+#include "Types/Vector3.h"
+#include "Types/Matrix3.h"
 
 using Vector3 = Vector3_t<float>;
 using Matrix3 = Matrix3_t<float,false>;
 
-#include "Bitmask.h"
+#include "Types/Bitmask.h"
 
-#include "Array.h"
+#include "Types/Array.h"
 using VectorArr = Array<Vector3>;
 
 // Helpful routines

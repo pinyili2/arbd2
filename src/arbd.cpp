@@ -4,7 +4,8 @@
 #endif
 
 #ifdef USE_CUDA
-#include <cuda_runtime.h> // Or <cuda.h> depending on GPUManager's needs
+#include <cuda.h> // Or <cuda.h> depending on GPUManager's needs
+#include <cuda_runtime.h>
 #endif
 
 #include <cstdio>    // For printf
