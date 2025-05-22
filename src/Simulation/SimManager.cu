@@ -3,6 +3,8 @@
 #include "Random.h"
 #include <memory>
 
+namespace ARBD {
+
 void SimManager::run() {
     LOGINFO("Starting simulation...");
 
@@ -37,3 +39,5 @@ void SimManager::run() {
 
     LOGINFO("Simulation complete");
 }
+
+} // namespace ARBD

@@ -2,6 +2,8 @@
 #include "Backend/GPU/GPUManager.h"
 #include "ParticlePatch.h"
 
+namespace ARBD {
+
 class PatchCUDA : public Patch {
 public:
     
@@ -24,3 +26,5 @@ private:
     size_t* rb_type_d;
 
 };
+
+} // namespace ARBD

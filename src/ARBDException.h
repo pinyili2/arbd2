@@ -4,7 +4,9 @@
 #include <cstdarg>
 #include <exception>
 #include <source_location> // C++20 requirement
+#include "ARBDHeaders.h"
 
+namespace ARBD {
 enum class ExceptionType { 
     UnspecifiedError = 0,
     NotImplementedError = 1,
@@ -14,10 +16,8 @@ enum class ExceptionType {
     FileIoError = 5,
     FileOpenError = 6
 };
-//usage: if (some_error_condition) {
-//    ARBD_Exception(ExceptionType::ValueError, "The input value %d is invalid.", input_value);}
 
-class _ARBDException : public std::exception {
+class Exception : public std::exception {
   private:
     std::string _error_message; // Changed from _error for clarity
     std::string sformat(const std::string &fmt, va_list &ap);
@@ -25,7 +25,7 @@ class _ARBDException : public std::exception {
 
   public:
 
-    _ARBDException(
+    Exception(
         ExceptionType type,
         const char* message_format, 
         const std::source_location& location = std::source_location::current(),
@@ -35,6 +35,6 @@ class _ARBDException : public std::exception {
     virtual const char* what() const noexcept override; 
 };
 
-
+} // namespace ARBD
 #define ARBD_Exception(type, fmt_str, ...) \
-    throw _ARBDException(type, fmt_str, std::source_location::current(), ##__VA_ARGS__)
+    throw ARBD::Exception(type, fmt_str, std::source_location::current(), ##__VA_ARGS__)

@@ -7,6 +7,8 @@
 #include "ARBDException.h"
 #include "GPU/GPUManager.h"
 
+namespace ARBD {
+
 /**
  * @brief Get current resource index (device ID or MPI rank)
  */
@@ -47,7 +49,14 @@ public:
   FileHandle& operator=(const FileHandle&) = delete;
   // Allow move
   FileHandle(FileHandle&& other) noexcept : m_file(other.m_file) { other.m_file = nullptr; }
-  FileHandle& operator=(FileHandle&& other) noexcept { /* ... */ }
+  FileHandle& operator=(FileHandle&& other) noexcept {
+      if (this != &other) {
+          if (m_file) std::fclose(m_file);
+          m_file = other.m_file;
+          other.m_file = nullptr;
+      }
+      return *this;
+  }
 
   FILE* get() const { return m_file; }
   // operator FILE*() const { return m_file; } // If implicit conversion is desired
@@ -139,3 +148,5 @@ struct Resource {
         return std::string(getTypeString()) + "[" + std::to_string(id) + "]";
     }
 };
+
+} // namespace ARBD

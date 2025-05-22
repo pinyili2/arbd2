@@ -6,8 +6,9 @@
 #include <cstdio>    
 #include <source_location> 
 
+namespace ARBD {
 
-std::string _ARBDException::sformat(const std::string &fmt_str, va_list &ap) {
+std::string Exception::sformat(const std::string &fmt_str, va_list &ap) {
     int size = 512;
     const int max_size = 32768; // Practical limit
     std::string str;
@@ -34,7 +35,7 @@ std::string _ARBDException::sformat(const std::string &fmt_str, va_list &ap) {
     return "[Error: formatted string too long in sformat]";
 }
 
-std::string _ARBDException::type_to_str(ExceptionType type) {
+std::string Exception::type_to_str(ExceptionType type) {
     switch (type) {
         case ExceptionType::UnspecifiedError:    return "Unspecified Error";
         case ExceptionType::NotImplementedError: return "Not Implemented Error";
@@ -48,7 +49,7 @@ std::string _ARBDException::type_to_str(ExceptionType type) {
     }
 }
 
-_ARBDException::_ARBDException(
+Exception::Exception(
     ExceptionType type,
     const char* message_format, 
     const std::source_location& location,
@@ -70,6 +71,8 @@ _ARBDException::_ARBDException(
     _error_message = type_to_str(type) + ": " + user_message + " [" + location_info.str() + "]";
 }
 
-const char* _ARBDException::what() const noexcept {
+const char* Exception::what() const noexcept {
     return _error_message.c_str();
 }
+
+} // namespace arbd

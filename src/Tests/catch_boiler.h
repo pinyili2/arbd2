@@ -27,29 +27,27 @@ namespace Tests {
 	    *result = Op_t::op(in...);
 	}
     }
-}
 
-#define DEF_RUN_TRIAL \
-namespace Tests {\
-template<typename Op_t, typename R, typename ...T>\
-    void run_trial( std::string name, R expected_result, T...args) {\
-    SignalManager::manage_segfault();\
-	R *gpu_result_d, gpu_result, cpu_result;\
-	cpu_result = Op_t::op(args...);\
-	cudaMalloc((void **)&gpu_result_d, sizeof(R));\
-	\
-	op_kernel<Op_t, R, T...><<<1,1>>>(gpu_result_d, args...);\
-	cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost);\
-	cudaDeviceSynchronize();\
-\
-	INFO( name );\
-\
-	CAPTURE( cpu_result );\
-	CAPTURE( expected_result );\
-	\
-	REQUIRE( cpu_result == expected_result );\
-	CHECK( cpu_result == gpu_result );\
-    }\
+    template<typename Op_t, typename R, typename ...T>
+    void run_trial(std::string name, R expected_result, T...args) {
+        using namespace ARBD;  // Add this line to access GPU classes
+        SignalManager::manage_segfault();
+        R *gpu_result_d, gpu_result, cpu_result;
+        cpu_result = Op_t::op(args...);
+        cudaMalloc((void **)&gpu_result_d, sizeof(R));
+        
+        op_kernel<Op_t, R, T...><<<1,1>>>(gpu_result_d, args...);
+        cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+
+        INFO(name);
+
+        CAPTURE(cpu_result);
+        CAPTURE(expected_result);
+        
+        REQUIRE(cpu_result == expected_result);
+        CHECK(cpu_result == gpu_result);
+    }
 }
 
 namespace Tests::Unary {
