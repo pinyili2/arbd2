@@ -1,6 +1,4 @@
-# GPUManager Modernization
 
-```cpp
 #pragma once
 
 #include "ARBDException.h"

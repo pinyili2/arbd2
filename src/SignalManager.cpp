@@ -1,37 +1,3 @@
-/**
- * @file SignalManager.cpp
- * @brief Implementation of segmentation fault signal handling and stack trace capture
- * 
- * This file implements a signal handler for segmentation faults (SIGSEGV) that captures
- * detailed diagnostic information when a segmentation fault occurs. The handler provides:
- * - Faulty memory address identification
- * - Instruction pointer at time of fault
- * - Stack backtrace with up to 16 frames
- * 
- * @warning Signal Handler Safety Considerations:
- * - This implementation uses non-async-signal-safe functions including fmt::print,
- *   backtrace(), and memory allocation which may be unsafe in a signal context
- * - The handler terminates the program via exit() which may not perform proper cleanup
- * 
- * @note Platform Dependencies:
- * - Requires MY_REG_RIP register access which may be platform-specific
- * - Uses POSIX signal handling interfaces (sigaction)
- * - Conditional compilation requires SIGNAL macro to be defined
- * 
- * Usage Example:
- * @code
- * SignalManager::manage_segfault(); // Call early in program initialization
- * @endcode
- * 
- * @note Memory Management:
- * The implementation uses std::unique_ptr with a custom deleter to ensure proper
- * cleanup of resources allocated by backtrace_symbols().
- * 
- * @dependencies
- * - fmt library for formatted output
- * - POSIX signal handling support
- * - backtrace facilities (typically provided by glibc)
- */
 
 #include "SignalManager.h"
 
@@ -42,12 +8,12 @@
 #include <execinfo.h>
 #include "ARBDHeaders.h"
 
+namespace ARBD::SignalManager {
+volatile sig_atomic_t shutdown_requested = 0;
+
 struct BacktraceSymbolsDeleter {
     void operator()(char** p) const { if (p) std::free(p); }
 };
-// Initialize the shutdown flag
-volatile sig_atomic_t SignalManager::shutdown_requested = 0;
-
 /**
  * @brief Handles segmentation fault signals by capturing and displaying diagnostic information
  * 
@@ -63,7 +29,7 @@ volatile sig_atomic_t SignalManager::shutdown_requested = 0;
  * 
  * @note This function is not async-signal-safe due to use of fmt::print and memory allocation
  */
-void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret) {
+void segfault_handler(int sig, siginfo_t *info, void *secret) {
     // Set shutdown flag immediately
     shutdown_requested = 1;
 
@@ -105,7 +71,7 @@ void SignalManager::segfault_handler(int sig, siginfo_t *info, void *secret) {
  * 
  * @note When USE_LOGGER is defined, sets spdlog level to trace
  */
-void SignalManager::manage_segfault() 
+void manage_segfault() 
 {
 #ifdef USE_LOGGER
     spdlog::set_level(spdlog::level::trace);
@@ -117,4 +83,5 @@ void SignalManager::manage_segfault()
 	sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
 	sigaction(SIGSEGV, &sa, NULL);
+}
 }

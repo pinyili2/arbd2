@@ -121,7 +121,7 @@ int main(int argc, char* argv[]) {
     // }
 #endif
 
-    SignalManager::manage_segfault();
+    ARBD::SignalManager::manage_segfault();
 
     ProgramOptions options;
     if (!parse_basic_args(argc, argv, options)) {
@@ -138,8 +138,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Config File: " << options.configFile << std::endl;
     std::cout << "Output Target: " << options.outputFile << std::endl;
 
-
-    // GPU Initialization (placeholder for Week 1)
 #ifdef USE_CUDA
     std::cout << "Initializing GPU Manager..." << std::endl;
     // GPUManager::init(); // Call the static init method

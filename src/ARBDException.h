@@ -1,5 +1,79 @@
 #pragma once
 
+/**
+ * @file ARBDException.h
+ * @brief Advanced exception handling system for the ARBD library with source location tracking and formatted messages.
+ * 
+ * This header provides a robust exception handling system that includes:
+ * - Automatic source location tracking (file, line, function)
+ * - Modern string formatting support (C++20)
+ * - Type-safe exception categories
+ * - Convenient factory functions for common exceptions
+ * 
+ * @example Basic Usage:
+ * ```cpp
+ * void your_function() {
+ *    // Simplest way - just throw with a message
+ *    throw ARBD::Exception(ARBD::ExceptionType::ValueError, "Something went wrong");
+ *    
+ *    // Or use the convenient macro (recommended)
+ *    ARBD_Exception(ARBD::ExceptionType::ValueError, "Invalid value: {}", 42);
+ * }
+ * ```
+ * @example Using Convenience Functions:
+ * ```cpp
+ * void your_function() {
+ *    // Using convenience functions
+ *    if (value < 0) {
+ *        ARBD::throw_value_error("Expected positive value, got {}", negative_value);
+ *    }
+ *    if (!feature_implemented) {
+ *        ARBD::throw_not_implemented("Feature {} is not yet implemented", feature_name);
+ *    }
+ * }
+ * ```
+ * @example Using the Macro:
+ * ```cpp
+ * void your_function() {
+ *    // Using the macro with formatted message
+ *    ARBD_Exception(ARBD::ExceptionType::ValueError, "Invalid value: {}", 42);
+ * }
+ * ```
+ * 
+ * @note The exception system automatically captures:
+ * - Exception type and message
+ * - Source file name
+ * - Line number
+ * - Function name
+ * 
+ * Available Exception Types:
+ * - UnspecifiedError (0): Generic error type
+ * - NotImplementedError (1): Feature or function not yet implemented
+ * - ValueError (2): Invalid value or parameter
+ * - DivideByZeroError (3): Mathematical division by zero
+ * - CUDARuntimeError (4): CUDA-specific runtime errors
+ * - FileIoError (5): General file I/O errors
+ * - FileOpenError (6): Specific file opening errors
+ * 
+ * Advanced Usage with Formatting:
+ * ```cpp
+ * void process_data(int value, const std::string& name) {
+ *     if (value < 0) {
+ *         // Using C++20 formatting with multiple arguments
+ *         ARBD_Exception(ARBD::ExceptionType::ValueError,
+ *             "Invalid value {} for parameter '{}'. Must be non-negative.",
+ *             value, name);
+ *     }
+ *     
+ *     if (!feature_implemented) {
+ *         // Using convenience function with formatting
+ *         ARBD::throw_not_implemented("Feature '{}' planned for version {}.{}", 
+ *             feature_name, major_version, minor_version);
+ *     }
+ * }
+ * ```
+ */
+
 #include <string>
 #include <exception>
 #include <source_location>
