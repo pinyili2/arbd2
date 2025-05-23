@@ -1,190 +1,209 @@
-#include "GPUManager.h"
+#include "CudaManager.h"
+#include <format>
+
 #ifdef USE_CUDA
 
-#ifndef gpuErrchk
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort=true) {
-   if (code != cudaSuccess) {
-      fprintf(stderr,"CUDA Error: %s %s:%d\n", cudaGetErrorString(code), __FILE__, line);
-      if (abort) exit(code);
-   }
-}
-#endif 
+namespace ARBD {
 
-#define WITH_GPU(id,code) { int wg_curr; cudaGetDevice(&wg_curr); cudaSetDevice(id); code ; cudaSetDevice(wg_curr); }
+// Static member initialization
+std::vector<GPUManager::GPU> GPUManager::all_gpus_;
+std::vector<GPUManager::GPU> GPUManager::gpus_;
+std::vector<GPUManager::GPU> GPUManager::no_timeouts_;
+bool GPUManager::is_safe_{true};
 
-int GPUManager::nGPUs = 0;
-bool GPUManager::is_safe = true;
-std::vector<GPU> GPUManager::allGpus, GPUManager::gpus, GPUManager::notimeouts;
+#ifdef USE_NCCL
+std::vector<ncclComm_t> GPUManager::comms_;
+#endif
 
-GPU::GPU(unsigned int id) : id(id) {
-    cudaSetDevice(id);
-    cudaGetDeviceProperties(&properties, id);
-    char timeout_str[32] = "";
-    if (properties.kernelExecTimeoutEnabled) {
-	sprintf(timeout_str, "(may timeout) ");
-	may_timeout = true;
-    } else {
-	may_timeout = false;
-    }
-    LOGINFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
-	 id, properties.name, timeout_str, properties.major, properties.minor,
-	 (float) properties.clockRate * 10E-7, (float) properties.totalGlobalMem * 7.45058e-10);
+// GPU class implementation
+GPUManager::GPU::GPU(unsigned int id) : id_(id) {
+    CUDA_CHECK(cudaSetDevice(id_));
+    CUDA_CHECK(cudaGetDeviceProperties(&properties_, id_));
     
-    streams_created = false;
-    // fflush(stdout);
-    // gpuErrchk( cudaDeviceSynchronize() );
+    may_timeout_ = properties_.kernelExecTimeoutEnabled;
+    
+    LOGINFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
+         id_, properties_.name, 
+         may_timeout_ ? "(may timeout) " : "",
+         properties_.major, properties_.minor,
+         static_cast<float>(properties_.clockRate) * 1e-7,
+         static_cast<float>(properties_.totalGlobalMem) * 7.45058e-10);
+    
+    create_streams();
 }
-GPU::~GPU() {
+
+GPUManager::GPU::~GPU() {
     destroy_streams();
 }
 
-void GPU::create_streams() {
+void GPUManager::GPU::create_streams() {
     int curr;
-    gpuErrchk( cudaGetDevice(&curr) );
-    gpuErrchk( cudaSetDevice(id) );
+    CUDA_CHECK(cudaGetDevice(&curr));
+    CUDA_CHECK(cudaSetDevice(id_));
 
-    if (streams_created) destroy_streams();
-    last_stream = -1;
-    for (int i = 0; i < NUMSTREAMS; i++) {
-	// printf("  creating stream %d at %p\n", i, (void *) &streams[i]);
-	gpuErrchk( cudaStreamCreate( &streams[i] ) );
-	// gpuErrchk( cudaStreamCreateWithFlags( &(streams[i]) , cudaStreamNonBlocking ) );
+    if (streams_created_) destroy_streams();
+    last_stream_ = -1;
+    
+    for (auto& stream : streams_) {
+        stream = Stream();
     }
-    streams_created = true;
-
-    gpuErrchk( cudaSetDevice(id) );
-    cudaSetDevice(curr);
+    
+    streams_created_ = true;
+    CUDA_CHECK(cudaSetDevice(curr));
 }
 
-void GPU::destroy_streams() {
+void GPUManager::GPU::destroy_streams() {
     int curr;
     LOGTRACE("Destroying streams");
-    if (cudaGetDevice(&curr) == cudaSuccess) { // Avoid errors when program is shutting down
-	gpuErrchk( cudaSetDevice(id) );
-	if (streams_created) {
-	    for (int i = 0; i < NUMSTREAMS; i++) {
-		LOGTRACE("  destroying stream {} at {}\n", i, fmt::ptr((void *) &streams[i]));
-		gpuErrchk( cudaStreamDestroy( streams[i] ) );
-	    }
-	}
-	gpuErrchk( cudaSetDevice(curr) );
+    
+    if (cudaGetDevice(&curr) == cudaSuccess) { // Avoid errors during shutdown
+        CUDA_CHECK(cudaSetDevice(id_));
+        streams_created_ = false;
+        CUDA_CHECK(cudaSetDevice(curr));
     }
-    streams_created = false;
 }
 
-
+// GPUManager static methods implementation
 void GPUManager::init() {
-    gpuErrchk(cudaGetDeviceCount(&nGPUs));
-    LOGINFO("Found {} GPU(s)", nGPUs);
-    for (int dev = 0; dev < nGPUs; dev++) {
-	GPU g(dev);
-	allGpus.push_back(g);
-	if (!g.may_timeout) notimeouts.push_back(g);
+    int num_gpus;
+    CUDA_CHECK(cudaGetDeviceCount(&num_gpus));
+    LOGINFO("Found {} GPU(s)", num_gpus);
+    
+    all_gpus_.clear();
+    no_timeouts_.clear();
+    
+    for (int dev = 0; dev < num_gpus; dev++) {
+        GPU g(dev);
+        all_gpus_.push_back(std::move(g));
+        if (!all_gpus_.back().may_timeout()) {
+            no_timeouts_.push_back(all_gpus_.back());
+        }
     }
-    is_safe = false;
-    if (allGpus.size() == 0) {
-	Exception(ValueError, "Did not find a GPU\n");
-	exit(1);
+    
+    is_safe_ = false;
+    if (all_gpus_.empty()) {
+        ARBD_Exception(ExceptionType::ValueError, "No GPUs found");
     }
 }
 
 void GPUManager::load_info() {
     init();
-    gpus = allGpus;
+    gpus_ = all_gpus_;
     init_devices();
 }
 
 void GPUManager::init_devices() {
     LOGINFO("Initializing GPU devices... ");
-    char msg[256] = "";    
-    for (unsigned int i = 0; i < gpus.size(); i++) {
-    	if (i != gpus.size() - 1 && gpus.size() > 1)
-    	    sprintf(msg, "%s%d, ", msg, gpus[i].id);
-    	else if (gpus.size() > 1)
-	    sprintf(msg, "%sand %d", msg, gpus[i].id);
-    	else
-    	    sprintf(msg, "%d", gpus[i].id);
-    	use(i);
-    	cudaDeviceSetCacheConfig( cudaFuncCachePreferL1 );
-    	gpus[i].create_streams();
+    std::string msg;
+    
+    for (size_t i = 0; i < gpus_.size(); i++) {
+        if (i > 0) {
+            if (i == gpus_.size() - 1) {
+                msg += " and ";
+            } else {
+                msg += ", ";
+            }
+        }
+        msg += std::to_string(gpus_[i].id());
+        
+        use(i);
+        CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
+        gpus_[i].create_streams();
     }
+    
     LOGINFO("Initializing GPUs: {}", msg);
     use(0);
-    gpuErrchk( cudaDeviceSynchronize() );
+    CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-void GPUManager::select_gpus(std::vector<unsigned int>& gpu_ids) {
-    gpus.clear();
-    for (auto it = gpu_ids.begin(); it != gpu_ids.end(); ++it) {
-	gpus.push_back( allGpus[*it] );
+void GPUManager::select_gpus(std::span<const unsigned int> gpu_ids) {
+    gpus_.clear();
+    for (unsigned int id : gpu_ids) {
+        if (id >= all_gpus_.size()) {
+            ARBD_Exception(ExceptionType::ValueError, 
+                "Invalid GPU ID: {}", id);
+        }
+        gpus_.push_back(all_gpus_[id]);
     }
     init_devices();
-    #ifdef USE_NCCL
+    
+#ifdef USE_NCCL
     init_comms();
-    #endif
+#endif
 }
 
 void GPUManager::use(int gpu_id) {
-	gpu_id = gpu_id % (int) gpus.size();
-	// printf("Setting device to %d\n",gpus[gpu_id].id);
-	gpuErrchk( cudaSetDevice(gpus[gpu_id].id) );
-	// printf("Done setting device\n");
+    gpu_id = gpu_id % static_cast<int>(gpus_.size());
+    CUDA_CHECK(cudaSetDevice(gpus_[gpu_id].id()));
 }
 
 void GPUManager::sync(int gpu_id) {
-    WITH_GPU( gpus[gpu_id].id, 
-    	      gpuErrchk( cudaDeviceSynchronize() ));
-    // int wg_curr; 
-    // gpuErrchk( cudaGetDevice(&wg_curr) );
-    // gpuErrchk( cudaSetDevice(gpus[gpu_id].id) );
-    // gpuErrchk( cudaSetDevice(wg_curr) );
+    int curr;
+    CUDA_CHECK(cudaGetDevice(&curr));
+    CUDA_CHECK(cudaSetDevice(gpus_[gpu_id].id()));
+    CUDA_CHECK(cudaDeviceSynchronize());
+    CUDA_CHECK(cudaSetDevice(curr));
+}
+
+void GPUManager::sync() {
+    if (gpus_.size() > 1) {
+        int curr;
+        CUDA_CHECK(cudaGetDevice(&curr));
+        for (const auto& gpu : gpus_) {
+            CUDA_CHECK(cudaSetDevice(gpu.id()));
+            CUDA_CHECK(cudaDeviceSynchronize());
+        }
+        CUDA_CHECK(cudaSetDevice(curr));
+    } else {
+        CUDA_CHECK(cudaDeviceSynchronize());
+    }
 }
 
 int GPUManager::current() {
-	int c;
-	cudaGetDevice(&c);
-	return c;
+    int device;
+    CUDA_CHECK(cudaGetDevice(&device));
+    return device;
 }
 
 void GPUManager::safe(bool make_safe) {
-	if (make_safe == is_safe) return;
-	if (make_safe) {
-		if (notimeouts.size() == 0) {
-			printf("WARNING: No safe GPUs\n");
-			return;
-		}
-		allGpus = notimeouts;
-		is_safe = true;
-	} else {
-	    is_safe = false;
-	}
+    if (make_safe == is_safe_) return;
+    
+    if (make_safe) {
+        if (no_timeouts_.empty()) {
+            LOGWARN("No safe GPUs available");
+            return;
+        }
+        all_gpus_ = no_timeouts_;
+        is_safe_ = true;
+    } else {
+        is_safe_ = false;
+    }
 }
 
-int GPUManager::getInitialGPU() {
-    // TODO: check the load on the gpus and select an unused one
-    for (auto it = gpus.begin(); it != gpus.end(); ++it) {
-	GPU& gpu = *it;
-	if (!gpu.properties.kernelExecTimeoutEnabled)
-	    return gpu.id; 
+int GPUManager::get_initial_gpu() {
+    for (const auto& gpu : gpus_) {
+        if (!gpu.may_timeout()) {
+            return gpu.id();
+        }
     }
     return 0;
 }
 
 #ifdef USE_NCCL
-ncclComm_t* GPUManager::comms = NULL;
 void GPUManager::init_comms() {
-    if (gpus.size() == 1) return;
-    int* gpu_ids = new int[gpus.size()];
-
-    comms = new ncclComm_t[gpus.size()];
-    int i = 0;
-    for (auto &g: gpus) {
-	gpu_ids[i] = g.id;
-	++i;
+    if (gpus_.size() == 1) return;
+    
+    std::vector<int> gpu_ids;
+    gpu_ids.reserve(gpus_.size());
+    for (const auto& gpu : gpus_) {
+        gpu_ids.push_back(gpu.id());
     }
-    NCCLCHECK(ncclCommInitAll(comms, gpus.size(), gpu_ids));
+    
+    comms_.resize(gpus_.size());
+    NCCL_CHECK(ncclCommInitAll(comms_.data(), gpus_.size(), gpu_ids.data()));
 }
 #endif
 
-#endif
+} // namespace ARBD
+
+#endif // USE_CUDA 
