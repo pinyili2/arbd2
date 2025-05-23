@@ -21,7 +21,7 @@
 
 namespace ARBD {
 
-// Modern CUDA error handling with std::format
+
 inline void check_cuda_error(cudaError_t error, std::string_view file, int line) {
     if (error != cudaSuccess) {
         ARBD_Exception(ExceptionType::CUDARuntimeError, 
@@ -44,7 +44,44 @@ inline void check_nccl_error(ncclResult_t result, std::string_view file, int lin
 #define NCCL_CHECK(call) check_nccl_error(call, __FILE__, __LINE__)
 #endif
 
-// Modern RAII wrapper for CUDA device memory
+/**
+ * @brief Modern RAII wrapper for CUDA device memory
+ * 
+ * This class provides a safe and efficient way to manage CUDA device memory with RAII semantics.
+ * It handles memory allocation, deallocation, and data transfer between host and device memory.
+ * 
+ * Features:
+ * - Automatic memory management (RAII)
+ * - Move semantics support
+ * - Safe copy operations using std::span
+ * - Exception handling for CUDA errors
+ * 
+ * @tparam T The type of data to store in device memory
+ * 
+ * @example Basic Usage:
+ * ```cpp
+ * // Allocate memory for 1000 integers
+ * ARBD::DeviceMemory<int> device_mem(1000);
+ * 
+ * // Copy data from host to device
+ * std::vector<int> host_data(1000, 42);
+ * device_mem.copyFromHost(host_data);
+ * 
+ * // Copy data back to host
+ * std::vector<int> result(1000);
+ * device_mem.copyToHost(result);
+ * ```
+ * 
+ * @example Move Semantics:
+ * ```cpp
+ * ARBD::DeviceMemory<float> mem1(1000);
+ * ARBD::DeviceMemory<float> mem2 = std::move(mem1); // mem1 is now empty
+ * ```
+ * 
+ * @note The class prevents copying to avoid accidental memory leaks.
+ *       Use move semantics when transferring ownership.
+ */
+ 
 template<typename T>
 class DeviceMemory {
 public:
@@ -83,7 +120,9 @@ public:
     // Modern copy operations using std::span
     void copyFromHost(std::span<const T> host_data) {
         if (host_data.size() > size_) {
-            throw _ARBDException("", ValueError, "Tried to copy more data than allocated");
+            ARBD_Exception(ExceptionType::ValueError, 
+                "Tried to copy {} elements but only {} allocated", 
+                host_data.size(), size_);
         }
         if (!ptr_ || host_data.empty()) return;
         CUDA_CHECK(cudaMemcpy(ptr_, host_data.data(), 
@@ -93,7 +132,9 @@ public:
 
     void copyToHost(std::span<T> host_data) const {
         if (host_data.size() > size_) {
-            throw _ARBDException("", ValueError, "Tried to copy more data than allocated");
+            ARBD_Exception(ExceptionType::ValueError,
+                "Tried to copy {} elements but only {} allocated",
+                host_data.size(), size_);
         }
         if (!ptr_ || host_data.empty()) return;
         CUDA_CHECK(cudaMemcpy(host_data.data(), ptr_,
@@ -115,7 +156,35 @@ private:
     size_t size_{0};
 };
 
-// Modern RAII wrapper for CUDA streams
+/**
+ * @brief Modern RAII wrapper for CUDA streams
+ * 
+ * This class provides a safe, modern C++ wrapper around CUDA streams with RAII semantics.
+ * It automatically manages the lifecycle of CUDA streams, ensuring proper creation and cleanup.
+ * 
+ * Features:
+ * - Automatic stream creation and destruction
+ * - Move semantics support
+ * - Thread-safe stream synchronization
+ * - Implicit conversion to cudaStream_t for CUDA API compatibility
+ * 
+ * @example Basic Usage:
+ * ```cpp
+ * // Create a default stream
+ * ARBD::Stream stream;
+ * 
+ * // Create a stream with specific flags
+ * ARBD::Stream non_blocking_stream(cudaStreamNonBlocking);
+ * 
+ * // Synchronize the stream
+ * stream.synchronize();
+ * 
+ * // Use with CUDA APIs
+ * cudaMemcpyAsync(dst, src, size, cudaMemcpyHostToDevice, stream);
+ * ```
+ * 
+ * @note The stream is automatically destroyed when the Stream object goes out of scope
+ */
 class Stream {
 public:
     Stream() {
@@ -159,7 +228,41 @@ private:
     cudaStream_t stream_{nullptr};
 };
 
-// Modern RAII wrapper for CUDA events
+/**
+ * @brief Modern RAII wrapper for CUDA events
+ * 
+ * This class provides a safe, modern C++ wrapper around CUDA events with RAII semantics.
+ * It manages the lifecycle of CUDA events and provides utilities for timing and synchronization.
+ * 
+ * Features:
+ * - Automatic event creation and destruction
+ * - Move semantics support
+ * - Event recording and synchronization
+ * - Timing measurements between events
+ * - Implicit conversion to cudaEvent_t for CUDA API compatibility
+ * 
+ * @example Basic Usage:
+ * ```cpp
+ * // Create events
+ * ARBD::Event start_event;
+ * ARBD::Event end_event;
+ * 
+ * // Record events on a stream
+ * start_event.record(stream);
+ * // ... perform operations ...
+ * end_event.record(stream);
+ * 
+ * // Get elapsed time
+ * float elapsed_ms = end_event.elapsed(start_event);
+ * 
+ * // Check if event is completed
+ * if (end_event.query()) {
+ *     // Event is completed
+ * }
+ * ```
+ * 
+ * @note Events are automatically destroyed when the Event object goes out of scope
+ */
 class Event {
 public:
     Event() {
@@ -221,11 +324,77 @@ private:
     cudaEvent_t event_{nullptr};
 };
 
-// Modern GPU management class
+/**
+ * @brief Modern GPU management system
+ * 
+ * This class provides a comprehensive GPU management system with support for multiple GPUs,
+ * stream management, and NCCL communication. It handles GPU initialization, selection,
+ * and provides utilities for multi-GPU operations.
+ * 
+ * Features:
+ * - Multi-GPU support
+ * - Automatic stream management
+ * - GPU selection and synchronization
+ * - NCCL communication support (when enabled)
+ * - Safe GPU timeout handling
+ * 
+ * @example Basic Usage:
+ * ```cpp
+ * // Initialize GPU system
+ * ARBD::GPUManager::init();
+ * 
+ * // Select specific GPUs
+ * std::vector<unsigned int> gpu_ids = {0, 1};
+ * ARBD::GPUManager::select_gpus(gpu_ids);
+ * 
+ * // Use a specific GPU
+ * ARBD::GPUManager::use(0);
+ * 
+ * // Synchronize all GPUs
+ * ARBD::GPUManager::sync();
+ * ```
+ * 
+ * @example Multi-GPU Operations:
+ * ```cpp
+ * #ifdef USE_NCCL
+ * // Broadcast data across GPUs
+ * std::vector<float*> device_ptrs = {ptr0, ptr1};
+ * ARBD::GPUManager::nccl_broadcast(0, device_ptrs, device_ptrs, size);
+ * #endif
+ * ```
+ * 
+ * @note The class uses static methods for global GPU management.
+ *       All operations are thread-safe and exception-safe.
+ */
 class GPUManager {
 public:
     static constexpr size_t NUM_STREAMS = 8;
 
+    /**
+     * @brief Individual GPU management class
+     * 
+     * This nested class represents a single GPU device and manages its resources,
+     * including streams and device properties.
+     * 
+     * Features:
+     * - Stream management
+     * - Device property access
+     * - Timeout detection
+     * - Safe resource cleanup
+     * 
+     * @example Basic Usage:
+     * ```cpp
+     * // Get GPU properties
+     * const auto& gpu = ARBD::GPUManager::gpus[0];
+     * const auto& props = gpu.properties();
+     * 
+     * // Get a stream
+     * cudaStream_t stream = gpu.get_stream(0);
+     * 
+     * // Get next available stream
+     * cudaStream_t next_stream = gpu.get_next_stream();
+     * ```
+     */
     class GPU {
     public:
         explicit GPU(unsigned int id);

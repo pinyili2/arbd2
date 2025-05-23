@@ -82,7 +82,7 @@ void GPUManager::init() {
     
     is_safe_ = false;
     if (all_gpus_.empty()) {
-        throw _ARBDException("", ValueError, "No GPUs found");
+        ARBD_Exception(ExceptionType::ValueError, "No GPUs found");
     }
 }
 
@@ -120,8 +120,8 @@ void GPUManager::select_gpus(std::span<const unsigned int> gpu_ids) {
     gpus_.clear();
     for (unsigned int id : gpu_ids) {
         if (id >= all_gpus_.size()) {
-            throw _ARBDException("", ValueError, 
-                std::format("Invalid GPU ID: {}", id));
+            ARBD_Exception(ExceptionType::ValueError, 
+                "Invalid GPU ID: {}", id);
         }
         gpus_.push_back(all_gpus_[id]);
     }
