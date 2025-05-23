@@ -59,7 +59,7 @@ public:
     ) : _type(type), _location(location) {
         std::ostringstream oss;
         oss << type_to_str(type) << ": " << message << " [" << _location.file_name()
-            << "(" << _location.line() << ") '" << _location.function_name() << "']";
+            << "(" << _location.line()<< ") '" << _location.function_name() << "']";
         _error_message = oss.str();
     }
 
