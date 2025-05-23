@@ -7,12 +7,12 @@
 #include <type_traits>
 #include "ARBDException.h"
 
-namespace cuda {
+namespace ARBD {
 
 /**
  * @brief Checks CUDA error and throws exception if error occurred
  */
-inline void check_error(cudaError_t error, const char* file, int line) {
+inline void check_cuda_error(cudaError_t error, const char* file, int line) {
     if (error != cudaSuccess) {
         throw _ARBDException(std::string(file) + ":" + std::to_string(line), 
                            CUDARuntimeError, 
@@ -20,7 +20,7 @@ inline void check_error(cudaError_t error, const char* file, int line) {
     }
 }
 
-#define CUDA_CHECK(call) cuda::check_error(call, __FILE__, __LINE__)
+#define CUDA_CHECK(call) ARBD::check_cuda_error(call, __FILE__, __LINE__)
 
 /**
  * @brief RAII wrapper for CUDA device memory
@@ -233,5 +233,5 @@ class Event {
         cudaEvent_t event_;
     };
     
-} // namespace cuda
+} // namespace ARBD
 #endif // USE_CUDA
