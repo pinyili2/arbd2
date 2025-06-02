@@ -1,2 +1,0 @@
-/Library/Developer/CommandLineTools/usr/bin/ar qc liblibProject.a CMakeFiles/libProject.dir/ARBDException.o CMakeFiles/libProject.dir/SignalManager.o CMakeFiles/libProject.dir/Backend/SYCL/SYCLManager.o
-/Library/Developer/CommandLineTools/usr/bin/ranlib liblibProject.a
