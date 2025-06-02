@@ -1,6 +1,3 @@
-# src/CMakeLists.txt
-
-# Initialize LIB_SOURCES with common C++ files that are always part of the library.
 set(LIB_SOURCES
     ARBDException.cpp
     SignalManager.cpp
@@ -50,22 +47,6 @@ target_include_directories("lib${PROJECT_NAME}"
         # prefix like "Backend/" is good for organization.
 )
 
-# --- Conditional Dependencies (like spdlog) ---
-if(USE_LOGGER)
-  # Ensure spdlog_DIR and SPDLOG_LEVEL are correctly set in the parent scope.
-  # If spdlog::spdlog_header_only is an imported target from add_subdirectory(extern/spdlog)
-  # in the top-level CMakeLists.txt, it should handle its own include directories.
-
-  # Adding definitions specifically for this library if needed.
-  # If these definitions affect headers used by external targets, consider PUBLIC.
-  target_compile_definitions("lib${PROJECT_NAME}" PRIVATE
-      PROJECT_USES_LOGGER # Using a more generic name, assuming -DUSE_LOGGER is already added globally if needed
-      SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL}
-  )
-
-  target_link_libraries("lib${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)
-endif()
-
 # --- SYCL specific linking or include directories for the library ---
 # This is where you might link to SYCL runtime if not handled by the compiler,
 # or add SYCL specific include dirs for this target if necessary.
@@ -95,7 +76,6 @@ endif()
 # linking this library and also using CUDA would handle the CUDA::cudart linking.
 # If this library is self-contained with its CUDA usage:
 if(USE_CUDA)
-
     # .cu files compiled with nvcc will automatically link against cudart.
     # If you have .cpp files in LIB_SOURCES that call CUDA API, this is important.
     # Consider if this should be PRIVATE or PUBLIC depending on whether headers of

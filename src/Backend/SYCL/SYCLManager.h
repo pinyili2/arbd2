@@ -1,6 +1,6 @@
 #pragma once
 
-//#ifdef PROJECT_USES_SYCL
+#ifdef PROJECT_USES_SYCL
 #include "ARBDException.h"
 #include <array>
 #include <vector>
@@ -10,11 +10,10 @@
 #include <chrono>
 #include <sycl/sycl.hpp>
 
-
 namespace ARBD {
-namespace SYCL {
+
 inline void check_sycl_error(const sycl::exception& e, std::string_view file, int line) {
-    ARBD_Exception(ExceptionType::SYCLRuntimeError, 
+    ARBD_Exception(ExceptionType::CUDARuntimeError, 
         "SYCL error at {}:{}: {}", 
         file, line, e.what());
 }
@@ -470,6 +469,14 @@ public:
         explicit Device(const sycl::device& dev, unsigned int id);
         ~Device() = default;
 
+        // Delete copy constructor and copy assignment operator
+        Device(const Device&) = delete;
+        Device& operator=(const Device&) = delete;
+
+        // Enable move constructor and move assignment operator
+        Device(Device&&) = default;
+        Device& operator=(Device&&) = default;
+
         [[nodiscard]] Queue& get_queue(size_t queue_id) {
             return queues_[queue_id % NUM_QUEUES];
         }
@@ -484,6 +491,7 @@ public:
         }
 
         [[nodiscard]] unsigned int id() const noexcept { return id_; }
+        void set_id(unsigned int new_id) noexcept { id_ = new_id; } // Add setter for ID
         [[nodiscard]] const sycl::device& sycl_device() const noexcept { return device_; }
         [[nodiscard]] const std::string& name() const noexcept { return name_; }
         [[nodiscard]] const std::string& vendor() const noexcept { return vendor_; }
@@ -517,6 +525,9 @@ public:
         bool is_cpu_;
         bool is_gpu_;
         bool is_accelerator_;
+        
+        // Friend class to allow SYCLManager to access private members
+        friend class SYCLManager;
     };
 
     // Static interface
@@ -551,5 +562,5 @@ private:
 };
 
 } // namespace ARBD
-} // namespace SYCL
-//#endif // PROJECT_USES_SYCL
+
+#endif // PROJECT_USES_SYCL

@@ -20,15 +20,26 @@ add_executable("arbd_tests"
 #bitmask.cu
 #array.cu
 )
+
+# Conditionally add SYCL test file
+if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
+    target_sources("arbd_tests" PRIVATE test_sycl.cpp)
+    message(STATUS "Added SYCL tests to arbd_tests")
+endif()
+
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
-set_property(TARGET arbd_tests PROPERTY CXX_STANDARD 14)
-set_property(TARGET arbd_tests PROPERTY CUDA_STANDARD 14)
+
 target_include_directories(arbd_tests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 target_link_libraries("arbd_tests" PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2WithMain)
 
 ## Add optional libraries
 if(USE_CUDA)
   target_link_libraries(arbd_tests PUBLIC curand)
+  target_sources("arbd_tests" 
+  matrix3.cu
+  vector3_precision.cu
+  bitmask.cu
+  array.cu)
 endif()
 if(USE_NCCL)
   target_link_libraries(arbd_tests PUBLIC nccl)
@@ -40,7 +51,19 @@ if(USE_LOGGER)
   add_definitions(-DUSE_LOGGER)
   target_include_directories(arbd_tests PRIVATE ${spdlog_DIR})
   target_link_libraries(arbd_tests PRIVATE spdlog::spdlog_header_only)
-  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
+  target_compile_definitions(arbd_tests PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG)
+endif()
+if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
+  # SYCL runtime linking is usually handled automatically by the SYCL compiler
+  # but we ensure the SYCL definitions are available
+  target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL)
+  if(USE_SYCL_ACPP)
+    target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL_ACPP)
+  endif()
+  if(USE_SYCL_ICPX)
+    target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL_ICPX)
+  endif()
+  message(STATUS "Added SYCL support to arbd_tests")
 endif()
 
 ## catch_discover_tests("${PROJECT_NAME}_TESTS")

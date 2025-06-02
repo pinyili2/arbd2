@@ -1,9 +1,9 @@
 #include <iostream>
 #include <cstdio>
-
-#include "../SignalManager.h"
+#ifdef USE_CUDA
+#include "SignalManager.h"
 /* #include "../Types.h" */
-#include "../Backend/GPU/GPUManager.h"
+#include "../Backend/CUDA/CUDAManager.h"
 #include <cuda.h>
 #include <nvfunctional>
 
@@ -71,3 +71,4 @@ namespace Tests::Binary {
     struct DivOp { HOST DEVICE static R op(T a, U b) { return static_cast<R>(a/b); } };
 
 }
+#endif // USE_CUDA

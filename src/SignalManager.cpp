@@ -1,5 +1,5 @@
 #include "SignalManager.h"
-
+#include "ARBDLogger.h"
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -12,6 +12,7 @@ volatile sig_atomic_t shutdown_requested = 0;
 struct BacktraceSymbolsDeleter {
     void operator()(char** p) const { if (p) std::free(p); }
 };
+
 /**
  * @brief Handles segmentation fault signals by capturing and displaying diagnostic information
  * 
@@ -25,7 +26,7 @@ struct BacktraceSymbolsDeleter {
  * 3. Prints diagnostic information to stdout
  * 4. Sets shutdown flag for graceful termination
  * 
- * @note This function is not async-signal-safe due to use of fmt::print and memory allocation
+ * @note This function is not async-signal-safe due to use of printf and memory allocation
  */
 void segfault_handler(int sig, siginfo_t *info, void *secret) {
     // Set shutdown flag immediately
@@ -35,14 +36,22 @@ void segfault_handler(int sig, siginfo_t *info, void *secret) {
     int trace_size = 0;
     ucontext_t *uc = (ucontext_t *)secret;
 
-    // Use write() instead of fmt::print as it's signal-safe
+    // Use write() instead of printf as it's signal-safe
     const char msg[] = "Segmentation fault detected. Initiating shutdown...\n";
     write(STDERR_FILENO, msg, sizeof(msg) - 1);
 
     trace_size = backtrace(trace, 16);
+    
 #ifdef __APPLE__
-    trace[1] = (void *)uc->uc_mcontext->__ss.__rip;
+    #ifdef __aarch64__
+        // Apple Silicon (ARM64) - M1/M2/M3
+        trace[1] = (void *)uc->uc_mcontext->__ss.__pc;
+    #else
+        // Intel Mac (x86_64)
+        trace[1] = (void *)uc->uc_mcontext->__ss.__rip;
+    #endif
 #else
+    // Linux/other Unix
     trace[1] = (void *)uc->uc_mcontext.gregs[REG_RIP];
 #endif
 
@@ -70,20 +79,18 @@ void segfault_handler(int sig, siginfo_t *info, void *secret) {
  * 
  * Configures a signal handler for SIGSEGV using sigaction with SA_SIGINFO flag
  * to receive extended signal information. Should be called during program initialization.
- * 
- * @note When USE_LOGGER is defined, sets spdlog level to trace
  */
 void manage_segfault() 
 {
-#ifdef USE_LOGGER
-    spdlog::set_level(spdlog::level::trace);
-#endif
-	struct sigaction sa;
+    // Set logger to trace level for debugging
+    ARBD::Logger::set_level(ARBD::LogLevel::TRACE);
+    
+    struct sigaction sa;
 
-	sa.sa_sigaction = segfault_handler;
-	sigemptyset(&sa.sa_mask);
-	sa.sa_flags = SA_RESTART | SA_SIGINFO;
+    sa.sa_sigaction = segfault_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
 
-	sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGSEGV, &sa, NULL);
 }
 }
