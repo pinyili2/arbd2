@@ -4,7 +4,7 @@
 #ifdef USE_CUDA
 #include <format>
 namespace ARBD {
-
+namespace CUDA {
 // Static member initialization
 std::vector<GPUManager::GPU> GPUManager::all_gpus_;
 std::vector<GPUManager::GPU> GPUManager::gpus_;
@@ -205,5 +205,5 @@ void GPUManager::init_comms() {
 #endif
 
 } // namespace ARBD
-
+} // namespace CUDA
 #endif // USE_CUDA 

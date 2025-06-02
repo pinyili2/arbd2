@@ -88,8 +88,9 @@ enum class ExceptionType {
     ValueError = 2,
     DivideByZeroError = 3,
     CUDARuntimeError = 4,
-    FileIoError = 5,
-    FileOpenError = 6
+    SYCLRuntimeError = 5,
+    FileIoError = 6,
+    FileOpenError = 7
 };
 
 class Exception : public std::exception {

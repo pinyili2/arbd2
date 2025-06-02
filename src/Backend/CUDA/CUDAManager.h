@@ -21,7 +21,7 @@
 #endif
 
 namespace ARBD {
-
+namespace CUDA {
 
 inline void check_cuda_error(cudaError_t error, std::string_view file, int line) {
     if (error != cudaSuccess) {
@@ -497,5 +497,5 @@ private:
 };
 
 } // namespace ARBD
-
+} // namespace CUDA
 #endif // USE_CUDA 

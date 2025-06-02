@@ -70,7 +70,7 @@ public:
  * @brief Resource representation for heterogeneous computing
  */
 struct Resource {
-    enum ResourceType {CPU, MPI, CUDA, SYCL};
+    enum ResourceType {MPI, CUDA, SYCL};
     ResourceType type;   
     size_t id;          
     Resource* parent;   
@@ -81,7 +81,6 @@ struct Resource {
 
     HOST DEVICE constexpr const char* getTypeString() const {
         switch(type) {
-            case CPU: return "CPU";
             case MPI: return "MPI";
             case CUDA: return "CUDA";
             case SYCL: return "SYCL";
