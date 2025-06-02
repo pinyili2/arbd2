@@ -1,17 +1,24 @@
+cmake_minimum_required(VERSION 3.25.5 FATAL_ERROR)
 
-cmake_minimum_required(VERSION 3.25 FATAL_ERROR) 
+# --- Project Options ---
+option(USE_CUDA "Use CUDA" OFF)
+option(USE_SYCL_ACPP "Use SYCL with AdaptiveCpp (acpp)" ON)
+option(USE_SYCL_ICPX "Use SYCL with Intel DPC++ (icpx)" OFF)
+option(DEBUG_BUILD "Build with debug flags (overrides CMAKE_BUILD_TYPE)" OFF)
+option(USE_NCCL "Use NCCL for single node GPU peer communication" OFF)
+option(USE_NVTX "Build with NVTX profiling ranges" OFF)
+option(USE_LOGGER "Build with SPDLog" ON)
+option(USE_PYBIND "Build Python bindings" OFF)
 
-option(USE_CUDA "Use CUDA" ON)
-option(USE_SYCL "Use SYCL (with DPC++)" OFF)
-
-
-# Use target_compile_features instead of setting standards directly
+# --- Basic CMake Setup ---
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Generate compile_commands.json for clangd and other tools
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(USE_CUDA)
-    
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_EXTENSIONS OFF)
@@ -19,7 +26,6 @@ endif()
 
 # Set a default build type if none was specified
 set(default_build_type "Release")
-
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
   set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
@@ -28,139 +34,183 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
+# Compiler specific flags
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   if(CMAKE_CXX_FLAGS_RELEASE)
     string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
   endif()
-  if(CMAKE_CUDA_FLAGS_RELEASE) # Only if USE_CUDA is ON
+if(USE_CUDA AND CMAKE_CUDA_FLAGS_RELEASE)
     string(REPLACE "-O2" "-O3" CMAKE_CUDA_FLAGS_RELEASE ${CMAKE_CUDA_FLAGS_RELEASE})
   endif()
 endif()
-
-## OPTIONS
-option(DEBUG_BUILD "Build with debug flags (overrides CMAKE_BUILD_TYPE)" OFF) # Renamed from DEBUG to avoid conflict
-option(USE_NCCL "Use NCCL for single node GPU peer communication" OFF)
-option(USE_NVTX "Build with NVTX profiling ranges" OFF)
-option(USE_LOGGER "Build with SPDLog" ON)
-option(USE_PYBIND "Build Python bindings" OFF) # Added option for pybind
+if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
+    # string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE}) # If desired for Intel
+endif()
 
 
-# --- SYCL Configuration ---
-if(USE_SYCL)
-    # Check if the current C++ compiler is likely DPC++
-    # For DPC++ (icpx or dpcpp), CMAKE_CXX_COMPILER_ID is "IntelLLVM".
-    # For older dpcpp, it might also be "Intel".
-    if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-        message(STATUS "Configuring SYCL with Intel DPC++ compiler: ${CMAKE_CXX_COMPILER}")
-        # Add -fsycl flag for SYCL compilation.
-        # This is typically added to CMAKE_CXX_FLAGS if most .cpp files might include SYCL headers,
-        # or to specific targets using target_compile_options.
-        # For simplicity in a "minimal" setup, we add it globally here if USE_SYCL is ON.
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
-        add_definitions(-DUSE_SYCL)
+# --- SYCL Configuration (Explicit ACPP or ICPX) ---
+if(USE_SYCL_ACPP AND USE_SYCL_ICPX)
+    message(FATAL_ERROR "Both USE_SYCL_ACPP and USE_SYCL_ICPX are ON. Please choose only one SYCL implementation for this build.")
+endif()
 
-        # DPC++ usually links the SYCL runtime library automatically when -fsycl is used.
-        # If explicit linking is needed for the host part, it would be like:
-        # find_package(SYCL) or target_link_libraries(target PRIVATE sycl)
-        # For now, rely on -fsycl.
-    else()
-        message(WARNING "USE_SYCL is ON, but the C++ compiler (${CMAKE_CXX_COMPILER_ID}, ${CMAKE_CXX_COMPILER}) does not appear to be Intel DPC++. SYCL compilation might fail or require different flags. Please ensure you are using icpx or dpcpp as your CMAKE_CXX_COMPILER.")
+if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
+    message(STATUS "SYCL support is requested.")
+    add_definitions(-DPROJECT_USES_SYCL) # Generic definition for SYCL API usage in C++
+
+    if(NOT CMAKE_CXX_COMPILER)
+        message(FATAL_ERROR "A SYCL option (USE_SYCL_ACPP or USE_SYCL_ICPX) is ON, but CMAKE_CXX_COMPILER is not set.
+Please specify your SYCL compiler via -D CMAKE_CXX_COMPILER=<path_to_sycl_compiler>
+Example for USE_SYCL_ICPX on Linux:      cmake -D CMAKE_CXX_COMPILER=icpx -D USE_SYCL_ICPX=ON ..
+Example for USE_SYCL_ACPP on macOS:    cmake -D CMAKE_CXX_COMPILER=/opt/homebrew/bin/acpp -D USE_SYCL_ACPP=ON ..")
     endif()
-    # Ensure C++ standard is compatible (already C++20, which is good)
+
+    set(SYCL_COMPILER_CONFIGURED_CORRECTLY FALSE) # Flag to check if config matches expectation
+
+    if(USE_SYCL_ACPP)
+        message(STATUS "Configuring for SYCL with AdaptiveCpp (acpp).")
+        add_definitions(-DPROJECT_USES_SYCL_ACPP) # Specific definition for acpp
+
+        if(CMAKE_CXX_COMPILER MATCHES "acpp")
+            message(STATUS "Verified AdaptiveCpp (acpp) compiler: ${CMAKE_CXX_COMPILER}")
+            set(ACPP_TARGET_FLAGS "")
+            if(CMAKE_SYSTEM_NAME STREQUAL "Darwin") # macOS
+                message(STATUS "Setting AdaptiveCpp default target flags for macOS (CPU via OpenMP).")
+                set(ACPP_TARGET_FLAGS "--acpp-targets=omp,opencl")
+                # For M-series GPU using OpenCL: set(ACPP_TARGET_FLAGS "--acpp-targets=omp,opencl")
+                # Ensure OpenCL dev headers/libs are available if using OpenCL backend.
+            elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+                message(STATUS "Setting AdaptiveCpp default target flags for Linux (CPU via OpenMP).")
+                set(ACPP_TARGET_FLAGS "--acpp-targets=omp")
+                # For specific GPU backends on Linux:
+                # set(ACPP_TARGET_FLAGS "--acpp-targets=omp,hip") # For AMD GPUs (if acpp built with ROCm/HIP backend)
+                # set(ACPP_TARGET_FLAGS "--acpp-targets=omp,cuda") # For NVIDIA GPUs (if acpp built with CUDA backend)
+            else() # Other OS
+                message(WARNING "AdaptiveCpp on unknown OS ${CMAKE_SYSTEM_NAME}. Defaulting to OpenMP target.")
+                set(ACPP_TARGET_FLAGS "--acpp-targets=omp")
+            endif()
+            
+            if(NOT ACPP_TARGET_FLAGS STREQUAL "")
+                set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ACPP_TARGET_FLAGS}")
+                message(STATUS "Applied AdaptiveCpp flags: ${ACPP_TARGET_FLAGS}")
+            endif()
+            # acpp generally enables SYCL mode automatically. No -fsycl needed.
+            set(SYCL_COMPILER_CONFIGURED_CORRECTLY TRUE)
+        else()
+            message(WARNING "USE_SYCL_ACPP is ON, but CMAKE_CXX_COMPILER (${CMAKE_CXX_COMPILER}) does not appear to be 'acpp'.
+Ensure CMAKE_CXX_COMPILER is set to your AdaptiveCpp executable path (e.g., /opt/homebrew/bin/acpp for macOS).")
+        endif()
+    endif()
+
+    if(USE_SYCL_ICPX)
+        message(STATUS "Configuring for SYCL with Intel DPC++ (icpx).")
+        add_definitions(-DPROJECT_USES_SYCL_ICPX) # Specific definition for icpx
+
+        # CMAKE_CXX_COMPILER_ID for icpx is typically "IntelLLVM".
+        if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER MATCHES "icpx")
+            message(STATUS "Verified Intel DPC++ (icpx) compiler: ${CMAKE_CXX_COMPILER}")
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsycl")
+            # Add any other DPC++ specific flags here if needed for icpx.
+            # Example: set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-sycl-strict")
+            set(SYCL_COMPILER_CONFIGURED_CORRECTLY TRUE)
+            if(CMAKE_SYSTEM_NAME STREQUAL "Darwin") # macOS
+                message(WARNING "Intel DPC++ (icpx) is not officially supported on macOS. Compilation might fail or be unstable.")
+            endif()
+        else()
+            message(WARNING "USE_SYCL_ICPX is ON, but CMAKE_CXX_COMPILER (${CMAKE_CXX_COMPILER}, ID: ${CMAKE_CXX_COMPILER_ID})
+does not appear to be Intel DPC++ (icpx). Ensure CMAKE_CXX_COMPILER is set to 'icpx'.")
+        endif()
+    endif()
+
+    if(NOT SYCL_COMPILER_CONFIGURED_CORRECTLY) # If neither acpp nor icpx matched the selected option
+         message(WARNING "A SYCL option was enabled, but the specified CMAKE_CXX_COMPILER does not match the expected SYCL compiler for that option.
+Please review your -D CMAKE_CXX_COMPILER=... setting and the USE_SYCL_ACPP / USE_SYCL_ICPX CMake options.
+Compilation will proceed, but may not use SYCL correctly.")
+    endif()
+
     if (CMAKE_CXX_STANDARD LESS 17)
         message(WARNING "SYCL typically requires C++17 or newer. Current CMAKE_CXX_STANDARD is ${CMAKE_CXX_STANDARD}.")
     endif()
 endif()
 # --- End SYCL Configuration ---
 
-set(PROJECT_NAME "arbd${PROJECT_NAME_SUFFIX}")
+set(PROJECT_NAME_BASE "arbd")
+if(DEFINED PROJECT_NAME_SUFFIX)
+    set(PROJECT_NAME "${PROJECT_NAME_BASE}${PROJECT_NAME_SUFFIX}")
+else()
+    set(PROJECT_NAME "${PROJECT_NAME_BASE}")
+endif()
 
+# Single project() call
 if(USE_CUDA)
-    project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
+project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
 else()
     project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
 endif()
 
-## Set flags and definitions after project() to ensure languages are enabled
+## Set flags and definitions after project()
 if(USE_CUDA)
-  add_definitions(-DUSE_CUDA)
-  # CUDA_INCLUDE_DIRS check might not be necessary with modern CMake and FindCUDAToolkit
-  # include_directories(${CUDA_INCLUDE_DIRS}) # Usually handled by FindCUDAToolkit
+  add_definitions(-DUSE_CUDA) # Kept for CUDA-specific sections in C++
 endif()
 
-
-
-if(DEBUG)
+if(DEBUG_BUILD)
   set(CMAKE_BUILD_TYPE Debug)
-  set(PROJECT_NAME arbd_dbg)
-else(DEBUG)
-  set(PROJECT_NAME arbd)
+  message(STATUS "DEBUG_BUILD is ON: Build type set to Debug.")
 endif()
+
 if(USE_NVTX)
   add_definitions(-DUSE_NVTX)
 endif()
-if(USE_NCCL)
+
+if(USE_NCCL AND USE_CUDA)
   add_definitions(-DUSE_NCCL)
-  target_link_libraries("${PROJECT_NAME}" PRIVATE nccl)
-endif()
-if(USE_LOGGER)
-  set(spdlog_DIR "extern/spdlog/include")
-  set(CMAKE_spdlog_DIR "${spdlog_DIR}")
-  add_subdirectory(extern/spdlog)
-  include_directories(${spdlog_DIR})
-  set(SPDLOG_LEVEL SPDLOG_LEVEL_DEBUG)	
 endif()
 
-## Two lines below needed?
-set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+if(USE_LOGGER)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/spdlog/CMakeLists.txt")
+    add_subdirectory(extern/spdlog)
+    message(STATUS "Configuring spdlog from subdirectory.")
+  else()
+    message(WARNING "spdlog directory or CMakeLists.txt not found at extern/spdlog.")
+  endif()
+endif()
 
 if(USE_CUDA)
-  project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
-else(USE_CUDA)
-  project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+endif()
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+if(APPLE)
+    set(CMAKE_MACOSX_RPATH ON)
+endif()
+if(USE_CUDA)
+    set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
 endif()
 
-
-## Print all variables by uncommenting block below 
-# get_cmake_property(_variableNames VARIABLES)
-# list (SORT _variableNames)
-# foreach (_variableName ${_variableNames})
-#     message(STATUS "${_variableName}=${${_variableName}}")
-# endforeach()
-
-## Set rpath
-set(CMAKE_MACOSX_RPATH 1)	# Unsure if this works for CMAKE_BUIlD_RPATH, or just CMAKE_INSTALL_RPATH
-set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
-
-## Set up doctest
-# option(ENABLE_DOCTESTS "Include tests in the library. Setting this to OFF will remove all doctest related code.
-#                     Tests in tests/*.cpp will still be enabled." ON)
-# set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/")
-# include(doctest)
-
-## Add subdirectories
 add_subdirectory(src)
-add_subdirectory(src/Tests)
+#add_subdirectory(src/Tests)
 
-# set(CMAKE_VERBOSE_MAKEFILE True)
-add_executable("${PROJECT_NAME}" src/arbd.cpp
-#src/SimManager.cu
-#src/useful.cu
-)
+add_executable("${PROJECT_NAME}" src/arbd.cpp)
+
+if(USE_CUDA)
+    target_sources("${PROJECT_NAME}" PRIVATE
+        # src/SimManager.cu
+        # src/useful.cu
+    )
+endif()
 
 if(USE_PYBIND)
-  add_subdirectory(extern/pybind11)
-  add_subdirectory(src/pybindings)
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/pybind11/CMakeLists.txt")
+    add_subdirectory(extern/pybind11)
+    add_subdirectory(src/pybindings)
+  else()
+    message(WARNING "pybind11 directory or CMakeLists.txt not found at extern/pybind11.")
+  endif()
 endif()
 
 target_link_libraries("${PROJECT_NAME}" PUBLIC "lib${PROJECT_NAME}")
 
 if(USE_CUDA)
   find_package(CUDAToolkit REQUIRED)
-  set(CMAKE_CUDA_SEPARABLE_COMPILATION ON) # If USE_CUDA
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-  set(CMAKE_BUILD_RPATH "${CMAKE_CUDA_IMPLICIT_LINK_DIRECTORIES}")
   target_link_libraries(${PROJECT_NAME}
         PRIVATE
         CUDA::cuda_driver
@@ -169,18 +219,26 @@ if(USE_CUDA)
         CUDA::cublas)
 endif()
 
-if(USE_NCCL)
+if(USE_NCCL AND USE_CUDA)
   target_link_libraries("${PROJECT_NAME}" PUBLIC nccl)
 endif()
 
 if(USE_NVTX)
-  target_link_libraries("${PROJECT_NAME}" PUBLIC nvToolsExt)
+  if(USE_CUDA AND TARGET CUDA::nvToolsExt)
+    target_link_libraries("${PROJECT_NAME}" PUBLIC CUDA::nvToolsExt)
+  else()
+    message(STATUS "NVTX linking might require manual setup if not using CUDA or CUDA::nvToolsExt target.")
+  endif()
 endif()
 
 if(USE_LOGGER)
-  add_definitions(-DUSE_LOGGER)
-  target_include_directories("${PROJECT_NAME}" PRIVATE ${spdlog_DIR})
-  target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)
-  add_compile_definitions(SPDLOG_ACTIVE_LEVEL=${SPDLOG_LEVEL})
+  # Assuming spdlog was added as a subdirectory and defined a target
+  if(TARGET spdlog::spdlog_header_only) # Common for header-only spdlog
+    target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)
+  elseif(TARGET spdlog::spdlog) # For compiled spdlog
+    target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog)
+  else()
+    message(WARNING "spdlog target not found. Linking for logger might fail.")
+  endif()
+  target_compile_definitions("${PROJECT_NAME}" PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG) # Or your desired level
 endif()
-       

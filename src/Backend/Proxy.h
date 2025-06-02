@@ -4,13 +4,13 @@
 #include <iostream>
 #include "Backend/Resource.h"
 
-#include "cuda.h"
-#include "cuda_runtime.h"
 
 // template<typename T, typename...Args1, typename... Args2>
 // __global__ void proxy_sync_call_kernel_noreturn(T* addr, (T::*memberFunc(Args1...)), Args2...args);
 
 #ifdef __CUDACC__
+#include <cuda.h>
+#include <cuda_runtime.h>
 #include <cuda/std/utility>
 // Kernels
 template<typename T, typename RetType, typename...Args>

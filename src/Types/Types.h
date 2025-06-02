@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Backend/GPU/GPUManager.h"
+#include "Backend/CUDA/CUDAManager.h"
 #include <stdarg.h>  // For va_start, etc.
 #include <memory>    // For std::unique_ptr
 #include <cstring>

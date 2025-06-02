@@ -1,4 +1,3 @@
-
 #include "SignalManager.h"
 
 #include <cstdio>
@@ -6,7 +5,6 @@
 #include <memory>
 #include <unistd.h>
 #include <execinfo.h>
-#include "ARBDHeaders.h"
 
 namespace ARBD::SignalManager {
 volatile sig_atomic_t shutdown_requested = 0;
@@ -42,7 +40,11 @@ void segfault_handler(int sig, siginfo_t *info, void *secret) {
     write(STDERR_FILENO, msg, sizeof(msg) - 1);
 
     trace_size = backtrace(trace, 16);
+#ifdef __APPLE__
+    trace[1] = (void *)uc->uc_mcontext->__ss.__rip;
+#else
     trace[1] = (void *)uc->uc_mcontext.gregs[REG_RIP];
+#endif
 
     std::unique_ptr<char*, BacktraceSymbolsDeleter> messages_ptr;
 

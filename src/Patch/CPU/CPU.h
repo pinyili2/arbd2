@@ -1,5 +1,5 @@
 #pragma once
-#include "ParticlePatch.h"
+#include "Objects/ParticlePatch.h"
 
 #ifdef USE_CUDA
 class PatchCPU : public Patch {

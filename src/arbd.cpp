@@ -24,8 +24,6 @@
 //#include "Simulation/Engine/SimManager.h"  // Assuming SimManager.h is here
 
 
-using std::max;
-
 // Define this if not provided by CMake/build system for version info
 #ifndef VERSION
 #define VERSION "Development Build - May 2025"
@@ -44,7 +42,6 @@ bool parse_basic_args(int argc, char* argv[], ProgramOptions& opts) {
     if (argc == 2 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
         printf("Usage: %s [OPTIONS] CONFIGFILE OUTPUT [SEED]\n", argv[0]);
         printf("\n");
-        printf("  Minimal Week 1 Options:\n");
         printf("  -h, --help         Display this help and exit\n");
         printf("  --info             Output basic CPU and GPU information (stubbed) and exit\n");
         printf("  --version          Output version information and exit\n");

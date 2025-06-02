@@ -3,24 +3,26 @@
 #ifdef USE_MPI
 #include <mpi.h>
 #endif
-
+#include "CUDA/CUDAManager.h"
 #include "ARBDException.h"
-#include "GPU/GPUManager.h"
+
 
 namespace ARBD {
 
 /**
  * @brief Get current resource index (device ID or MPI rank)
  */
+#ifdef __CUDACC__
 HOST DEVICE inline size_t caller_id() {
 #ifdef USE_CUDA
+    
     if (cudaGetDevice(nullptr) == cudaSuccess) { 
         int device;
         cudaGetDevice(&device);
         return static_cast<size_t>(device);
     }
 #endif
-
+#endif
 #ifdef USE_MPI
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -68,7 +70,7 @@ public:
  * @brief Resource representation for heterogeneous computing
  */
 struct Resource {
-    enum ResourceType {CPU, MPI, GPU};
+    enum ResourceType {CPU, MPI, CUDA, SYCL};
     ResourceType type;   
     size_t id;          
     Resource* parent;   
@@ -80,8 +82,9 @@ struct Resource {
     HOST DEVICE constexpr const char* getTypeString() const {
         switch(type) {
             case CPU: return "CPU";
-            case GPU: return "GPU";
             case MPI: return "MPI";
+            case CUDA: return "CUDA";
+            case SYCL: return "SYCL";
             default: return "Unknown";
         }
     }

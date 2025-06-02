@@ -7,7 +7,7 @@
 #include <memory>
 #include <type_traits> // for std::common_type<T,U>
 #include <sstream>
-#include "../Proxy.h"
+#include "Backend/Proxy.h"
 
 // Simple templated array object without resizing capabilities 
 template<typename T>

@@ -1,8 +1,8 @@
-#include "CudaManager.h"
-#include <format>
+#include "CUDAManager.h"
+
 
 #ifdef USE_CUDA
-
+#include <format>
 namespace ARBD {
 
 // Static member initialization

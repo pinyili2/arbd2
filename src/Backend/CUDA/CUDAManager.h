@@ -1,5 +1,8 @@
 #pragma once
 
+
+
+#ifdef USE_CUDA
 #include "ARBDException.h"
 #include <array>
 #include <vector>
@@ -9,8 +12,6 @@
 #include <concepts>
 #include <span>
 #include <format>
-
-#ifdef USE_CUDA
 #include <cuda_runtime.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
