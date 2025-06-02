@@ -11,7 +11,7 @@ set(LIB_SOURCES
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "src: Adding SYCL specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
-        #Backend/SYCL/SYCLDeviceManager.cpp
+        Backend/SYCL/SYCLManager.cpp
         #Simulation/Integrator/IntegratorSYCL.cpp
         #Simulation/Interactions/ExampleForceSYCL.cpp
         # Add any other SYCL-specific .cpp files here
@@ -76,6 +76,17 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # it would go here. For example:
     # target_link_libraries("lib${PROJECT_NAME}" PRIVATE SYCL::sycl) # If such an imported target exists
     message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}. Ensure SYCL runtime is linked (usually automatic).")
+    
+    # Special handling for AdaptiveCpp to avoid duplicate C++ standard flags
+    if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
+        # Get current compile flags and filter out any -std flags to avoid conflicts
+        get_target_property(current_flags "lib${PROJECT_NAME}" COMPILE_OPTIONS)
+        if(current_flags)
+            list(FILTER current_flags EXCLUDE REGEX "-std=.*")
+            set_target_properties("lib${PROJECT_NAME}" PROPERTIES COMPILE_OPTIONS "${current_flags}")
+        endif()
+        message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
+    endif()
 endif()
 
 # --- CUDA specific linking for the library ---
@@ -84,9 +95,7 @@ endif()
 # linking this library and also using CUDA would handle the CUDA::cudart linking.
 # If this library is self-contained with its CUDA usage:
 if(USE_CUDA)
-    # find_package(CUDAToolkit REQUIRED) # Usually done at top-level
-    # This links the CUDA runtime to your library, necessary if .cpp files in your
-    # library make calls to CUDA API (e.g. cudaMalloc, cudaMemcpy).
+
     # .cu files compiled with nvcc will automatically link against cudart.
     # If you have .cpp files in LIB_SOURCES that call CUDA API, this is important.
     # Consider if this should be PRIVATE or PUBLIC depending on whether headers of

@@ -150,7 +150,6 @@ int main(int argc, char* argv[]) {
     std::cout << "CUDA support is disabled." << std::endl;
 #endif
 
-    // Simulation Manager (placeholder for Week 1)
     std::cout << "Initializing Simulation Manager..." << std::endl;
     // SimManager sim; // Instantiate SimManager
                     // The constructor might take configuration options later.
@@ -181,7 +180,6 @@ int main(int argc, char* argv[]) {
     // brown.run();
     */
 
-    std::cout << "ARBD program finished basic initialization for Week 1." << std::endl;
 #ifdef USE_MPI
     MPI_Finalize();
 #endif
