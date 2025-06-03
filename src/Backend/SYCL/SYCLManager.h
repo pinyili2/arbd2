@@ -13,7 +13,7 @@
 namespace ARBD {
 
 inline void check_sycl_error(const sycl::exception& e, std::string_view file, int line) {
-    ARBD_Exception(ExceptionType::CUDARuntimeError, 
+    ARBD_Exception(ExceptionType::SYCLRuntimeError, 
         "SYCL error at {}:{}: {}", 
         file, line, e.what());
 }
@@ -67,7 +67,7 @@ public:
         if (count > 0) {
             SYCL_CHECK(ptr_ = sycl::malloc_device<T>(count, *queue_));
             if (!ptr_) {
-                ARBD_Exception(ExceptionType::CUDARuntimeError, 
+                ARBD_Exception(ExceptionType::SYCLRuntimeError, 
                     "Failed to allocate {} elements of type {}", count, typeid(T).name());
             }
         }
@@ -168,64 +168,81 @@ private:
  * @note The queue is automatically synchronized when the Queue object is destroyed
  */
 class Queue {
+private:
+    std::optional<sycl::queue> queue_;
 public:
-    Queue() = default;
-    
+    Queue() {
+        // Don't try to create a queue with selectors in default constructor
+        // as they might fail. Queue will be initialized later via assignment.
+    }
+
     explicit Queue(const sycl::device& dev) {
         try {
-            sycl::property_list props{sycl::property::queue::enable_profiling{}};
-            queue_ = sycl::queue(dev, props);
+            queue_ = sycl::queue(dev); // Create queue with device only, no properties
         } catch (const sycl::exception& e) {
+            // Directly log before check_sycl_error
+            std::cerr << "!!! ARBD::Queue constructor caught sycl::exception: " << e.what() 
+                      << " for device: " << dev.get_info<sycl::info::device::name>() << std::endl;
             check_sycl_error(e, __FILE__, __LINE__);
         }
     }
-    
+
     explicit Queue(const sycl::device& dev, const sycl::property_list& props) {
         try {
-            queue_ = sycl::queue(dev, props);
+            // Create queue with single device
+            queue_ = sycl::queue(std::vector<sycl::device>{dev}, props);
         } catch (const sycl::exception& e) {
             check_sycl_error(e, __FILE__, __LINE__);
         }
     }
-    
+
+    // Add constructor for multiple devices
+    explicit Queue(const std::vector<sycl::device>& devices, const sycl::property_list& props = {}) {
+        try {
+            queue_ = sycl::queue(devices, props);
+        } catch (const sycl::exception& e) {
+            check_sycl_error(e, __FILE__, __LINE__);
+        }
+    }
+
     ~Queue() {
         try {
             if (queue_.has_value()) {
-                queue_->wait();
+                // queue_->wait(); // Still commented out from previous debugging
             }
         } catch (...) {
             // Don't throw from destructor
         }
     }
-    
+
     // Prevent copying
     Queue(const Queue&) = delete;
     Queue& operator=(const Queue&) = delete;
-    
+
     // Allow moving
-    Queue(Queue&& other) noexcept 
+    Queue(Queue&& other) noexcept
         : queue_(std::move(other.queue_)) {}
-    
+
     Queue& operator=(Queue&& other) noexcept {
         if (this != &other) {
             if (queue_.has_value()) {
-                try { queue_->wait(); } catch (...) {}
+                // try { queue_->wait(); } catch (...) {} // If re-enabled
             }
             queue_ = std::move(other.queue_);
         }
         return *this;
     }
-    
+
     void synchronize() {
         if (queue_.has_value()) {
             SYCL_CHECK(queue_->wait());
         }
     }
-    
-    template<typename KernelName = class kernel, typename F>
+
+    template<typename KernelName = class kernel_default_name, typename F>
     sycl::event submit(F&& f) {
         if (!queue_.has_value()) {
-            ARBD_Exception(ExceptionType::CUDARuntimeError, "Queue not initialized");
+            ARBD_Exception(ExceptionType::SYCLRuntimeError, "Queue not initialized for submission");
         }
         try {
             return queue_->submit(std::forward<F>(f));
@@ -238,40 +255,38 @@ public:
     [[nodiscard]] bool is_in_order() const {
         return queue_.has_value() ? queue_->is_in_order() : false;
     }
-    
-    [[nodiscard]] sycl::device get_device() const {
-        if (!queue_.has_value()) {
-            ARBD_Exception(ExceptionType::CUDARuntimeError, "Queue not initialized");
-        }
-        return queue_->get_device();
-    }
-    
+
     [[nodiscard]] sycl::context get_context() const {
         if (!queue_.has_value()) {
-            ARBD_Exception(ExceptionType::CUDARuntimeError, "Queue not initialized");
+            ARBD_Exception(ExceptionType::SYCLRuntimeError, "Queue not initialized for get_context");
         }
         return queue_->get_context();
     }
-    
+
+    // Add method to get all devices
+    [[nodiscard]] std::vector<sycl::device> get_devices() const {
+        if (!queue_.has_value()) {
+            ARBD_Exception(ExceptionType::SYCLRuntimeError, "Queue not initialized for get_devices");
+        }
+        return queue_->get_devices();
+    }
+
     [[nodiscard]] sycl::queue& get() {
         if (!queue_.has_value()) {
-            ARBD_Exception(ExceptionType::CUDARuntimeError, "Queue not initialized");
+            ARBD_Exception(ExceptionType::SYCLRuntimeError, "Queue not initialized for get");
         }
         return *queue_;
     }
-    
+
     [[nodiscard]] const sycl::queue& get() const {
         if (!queue_.has_value()) {
-            ARBD_Exception(ExceptionType::CUDARuntimeError, "Queue not initialized");
+            ARBD_Exception(ExceptionType::SYCLRuntimeError, "Queue not initialized for get const");
         }
         return *queue_;
     }
-    
+
     operator sycl::queue&() { return get(); }
     operator const sycl::queue&() const { return get(); }
-    
-private:
-    std::optional<sycl::queue> queue_;
 };
 
 /**
@@ -539,6 +554,7 @@ public:
     static void sync();
     static int current();
     static void prefer_device_type(sycl::info::device_type type);
+    static void finalize();
     
     [[nodiscard]] static size_t all_device_size() noexcept { return all_devices_.size(); }
     [[nodiscard]] static const std::vector<Device>& all_devices() noexcept { return all_devices_; }

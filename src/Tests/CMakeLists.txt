@@ -23,7 +23,7 @@ add_executable("arbd_tests"
 
 # Conditionally add SYCL test file
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
-    target_sources("arbd_tests" PRIVATE test_sycl.cpp)
+    target_sources("arbd_tests" PRIVATE test_sycl_omp.cpp)
     message(STATUS "Added SYCL tests to arbd_tests")
 endif()
 
@@ -47,18 +47,18 @@ endif()
 if(USE_NVTX)
   target_link_libraries(arbd_tests PUBLIC nvToolsExt)
 endif()
-if(USE_LOGGER)
-  add_definitions(-DUSE_LOGGER)
-  target_include_directories(arbd_tests PRIVATE ${spdlog_DIR})
-  target_link_libraries(arbd_tests PRIVATE spdlog::spdlog_header_only)
-  target_compile_definitions(arbd_tests PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG)
-endif()
+
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
   # SYCL runtime linking is usually handled automatically by the SYCL compiler
   # but we ensure the SYCL definitions are available
   target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL)
   if(USE_SYCL_ACPP)
     target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL_ACPP)
+    # Link OpenMP for AdaptiveCpp
+    if(OpenMP_CXX_FOUND)
+      target_link_libraries(arbd_tests PRIVATE OpenMP_Custom)
+      message(STATUS "Linked custom OpenMP to arbd_tests for AdaptiveCpp backend")
+    endif()
   endif()
   if(USE_SYCL_ICPX)
     target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL_ICPX)

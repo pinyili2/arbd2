@@ -58,14 +58,14 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # target_link_libraries("lib${PROJECT_NAME}" PRIVATE SYCL::sycl) # If such an imported target exists
     message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}. Ensure SYCL runtime is linked (usually automatic).")
     
+    # Link OpenMP for AdaptiveCpp
+    if(USE_SYCL_ACPP AND OpenMP_CXX_FOUND)
+        target_link_libraries("lib${PROJECT_NAME}" PUBLIC OpenMP_Custom)
+        message(STATUS "src: Linked custom OpenMP to lib${PROJECT_NAME} for AdaptiveCpp backend")
+    endif()
+    
     # Special handling for AdaptiveCpp to avoid duplicate C++ standard flags
     if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
-        # Get current compile flags and filter out any -std flags to avoid conflicts
-        get_target_property(current_flags "lib${PROJECT_NAME}" COMPILE_OPTIONS)
-        if(current_flags)
-            list(FILTER current_flags EXCLUDE REGEX "-std=.*")
-            set_target_properties("lib${PROJECT_NAME}" PROPERTIES COMPILE_OPTIONS "${current_flags}")
-        endif()
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
     endif()
 endif()

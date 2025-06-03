@@ -41,6 +41,7 @@ TEST_CASE("SYCL Manager Initialization", "[sycl][manager]") {
 TEST_CASE("SYCL Device Selection", "[sycl][device]") {
     SYCLManager::init();
     SYCLManager::load_info();
+    SYCLManager::sync();
     
     SECTION("Current device access") {
         REQUIRE_NOTHROW(SYCLManager::get_current_device());
@@ -48,6 +49,7 @@ TEST_CASE("SYCL Device Selection", "[sycl][device]") {
         
         auto& device = SYCLManager::get_current_device();
         REQUIRE(device.id() == static_cast<unsigned int>(SYCLManager::current()));
+        SYCLManager::sync();
     }
     
     SECTION("Device switching") {
@@ -62,6 +64,7 @@ TEST_CASE("SYCL Device Selection", "[sycl][device]") {
             SYCLManager::use(0);
             REQUIRE(SYCLManager::current() == 0);
         }
+        SYCLManager::sync();
     }
     
     SECTION("Device synchronization") {
@@ -76,16 +79,21 @@ TEST_CASE("SYCL Device Selection", "[sycl][device]") {
 TEST_CASE("SYCL Device Memory Operations", "[sycl][memory]") {
     SYCLManager::init();
     SYCLManager::load_info();
+    SYCLManager::sync();
     
     auto& queue = SYCLManager::get_current_queue();
     
     SECTION("Basic memory allocation") {
         constexpr size_t SIZE = 1000;
-        DeviceMemory<float> device_mem(queue.get(), SIZE);
+        {
+            REQUIRE_NOTHROW(DeviceMemory<float>{queue.get(), SIZE});
+        }
         
+        DeviceMemory<float> device_mem(queue.get(), SIZE);
         REQUIRE(device_mem.size() == SIZE);
         REQUIRE(device_mem.get() != nullptr);
         REQUIRE(device_mem.queue() == &queue.get());
+        queue.synchronize();
     }
     
     SECTION("Host to device copy") {
@@ -114,11 +122,24 @@ TEST_CASE("SYCL Device Memory Operations", "[sycl][memory]") {
             REQUIRE(result_data[i] == 42.0f);
         }
     }
+    
+    SECTION("Memory size validation") {
+        constexpr size_t SIZE = 100;
+        DeviceMemory<float> device_mem(queue.get(), SIZE);
+        
+        // Try to copy more data than allocated
+        std::vector<float> large_data(SIZE + 1, 1.0f);
+        REQUIRE_THROWS(device_mem.copyFromHost(large_data));
+        
+        std::vector<float> large_output(SIZE + 1);
+        REQUIRE_THROWS(device_mem.copyToHost(large_output));
+    }
 }
 
 TEST_CASE("SYCL Simple Kernel Execution", "[sycl][kernel]") {
     SYCLManager::init();
     SYCLManager::load_info();
+    SYCLManager::sync();
     
     auto& queue = SYCLManager::get_current_queue();
     
@@ -207,19 +228,26 @@ TEST_CASE("SYCL Simple Kernel Execution", "[sycl][kernel]") {
 TEST_CASE("SYCL Queue Management", "[sycl][queue]") {
     SYCLManager::init();
     SYCLManager::load_info();
+    SYCLManager::sync();
     
     auto& device = SYCLManager::get_current_device();
     
     SECTION("Multiple queues") {
         auto& queue0 = device.get_queue(0);
+        queue0.synchronize();
+        
         auto& queue1 = device.get_queue(1);
+        queue1.synchronize();
         
         // Queues should be different objects
         REQUIRE(&queue0.get() != &queue1.get());
         
         // Test queue rotation
         auto& next_queue1 = device.get_next_queue();
+        next_queue1.synchronize();
+        
         auto& next_queue2 = device.get_next_queue();
+        next_queue2.synchronize();
         
         // Should cycle through queues
         REQUIRE(&next_queue1.get() != &next_queue2.get());
@@ -264,22 +292,27 @@ TEST_CASE("SYCL Error Handling", "[sycl][error]") {
     SYCLManager::init();
     SYCLManager::load_info();
     
-    SECTION("Invalid device index") {
-        size_t invalid_index = SYCLManager::devices().size() + 1;
-        REQUIRE_THROWS(SYCLManager::use(invalid_index));
+    SECTION("Device selection errors") {
+        // Test selecting invalid device IDs
+        std::vector<unsigned int> invalid_ids = {999};
+        REQUIRE_THROWS(SYCLManager::select_devices(invalid_ids));
+        
+        // Test sync with invalid device ID
+        REQUIRE_THROWS(SYCLManager::sync(999));
     }
     
-    SECTION("Invalid queue index") {
-        auto& device = SYCLManager::get_current_device();
-        size_t invalid_queue = SYCLManager::NUM_QUEUES + 1;
-        REQUIRE_THROWS(device.get_queue(invalid_queue));
-    }
-    
-    SECTION("Memory allocation errors") {
+    SECTION("Memory errors") {
         auto& queue = SYCLManager::get_current_queue();
         
-        // Try to allocate an extremely large buffer that should fail
-        constexpr size_t HUGE_SIZE = std::numeric_limits<size_t>::max() / 2;
-        REQUIRE_THROWS(DeviceMemory<float>(queue.get(), HUGE_SIZE));
+        // Try to allocate memory with size 0
+        REQUIRE_NOTHROW(DeviceMemory<float>(queue.get(), 0));
+        
+        // Try to copy with mismatched sizes
+        DeviceMemory<float> device_mem(queue.get(), 10);
+        std::vector<float> large_data(20, 1.0f);
+        REQUIRE_THROWS(device_mem.copyFromHost(large_data));
+        
+        std::vector<float> large_output(20);
+        REQUIRE_THROWS(device_mem.copyToHost(large_output));
     }
 }

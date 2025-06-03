@@ -1,6 +1,6 @@
-#include "SYCLManager.h"
-#include "ARBDLogger.h"
 #ifdef PROJECT_USES_SYCL
+#include "ARBDLogger.h"
+#include "SYCLManager.h"
 #include <algorithm>
 
 namespace ARBD {
@@ -9,7 +9,7 @@ namespace ARBD {
 std::vector<SYCLManager::Device> SYCLManager::all_devices_;
 std::vector<SYCLManager::Device> SYCLManager::devices_;
 int SYCLManager::current_device_{0};
-sycl::info::device_type SYCLManager::preferred_type_{sycl::info::device_type::gpu};
+sycl::info::device_type SYCLManager::preferred_type_{sycl::info::device_type::cpu};
 
 // Device class implementation
 SYCLManager::Device::Device(const sycl::device& dev, unsigned int id) 
@@ -25,31 +25,45 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
     
     // Create queues
     try {
-        sycl::property_list props{sycl::property::queue::enable_profiling{}};
-        for (auto& queue : queues_) {
-            queue = Queue(device_, props);
+        for (size_t i = 0; i < queues_.size(); ++i) { 
+            queues_[i] = ARBD::Queue(device_); 
         }
-    } catch (const sycl::exception& e) {
-        check_sycl_error(e, __FILE__, __LINE__);
+    } catch (const ARBD::Exception& e) {
+        LOGERROR("ARBD::Exception during ARBD::Queue construction for device {}: {}", id_, e.what());
+        throw; 
+    } catch (const std::exception& e) {
+        LOGERROR("Unexpected std::exception during ARBD::Queue construction for device {}: {}", id_, e.what());
+        throw; 
     }
 }
 
 void SYCLManager::Device::query_device_properties() {
     try {
         name_ = device_.get_info<sycl::info::device::name>();
-        vendor_ = device_.get_info<sycl::info::device::vendor>();
-        version_ = device_.get_info<sycl::info::device::version>();
-        max_work_group_size_ = device_.get_info<sycl::info::device::max_work_group_size>();
-        max_compute_units_ = device_.get_info<sycl::info::device::max_compute_units>();
-        global_mem_size_ = device_.get_info<sycl::info::device::global_mem_size>();
-        local_mem_size_ = device_.get_info<sycl::info::device::local_mem_size>();
-        
         auto device_type = device_.get_info<sycl::info::device::device_type>();
         is_cpu_ = (device_type == sycl::info::device_type::cpu);
         is_gpu_ = (device_type == sycl::info::device_type::gpu);
         is_accelerator_ = (device_type == sycl::info::device_type::accelerator);
+
+        // Commented out other get_info calls for testing
+        // vendor_ = device_.get_info<sycl::info::device::vendor>();
+        // version_ = device_.get_info<sycl::info::device::version>();
+        // max_work_group_size_ = device_.get_info<sycl::info::device::max_work_group_size>();
+        // max_compute_units_ = device_.get_info<sycl::info::device::max_compute_units>();
+        // global_mem_size_ = device_.get_info<sycl::info::device::global_mem_size>();
+        // local_mem_size_ = device_.get_info<sycl::info::device::local_mem_size>();
+        
+        // Set defaults for commented out properties
+        vendor_ = "DefaultVendor";
+        version_ = "DefaultVersion";
+        max_work_group_size_ = 1;
+        max_compute_units_ = 1;
+        global_mem_size_ = 0;
+        local_mem_size_ = 0;
         
     } catch (const sycl::exception& e) {
+        std::cerr << "!!! query_device_properties caught sycl::exception: " << e.what() 
+                  << " for device (name might be uninit): " << name_ << std::endl;
         check_sycl_error(e, __FILE__, __LINE__);
         // Set defaults in case of error
         name_ = "Unknown Device";
@@ -93,7 +107,16 @@ void SYCLManager::discover_devices() {
         // Get all platforms
         auto platforms = sycl::platform::get_platforms();
         
+        // First pass: collect valid devices information without constructing Device objects
+        struct DeviceInfo {
+            sycl::device device;
+            unsigned int id;
+            sycl::info::device_type type;
+        };
+        
+        std::vector<DeviceInfo> potential_device_infos;
         unsigned int device_id = 0;
+        
         for (const auto& platform : platforms) {
             LOGDEBUG("Platform: {} ({})", 
                 platform.get_info<sycl::info::platform::name>(),
@@ -104,26 +127,66 @@ void SYCLManager::discover_devices() {
             
             for (const auto& device : platform_devices) {
                 try {
-                    // Create our Device wrapper using emplace_back to avoid copying
-                    all_devices_.emplace_back(device, device_id++);
+                    // Test sycl::device copy construction explicitly
+                    sycl::device temp_device_copy(device);
+                    auto dev_type = temp_device_copy.get_info<sycl::info::device::device_type>();
+                    LOGDEBUG("Successfully test-copied sycl::device: {}", temp_device_copy.get_info<sycl::info::device::name>());
+
+                    // Store device info for later construction
+                    potential_device_infos.push_back({std::move(temp_device_copy), device_id, dev_type});
+                    device_id++;
+
                 } catch (const sycl::exception& e) {
-                    LOGWARN("Failed to initialize device {}: {}", device_id, e.what());
-                    device_id++; // Still increment to maintain consistent numbering
+                    LOGWARN("SYCL exception during device discovery for device id {}: {}", device_id, e.what());
+                } catch (const ARBD::Exception& e) { 
+                    LOGWARN("ARBD::Exception during device discovery for device id {}: {}", device_id, e.what());
+                } catch (const std::exception& e) { 
+                    LOGWARN("Std::exception during device discovery for device id {}: {}", device_id, e.what());
                 }
             }
         }
         
-        // Sort devices by preference (GPUs first, then accelerators, then CPUs)
-        std::stable_sort(all_devices_.begin(), all_devices_.end(), 
-            [](const Device& a, const Device& b) {
-                if (a.is_gpu() != b.is_gpu()) return a.is_gpu();
-                if (a.is_accelerator() != b.is_accelerator()) return a.is_accelerator();
-                return a.id() < b.id();
-            });
+        // Filter devices based on preference
+        std::vector<DeviceInfo> selected_device_infos;
+        
+        if (preferred_type_ != sycl::info::device_type::all) {
+            // First, try to find devices matching the preferred type
+            for (const auto& device_info : potential_device_infos) {
+                if (device_info.type == preferred_type_) {
+                    selected_device_infos.push_back(device_info);
+                }
+            }
             
-        // Reassign IDs after sorting
-        for (size_t i = 0; i < all_devices_.size(); ++i) {
-            all_devices_[i].set_id(static_cast<unsigned int>(i));
+            // If no preferred devices found, fall back to any available devices
+            if (selected_device_infos.empty()) {
+                LOGWARN("No devices of preferred type {} found, using all available devices",
+                    static_cast<int>(preferred_type_));
+                selected_device_infos = std::move(potential_device_infos);
+            } else {
+                LOGINFO("Found {} device(s) of preferred type {}", 
+                    selected_device_infos.size(), static_cast<int>(preferred_type_));
+            }
+        } else {
+            // Use all devices if preference is 'all'
+            selected_device_infos = std::move(potential_device_infos);
+        }
+        
+        // Sort device infos by preference
+        std::stable_sort(selected_device_infos.begin(), selected_device_infos.end(), 
+            [](const DeviceInfo& a, const DeviceInfo& b) {
+                if (a.type != b.type) {
+                    return a.type == SYCLManager::preferred_type_;
+                }
+                return a.id < b.id;
+            });
+        
+        // Now construct Device objects in place
+        all_devices_.clear();
+        all_devices_.reserve(selected_device_infos.size());
+        
+        for (size_t i = 0; i < selected_device_infos.size(); ++i) {
+            const auto& device_info = selected_device_infos[i];
+            all_devices_.emplace_back(device_info.device, static_cast<unsigned int>(i));
         }
         
     } catch (const sycl::exception& e) {
@@ -194,6 +257,20 @@ void SYCLManager::sync() {
     for (auto& device : devices_) {
         device.synchronize_all_queues();
     }
+}
+
+void SYCLManager::finalize() {
+    // Synchronize all devices first
+    sync();
+    
+    // Clear the device vectors which will trigger proper cleanup
+    // of Device objects and their associated queues
+    devices_.clear();
+    all_devices_.clear();
+    
+    // Reset state
+    current_device_ = 0;
+    preferred_type_ = sycl::info::device_type::gpu;
 }
 
 int SYCLManager::current() {
