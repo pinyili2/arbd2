@@ -46,20 +46,12 @@ void SYCLManager::Device::query_device_properties() {
         is_accelerator_ = (device_type == sycl::info::device_type::accelerator);
 
         // Commented out other get_info calls for testing
-        // vendor_ = device_.get_info<sycl::info::device::vendor>();
-        // version_ = device_.get_info<sycl::info::device::version>();
-        // max_work_group_size_ = device_.get_info<sycl::info::device::max_work_group_size>();
-        // max_compute_units_ = device_.get_info<sycl::info::device::max_compute_units>();
-        // global_mem_size_ = device_.get_info<sycl::info::device::global_mem_size>();
-        // local_mem_size_ = device_.get_info<sycl::info::device::local_mem_size>();
-        
-        // Set defaults for commented out properties
-        vendor_ = "DefaultVendor";
-        version_ = "DefaultVersion";
-        max_work_group_size_ = 1;
-        max_compute_units_ = 1;
-        global_mem_size_ = 0;
-        local_mem_size_ = 0;
+        vendor_ = device_.get_info<sycl::info::device::vendor>();
+        version_ = device_.get_info<sycl::info::device::version>();
+        max_work_group_size_ = device_.get_info<sycl::info::device::max_work_group_size>();
+        max_compute_units_ = device_.get_info<sycl::info::device::max_compute_units>();
+        global_mem_size_ = device_.get_info<sycl::info::device::global_mem_size>();
+        local_mem_size_ = device_.get_info<sycl::info::device::local_mem_size>();
         
     } catch (const sycl::exception& e) {
         std::cerr << "!!! query_device_properties caught sycl::exception: " << e.what() 

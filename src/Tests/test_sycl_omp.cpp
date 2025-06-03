@@ -12,14 +12,15 @@
 namespace ARBD {
 namespace {
 
-bool within_abs(float a, float b, float tol) {
-    return std::fabs(a - b) <= tol;
+// Helper function for floating point comparison
+bool within_tolerance(float a, float b, float tolerance = 1e-6f) {
+    return std::fabs(a - b) <= tolerance;
 }
 
 void test_sycl_cpu_initialization() {
     std::cout << "[TEST] SYCL CPU Initialization... ";
     try {
-        // Initialize with CPU preference first
+        // Set CPU preference before initialization for AdaptiveCpp
         SYCLManager::prefer_device_type(sycl::info::device_type::cpu);
         
         // Initialize the SYCL manager
@@ -31,47 +32,57 @@ void test_sycl_cpu_initialization() {
             return;
         }
         
-        // Check if we can create a CPU device queue using the default selector
-        // AdaptiveCpp might not support cpu_selector_v properly
+        // Verify AdaptiveCpp CPU device functionality
         try {
-            // Try to get all devices and find a CPU device
             auto platforms = sycl::platform::get_platforms();
-            bool cpu_found = false;
+            bool cpu_device_found = false;
             
             for (const auto& platform : platforms) {
                 auto devices = platform.get_devices();
                 for (const auto& device : devices) {
                     if (device.is_cpu()) {
-                        // Try creating a queue with this CPU device
-                        sycl::queue test_queue(device);
-                        test_queue.get_device(); // Verify device access
-                        cpu_found = true;
-                        break;
+                        // Test basic queue creation with in-order property (AdaptiveCpp recommendation)
+                        sycl::queue test_queue{device, sycl::property::queue::in_order{}};
+                        
+                        // Simple functionality test
+                        int test_value = 42;
+                        int* device_ptr = sycl::malloc_device<int>(1, test_queue);
+                        if (device_ptr) {
+                            test_queue.memcpy(device_ptr, &test_value, sizeof(int)).wait();
+                            int result = 0;
+                            test_queue.memcpy(&result, device_ptr, sizeof(int)).wait();
+                            sycl::free(device_ptr, test_queue);
+                            
+                            if (result == test_value) {
+                                cpu_device_found = true;
+                                break;
+                            }
+                        }
                     }
                 }
-                if (cpu_found) break;
+                if (cpu_device_found) break;
             }
             
-            if (!cpu_found) {
-                std::cout << "SKIP: No CPU device available\n";
+            if (!cpu_device_found) {
+                std::cout << "SKIP: No functional CPU device available\n";
                 return;
             }
         } catch (const sycl::exception& e) {
-            std::cout << "SKIP: CPU device test failed - " << e.what() << "\n";
+            std::cout << "SKIP: CPU device verification failed - " << e.what() << "\n";
             return;
         }
         
-        // Print CPU device info
+        // Display device information
         const auto& devices = SYCLManager::all_devices();
         bool found_cpu = false;
-        for (size_t i = 0; i < devices.size(); ++i) {
-            const auto& device = devices[i];
+        for (const auto& device : devices) {
             if (device.is_cpu()) {
                 found_cpu = true;
-                std::cout << "\nFound CPU Device " << device.id() << ": " << device.name()
+                std::cout << "\n  CPU Device " << device.id() << ": " << device.name()
                           << " (" << device.vendor() << ")\n";
                 std::cout << "  - Compute units: " << device.max_compute_units() << "\n";
                 std::cout << "  - Global memory: " << device.global_mem_size() / (1024*1024) << " MB\n";
+                break; // Only show first CPU device to reduce output
             }
         }
         
@@ -80,10 +91,11 @@ void test_sycl_cpu_initialization() {
             return;
         }
         
-        // Load device info (this will call init again but that's ok)
+        // Load device info and verify initialization
         SYCLManager::load_info();
         assert(SYCLManager::devices().size() > 0);
         std::cout << "PASS\n";
+        
     } catch (const std::exception& e) {
         std::cout << "FAIL: " << e.what() << "\n";
         throw;
@@ -95,23 +107,30 @@ void test_sycl_basic_memory_operations() {
     try {
         auto& queue = SYCLManager::get_current_queue();
         
-        // Simple vector copy test
+        // Test memory allocation and copy operations using USM
         constexpr size_t SIZE = 1000;
         std::vector<float> host_data(SIZE);
         std::iota(host_data.begin(), host_data.end(), 0.0f);
         
+        // Use ARBD DeviceMemory wrapper (already optimized for USM)
         DeviceMemory<float> device_mem(queue.get(), SIZE);
         device_mem.copyFromHost(host_data);
         
-        std::vector<float> result(SIZE, 0.0f);
+        std::vector<float> result(SIZE, -1.0f); // Initialize with different value
         device_mem.copyToHost(result);
         
-        // Verify the copy
+        // Verify the copy operation
+        bool copy_successful = true;
         for (size_t i = 0; i < SIZE; ++i) {
-            assert(result[i] == host_data[i]);
+            if (!within_tolerance(result[i], host_data[i])) {
+                copy_successful = false;
+                break;
+            }
         }
         
+        assert(copy_successful && "Memory copy verification failed");
         std::cout << "PASS\n";
+        
     } catch (const std::exception& e) {
         std::cout << "FAIL: " << e.what() << "\n";
         throw;
@@ -123,12 +142,13 @@ void test_sycl_parallel_for() {
     try {
         auto& queue = SYCLManager::get_current_queue();
         
-        // Simple vector addition
+        // Vector addition test using USM and in-order queue
         constexpr size_t SIZE = 1000;
         std::vector<float> a(SIZE, 1.0f);
         std::vector<float> b(SIZE, 2.0f);
         std::vector<float> c(SIZE, 0.0f);
         
+        // Use ARBD DeviceMemory for automatic USM management
         DeviceMemory<float> d_a(queue.get(), SIZE);
         DeviceMemory<float> d_b(queue.get(), SIZE);
         DeviceMemory<float> d_c(queue.get(), SIZE);
@@ -136,26 +156,34 @@ void test_sycl_parallel_for() {
         d_a.copyFromHost(a);
         d_b.copyFromHost(b);
         
+        // Get raw pointers for kernel
         float* ptr_a = d_a.get();
         float* ptr_b = d_b.get();
         float* ptr_c = d_c.get();
         
-        // Simple parallel addition
-        queue.submit([=](sycl::handler& h) {
+        // Submit parallel kernel using USM pointers
+        auto event = queue.submit([=](sycl::handler& h) {
             h.parallel_for(sycl::range<1>(SIZE), [=](sycl::id<1> idx) {
                 size_t i = idx[0];
                 ptr_c[i] = ptr_a[i] + ptr_b[i];
             });
-        }).wait();
+        });
         
+        event.wait(); // Wait for kernel completion
         d_c.copyToHost(c);
         
         // Verify results
+        bool computation_correct = true;
         for (size_t i = 0; i < SIZE; ++i) {
-            assert(within_abs(c[i], 3.0f, 1e-6f));
+            if (!within_tolerance(c[i], 3.0f)) {
+                computation_correct = false;
+                break;
+            }
         }
         
+        assert(computation_correct && "Parallel computation verification failed");
         std::cout << "PASS\n";
+        
     } catch (const std::exception& e) {
         std::cout << "FAIL: " << e.what() << "\n";
         throw;
@@ -167,10 +195,10 @@ void test_sycl_reduction() {
     try {
         auto& queue = SYCLManager::get_current_queue();
         
-        // Simple parallel reduction
+        // Parallel reduction test
         constexpr size_t SIZE = 1000;
         std::vector<int> data(SIZE);
-        std::iota(data.begin(), data.end(), 1);
+        std::iota(data.begin(), data.end(), 1); // Fill with 1, 2, 3, ..., SIZE
         
         DeviceMemory<int> d_data(queue.get(), SIZE);
         DeviceMemory<int> d_result(queue.get(), 1);
@@ -180,43 +208,68 @@ void test_sycl_reduction() {
         int* ptr_data = d_data.get();
         int* ptr_result = d_result.get();
         
-        // Parallel sum reduction
-        queue.submit([=](sycl::handler& h) {
+        // Initialize result to 0
+        int zero = 0;
+        queue.get().memcpy(ptr_result, &zero, sizeof(int)).wait();
+        
+        // Parallel sum reduction using SYCL2020 reduction
+        auto event = queue.submit([=](sycl::handler& h) {
             auto sum_reduction = sycl::reduction(ptr_result, sycl::plus<int>());
             h.parallel_for(sycl::range<1>(SIZE), sum_reduction,
                           [=](sycl::id<1> idx, auto& sum) {
                               sum += ptr_data[idx[0]];
                           });
-        }).wait();
+        });
+        
+        event.wait();
         
         std::vector<int> result(1);
         d_result.copyToHost(result);
         
-        // Verify result
-        int expected = SIZE * (SIZE + 1) / 2;  // Sum of 1 to SIZE
-        assert(result[0] == expected);
+        // Verify result: sum of 1 to SIZE = SIZE * (SIZE + 1) / 2
+        int expected = SIZE * (SIZE + 1) / 2;
+        assert(result[0] == expected && "Reduction computation verification failed");
         
         std::cout << "PASS\n";
+        
     } catch (const std::exception& e) {
         std::cout << "FAIL: " << e.what() << "\n";
         throw;
     }
 }
 
-} // namespace
+} // anonymous namespace
 } // namespace ARBD
 
 int main() {
     try {
+        // Run tests in sequence with proper error handling
         ARBD::test_sycl_cpu_initialization();
         ARBD::test_sycl_basic_memory_operations();
         ARBD::test_sycl_parallel_for();
         ARBD::test_sycl_reduction();
         
-        std::cout << "\nAll tests passed!\n";
+        std::cout << "\nAll SYCL OpenMP tests passed!\n";
+        
+        // Explicit cleanup to prevent mutex issues
+        try {
+            ARBD::SYCLManager::finalize();
+        } catch (...) {
+            // Ignore cleanup errors
+        }
+        
         return 0;
+        
     } catch (const std::exception& e) {
         std::cerr << "\nTest failed with error: " << e.what() << "\n";
+        
+        // Attempt cleanup even on failure
+        try {
+            ARBD::SYCLManager::finalize();
+        } catch (...) {
+            // Ignore cleanup errors
+        }
+        
         return 1;
     }
 }
@@ -224,7 +277,7 @@ int main() {
 #else // PROJECT_USES_SYCL
 
 int main() {
-    std::cout << "SYCL support not enabled, skipping tests\n";
+    std::cout << "SYCL support not enabled, skipping OpenMP SYCL tests\n";
     return 0;
 }
 

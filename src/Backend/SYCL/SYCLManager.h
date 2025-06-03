@@ -189,8 +189,8 @@ public:
 
     explicit Queue(const sycl::device& dev, const sycl::property_list& props) {
         try {
-            // Create queue with single device
-            queue_ = sycl::queue(std::vector<sycl::device>{dev}, props);
+            // Create queue with single device directly, not as a multi-device queue
+            queue_ = sycl::queue(dev, props);
         } catch (const sycl::exception& e) {
             check_sycl_error(e, __FILE__, __LINE__);
         }

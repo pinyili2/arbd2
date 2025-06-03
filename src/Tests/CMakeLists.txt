@@ -10,6 +10,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Catch2)
 
 # include(doctest)
+# Fix: Use the correct path to Catch.cmake from the fetched content
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch) # contains some cmake macros that will help with discovery of tests
 include(CTest)
 
@@ -23,7 +25,7 @@ add_executable("arbd_tests"
 
 # Conditionally add SYCL test file
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
-    target_sources("arbd_tests" PRIVATE test_sycl_omp.cpp)
+    target_sources("arbd_tests" PRIVATE test_sycl_nocatch.cpp)
     message(STATUS "Added SYCL tests to arbd_tests")
 endif()
 
