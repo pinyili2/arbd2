@@ -1,0 +1,44 @@
+{
+  "version": 4, 
+  "configurePresets": [
+    {
+      "name": "macos-acpp-sycl-debug",
+      "displayName": "macOS ACPP SYCL (Debug)",
+      "description": "Targets macOS with acpp for SYCL development (Debug build).",
+      "generator": "Ninja", 
+      "binaryDir": "${sourceDir}/build/macos-acpp-sycl-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/bin/acpp",
+        "USE_SYCL_ACPP": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
+
+    },
+    {
+      "name": "macos-acpp-sycl-release",
+      "displayName": "macOS ACPP SYCL (Release)",
+      "description": "Targets macOS with acpp for SYCL development (Release build).",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-acpp-sycl-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/bin/acpp",
+        "USE_SYCL_ACPP": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default-debug",
+      "configurePreset": "macos-acpp-sycl-debug",
+      "displayName": "Build Debug (ACPP SYCL)"
+    },
+    {
+      "name": "default-release",
+      "configurePreset": "macos-acpp-sycl-release",
+      "displayName": "Build Release (ACPP SYCL)"
+    }
+  ]
+}
