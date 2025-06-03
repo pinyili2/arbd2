@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef PROJECT_USES_SYCL
+#ifdef USE_SYCL
 #include "ARBDException.h"
 #include <array>
 #include <vector>
@@ -11,7 +11,7 @@
 #include <sycl/sycl.hpp>
 
 namespace ARBD {
-
+namespace SYCL {
 inline void check_sycl_error(const sycl::exception& e, std::string_view file, int line) {
     ARBD_Exception(ExceptionType::SYCLRuntimeError, 
         "SYCL error at {}:{}: {}", 
@@ -60,6 +60,11 @@ inline void check_sycl_error(const sycl::exception& e, std::string_view file, in
  */
 template<typename T>
 class DeviceMemory {
+private:
+    T* ptr_{nullptr};
+    size_t size_{0};
+    sycl::queue* queue_{nullptr};
+
 public:
     DeviceMemory() = default;
     
@@ -132,10 +137,7 @@ public:
     operator T*() noexcept { return ptr_; }
     operator const T*() const noexcept { return ptr_; }
 
-private:
-    T* ptr_{nullptr};
-    size_t size_{0};
-    sycl::queue* queue_{nullptr};
+
 };
 
 /**
@@ -323,15 +325,7 @@ public:
     
     explicit Event(sycl::event e) : event_(std::move(e)) {}
     
-    ~Event() {
-        try {
-            if (event_.has_value()) {
-                // Don't wait in destructor as it might throw
-            }
-        } catch (...) {
-            // Don't throw from destructor
-        }
-    }
+    ~Event() {}
     
     // Prevent copying
     Event(const Event&) = delete;
@@ -576,7 +570,7 @@ private:
     static int current_device_;
     static sycl::info::device_type preferred_type_;
 };
-
+} // namespace SYCL
 } // namespace ARBD
 
 #endif // PROJECT_USES_SYCL

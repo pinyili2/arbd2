@@ -1,10 +1,10 @@
-#ifdef PROJECT_USES_SYCL
+#ifdef USE_SYCL
 #include "ARBDLogger.h"
 #include "SYCLManager.h"
 #include <algorithm>
 
 namespace ARBD {
-
+namespace SYCL {    
 // Static member initialization
 std::vector<SYCLManager::Device> SYCLManager::all_devices_;
 std::vector<SYCLManager::Device> SYCLManager::devices_;
@@ -26,7 +26,7 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
     // Create queues
     try {
         for (size_t i = 0; i < queues_.size(); ++i) { 
-            queues_[i] = ARBD::Queue(device_); 
+            queues_[i] = Queue(device_); 
         }
     } catch (const ARBD::Exception& e) {
         LOGERROR("ARBD::Exception during ARBD::Queue construction for device {}: {}", id_, e.what());
@@ -322,6 +322,7 @@ std::vector<unsigned int> SYCLManager::get_accelerator_device_ids() {
     return accel_ids;
 }
 
+} // namespace SYCL
 } // namespace ARBD
 
 #endif // PROJECT_USES_SYCL

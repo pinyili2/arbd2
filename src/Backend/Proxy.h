@@ -1,12 +1,53 @@
 #pragma once
 
 #include <future>
-#include <iostream>
-#include "Backend/Resource.h"
+#include "Resource.h"
+#include "ARBDLogger.h"
+#include "ARBDException.h"
+#include <type_traits>
+#include <string>
+#include <cstring>
 
+#include <typeinfo>
 
+// Forward declare Resource to use in concepts
+using ARBD::Resource;
+
+namespace ARBD {
 // template<typename T, typename...Args1, typename... Args2>
 // __global__ void proxy_sync_call_kernel_noreturn(T* addr, (T::*memberFunc(Args1...)), Args2...args);
+class FileHandle {
+  FILE* m_file = nullptr;
+public:
+  FileHandle(const char* filename, const char* mode) : m_file(std::fopen(filename, mode)) {
+      if (!m_file) {
+        throw std::runtime_error(std::string("FileHandle: Failed to open file '") +filename + "' with mode '" + mode + "'.");}
+  }
+  ~FileHandle() {
+      if (m_file) {
+            std::fclose(m_file);
+            m_file = nullptr; // Good practice to nullify after closing
+        }
+  }
+  // Delete copy constructor/assignment
+  FileHandle(const FileHandle&) = delete;
+  FileHandle& operator=(const FileHandle&) = delete;
+  // Allow move
+  FileHandle(FileHandle&& other) noexcept : m_file(other.m_file) { other.m_file = nullptr; }
+  FileHandle& operator=(FileHandle&& other) noexcept {
+      if (this != &other) {
+          if (m_file) std::fclose(m_file);
+          m_file = other.m_file;
+          other.m_file = nullptr;
+      }
+      return *this;
+  }
+
+  FILE* get() const { return m_file; }
+  // operator FILE*() const { return m_file; } // If implicit conversion is desired
+};
+// Usage: FileHandle my_file("data.txt", "r"); // Automatically closes
+
 
 #ifdef __CUDACC__
 #include <cuda.h>
@@ -28,31 +69,28 @@ __global__ void constructor_kernel(T* __restrict__ devptr, Args...args) {
 }
 #endif
 
-// START traits
-// These ugly bits of code help implement SFINAE in C++14 and should likely be removed if a newer standard is adopted 
-// https://stackoverflow.com/questions/55191505/c-compile-time-check-if-method-exists-in-template-type
+
+
 /**
- * @brief Template trait to check if a method 'send_children' exists in a type.
+ * @brief Concept to check if a type has a 'send_children' method that accepts a Resource parameter.
  */
-#include <type_traits>
-template <typename T, typename = void>
-struct has_send_children : std::false_type {};
-template <typename T>
-struct has_send_children<T, decltype(std::declval<T>().send_children(Resource{Resource::CPU,0}), void())> : std::true_type {};
+template<typename T>
+concept has_send_children = requires(T t, Resource r) {
+    t.send_children(r);
+};
 
-template <typename T, typename = void>
-struct has_no_send : std::false_type {};
-template <typename T>
-struct has_no_send<T, decltype(std::declval<T>().no_send, void())> : std::true_type {};
+/**
+ * @brief Concept to check if a type has a 'no_send' member.
+ */
+template<typename T>
+concept has_no_send = requires(T t) {
+    t.no_send;
+};
 
-// template <typename T, typename = void>
-// struct has_metadata : std::false_type {};
-// template <typename _tT>
-// struct has_metadata<T, decltype(std::declval<T>()::Metadata, void())> : std::true_type {};
-
+// Helper alias for C++14 compatibility (still needed for Metadata_t)
 template <typename...>
 using void_t = void;
-// struct Metadata_t<T, decltype(std::declval<typename T::Metadata>(), void())> : T::Metadata { }; 
+
 // END traits
 
 // Used by Proxy class 
@@ -66,83 +104,7 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
     Metadata_t(const T& obj) : T::Metadata(obj) {};
     Metadata_t(const Metadata_t<T>& other) : T::Metadata(other) {};
 };
-// struct Metadata_t<T, decltype(std::declval<typename T::Metadata>(), void())> : T::Metadata { }; 
 
-
-// template<typename T, typename std::enable_if_t<std::is_arithmetic<T>::value>* = nullptr>
-// struct Proxy {
-//     /**
-//      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
-//      */
-//     Proxy() : location{Resource{Resource::CPU,0}}, addr{nullptr} {};
-//     Proxy(const Resource& r, T* obj) : location{r}, addr{obj} {};
-
-//     /**
-//      * @brief Overloaded operator-> returns the address of the underlying object.
-//      * @return The address of the underlying object.
-//      */
-//     auto operator->() { return addr; }
-//     auto operator->() const { return addr; }
-
-//     /**
-//      * @brief The resource associated with the data represented by the proxy.
-//      */
-//     Resource location;	    ///< The device (thread/gpu) holding the data represented by the proxy.
-//     T* addr;		    ///< The address of the underlying object.
-// };
-
-/**
- * @brief Template class representing a proxy for the underlying data.
- * @tparam T The type of the underlying data.
- */
-
-
-    // Q: why a pointer?
-    // Q: rename to Metadata? Has
-    // consequences for Proxy<Proxy<T>>
-    // that limits specialization but uses
-    // T::Metadata automatically
-    //
-    // A: depends on how Proxy<Proxy<T>>
-    // objects are used
-    
-    // void move(const Resource& newloc) {
-    // 	LOGTRACE("Moving object from {} to {}", location, newloc);
-    // 	Proxy<T> new_proxy;
-	
-    //     switch (location.type) {
-    // 	case Resource::CPU:
-    // 	    if (location.is_local()) {
-    // 		new_proxy = send(location, &addr);
-    // 	    } else {
-    // 		Exception( NotImplementedError, "Proxy::move() non-local CPU calls" );
-    // 	    }
-    // 	    break;
-    // 	case Resource::GPU:
-    // 	    if (location.is_local()) {
-    // 		Exception( NotImplementedError, "Proxy::move() local GPU calls" );
-    // 	    } else {
-    // 		Exception( NotImplementedError, "Proxy::move() non-local GPU calls" );
-    // 	    }
-    // 	    break;
-    // 	case Resource::MPI:
-    // 	    Exception( NotImplementedError, "MPI move (deprecate?)" );
-    // 	    break;
-    // 	default:
-    // 	    Exception( ValueError, "Proxy::move(): Unknown resource type" );
-    //     }
-	
-    // 	// auto Proxy<T>{ location , newaddr }
-    // 	// auto tmpmeta = send(newloc, metadata);
-
-    // 	location = newloc;
-    // 	addr = new_proxy.addr;
-    // 	metadata = new_proxy.metadata;
-    // }
-
-// C++17 way: template<typename T, typename Metadata = std::void_t<typename T::Metadata>>
-// C++14 way: template<typename T, typename Metadata = typename std::conditional<has_metadata<T>::value, typename T::Metadata, void>::type>
-// Neither needed!
 template<typename T, typename Enable = void>
 struct Proxy {
     /**
@@ -150,21 +112,21 @@ struct Proxy {
      */
     static_assert(!std::is_same<T, Proxy>::value, "Cannot make a Proxy of a Proxy object");
 
-    Proxy() : location(Resource{Resource::CPU,0}), addr(nullptr), metadata(nullptr) {
-	LOGINFO("Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+    Proxy() : location(Resource{Resource::SYCL,0}), addr(nullptr), metadata(nullptr) {
+	LOGINFO("Constructing Proxy<{}> @{}", typeid(T).name(), static_cast<void*>(this));
     };
     Proxy(const Resource& r) : location(r),  addr(nullptr), metadata(nullptr) {
-	LOGINFO("Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+	LOGINFO("Constructing Proxy<{}> @{}", typeid(T).name(), static_cast<void*>(this));
     };
     Proxy(const Resource& r, T& obj, T* dest = nullptr) : location(r), addr(dest == nullptr ? &obj : dest) {
 	if (dest == nullptr) metadata = nullptr;
 	else metadata = new Metadata_t<T>(obj);
 	LOGINFO("Constructing Proxy<{}> @{} wrapping @{} with metadata @{}",
-		type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(&obj), fmt::ptr(metadata));
+		typeid(T).name(), static_cast<void*>(this), static_cast<void*>(&obj), static_cast<void*>(metadata));
     };
         // Copy constructor
     Proxy(const Proxy<T>& other) : location(other.location), addr(other.addr), metadata(nullptr) {
-        LOGINFO("Copy Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+        LOGINFO("Copy Constructing Proxy<{}> @{}", typeid(T).name(), static_cast<void*>(this));
         if (other.metadata != nullptr) {
             const Metadata_t<T>& tmp = *(other.metadata);
             metadata = new Metadata_t<T>(tmp);
@@ -183,7 +145,7 @@ struct Proxy {
       return *this;
     };
     Proxy(Proxy<T>&& other) : addr(nullptr), metadata(nullptr) {
-        LOGINFO("Move Constructing Proxy<{}> @{}", type_name<T>().c_str(), fmt::ptr(this));
+        LOGINFO("Move Constructing Proxy<{}> @{}", typeid(T).name(), static_cast<void*>(this));
         location = other.location;
         addr = other.addr;
         // For now we avoid std::move, but we may choose to change this behavior
@@ -192,7 +154,7 @@ struct Proxy {
         other.metadata = nullptr;
     };
     ~Proxy() {
-        LOGINFO("Deconstructing Proxy<{}> @{} with metadata @{}", type_name<T>().c_str(), fmt::ptr(this), fmt::ptr(metadata));
+        LOGINFO("Deconstructing Proxy<{}> @{} with metadata @{}", typeid(T).name(), static_cast<void*>(this), static_cast<void*>(metadata));
         if (metadata != nullptr) delete metadata;
     };
 
@@ -216,7 +178,7 @@ struct Proxy {
     template <typename RetType, typename... Args1, typename... Args2>
     RetType callSync(RetType (T::*memberFunc)(Args1...), Args2&&... args) {
         switch (location.type) {
-	case Resource::CPU:
+	case Resource::SYCL:
 	    if (location.is_local()) {
 		return (addr->*memberFunc)(std::forward<Args2>(args)...);
 	    } else {
@@ -226,12 +188,12 @@ struct Proxy {
             MPI_Recv(&result, sizeof(RetType), MPI_BYTE, location.id, MPI_ANY_TAG, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
             return result;
             #else
-            Exception(NotImplementedError, "Non-local CPU calls require MPI support");
+            ARBD::throw_not_implemented("Non-local CPU calls require MPI support");
             #endif
 		//Exception( NotImplementedError, "Proxy::callSync() non-local CPU calls" );
 	    }
 	    break;
-	case Resource::GPU:
+	case Resource::CUDA:
     #ifdef __CUDACC__
 	    if (location.is_local()) {
 		if (sizeof(RetType) > 0) {
@@ -245,7 +207,7 @@ struct Proxy {
 		    gpuErrchk(cudaFree(dest));
 		    return obj;
 		} else {
-		    Exception( NotImplementedError, "Proxy::callSync() local GPU calls" );
+		    ARBD::throw_not_implemented("Proxy::callSync() local GPU calls");
 		}
 	    } else {
             size_t target_device = location.id;
@@ -265,7 +227,7 @@ struct Proxy {
 		//Exception( NotImplementedError, "Proxy::callSync() non-local GPU calls" );
 	    }
         #else
-        Exception( NotImplementedError, "Proxy::callSync() for GPU only defined for files compiled with nvvc" );
+        ARBD::throw_not_implemented("Proxy::callSync() for CUDA GPU only defined for files compiled with nvvc");
         #endif		    		
 	    break;
 	case Resource::MPI:
@@ -287,11 +249,11 @@ struct Proxy {
                return result;
            }
        #else
-           Exception(NotImplementedError, "MPI calls require USE_MPI flag");
+           ARBD::throw_not_implemented("MPI calls require USE_MPI flag");
        #endif
 	    break;
 	default:
-	    Exception( ValueError, "Proxy::callSync(): Unknown resource type" );
+	    ARBD::throw_value_error("Proxy::callSync(): Unknown resource type");
         }
 	return RetType{};
     }
@@ -300,14 +262,14 @@ struct Proxy {
     template <typename RetType, typename... Args1, typename... Args2>
     std::future<RetType> callAsync(RetType (T::*memberFunc)(Args1...), Args2&&... args) {
         switch (location.type) {
-	case Resource::CPU:
+	case Resource::SYCL:
 	    if (location.is_local()) {
 		return (addr->*memberFunc)(std::forward<Args2>(args)...);
 	    } else {
-		Exception( NotImplementedError, "Proxy::callAsync() non-local CPU calls" );
+		ARBD::throw_not_implemented("Proxy::callAsync() non-local CPU calls");
 	    }
 	    break;
-	case Resource::GPU:
+	case Resource::CUDA:
 	#ifdef __CUDACC__
 	    if (location.is_local()) {
             return std::async(std::launch::async, [this, memberFunc, args...] {
@@ -338,7 +300,7 @@ struct Proxy {
            });
        }
        #else
-	    Exception(NotImplementedError, "Async for GPU only defined for files compiled with nvvc");
+	    ARBD::throw_not_implemented("Async for GPU only defined for files compiled with nvvc");
        #endif
 	    break;
 	case Resource::MPI:
@@ -359,11 +321,11 @@ struct Proxy {
                }
            });
        #else
-        Exception(NotImplementedError, "Async MPI calls require USE_MPI flag");
+        ARBD::throw_not_implemented("Async MPI calls require USE_MPI flag");
        #endif
        break;
 	default:
-	    Exception( ValueError, "Proxy::callAsync(): Unknown resource type" );
+	    ARBD::throw_value_error("Proxy::callAsync(): Unknown resource type");
         }
 	return std::async(std::launch::async, [] { return RetType{}; });
     }
@@ -375,7 +337,7 @@ struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
     /**
      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
      */
-    Proxy() : location{Resource{Resource::CPU,0}}, addr{nullptr} {};
+    Proxy() : location{Resource{Resource::SYCL,0}}, addr{nullptr} {};
     Proxy(const Resource& r, T* obj) : location{r}, addr{obj} {};
 
     /**
@@ -411,7 +373,7 @@ struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
 //     /**
 //      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
 //      */
-//     Proxy<int>() : location(Resource{Resource::CPU,0}), addr(nullptr) {};
+//     Proxy<int>() : location(Resource{Resource::SYCL,0}), addr(nullptr) {};
 //     Proxy<int>(const Resource& r, int* obj) : location(r), addr(obj) {};
 
 //     /**
@@ -448,7 +410,7 @@ template <typename T>
 HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T* dest = nullptr) {
     LOGTRACE("   _send_ignoring_children...");
     switch (location.type) {
-    case Resource::GPU:
+    case Resource::CUDA:
 	LOGINFO("   GPU...");
 #ifdef USE_CUDA
 	if (location.is_local()) {
@@ -458,16 +420,16 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T
 	    }
 	    gpuErrchk(cudaMemcpy(dest, &obj, sizeof(T), cudaMemcpyHostToDevice));
 	} else {
- 	    Exception( NotImplementedError, "`_send_ignoring_children(...)` on non-local GPU" );
+ 	    ARBD::throw_not_implemented("`_send_ignoring_children(...)` on non-local GPU" );
 	}
 #else
-	Exception( NotImplementedError, "USE_CUDA is not enabled" );
+	ARBD::throw_not_implemented("USE_CUDA is not enabled" );
 #endif
 	break;
-    case Resource::CPU:
-	LOGINFO("   CPU...");
+    case Resource::SYCL:
+	LOGINFO("Using SYCL...");
 	if (location.is_local()) {
-	    LOGINFO("   local CPU...");
+	    LOGINFO("   local SYCL...");
 	    // if (dest == nullptr) { // allocate if needed
 	    // 	LOGINFO("   allocate memory...");
 	    // 	LOGTRACE("   Allocate CPU memory for {}", type_name<T>().c_str());
@@ -483,7 +445,7 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T
 	break;
     default:
 	// error
-	Exception( ValueError, "`_send_ignoring_children(...)` applied with unkown resource type" );
+	ARBD::throw_value_error("`_send_ignoring_children(...)` applied with unkown resource type" );
     }
 
     LOGINFO("   creating Proxy...");
@@ -500,16 +462,17 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource& location, T& obj, T
 
 /**
  * @brief Template function to send simple objects to a specified location without considering child objects.
- *        This version will be selected upon send(location, obj) if obj.send_children does not exist (C++14-compatible SFINAE)
+ *        This version will be selected upon send(location, obj) if obj.send_children does not exist (C++20 concepts)
  * @tparam T The type of the data to be sent.
  * @param location The destination resource for the data.
  * @param obj The data to be sent.
  * @param dest Optional parameter to provide a pre-allocated destination. If not provided, memory is allocated.
  * @return A Proxy representing the data at the destination location.
  */
-template <typename T, typename Dummy = void, typename std::enable_if_t<!has_send_children<T>::value, Dummy>* = nullptr>
+template <typename T>
+requires (!has_send_children<T>)
 HOST inline Proxy<T>& send(const Resource& location, T& obj, T* dest = nullptr) {
-    LOGINFO("...Sending object {} @{} to device at {}", type_name<T>().c_str(), fmt::ptr(&obj), fmt::ptr(dest));
+    LOGINFO("...Sending object {} @{} to device at {}", typeid(T).name(), static_cast<void*>(&obj), static_cast<void*>(dest));
     // Simple objects can simply be copied without worrying about contained objects and arrays
     Proxy<T>&& ret = _send_ignoring_children(location, obj, dest);
     LOGTRACE("...done sending");
@@ -519,17 +482,18 @@ HOST inline Proxy<T>& send(const Resource& location, T& obj, T* dest = nullptr) 
 
 /**
  * @brief Template function to send more complex objects to a specified location.
- *        This version will be selected upon send(location, obj) if obj.send_children exists (C++14-compatible SFINAE)
+ *        This version will be selected upon send(location, obj) if obj.send_children exists (C++20 concepts)
  * @tparam T The type of the data to be sent.
  * @param location The destination resource for the data.
  * @param obj The data to be sent.
  * @param dest Optional parameter to provide a pre-allocated destination. If not provided, memory is allocated on the GPU.
  * @return A Proxy representing the data at the destination location.
  */
-template <typename T, typename Dummy = void, typename std::enable_if_t<has_send_children<T>::value, Dummy>* = nullptr>
+template <typename T>
+requires has_send_children<T>
 HOST inline Proxy<T> send(const Resource& location, T& obj, T* dest = nullptr) {
     // static_assert(!has_no_send<T>());
-    LOGINFO("Sending complex object {} @{} to device at {}", type_name<T>().c_str(), fmt::ptr(&obj), fmt::ptr(dest));
+    LOGINFO("Sending complex object {} @{} to device at {}", typeid(T).name(), static_cast<void*>(&obj), static_cast<void*>(dest));
     auto dummy = obj.send_children(location); // function is expected to return an object of type obj with all pointers appropriately assigned to valid pointers on location
     Proxy<T> ret = _send_ignoring_children<T>(location, dummy, dest);
     LOGTRACE("... clearing dummy complex object");
@@ -547,15 +511,15 @@ template<typename T, typename... Args>
 Proxy<T> construct_remote(Resource location, Args&&...args) {
     //static_assert(!has_no_send<T>());
     switch (location.type) {
-    case Resource::CPU:
+    case Resource::SYCL:
 	if (location.is_local()) {
 	    T* ptr = new T{std::forward<Args>(args)...};
 	    return Proxy<T>(location, *ptr);
 	} else {
-	    Exception( NotImplementedError, "construct_remote() non-local CPU calls" );
+	    ARBD::throw_not_implemented("construct_remote() non-local CPU calls" );
 	}
 	break;
-    case Resource::GPU:
+    case Resource::CUDA:
     #ifdef __CUDACC__
 	if (location.is_local()) {
 	    T* devptr;
@@ -574,18 +538,19 @@ Proxy<T> construct_remote(Resource location, Args&&...args) {
 	    // 	gpuErrchk(cudaMemcpy(dest, &obj, sizeof(RetType), cudaMemcpyHostToDevice));
 	    // 	gpuErrchk(cudaFree(dest));
 	} else {
-	    Exception( NotImplementedError, "cunstruct_remote() non-local GPU call" );
+	    ARBD::throw_not_implemented("cunstruct_remote() non-local GPU call" );
 	}
     #else
-	    Exception( NotImplementedError, "construct_remote() for GPU only defined for files compiled with nvvc" );
+	    ARBD::throw_not_implemented("construct_remote() for GPU only defined for files compiled with nvvc" );
     #endif	    		
 	break;
     case Resource::MPI:
-	Exception( NotImplementedError, "construct_remote() for MPI" );
+	ARBD::throw_not_implemented("construct_remote() for MPI" );
 	break;
     default:
-	Exception( ValueError, "construct_remote(): unknown resource type" );
+	ARBD::throw_value_error("construct_remote(): unknown resource type" );
     }
     return Proxy<T>{};
 }
 
+};

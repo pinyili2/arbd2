@@ -1,21 +1,32 @@
 #pragma once
+#include "ARBDLogger.h"
+
+// Define HOST and DEVICE macros
+#ifdef __CUDACC__
+#define HOST __host__
+#define DEVICE __device__
+#include "Backend/CUDA/CUDAManager.h"
+#else
+#define HOST
+#define DEVICE
+#endif
+
+#ifdef USE_SYCL
+#include "Backend/SYCL/SYCLManager.h"
+#endif
 
 #ifdef USE_MPI
 #include <mpi.h>
 #endif
-#include "CUDA/CUDAManager.h"
-#include "ARBDException.h"
 
 
-namespace ARBD {
 
 /**
  * @brief Get current resource index (device ID or MPI rank)
  */
+inline size_t caller_id() {
 #ifdef __CUDACC__
-HOST DEVICE inline size_t caller_id() {
 #ifdef USE_CUDA
-    
     if (cudaGetDevice(nullptr) == cudaSuccess) { 
         int device;
         cudaGetDevice(&device);
@@ -32,50 +43,19 @@ HOST DEVICE inline size_t caller_id() {
 #endif
 }
 
-
-class FileHandle {
-  FILE* m_file = nullptr;
-public:
-  FileHandle(const char* filename, const char* mode) : m_file(std::fopen(filename, mode)) {
-      if (!m_file) {
-        throw std::runtime_error(std::string("FileHandle: Failed to open file '") +filename + "' with mode '" + mode + "'.");}
-  }
-  ~FileHandle() {
-      if (m_file) {
-            std::fclose(m_file);
-            m_file = nullptr; // Good practice to nullify after closing
-        }
-  }
-  // Delete copy constructor/assignment
-  FileHandle(const FileHandle&) = delete;
-  FileHandle& operator=(const FileHandle&) = delete;
-  // Allow move
-  FileHandle(FileHandle&& other) noexcept : m_file(other.m_file) { other.m_file = nullptr; }
-  FileHandle& operator=(FileHandle&& other) noexcept {
-      if (this != &other) {
-          if (m_file) std::fclose(m_file);
-          m_file = other.m_file;
-          other.m_file = nullptr;
-      }
-      return *this;
-  }
-
-  FILE* get() const { return m_file; }
-  // operator FILE*() const { return m_file; } // If implicit conversion is desired
-};
-// Usage: FileHandle my_file("data.txt", "r"); // Automatically closes
-
-
 /**
  * @brief Resource representation for heterogeneous computing
+ * Supports CUDA, SYCL, and MPI resource types
  */
+namespace ARBD {
+
 struct Resource {
-    enum ResourceType {MPI, CUDA, SYCL};
+    enum ResourceType {CUDA, SYCL, MPI};
     ResourceType type;   
     size_t id;          
     Resource* parent;   
 
-    HOST DEVICE Resource() : type(CPU), id(0), parent(nullptr) {}
+    HOST DEVICE Resource() : type(MPI), id(0), parent(nullptr) {}
     HOST DEVICE Resource(ResourceType t, size_t i) : type(t), id(i), parent(nullptr) {}
     HOST DEVICE Resource(ResourceType t, size_t i, Resource* p) : type(t), id(i), parent(p) {}
 
@@ -97,34 +77,56 @@ struct Resource {
             cudaGetDevice(&current_device);
             
             switch(type) {
-                case GPU:
+                case CUDA:
                     ret = (current_device == static_cast<int>(id));
                     break;
-                case CPU:
+                case SYCL:
                 case MPI:
-                    ret = false;  // CPU/MPI resources are never local to GPU
+                    ret = false;  // SYCL/MPI resources are never local to CUDA
                     break;
             }
-            LOGWARN("Resource::is_local(): GPU context - type %s, device %zu, current %d, returning %d", 
+            LOGWARN("Resource::is_local(): CUDA context - type %s, device %zu, current %d, returning %d", 
                     getTypeString(), id, current_device, ret);
         } else 
 #endif
-        {   // CPU context
+#ifdef USE_SYCL
+        if (type == SYCL) {
+            // Check if we're in a SYCL context
+            try {
+                auto& current_device = SYCL::SYCLManager::get_current_device();
+                ret = (current_device.id() == id);
+                LOGINFO("Resource::is_local(): SYCL context - device %zu, current %u, returning %d", 
+                       id, current_device.id(), ret);
+            } catch (...) {
+                ret = false;
+                LOGINFO("Resource::is_local(): SYCL device not available, returning false");
+            }
+        } else
+#endif
+        {   // CPU/MPI context
             switch(type) {
-                case GPU:
+                case CUDA:
                     if (parent != nullptr) {
                         ret = parent->is_local();
-                        LOGINFO("Resource::is_local(): CPU checking GPU parent, returning %d", ret);
+                        LOGINFO("Resource::is_local(): CPU checking CUDA parent, returning %d", ret);
                     } else {
                         ret = false;
-                        LOGINFO("Resource::is_local(): CPU with no GPU parent, returning false");
+                        LOGINFO("Resource::is_local(): CPU with no CUDA parent, returning false");
                     }
                     break;
-                case CPU:
+                case SYCL:
+                    if (parent != nullptr) {
+                        ret = parent->is_local();
+                        LOGINFO("Resource::is_local(): CPU checking SYCL parent, returning %d", ret);
+                    } else {
+                        ret = false;
+                        LOGINFO("Resource::is_local(): CPU with no SYCL parent, returning false");
+                    }
+                    break;
                 case MPI:
                     ret = (caller_id() == id);
-                    LOGINFO("Resource::is_local(): CPU direct check - type %s, caller %zu, id %zu, returning %d", 
-                           getTypeString(), caller_id(), id, ret);
+                    LOGINFO("Resource::is_local(): MPI direct check - caller %zu, id %zu, returning %d", 
+                           caller_id(), id, ret);
                     break;
             }
         }
@@ -136,10 +138,19 @@ struct Resource {
         if (cudaGetDevice(nullptr) == cudaSuccess) {  // Are we in a CUDA context?
             int device;
             cudaGetDevice(&device);
-            return Resource{GPU, static_cast<size_t>(device)};
+            return Resource{CUDA, static_cast<size_t>(device)};
         }
 #endif
-        return Resource{CPU, caller_id()};
+#ifdef USE_SYCL
+        // Check if SYCL is available and preferred
+        try {
+            auto& current_device = SYCL::SYCLManager::get_current_device();
+            return Resource{SYCL, static_cast<size_t>(current_device.id())};
+        } catch (...) {
+            // Fall through to MPI if SYCL is not available
+        }
+#endif
+        return Resource{MPI, caller_id()};
     }
 
     HOST DEVICE bool operator==(const Resource& other) const {
@@ -148,6 +159,47 @@ struct Resource {
 
     HOST std::string toString() const {
         return std::string(getTypeString()) + "[" + std::to_string(id) + "]";
+    }
+
+    /**
+     * @brief Check if the resource supports asynchronous operations
+     */
+    HOST DEVICE bool supports_async() const {
+        switch(type) {
+            case CUDA:
+            case SYCL:
+                return true;
+            case MPI:
+                return false;  // MPI operations are typically synchronous in this context
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * @brief Get the memory space type for this resource
+     */
+    HOST DEVICE constexpr const char* getMemorySpace() const {
+        switch(type) {
+            case CUDA: return "device";
+            case SYCL: return "device";
+            case MPI: return "host";
+            default: return "unknown";
+        }
+    }
+
+    /**
+     * @brief Check if this resource represents a device (GPU) or host (CPU/MPI)
+     */
+    HOST DEVICE bool is_device() const {
+        return type == CUDA || type == SYCL;
+    }
+
+    /**
+     * @brief Check if this resource represents a host (CPU/MPI)
+     */
+    HOST DEVICE bool is_host() const {
+        return type == MPI;
     }
 };
 

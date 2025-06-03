@@ -4,7 +4,7 @@
 #endif
 
 #ifdef USE_CUDA
-#include <cuda.h> // Or <cuda.h> depending on GPUManager's needs
+#include <cuda.h> // Or <cuda.h> depending on CUDAManager's needs
 #include <cuda_runtime.h>
 #endif
 
@@ -15,14 +15,6 @@
 #include <iostream>  // For std::cout, std::endl (modern C++)
 #include <algorithm> // For std::max (though using std::max from <algorithm> is preferred)
 #include "SignalManager.h"
-
-// Include paths will be relative to the "src" directory after reorganization
-// and with proper include directories set in CMake.
-// Example: #include "Core/Common/GPUManager.h"
-// For now, using the paths as they might be in your current, more organized structure.
-//#include "Core/Backend/Gpu/GPUManager.h" // Assuming GPUManager.h is here after reorg
-//#include "Simulation/Engine/SimManager.h"  // Assuming SimManager.h is here
-
 
 // Define this if not provided by CMake/build system for version info
 #ifndef VERSION
@@ -43,15 +35,15 @@ bool parse_basic_args(int argc, char* argv[], ProgramOptions& opts) {
         printf("Usage: %s [OPTIONS] CONFIGFILE OUTPUT [SEED]\n", argv[0]);
         printf("\n");
         printf("  -h, --help         Display this help and exit\n");
-        printf("  --info             Output basic CPU and GPU information (stubbed) and exit\n");
+        printf("  --info             Output basic CPU and CUDA information (stubbed) and exit\n");
         printf("  --version          Output version information and exit\n");
         printf("\n  (More options will be enabled as components are modernized)\n");
         // printf("  -r, --replicas=    Number of replicas to run\n");
         // printf("  -g, --gpu=         Index of gpu to use (defaults to 0)\n");
         // printf("  -i, --imd=         IMD port (defaults to %u)\n", kDefaultIMDPort);
         // printf("  -d, --debug        Debug mode\n");
-        // printf("  --safe             Do not use GPUs that may timeout\n");
-        // printf("  --unsafe           Use GPUs that may timeout (default)\n");
+        // printf("  --safe             Do not use CUDAs that may timeout\n");
+        // printf("  --unsafe           Use CUDAs that may timeout (default)\n");
         return false; // Indicates help was shown, program should exit
     } else if (argc == 2 && (strcmp(argv[1], "--version") == 0)) {
         printf("%s %s\n", argv[0], VERSION);
@@ -136,15 +128,15 @@ int main(int argc, char* argv[]) {
     std::cout << "Output Target: " << options.outputFile << std::endl;
 
 #ifdef USE_CUDA
-    std::cout << "Initializing GPU Manager..." << std::endl;
-    // GPUManager::init(); // Call the static init method
-    // GPUManager::select_gpus({0}); // Example: Select GPU 0 for now
-    // size_t n_gpus = GPUManager::allGpuSize();
-    // std::cout << "Number of available GPUs: " << n_gpus << std::endl;
+    std::cout << "Initializing CUDA Manager..." << std::endl;
+    // CUDAManager::init(); // Call the static init method
+    // CUDAManager::select_gpus({0}); // Example: Select CUDA 0 for now
+    // size_t n_gpus = CUDAManager::allGpuSize();
+    // std::cout << "Number of available CUDAs: " << n_gpus << std::endl;
     // if (n_gpus > 0) {
-    //     std::cout << "Selected GPU(s) for simulation." << std::endl;
+    //     std::cout << "Selected CUDA(s) for simulation." << std::endl;
     // } else {
-    //     std::cout << "No GPUs available or selected for simulation." << std::endl;
+    //     std::cout << "No CUDAs available or selected for simulation." << std::endl;
     // }
 #else
     std::cout << "CUDA support is disabled." << std::endl;
@@ -171,7 +163,7 @@ int main(int argc, char* argv[]) {
     char* configFile = options.configFile.data(); // Unsafe if string is empty
     char* outArg = options.outputFile.data();   // Unsafe
 
-    // ... (original GPU selection logic) ...
+    // ... (original CUDA selection logic) ...
 
     // Configuration config(configFile, replicas, debug);
     // config.copyToCUDA();
