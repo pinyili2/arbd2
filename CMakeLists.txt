@@ -1,4 +1,17 @@
 cmake_minimum_required(VERSION 3.25.5 FATAL_ERROR)
+set(PROJECT_NAME_BASE "arbd")
+if(DEFINED PROJECT_NAME_SUFFIX)
+    set(PROJECT_NAME "${PROJECT_NAME_BASE}${PROJECT_NAME_SUFFIX}")
+else()
+    set(PROJECT_NAME "${PROJECT_NAME_BASE}")
+endif()
+
+# Single project() call
+if(USE_CUDA)
+project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
+else()
+    project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
+endif()
 
 # --- Project Options ---
 option(USE_CUDA "Use CUDA" OFF)
@@ -9,6 +22,7 @@ option(USE_NCCL "Use NCCL for single node GPU peer communication" OFF)
 option(USE_NVTX "Build with NVTX profiling ranges" OFF)
 option(USE_LOGGER "Build with SPDLog" ON)
 option(USE_PYBIND "Build Python bindings" OFF)
+
 
 # --- Basic CMake Setup ---
 set(CMAKE_CXX_STANDARD 20)
@@ -55,7 +69,7 @@ endif()
 
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "SYCL support is requested.")
-    add_definitions(-DPROJECT_USES_SYCL) # Generic definition for SYCL API usage in C++
+    add_definitions(-DUSE_SYCL) # Generic definition for SYCL API usage in C++
 
     if(NOT CMAKE_CXX_COMPILER)
         message(FATAL_ERROR "A SYCL option (USE_SYCL_ACPP or USE_SYCL_ICPX) is ON, but CMAKE_CXX_COMPILER is not set.
@@ -133,19 +147,7 @@ Compilation will proceed, but may not use SYCL correctly.")
 endif()
 # --- End SYCL Configuration ---
 
-set(PROJECT_NAME_BASE "arbd")
-if(DEFINED PROJECT_NAME_SUFFIX)
-    set(PROJECT_NAME "${PROJECT_NAME_BASE}${PROJECT_NAME_SUFFIX}")
-else()
-    set(PROJECT_NAME "${PROJECT_NAME_BASE}")
-endif()
 
-# Single project() call
-if(USE_CUDA)
-project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
-else()
-    project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
-endif()
 
 ## Set flags and definitions after project()
 if(USE_CUDA)
@@ -165,14 +167,6 @@ if(USE_NCCL AND USE_CUDA)
   add_definitions(-DUSE_NCCL)
 endif()
 
-if(USE_LOGGER)
-  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/extern/spdlog/CMakeLists.txt")
-    add_subdirectory(extern/spdlog)
-    message(STATUS "Configuring spdlog from subdirectory.")
-  else()
-    message(WARNING "spdlog directory or CMakeLists.txt not found at extern/spdlog.")
-  endif()
-endif()
 
 if(USE_CUDA)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
@@ -187,7 +181,7 @@ if(USE_CUDA)
 endif()
 
 add_subdirectory(src)
-#add_subdirectory(src/Tests)
+add_subdirectory(src/Tests)
 
 add_executable("${PROJECT_NAME}" src/arbd.cpp)
 
@@ -229,16 +223,4 @@ if(USE_NVTX)
   else()
     message(STATUS "NVTX linking might require manual setup if not using CUDA or CUDA::nvToolsExt target.")
   endif()
-endif()
-
-if(USE_LOGGER)
-  # Assuming spdlog was added as a subdirectory and defined a target
-  if(TARGET spdlog::spdlog_header_only) # Common for header-only spdlog
-    target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog_header_only)
-  elseif(TARGET spdlog::spdlog) # For compiled spdlog
-    target_link_libraries("${PROJECT_NAME}" PRIVATE spdlog::spdlog)
-  else()
-    message(WARNING "spdlog target not found. Linking for logger might fail.")
-  endif()
-  target_compile_definitions("${PROJECT_NAME}" PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG) # Or your desired level
 endif()
