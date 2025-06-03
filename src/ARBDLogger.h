@@ -7,6 +7,85 @@
 // ARBDLogger.h
 #pragma once
 
+/**
+ * @file ARBDLogger.h
+ * @brief Unified logging system combining ARBDLogger and Debug.h functionality
+ * 
+ * This header provides a comprehensive logging solution that merges:
+ * - Modern C++20 ARBDLogger with std::format and std::source_location
+ * - Classic Debug.h numeric level system (0-10 scale)
+ * - Device-specific logging for CUDA and SYCL
+ * 
+ * @section Usage Examples
+ * 
+ * @subsection original_logger Original ARBDLogger functionality:
+ * @code
+ * #include "ARBDLogger.h"
+ * 
+ * // Basic logging with different levels
+ * LOGTRACE("This is a trace message: {}", 42);
+ * LOGDEBUG("This is a debug message: {}", "hello world");
+ * LOGINFO("This is an info message: {} + {} = {}", 3, 4, 7);
+ * LOGWARN("This is a warning message");
+ * LOGERROR("This is an error message");
+ * LOGCRITICAL("This is a critical message");
+ * 
+ * // Set log level to filter messages
+ * ARBD::Logger::set_level(ARBD::LogLevel::WARN);
+ * @endcode
+ * 
+ * @subsection debug_compat Debug.h compatibility layer:
+ * @code
+ * // Enable debug messages (define before including header or in build system)
+ * #define DEBUGMSG
+ * #include "ARBDLogger.h"
+ * 
+ * // Numeric debug levels (0-10 scale)
+ * DebugMessage(0, "Plain debug message (level 0)");           // stdout
+ * DebugMessage(1, "Low severity debug (level 1)");           // stdout  
+ * DebugMessage(4, "Important message (level 4)");            // stdout
+ * DebugMessage(5, "Warning level (level 5 - goes to stderr)"); // stderr
+ * DebugMessage(10, "CRASH BANG BOOM error (level 10 - stderr)");   // stderr
+ * 
+ * // Format arguments (C++20 std::format style)
+ * DebugMsg(2, "Formatted debug: value = {}", 123);
+ * DebugMsg(3, "Multiple args: {} and {} make {}", "foo", "bar", "foobar");
+ * 
+ * // Conditional compilation macro
+ * Debug(std::cout << "This appears only when DEBUGMSG is defined" << std::endl);
+ * @endcode
+ * 
+ * @subsection device_logging Device-specific logging:
+ * @code
+ * // CUDA kernel code
+ * __global__ void my_kernel() {
+ *     LOGINFO("Running on GPU thread %d", threadIdx.x);  // Uses printf
+ * }
+ * 
+ * // SYCL kernel code
+ * queue.submit([&](handler& h) {
+ *     h.parallel_for(range, [=](id<1> idx) {
+ *         LOGDEBUG("SYCL work-item {}", idx[0]);  // Uses printf
+ *     });
+ * });
+ * @endcode
+ * 
+ * @subsection level_config Level configuration:
+ * @code
+ * // Debug levels (can be set via preprocessor)
+ * // MIN_DEBUG_LEVEL: minimum level to display (default: 0)
+ * // MAX_DEBUG_LEVEL: maximum level to display (default: 10)
+ * // STDERR_LEVEL: level >= this goes to stderr (default: 5)
+ * 
+ * // LogLevel enum for ARBDLogger
+ * // TRACE=0, DEBUG=1, INFO=2, WARN=3, ERROR=4, CRITICAL=5
+ * @endcode
+ * 
+ * @note When DEBUGMSG is not defined, all Debug.h macros become no-ops
+ * @note Device code automatically uses printf-based logging
+ * @note Host code uses C++20 features with timestamps and source locations
+ */
+
 #include <format>
 #include <iostream>
 #include <source_location>
