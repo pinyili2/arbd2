@@ -32,7 +32,7 @@ This development branch of ARBD focuses on scaling simulations to larger systems
 - **Operating System**: macOS with Apple Silicon (M1/M2/M3)
 - **Build Tools**: CMake, Homebrew
 - **Parallel Computing**: OpenMP and OpenCL support
-- **SYCL**: AdaptiveCpp (ACPP) or Intel DPC++
+- **SYCL**: AdaptiveCpp (ACPP) (recommanded for Mac) or Intel DPC++ 
 
 ## Building
 
@@ -76,6 +76,11 @@ make -j$(sysctl -n hw.ncpu)
 ```
 
 > **Note**: Use `-DCMAKE_CXX_COMPILER=icpx` for Intel DPC++ instead of AdaptiveCpp.
+
+### API Reference
+```
+doxygen Doxyfile
+```
 
 ## Usage
 
