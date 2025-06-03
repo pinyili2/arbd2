@@ -9,8 +9,8 @@
 #include <cmath>
 #include <stdexcept>
 
-namespace ARBD {
-namespace {
+using namespace ARBD::SYCL;
+
 
 // Helper function for floating point comparison
 bool within_tolerance(float a, float b, float tolerance = 1e-6f) {
@@ -238,22 +238,21 @@ void test_sycl_reduction() {
     }
 }
 
-} // anonymous namespace
-} // namespace ARBD
+ 
 
 int main() {
     try {
         // Run tests in sequence with proper error handling
-        ARBD::test_sycl_cpu_initialization();
-        ARBD::test_sycl_basic_memory_operations();
-        ARBD::test_sycl_parallel_for();
-        ARBD::test_sycl_reduction();
+        test_sycl_cpu_initialization();
+        test_sycl_basic_memory_operations();
+        test_sycl_parallel_for();
+        test_sycl_reduction();
         
         std::cout << "\nAll SYCL OpenMP tests passed!\n";
         
         // Explicit cleanup to prevent mutex issues
         try {
-            ARBD::SYCLManager::finalize();
+            SYCLManager::finalize();
         } catch (...) {
             // Ignore cleanup errors
         }
@@ -265,7 +264,7 @@ int main() {
         
         // Attempt cleanup even on failure
         try {
-            ARBD::SYCLManager::finalize();
+            SYCLManager::finalize();
         } catch (...) {
             // Ignore cleanup errors
         }

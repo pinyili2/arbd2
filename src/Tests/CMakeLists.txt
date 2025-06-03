@@ -25,7 +25,7 @@ add_executable("arbd_tests"
 
 # Conditionally add SYCL test file
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
-    target_sources("arbd_tests" PRIVATE test_sycl_nocatch.cpp)
+    target_sources("arbd_tests" PRIVATE test_sycl.cpp)
     message(STATUS "Added SYCL tests to arbd_tests")
 endif()
 

@@ -1,13 +1,15 @@
+#ifdef PROJECT_USES_SYCL
+
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <catch2/catch_session.hpp>
 
 #include "Backend/SYCL/SYCLManager.h"
 #include <vector>
 #include <numeric>
 #include <iostream>
-#include <limits>
 
-using namespace ARBD;
+using namespace ARBD::SYCL;
 
 TEST_CASE("SYCL Manager Initialization", "[sycl][manager]") {
     SECTION("Basic initialization") {
@@ -316,3 +318,38 @@ TEST_CASE("SYCL Error Handling", "[sycl][error]") {
         REQUIRE_THROWS(device_mem.copyToHost(large_output));
     }
 }
+
+// Custom main function to handle SYCL cleanup properly
+int main(int argc, char* argv[]) {
+    // Initialize Catch2
+    Catch::Session session;
+    
+    // Parse command line arguments
+    int returnCode = session.applyCommandLine(argc, argv);
+    if (returnCode != 0) {
+        return returnCode;
+    }
+    
+    // Run the tests
+    int result = session.run();
+    
+    // Explicit cleanup to prevent mutex issues
+    try {
+        SYCLManager::finalize();
+    } catch (...) {
+        // Ignore cleanup errors
+        std::cerr << "Warning: SYCL cleanup had issues (ignored)" << std::endl;
+    }
+    
+    return result;
+}
+
+#else // PROJECT_USES_SYCL
+
+// Fallback main when SYCL is not enabled
+int main() {
+    std::cout << "SYCL support not enabled, skipping SYCL tests" << std::endl;
+    return 0;
+}
+
+#endif // PROJECT_USES_SYCL

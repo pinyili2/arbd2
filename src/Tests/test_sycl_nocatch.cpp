@@ -9,7 +9,7 @@
 #include <cmath>
 #include <stdexcept>
 
-using namespace ARBD;
+using namespace ARBD::SYCL;
 
 namespace {
 
