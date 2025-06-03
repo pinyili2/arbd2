@@ -1,3 +1,9 @@
+/**
+***  Copyright (c) 1995, 1996, 1997, 1998, 1999, 2000 by
+***  The Board of Trustees of the University of Illinois.
+***  All rights reserved.
+**/
+
 // ARBDLogger.h
 #pragma once
 
@@ -7,6 +13,18 @@
 #include <string_view>
 #include <chrono>
 #include <iomanip>
+
+// Debug level configuration (from Debug.h)
+#ifndef MIN_DEBUG_LEVEL
+  #define MIN_DEBUG_LEVEL 0
+#endif
+#ifndef MAX_DEBUG_LEVEL
+  #define MAX_DEBUG_LEVEL 10
+#endif
+#ifndef STDERR_LEVEL
+  /* anything >= this error level goes to stderr */
+  #define STDERR_LEVEL 5
+#endif
 
 namespace ARBD {
 
@@ -42,6 +60,60 @@ public:
                << std::endl;
     }
     
+    /**
+     * @brief Debug message function with numeric levels (from Debug.h)
+     *
+     * Messages have different levels. The low numbers are low severity,
+     * while the high numbers are really important. Very high numbers
+     * are sent to stderr rather than stdout.
+     *
+     * The default severity scale is from 0 to 10:
+     *   - 0: plain message
+     *   - 4: important message
+     *   - 5: warning (stderr)
+     *   - 10: CRASH BANG BOOM error (stderr)
+     *
+     * @note No parameters to this function should have a side effect!
+     * @note No functions should be passed as parameters! (including inline)
+     */
+    template<typename... Args>
+    static void debug_message(int level, 
+                             std::format_string<Args...> fmt,
+                             const std::source_location& loc = std::source_location::current(),
+                             Args&&... args) {
+        if ((level >= MIN_DEBUG_LEVEL) && (level <= MAX_DEBUG_LEVEL)) {
+            auto& stream = (level >= STDERR_LEVEL) ? std::cerr : std::cout;
+            
+            if (level >= STDERR_LEVEL) {
+                stream << "[ERROR " << level << "] ";
+            } else if (level > 0) {
+                stream << "[Debug " << level << "] ";
+            }
+            
+            stream << loc.file_name() << ":" << loc.line() << " "
+                   << std::format(fmt, std::forward<Args>(args)...)
+                   << std::endl;
+        }
+    }
+    
+    // Simple debug message with string_view (for backward compatibility)
+    static void debug_message_simple(int level,
+                                   std::string_view message,
+                                   const std::source_location& loc = std::source_location::current()) {
+        if ((level >= MIN_DEBUG_LEVEL) && (level <= MAX_DEBUG_LEVEL)) {
+            auto& stream = (level >= STDERR_LEVEL) ? std::cerr : std::cout;
+            
+            if (level >= STDERR_LEVEL) {
+                stream << "[ERROR " << level << "] ";
+            } else if (level > 0) {
+                stream << "[Debug " << level << "] ";
+            }
+            
+            stream << loc.file_name() << ":" << loc.line() << " "
+                   << message << std::endl;
+        }
+    }
+    
     static void set_level(LogLevel level) {
         current_level = level;
     }
@@ -64,6 +136,23 @@ private:
 inline LogLevel Logger::current_level = LogLevel::INFO;
 
 } // namespace ARBD
+
+// Debug.h compatibility layer
+#ifdef DEBUGMSG
+    #define Debug(x) (x)
+    
+    // Macro wrapper to automatically capture source location (with format support)
+    #define DebugMsg(level, format, ...) ARBD::Logger::debug_message(level, format, std::source_location::current(), ##__VA_ARGS__)
+    
+    // Simple version for string_view compatibility
+    #define DebugMessage(level, format) ARBD::Logger::debug_message_simple(level, format, std::source_location::current())
+    
+#else
+    // Make void functions when DEBUGMSG is not defined
+    #define Debug(x) static_cast<void>(0)
+    #define DebugMsg(level, format, ...) static_cast<void>(0)
+    #define DebugMessage(level, format) static_cast<void>(0)
+#endif /* DEBUGMSG */
 
 // Device-specific logging for CUDA and SYCL
 #ifdef __CUDA_ARCH__
