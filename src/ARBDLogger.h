@@ -1,10 +1,3 @@
-/**
-***  Copyright (c) 1995, 1996, 1997, 1998, 1999, 2000 by
-***  The Board of Trustees of the University of Illinois.
-***  All rights reserved.
-**/
-
-// ARBDLogger.h
 #pragma once
 
 /**
@@ -259,7 +252,6 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
     #define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
     #define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
 #else
-    // Host code - use our C++20 logger
     #define LOGTRACE(...) ARBD::Logger::log(ARBD::LogLevel::TRACE, std::source_location::current(), __VA_ARGS__)
     #define LOGDEBUG(...) ARBD::Logger::log(ARBD::LogLevel::DEBUG, std::source_location::current(), __VA_ARGS__)
     #define LOGINFO(...) ARBD::Logger::log(ARBD::LogLevel::INFO, std::source_location::current(), __VA_ARGS__)
