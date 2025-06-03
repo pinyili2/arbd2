@@ -78,7 +78,7 @@ make -j$(sysctl -n hw.ncpu)
 > **Note**: Use `-DCMAKE_CXX_COMPILER=icpx` for Intel DPC++ instead of AdaptiveCpp.
 
 ### API Reference
-```
+```bash
 doxygen Doxyfile
 ```
 
