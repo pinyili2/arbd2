@@ -11,3 +11,5 @@ arbd
 build
 .DS_Store
 doxy
+.cache
+.vscode
