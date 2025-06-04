@@ -10,8 +10,7 @@
 
 #include <typeinfo>
 
-// Forward declare Resource to use in concepts
-using ARBD::Resource;
+
 
 namespace ARBD {
 // template<typename T, typename...Args1, typename... Args2>
@@ -108,7 +107,48 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
 template<typename T, typename Enable = void>
 struct Proxy {
     /**
-     * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
+     * @brief A smart proxy wrapper for distributed objects across different compute resources.
+     * 
+     * The Proxy template class provides a unified interface for managing objects that may reside
+     * on different compute resources such as CPU, GPU (CUDA), SYCL devices, or MPI processes.
+     * It handles automatic resource management, metadata tracking, and provides transparent
+     * access to the underlying object regardless of its physical location.
+     * 
+     * Key Features:
+     * - Resource-aware object management (CPU, GPU, SYCL, MPI)
+     * - Automatic metadata handling for complex objects
+     * - RAII semantics with proper copy/move constructors
+     * - Transparent object access via operator->
+     * - Asynchronous method execution support
+     * - Compile-time type safety with SFINAE
+     * 
+     * @tparam T The type of object being proxied. Must not be another Proxy type.
+     * @tparam Enable SFINAE parameter for template specialization (defaults to void)
+     * 
+     * @example Basic Usage:
+     * ```cpp
+     * // Create a proxy on CPU (SYCL device 0)
+     * Proxy<MyClass> proxy;
+     * 
+     * // Create a proxy on a specific GPU resource
+     * Resource gpu_resource{Resource::GPU, 1};
+     * Proxy<MyClass> gpu_proxy(gpu_resource);
+     * 
+     * // Wrap an existing object
+     * MyClass obj;
+     * Proxy<MyClass> wrapper(gpu_resource, obj);
+     * 
+     * // Access the object transparently
+     * wrapper->some_method();
+     * ```
+     * 
+     * @note This class uses metadata tracking for objects that define a Metadata nested type.
+     *       Objects without metadata are handled with a default empty metadata wrapper.
+     * 
+     * @warning Creating a Proxy of a Proxy is not allowed and will trigger a static_assert.
+     * 
+     * @see Resource for supported compute resource types
+     * @see Metadata_t for metadata handling details
      */
     static_assert(!std::is_same<T, Proxy>::value, "Cannot make a Proxy of a Proxy object");
 
@@ -354,50 +394,6 @@ struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
     T* addr;		    ///< The address of the underlying object.
 };
 
-
-// using Proxy<int> = SimpleProxy<int>;
-
-
-
-// class Proxy<int> {
-
-//     // Define Metadata types using SFINAE
-//     // template<typename=void> struct Metadata_t { };
-//     // template<> struct Metadata_t<void_t<T::Metadata>> : T::Metadata { };
-//     // template<typename=void> struct Metadata_t { };
-//     // template<> struct Metadata_t<void_t<T::Metadata>> : T::Metadata { };
-//     // using Metadata_t = Metadata_t<T>;
-    
-// public:
-
-//     /**
-//      * @brief Default constructor initializes the location to a default CPU resource and the address to nullptr.
-//      */
-//     Proxy<int>() : location(Resource{Resource::SYCL,0}), addr(nullptr) {};
-//     Proxy<int>(const Resource& r, int* obj) : location(r), addr(obj) {};
-
-//     /**
-//      * @brief Overloaded operator-> returns the address of the underlying object.
-//      * @return The address of the underlying object.
-//      */
-//     auto operator->() { return addr; }
-//     auto operator->() const { return addr; }
-
-//     /**
-//      * @brief The resource associated with the data represented by the proxy.
-//      */
-//     Resource location;	    ///< The device (thread/gpu) holding the data represented by the proxy.
-//     int* addr;		    ///< The address of the underlying object.
-// };
-
-
-// // Partial specialization
-// template<typename T>
-// using Proxy<T> = Proxy<T, std::void_t<typename T::Metadata>>
-// // template<typename T>
-// // class Proxy<T, typename T::Metadata> { };
-
-
 /**
  * @brief Template function to send data ignoring children to a specified location.
  * @tparam T The type of the data to be sent.
@@ -553,4 +549,4 @@ Proxy<T> construct_remote(Resource location, Args&&...args) {
     return Proxy<T>{};
 }
 
-};
+}; //namespace ARBD

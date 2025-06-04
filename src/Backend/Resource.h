@@ -34,6 +34,11 @@ inline size_t caller_id() {
     }
 #endif
 #endif
+
+#ifdef USE_SYCL
+    return static_cast<size_t>(ARBD::SYCL::SYCLManager::get_current_device().id());
+#endif
+
 #ifdef USE_MPI
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -48,6 +53,53 @@ inline size_t caller_id() {
  * Supports CUDA, SYCL, and MPI resource types
  */
 namespace ARBD {
+/**
+ * @brief Resource representation for heterogeneous computing environments
+ * 
+ * The Resource class provides a unified interface for representing and managing
+ * computational resources across different backends including CUDA GPUs, SYCL devices,
+ * and MPI processes. It enables transparent resource identification and locality
+ * checking in heterogeneous computing scenarios.
+ * 
+ * @details This class serves as a fundamental building block for resource management
+ * in distributed and parallel computing environments. It supports:
+ * - CUDA GPU devices for NVIDIA GPU computing
+ * - SYCL devices for cross-platform parallel computing
+ * - MPI processes for distributed computing
+ * 
+ * The resource hierarchy is supported through parent-child relationships, allowing
+ * for complex resource topologies and nested resource management.
+ * 
+ * @note The class is designed to work in both host and device code contexts when
+ * compiled with CUDA, using appropriate HOST and DEVICE decorators.
+ * 
+ * @example Basic Usage:
+ * ```cpp
+ * // Create a CUDA resource for device 0
+ * ARBD::Resource cuda_res(ARBD::Resource::CUDA, 0);
+ * 
+ * // Create a SYCL resource for device 1
+ * ARBD::Resource sycl_res(ARBD::Resource::SYCL, 1);
+ * 
+ * // Check if resource is local to current execution context
+ * if (cuda_res.is_local()) {
+ *     // Perform local operations
+ * }
+ * ```
+ * 
+ * @example Hierarchical Resources:
+ * ```cpp
+ * // Create parent MPI resource
+ * ARBD::Resource mpi_root(ARBD::Resource::MPI, 0);
+ * 
+ * // Create child CUDA resource
+ * ARBD::Resource cuda_child(ARBD::Resource::CUDA, 0, &mpi_root);
+ * ```
+ * 
+ * @see ResourceType for available resource types
+ * @see is_local() for locality checking
+ * @see getTypeString() for human-readable type names
+ */
 
 struct Resource {
     enum ResourceType {CUDA, SYCL, MPI};
