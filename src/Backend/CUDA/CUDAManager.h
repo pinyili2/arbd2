@@ -367,8 +367,8 @@ private:
  * // Use a specific GPU
  * ARBD::CUDA::GPUManager::use(0);
  * 
- * // Synchronize all GPUs
- * ARBD::CUDA::GPUManager::sync();
+ * // Synchronize all GPUs (moved to NCCLManager)
+ * ARBD::CUDA::NCCLManager::sync_all();
  * ```
  * 
  * @note The class uses static methods for global GPU management.
@@ -456,7 +456,6 @@ public:
     static void select_gpus(std::span<const unsigned int> gpu_ids);
     static void use(int gpu_id);
     static void sync(int gpu_id);
-    static void sync();
     static int current();
     static void prefer_safe_gpus(bool safe = true);
     static int get_safest_gpu();
@@ -502,6 +501,164 @@ private:
     static std::vector<std::vector<bool>> peer_access_matrix_;
     static bool prefer_safe_;
 };
+
+// ============================================================================
+// Low-Level CUDA Device Utilities
+// ============================================================================
+
+/**
+ * @brief Modern C++20 warp-level broadcast primitive
+ * 
+ * Broadcasts a value from one thread (leader) to all threads in the warp.
+ * This function adapts to different CUDA compute capabilities automatically.
+ * 
+ * @param value Value to broadcast (only meaningful on leader thread)
+ * @param leader Lane ID of the thread to broadcast from (0-31)
+ * @return The broadcast value on all threads in the warp
+ * 
+ * @note This function must be called by all active threads in a warp
+ * @note For compute capability < 7.0, requires external shared memory setup
+ * 
+ * @example Usage in a kernel:
+ * ```cpp
+ * __global__ void my_kernel() {
+ *     int lane_id = threadIdx.x % 32;
+ *     int value = (lane_id == 0) ? 42 : 0;
+ *     int broadcast_value = ARBD::CUDA::warp_broadcast(value, 0);
+ *     // Now all threads in warp have broadcast_value == 42
+ * }
+ * ```
+ */
+#if defined(__CUDA_ARCH__)
+#if __CUDA_ARCH__ < 300
+// For very old architectures, require shared memory
+extern __shared__ int warp_broadcast_shared[];
+__device__ inline int warp_broadcast(int value, int leader) noexcept {
+    const int tid = threadIdx.x;
+    const int warp_lane = tid % 32;
+    const int warp_id = tid / 32;
+    
+    if (warp_lane == leader) {
+        warp_broadcast_shared[warp_id] = value;
+    }
+    __syncwarp();
+    return warp_broadcast_shared[warp_id];
+}
+#elif __CUDA_ARCH__ < 700
+// Pre-Volta: use legacy __shfl
+__device__ constexpr int warp_broadcast(int value, int leader) noexcept {
+    return __shfl(value, leader);
+}
+#else
+// Volta and later: use __shfl_sync with mask
+__device__ constexpr int warp_broadcast(int value, int leader) noexcept {
+    return __shfl_sync(0xffffffff, value, leader);
+}
+#endif
+#else
+// Host-side stub (should not be called)
+inline int warp_broadcast(int value, int leader) noexcept {
+    return value; // Just return the input value
+}
+#endif
+
+/**
+ * @brief Warp-aggregated atomic increment for improved performance
+ * 
+ * This function performs an atomic increment using warp-level aggregation,
+ * which can significantly improve performance when many threads in a warp
+ * need to increment the same counter.
+ * 
+ * The algorithm:
+ * 1. All active threads vote to participate
+ * 2. One thread (leader) performs a single atomic add for the entire warp
+ * 3. Each thread gets its unique position within the warp's contribution
+ * 
+ * @param counter Pointer to the counter to increment
+ * @param warp_lane Lane ID of calling thread (threadIdx.x % 32)
+ * @return Unique value for this thread (like atomicAdd would return)
+ * 
+ * @note Significantly faster than individual atomicAdd calls when most
+ *       threads in a warp need to increment the same counter
+ * 
+ * @example Usage in a kernel:
+ * ```cpp
+ * __global__ void count_kernel(int* global_counter, int* thread_ids, int n) {
+ *     int tid = blockIdx.x * blockDim.x + threadIdx.x;
+ *     if (tid < n) {
+ *         int warp_lane = threadIdx.x % 32;
+ *         int my_id = ARBD::CUDA::warp_aggregated_atomic_inc(global_counter, warp_lane);
+ *         thread_ids[tid] = my_id;
+ *     }
+ * }
+ * ```
+ * 
+ * @see https://developer.nvidia.com/blog/cuda-pro-tip-optimized-filtering-warp-aggregated-atomics/
+ */
+#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 300
+__device__ inline int warp_aggregated_atomic_inc(int* counter, int warp_lane) noexcept {
+    // Get mask of active threads in warp
+    unsigned int mask = __ballot_sync(0xffffffff, 1);
+    
+    // Find the leader (first active thread)
+    int leader = __ffs(mask) - 1;
+    
+    // Count how many threads are participating
+    int warp_count = __popc(mask);
+    
+    int result;
+    if (warp_lane == leader) {
+        // Leader performs the atomic operation for the entire warp
+        result = atomicAdd(counter, warp_count);
+    }
+    
+    // Broadcast the result to all threads in the warp
+    result = warp_broadcast(result, leader);
+    
+    // Calculate this thread's unique position within the warp's contribution
+    unsigned int rank_mask = mask & ((1u << warp_lane) - 1u);
+    return result + __popc(rank_mask);
+}
+#elif defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 200
+// Fallback for older architectures
+__device__ inline int warp_aggregated_atomic_inc(int* counter, int warp_lane) noexcept {
+    unsigned int mask = __ballot(1);
+    int leader = __ffs(mask) - 1;
+    
+    int result;
+    if (warp_lane == leader) {
+        result = atomicAdd(counter, __popc(mask));
+    }
+    result = warp_broadcast(result, leader);
+    return result + __popc(mask & ((1u << warp_lane) - 1u));
+}
+#else
+// Host-side or very old GPU stub
+inline int warp_aggregated_atomic_inc(int* counter, int warp_lane) noexcept {
+    return (*counter)++; // Not thread-safe, but shouldn't be called anyway
+}
+#endif
+
+/**
+ * @brief Template version of warp_broadcast for different types
+ * 
+ * @tparam T Type to broadcast (must be 32-bit or smaller)
+ * @param value Value to broadcast
+ * @param leader Lane ID to broadcast from
+ * @return Broadcast value
+ */
+template<typename T>
+requires (sizeof(T) <= sizeof(int))
+__device__ constexpr T warp_broadcast(T value, int leader) noexcept {
+    if constexpr (std::is_same_v<T, int>) {
+        return warp_broadcast(value, leader);
+    } else {
+        // Cast to int, broadcast, then cast back
+        int int_value = *reinterpret_cast<const int*>(&value);
+        int result = warp_broadcast(int_value, leader);
+        return *reinterpret_cast<const T*>(&result);
+    }
+}
 
 } // namespace CUDA
 } // namespace ARBD

@@ -177,16 +177,40 @@ public:
     static void synchronize();
 
     /**
+     * @brief Synchronize all GPUs in the system (replaces GPUManager::sync())
+     * 
+     * This function provides comprehensive synchronization for multi-GPU systems.
+     * It works whether NCCL is initialized or not, making it suitable for both
+     * NCCL-based and basic multi-GPU applications.
+     * 
+     * Behavior:
+     * - If NCCL is initialized: Synchronizes all GPUs in the NCCL communication group
+     * - If NCCL is not initialized: Falls back to GPUManager for basic sync
+     * 
+     * @note This function replaces the old GPUManager::sync() for better separation
+     *       of concerns between device management and communication coordination
+     * 
+     * @example Usage:
+     * ```cpp
+     * // Launch kernels on multiple GPUs
+     * for (int i = 0; i < num_gpus; ++i) {
+     *     GPUManager::use(i);
+     *     my_kernel<<<blocks, threads>>>();
+     * }
+     * 
+     * // Synchronize all GPUs
+     * NCCLManager::sync_all();
+     * ```
+     */
+    static void sync_all();
+
+    /**
      * @brief Get the GPU rank for a given device ID
      * @param device_id CUDA device ID
      * @return NCCL rank (0-indexed within the group) or -1 if not found
      */
     [[nodiscard]] static int get_rank(int device_id);
 
-    // ========================================================================
-    // Legacy Interface (for backward compatibility with old GPUManager)
-    // ========================================================================
-    
     /**
      * @brief Legacy broadcast interface using std::vector
      * @deprecated Use the modern span-based interface instead

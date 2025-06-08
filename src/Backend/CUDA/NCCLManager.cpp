@@ -115,6 +115,32 @@ void NCCLManager::synchronize() {
     CUDA_CHECK(cudaSetDevice(current_device));
 }
 
+void NCCLManager::sync_all() {
+    if (initialized_) {
+        // NCCL is initialized - use NCCL-managed GPUs
+        LOGDEBUG("NCCLManager::sync_all() using NCCL GPU group ({} GPUs)", gpu_ids_.size());
+        synchronize();
+    } else {
+        // NCCL not initialized - fall back to GPUManager basic synchronization
+        LOGDEBUG("NCCLManager::sync_all() falling back to basic GPU synchronization");
+        
+        const auto& gpus = GPUManager::gpus();
+        if (gpus.size() > 1) {
+            int curr;
+            CUDA_CHECK(cudaGetDevice(&curr));
+            for (const auto& gpu : gpus) {
+                CUDA_CHECK(cudaSetDevice(gpu.id()));
+                CUDA_CHECK(cudaDeviceSynchronize());
+            }
+            CUDA_CHECK(cudaSetDevice(curr));
+        } else if (gpus.size() == 1) {
+            CUDA_CHECK(cudaDeviceSynchronize());
+        } else {
+            LOGWARN("NCCLManager::sync_all() - No GPUs available for synchronization");
+        }
+    }
+}
+
 int NCCLManager::get_rank(int device_id) {
     auto it = std::find(gpu_ids_.begin(), gpu_ids_.end(), device_id);
     if (it != gpu_ids_.end()) {

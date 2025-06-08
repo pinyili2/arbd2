@@ -182,19 +182,7 @@ void GPUManager::sync(int gpu_id) {
     CUDA_CHECK(cudaSetDevice(curr));
 }
 
-void GPUManager::sync() {
-    if (gpus_.size() > 1) {
-        int curr;
-        CUDA_CHECK(cudaGetDevice(&curr));
-        for (const auto& gpu : gpus_) {
-            CUDA_CHECK(cudaSetDevice(gpu.id()));
-            CUDA_CHECK(cudaDeviceSynchronize());
-        }
-        CUDA_CHECK(cudaSetDevice(curr));
-    } else {
-        CUDA_CHECK(cudaDeviceSynchronize());
-    }
-}
+
 
 int GPUManager::current() {
     int device;
