@@ -10,6 +10,7 @@ std::string Exception::type_to_str(ExceptionType type) {
         case ExceptionType::DivideByZeroError:   return "Divide By Zero Error";
         case ExceptionType::CUDARuntimeError:    return "CUDA Runtime Error";
         case ExceptionType::SYCLRuntimeError:    return "SYCL Runtime Error";
+        case ExceptionType::MetalRuntimeError:   return "Metal Runtime Error";
         case ExceptionType::FileIoError:         return "File IO Error";
         case ExceptionType::FileOpenError:       return "File Open Error";
         default:

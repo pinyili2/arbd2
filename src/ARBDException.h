@@ -52,8 +52,10 @@
  * - ValueError (2): Invalid value or parameter
  * - DivideByZeroError (3): Mathematical division by zero
  * - CUDARuntimeError (4): CUDA-specific runtime errors
- * - FileIoError (5): General file I/O errors
- * - FileOpenError (6): Specific file opening errors
+ * - SYCLRuntimeError (5): SYCL-specific runtime errors
+ * - MetalRuntimeError (6): Metal-specific runtime errors
+ * - FileIoError (7): General file I/O errors
+ * - FileOpenError (8): Specific file opening errors
  * 
  * Advanced Usage with Formatting:
  * ```cpp
@@ -89,8 +91,9 @@ enum class ExceptionType {
     DivideByZeroError = 3,
     CUDARuntimeError = 4,
     SYCLRuntimeError = 5,
-    FileIoError = 6,
-    FileOpenError = 7
+    MetalRuntimeError = 6,
+    FileIoError = 7,
+    FileOpenError = 8
 };
 
 class Exception : public std::exception {
@@ -172,6 +175,15 @@ template<typename... Args>
     const std::source_location& loc = std::source_location::current()
 ) {
     throw Exception(ExceptionType::CUDARuntimeError, loc, fmt, std::forward<Args>(args)...);
+}
+
+template<typename... Args>
+[[noreturn]] inline void throw_metal_error(
+    std::format_string<Args...> fmt, 
+    Args&&... args,
+    const std::source_location& loc = std::source_location::current()
+) {
+    throw Exception(ExceptionType::MetalRuntimeError, loc, fmt, std::forward<Args>(args)...);
 }
 
 } // namespace ARBD

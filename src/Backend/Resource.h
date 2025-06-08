@@ -15,6 +15,10 @@
 #include "Backend/SYCL/SYCLManager.h"
 #endif
 
+#ifdef USE_METAL
+#include "Backend/Metal/MetalManager.h"
+#endif
+
 #ifdef USE_MPI
 #include <mpi.h>
 #endif
@@ -102,7 +106,7 @@ namespace ARBD {
  */
 
 struct Resource {
-    enum ResourceType {CUDA, SYCL, MPI};
+    enum ResourceType {MPI, CUDA, SYCL, METAL};
     ResourceType type;   
     size_t id;          
     Resource* parent;   
@@ -116,6 +120,7 @@ struct Resource {
             case MPI: return "MPI";
             case CUDA: return "CUDA";
             case SYCL: return "SYCL";
+            case METAL: return "METAL";
             default: return "Unknown";
         }
     }
@@ -180,6 +185,9 @@ struct Resource {
                     LOGINFO("Resource::is_local(): MPI direct check - caller %zu, id %zu, returning %d", 
                            caller_id(), id, ret);
                     break;
+                case METAL:
+                    ret = false;
+                    break;
             }
         }
         return ret;
@@ -236,6 +244,7 @@ struct Resource {
             case CUDA: return "device";
             case SYCL: return "device";
             case MPI: return "host";
+            case METAL: return "device";
             default: return "unknown";
         }
     }
