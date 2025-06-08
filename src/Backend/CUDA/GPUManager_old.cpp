@@ -1,5 +1,6 @@
-#include "GPUManager.h"
+
 #ifdef USE_CUDA
+#include "GPUManager_old.h"
 
 #ifndef gpuErrchk
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }

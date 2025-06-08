@@ -1,9 +1,8 @@
 #pragma once
 
-
-
 #ifdef USE_CUDA
 #include "ARBDException.h"
+#include "ARBDLogger.h"
 #include <array>
 #include <vector>
 #include <string>
@@ -15,10 +14,6 @@
 #include <cuda_runtime.h>
 #include <cuda.h>
 #include <cuda_runtime_api.h>
-
-#ifdef USE_NCCL
-#include <nccl.h>
-#endif
 
 namespace ARBD {
 namespace CUDA {
@@ -32,18 +27,6 @@ inline void check_cuda_error(cudaError_t error, std::string_view file, int line)
 }
 
 #define CUDA_CHECK(call) check_cuda_error(call, __FILE__, __LINE__)
-
-#ifdef USE_NCCL
-inline void check_nccl_error(ncclResult_t result, std::string_view file, int line) {
-    if (result != ncclSuccess) {
-        ARBD_Exception(ExceptionType::CUDARuntimeError,
-            "NCCL error at {}:{}: {}",
-            file, line, ncclGetErrorString(result));
-    }
-}
-
-#define NCCL_CHECK(call) check_nccl_error(call, __FILE__, __LINE__)
-#endif
 
 /**
  * @brief Modern RAII wrapper for CUDA device memory
@@ -62,7 +45,7 @@ inline void check_nccl_error(ncclResult_t result, std::string_view file, int lin
  * @example Basic Usage:
  * ```cpp
  * // Allocate memory for 1000 integers
- * ARBD::DeviceMemory<int> device_mem(1000);
+ * ARBD::CUDA::DeviceMemory<int> device_mem(1000);
  * 
  * // Copy data from host to device
  * std::vector<int> host_data(1000, 42);
@@ -75,8 +58,8 @@ inline void check_nccl_error(ncclResult_t result, std::string_view file, int lin
  * 
  * @example Move Semantics:
  * ```cpp
- * ARBD::DeviceMemory<float> mem1(1000);
- * ARBD::DeviceMemory<float> mem2 = std::move(mem1); // mem1 is now empty
+ * ARBD::CUDA::DeviceMemory<float> mem1(1000);
+ * ARBD::CUDA::DeviceMemory<float> mem2 = std::move(mem1); // mem1 is now empty
  * ```
  * 
  * @note The class prevents copying to avoid accidental memory leaks.
@@ -119,38 +102,63 @@ public:
     }
 
     // Modern copy operations using std::span
-    void copyFromHost(std::span<const T> host_data) {
+    void copyFromHost(std::span<const T> host_data, cudaStream_t stream = nullptr) {
         if (host_data.size() > size_) {
             ARBD_Exception(ExceptionType::ValueError, 
                 "Tried to copy {} elements but only {} allocated", 
                 host_data.size(), size_);
         }
         if (!ptr_ || host_data.empty()) return;
-        CUDA_CHECK(cudaMemcpy(ptr_, host_data.data(), 
-                             host_data.size() * sizeof(T), 
-                             cudaMemcpyHostToDevice));
+        
+        if (stream) {
+            CUDA_CHECK(cudaMemcpyAsync(ptr_, host_data.data(), 
+                                     host_data.size() * sizeof(T), 
+                                     cudaMemcpyHostToDevice, stream));
+        } else {
+            CUDA_CHECK(cudaMemcpy(ptr_, host_data.data(), 
+                                 host_data.size() * sizeof(T), 
+                                 cudaMemcpyHostToDevice));
+        }
     }
 
-    void copyToHost(std::span<T> host_data) const {
+    void copyToHost(std::span<T> host_data, cudaStream_t stream = nullptr) const {
         if (host_data.size() > size_) {
             ARBD_Exception(ExceptionType::ValueError,
                 "Tried to copy {} elements but only {} allocated",
                 host_data.size(), size_);
         }
         if (!ptr_ || host_data.empty()) return;
-        CUDA_CHECK(cudaMemcpy(host_data.data(), ptr_,
-                             host_data.size() * sizeof(T),
-                             cudaMemcpyDeviceToHost));
+        
+        if (stream) {
+            CUDA_CHECK(cudaMemcpyAsync(host_data.data(), ptr_,
+                                     host_data.size() * sizeof(T),
+                                     cudaMemcpyDeviceToHost, stream));
+        } else {
+            CUDA_CHECK(cudaMemcpy(host_data.data(), ptr_,
+                                 host_data.size() * sizeof(T),
+                                 cudaMemcpyDeviceToHost));
+        }
     }
 
     // Accessors
     [[nodiscard]] T* get() noexcept { return ptr_; }
     [[nodiscard]] const T* get() const noexcept { return ptr_; }
     [[nodiscard]] size_t size() const noexcept { return size_; }
+    [[nodiscard]] size_t bytes() const noexcept { return size_ * sizeof(T); }
     
     // Conversion operators
     operator T*() noexcept { return ptr_; }
     operator const T*() const noexcept { return ptr_; }
+
+    // Memory operations
+    void memset(int value, cudaStream_t stream = nullptr) {
+        if (!ptr_) return;
+        if (stream) {
+            CUDA_CHECK(cudaMemsetAsync(ptr_, value, bytes(), stream));
+        } else {
+            CUDA_CHECK(cudaMemset(ptr_, value, bytes()));
+        }
+    }
 
 private:
     T* ptr_{nullptr};
@@ -172,10 +180,10 @@ private:
  * @example Basic Usage:
  * ```cpp
  * // Create a default stream
- * ARBD::Stream stream;
+ * ARBD::CUDA::Stream stream;
  * 
  * // Create a stream with specific flags
- * ARBD::Stream non_blocking_stream(cudaStreamNonBlocking);
+ * ARBD::CUDA::Stream non_blocking_stream(cudaStreamNonBlocking);
  * 
  * // Synchronize the stream
  * stream.synchronize();
@@ -222,6 +230,14 @@ public:
         CUDA_CHECK(cudaStreamSynchronize(stream_));
     }
     
+    [[nodiscard]] bool query() const {
+        cudaError_t result = cudaStreamQuery(stream_);
+        if (result == cudaSuccess) return true;
+        if (result == cudaErrorNotReady) return false;
+        CUDA_CHECK(result);
+        return false;
+    }
+    
     [[nodiscard]] cudaStream_t get() const noexcept { return stream_; }
     operator cudaStream_t() const noexcept { return stream_; }
     
@@ -245,8 +261,8 @@ private:
  * @example Basic Usage:
  * ```cpp
  * // Create events
- * ARBD::Event start_event;
- * ARBD::Event end_event;
+ * ARBD::CUDA::Event start_event;
+ * ARBD::CUDA::Event end_event;
  * 
  * // Record events on a stream
  * start_event.record(stream);
@@ -304,7 +320,7 @@ public:
         CUDA_CHECK(cudaEventSynchronize(event_));
     }
     
-    [[nodiscard]] bool query() {
+    [[nodiscard]] bool query() const {
         cudaError_t result = cudaEventQuery(event_);
         if (result == cudaSuccess) return true;
         if (result == cudaErrorNotReady) return false;
@@ -329,39 +345,30 @@ private:
  * @brief Modern GPU management system
  * 
  * This class provides a comprehensive GPU management system with support for multiple GPUs,
- * stream management, and NCCL communication. It handles GPU initialization, selection,
+ * stream management, and device selection. It handles GPU initialization, selection,
  * and provides utilities for multi-GPU operations.
  * 
  * Features:
  * - Multi-GPU support
  * - Automatic stream management
  * - GPU selection and synchronization
- * - NCCL communication support (when enabled)
+ * - Peer-to-peer memory access
  * - Safe GPU timeout handling
  * 
  * @example Basic Usage:
  * ```cpp
  * // Initialize GPU system
- * ARBD::GPUManager::init();
+ * ARBD::CUDA::GPUManager::init();
  * 
  * // Select specific GPUs
  * std::vector<unsigned int> gpu_ids = {0, 1};
- * ARBD::GPUManager::select_gpus(gpu_ids);
+ * ARBD::CUDA::GPUManager::select_gpus(gpu_ids);
  * 
  * // Use a specific GPU
- * ARBD::GPUManager::use(0);
+ * ARBD::CUDA::GPUManager::use(0);
  * 
  * // Synchronize all GPUs
- * ARBD::GPUManager::sync();
- * ```
- * 
- * @example Multi-GPU Operations:
- * ```cpp
- * #ifdef USE_NCCL
- * // Broadcast data across GPUs
- * std::vector<float*> device_ptrs = {ptr0, ptr1};
- * ARBD::GPUManager::nccl_broadcast(0, device_ptrs, device_ptrs, size);
- * #endif
+ * ARBD::CUDA::GPUManager::sync();
  * ```
  * 
  * @note The class uses static methods for global GPU management.
@@ -386,7 +393,7 @@ public:
      * @example Basic Usage:
      * ```cpp
      * // Get GPU properties
-     * const auto& gpu = ARBD::GPUManager::gpus[0];
+     * const auto& gpu = ARBD::CUDA::GPUManager::gpus()[0];
      * const auto& props = gpu.properties();
      * 
      * // Get a stream
@@ -401,6 +408,12 @@ public:
         explicit GPU(unsigned int id);
         ~GPU();
 
+        // Prevent copying, allow moving
+        GPU(const GPU&) = delete;
+        GPU& operator=(const GPU&) = delete;
+        GPU(GPU&&) = default;
+        GPU& operator=(GPU&&) = default;
+
         [[nodiscard]] const cudaStream_t& get_stream(size_t stream_id) const {
             return streams_[stream_id % NUM_STREAMS].get();
         }
@@ -413,6 +426,17 @@ public:
         [[nodiscard]] unsigned int id() const noexcept { return id_; }
         [[nodiscard]] bool may_timeout() const noexcept { return may_timeout_; }
         [[nodiscard]] const cudaDeviceProp& properties() const noexcept { return properties_; }
+        
+        // Convenience property accessors
+        [[nodiscard]] size_t total_memory() const noexcept { return properties_.totalGlobalMem; }
+        [[nodiscard]] int compute_capability_major() const noexcept { return properties_.major; }
+        [[nodiscard]] int compute_capability_minor() const noexcept { return properties_.minor; }
+        [[nodiscard]] int multiprocessor_count() const noexcept { return properties_.multiProcessorCount; }
+        [[nodiscard]] int max_threads_per_block() const noexcept { return properties_.maxThreadsPerBlock; }
+        [[nodiscard]] bool supports_managed_memory() const noexcept { return properties_.managedMemory; }
+        [[nodiscard]] const char* name() const noexcept { return properties_.name; }
+
+        void synchronize_all_streams();
 
     private:
         void create_streams();
@@ -434,68 +458,84 @@ public:
     static void sync(int gpu_id);
     static void sync();
     static int current();
-    static void safe(bool make_safe);
-    static int get_initial_gpu();
+    static void prefer_safe_gpus(bool safe = true);
+    static int get_safest_gpu();
+    
+    // Peer-to-peer operations
+    static void enable_peer_access();
+    static bool can_access_peer(int gpu1, int gpu2);
+    
+    // Cache configuration
+    static void set_cache_config(cudaFuncCache config = cudaFuncCachePreferL1);
+    
+    // Advanced stream access
+    static const cudaStream_t& get_stream(int gpu_id, size_t stream_id);
+    
+    // Legacy compatibility methods
+    static int getInitialGPU() { return get_safest_gpu(); }
+    static void safe(bool make_safe) { prefer_safe_gpus(make_safe); }
+    
+    // Alternative interface for vector-based GPU selection (legacy compatibility)
+    static void select_gpus(const std::vector<unsigned int>& gpu_ids) {
+        select_gpus(std::span<const unsigned int>(gpu_ids));
+    }
     
     [[nodiscard]] static size_t all_gpu_size() noexcept { return all_gpus_.size(); }
-    [[nodiscard]] static bool safe() noexcept { return is_safe_; }
-    [[nodiscard]] static const cudaStream_t& get_next_stream() { return gpus_[0].get_next_stream(); }
-
-#ifdef USE_NCCL
-    template<typename T>
-    static void nccl_broadcast(int root, std::span<const T*> send_d, 
-                             std::span<T*> recv_d, size_t size, 
-                             int stream_id = -1) {
-        if (gpus_.size() == 1) return;
-        
-        ncclGroupStart();
-        for (size_t i = 0; i < gpus_.size(); ++i) {
-            cudaStream_t stream = (stream_id >= 0) ? 
-                                 gpus_[i].get_stream(stream_id) : 0;
-                                 
-            NCCL_CHECK(ncclBroadcast(
-                static_cast<const void*>(send_d[i]),
-                static_cast<void*>(recv_d[i]),
-                size * sizeof(T) / sizeof(float),
-                ncclFloat, root, comms_[i], stream));
+    [[nodiscard]] static size_t allGpuSize() noexcept { return all_gpus_.size(); } // Legacy name
+    [[nodiscard]] static bool safe() noexcept { return prefer_safe_; }
+    [[nodiscard]] static const cudaStream_t& get_next_stream() { 
+        if (gpus_.empty()) {
+            ARBD_Exception(ExceptionType::ValueError, "No GPUs available");
         }
-        ncclGroupEnd();
+        return gpus_[0].get_next_stream(); 
     }
-    
-    template<typename T>
-    static void nccl_reduce(int root, std::span<const T*> send_d, 
-                          std::span<T*> recv_d, size_t size, 
-                          int stream_id = -1) {
-        if (gpus_.size() == 1) return;
-        
-        ncclGroupStart();
-        for (size_t i = 0; i < gpus_.size(); ++i) {
-            cudaStream_t stream = (stream_id >= 0) ? 
-                                 gpus_[i].get_stream(stream_id) : 0;
-                                 
-            NCCL_CHECK(ncclReduce(
-                static_cast<const void*>(send_d[i]),
-                static_cast<void*>(recv_d[i]),
-                size * sizeof(T) / sizeof(float),
-                ncclFloat, ncclSum, root, comms_[i], stream));
-        }
-        ncclGroupEnd();
-    }
-#endif
+    [[nodiscard]] static const std::vector<GPU>& gpus() noexcept { return gpus_; }
+    [[nodiscard]] static const std::vector<GPU>& all_gpus() noexcept { return all_gpus_; }
 
 private:
     static void init_devices();
-#ifdef USE_NCCL
-    static void init_comms();
-    static std::vector<ncclComm_t> comms_;
-#endif
+    static void query_peer_access();
 
     static std::vector<GPU> all_gpus_;
     static std::vector<GPU> gpus_;
-    static std::vector<GPU> no_timeouts_;
-    static bool is_safe_;
+    static std::vector<GPU> safe_gpus_;
+    static std::vector<std::vector<bool>> peer_access_matrix_;
+    static bool prefer_safe_;
 };
 
-} // namespace ARBD
 } // namespace CUDA
-#endif // USE_CUDA 
+} // namespace ARBD
+
+// Utility macros for backward compatibility
+
+
+/**
+ * @brief Temporarily switch to a specific GPU and execute code
+ * @param gpu_id GPU device ID to switch to
+ * @param code Code block to execute on the specified GPU
+ * 
+ * @example Usage:
+ * ```cpp
+ * WITH_GPU(1, {
+ *     // This code runs on GPU 1
+ *     cudaMalloc(&ptr, size);
+ *     my_kernel<<<blocks, threads>>>();
+ * });
+ * // GPU context is restored after the block
+ * ```
+ */
+#define WITH_GPU(gpu_id, code) do { \
+    int _wg_current_device; \
+    ARBD::CUDA::check_cuda_error(cudaGetDevice(&_wg_current_device), __FILE__, __LINE__); \
+    ARBD::CUDA::check_cuda_error(cudaSetDevice(gpu_id), __FILE__, __LINE__); \
+    code; \
+    ARBD::CUDA::check_cuda_error(cudaSetDevice(_wg_current_device), __FILE__, __LINE__); \
+} while(0)
+
+/**
+ * @brief Legacy error checking macro (for backward compatibility)
+ * Use CUDA_CHECK in new code instead
+ */
+#define gpuErrchk(call) ARBD::CUDA::check_cuda_error(call, __FILE__, __LINE__)
+
+#endif 
