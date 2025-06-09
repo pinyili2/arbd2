@@ -27,6 +27,7 @@ if(USE_CUDA)
     )
     # Ensure the CUDA language is enabled in your top-level project() call
     # when USE_CUDA is ON, so CMake knows how to compile .cu files.
+    message(STATUS "src: CUDA is enabled for lib${PROJECT_NAME}. CUDA runtime linking may be handled by compiler or main executable.")
 endif()
 
 # Define the library with all collected sources.
@@ -68,19 +69,4 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
     endif()
-endif()
-
-# --- CUDA specific linking for the library ---
-# If lib${PROJECT_NAME} itself calls CUDA runtime APIs directly (beyond what's in .cu files),
-# you might need to link CUDA libraries here. However, typically the main executable
-# linking this library and also using CUDA would handle the CUDA::cudart linking.
-# If this library is self-contained with its CUDA usage:
-if(USE_CUDA)
-    # .cu files compiled with nvcc will automatically link against cudart.
-    # If you have .cpp files in LIB_SOURCES that call CUDA API, this is important.
-    # Consider if this should be PRIVATE or PUBLIC depending on whether headers of
-    # lib${PROJECT_NAME} expose CUDA types that require cudart for consumers.
-    # For encapsulation, PRIVATE is often a good start if only .cpp files here use CUDA RT.
-    # target_link_libraries("lib${PROJECT_NAME}" PRIVATE CUDA::cudart)
-    message(STATUS "src: CUDA is enabled for lib${PROJECT_NAME}. CUDA runtime linking may be handled by compiler or main executable.")
 endif()

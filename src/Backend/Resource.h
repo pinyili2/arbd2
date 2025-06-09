@@ -16,7 +16,7 @@
 #endif
 
 #ifdef USE_METAL
-#include "Backend/Metal/MetalManager.h"
+#include "Backend/METAL/METALManager.h"
 #endif
 
 #ifdef USE_MPI
@@ -49,6 +49,10 @@ inline size_t caller_id() {
     return static_cast<size_t>(rank);
 #else
     return 0;
+#endif
+
+#ifdef USE_METAL
+    return static_cast<size_t>(ARBD::METAL::METALManager::get_current_device().id());
 #endif
 }
 
@@ -207,7 +211,6 @@ struct Resource {
             auto& current_device = SYCL::SYCLManager::get_current_device();
             return Resource{SYCL, static_cast<size_t>(current_device.id())};
         } catch (...) {
-            // Fall through to MPI if SYCL is not available
         }
 #endif
         return Resource{MPI, caller_id()};

@@ -27,18 +27,52 @@
         "USE_SYCL_ACPP": "ON",
         "CMAKE_CXX_EXTENSIONS": "OFF"
       }
+    },
+    {
+      "name": "macos-metal-debug",
+      "displayName": "macOS Metal (Debug)",
+      "description": "Targets macOS with Metal for GPU development (Debug build).",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-metal-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "USE_METAL": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "macos-metal-release",
+      "displayName": "macOS Metal (Release)",
+      "description": "Targets macOS with Metal for GPU development (Release build).",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-metal-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "USE_METAL": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
     }
   ],
   "buildPresets": [
     {
       "name": "default-debug",
       "configurePreset": "macos-acpp-sycl-debug",
-      "displayName": "Build Debug (ACPP SYCL)"
+      "displayName": "Build Debug"
     },
     {
       "name": "default-release",
       "configurePreset": "macos-acpp-sycl-release",
-      "displayName": "Build Release (ACPP SYCL)"
+      "displayName": "Build Release"
+    },
+    {
+      "name": "default-metal-debug",
+      "configurePreset": "macos-metal-debug",
+      "displayName": "Build Debug (Metal)"
+    },
+    {
+      "name": "default-metal-release",
+      "configurePreset": "macos-metal-release",
+      "displayName": "Build Release (Metal)"
     }
   ]
 }

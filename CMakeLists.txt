@@ -8,9 +8,17 @@ endif()
 
 # Single project() call
 if(USE_CUDA)
-project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
+    if(USE_METAL)
+        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA OBJCXX)
+    else()
+        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
+    endif()
 else()
-    project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
+    if(USE_METAL)
+        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX OBJCXX)
+    else()
+        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
+    endif()
 endif()
 
 # --- Project Options ---
@@ -20,9 +28,8 @@ option(USE_SYCL_ICPX "Use SYCL with Intel DPC++ (icpx)" OFF)
 option(DEBUG_BUILD "Build with debug flags (overrides CMAKE_BUILD_TYPE)" OFF)
 option(USE_NCCL "Use NCCL for single node GPU peer communication" OFF)
 option(USE_NVTX "Build with NVTX profiling ranges" OFF)
-option(USE_LOGGER "Build with SPDLog" ON)
 option(USE_PYBIND "Build Python bindings" OFF)
-
+option(USE_METAL "Use Apple Silicon Metal" OFF)
 
 # --- Basic CMake Setup ---
 set(CMAKE_CXX_STANDARD 20)
@@ -61,6 +68,16 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "I
     # string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE}) # If desired for Intel
 endif()
 
+# Metal specific setup
+if(USE_METAL AND APPLE)
+    # Enable Objective-C++ for .mm files
+    set(CMAKE_OBJCXX_STANDARD 20)
+    set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
+    set(CMAKE_OBJCXX_EXTENSIONS OFF)
+    
+    # Enable ARC (Automatic Reference Counting) for Objective-C++
+    set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -fobjc-arc")
+endif()
 
 # --- SYCL Configuration (Explicit ACPP or ICPX) ---
 if(USE_SYCL_ACPP AND USE_SYCL_ICPX)
@@ -141,13 +158,30 @@ Please review your -D CMAKE_CXX_COMPILER=... setting and the USE_SYCL_ACPP / USE
 Compilation will proceed, but may not use SYCL correctly.")
     endif()
 
-    if (CMAKE_CXX_STANDARD LESS 17)
-        message(WARNING "SYCL typically requires C++17 or newer. Current CMAKE_CXX_STANDARD is ${CMAKE_CXX_STANDARD}.")
-    endif()
 endif()
 # --- End SYCL Configuration ---
 
-
+# --- Metal Configuration ---
+if(USE_METAL)
+    if(NOT APPLE)
+        message(FATAL_ERROR "Metal is only available on Apple platforms (macOS, iOS, tvOS, watchOS)")
+    endif()
+    
+    message(STATUS "Metal support is enabled for Apple platforms.")
+    add_definitions(-DUSE_METAL)
+    
+    # Find Metal framework
+    find_library(METAL_FRAMEWORK Metal REQUIRED)
+    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    
+    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
+        message(STATUS "Found Metal framework: ${METAL_FRAMEWORK}")
+        message(STATUS "Found Foundation framework: ${FOUNDATION_FRAMEWORK}")
+    else()
+        message(FATAL_ERROR "Metal or Foundation framework not found")
+    endif()
+endif()
+# --- End Metal Configuration ---
 
 ## Set flags and definitions after project()
 if(USE_CUDA)
@@ -223,4 +257,13 @@ if(USE_NVTX)
   else()
     message(STATUS "NVTX linking might require manual setup if not using CUDA or CUDA::nvToolsExt target.")
   endif()
+endif()
+
+if(USE_METAL)
+    target_link_libraries("${PROJECT_NAME}" 
+        PRIVATE 
+        ${METAL_FRAMEWORK}
+        ${FOUNDATION_FRAMEWORK}
+    )
+    message(STATUS "Linked Metal and Foundation frameworks")
 endif()
