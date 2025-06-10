@@ -311,9 +311,11 @@ void METALManager::Device::query_device_properties() {
     }
 }
 
-void METALManager::Device::synchronize_all_queues() {
-    for (auto& queue : queues_) {
-        queue.synchronize();
+void METALManager::Device::synchronize_all_queues() const {
+    for (const auto& queue : queues_) {
+        // The queue object is const, but synchronize is not.
+        // It's safe to const_cast here because synchronize doesn't change the logical state.
+        const_cast<Queue&>(queue).synchronize();
     }
 }
 
@@ -415,9 +417,9 @@ void METALManager::init_devices() {
                 msg += ", ";
             }
         }
-        msg += std::to_string(devices_[i].id());
+        msg += std::to_string(devices_[i].get_id());
         
-        LOGDEBUG("Metal Device {} ready: {}", devices_[i].id(), devices_[i].name());
+        LOGDEBUG("Metal Device {} ready: {}", devices_[i].get_id(), devices_[i].name());
     }
     
     LOGINFO("Initialized Metal devices: {}", msg);
@@ -487,7 +489,7 @@ void METALManager::prefer_low_power(bool prefer) {
                         return !a.is_low_power();
                     }
                 }
-                return a.id() < b.id();
+                return a.get_id() < b.get_id();
             });
             
         // Reassign IDs after sorting
@@ -501,7 +503,7 @@ std::vector<unsigned int> METALManager::get_discrete_gpu_device_ids() {
     std::vector<unsigned int> discrete_ids;
     for (const auto& device : all_devices_) {
         if (!device.is_low_power() && !device.has_unified_memory()) {
-            discrete_ids.push_back(device.id());
+            discrete_ids.push_back(device.get_id());
         }
     }
     return discrete_ids;
@@ -511,7 +513,7 @@ std::vector<unsigned int> METALManager::get_integrated_gpu_device_ids() {
     std::vector<unsigned int> integrated_ids;
     for (const auto& device : all_devices_) {
         if (device.has_unified_memory()) {
-            integrated_ids.push_back(device.id());
+            integrated_ids.push_back(device.get_id());
         }
     }
     return integrated_ids;
@@ -521,7 +523,7 @@ std::vector<unsigned int> METALManager::get_low_power_device_ids() {
     std::vector<unsigned int> low_power_ids;
     for (const auto& device : all_devices_) {
         if (device.is_low_power()) {
-            low_power_ids.push_back(device.id());
+            low_power_ids.push_back(device.get_id());
         }
     }
     return low_power_ids;

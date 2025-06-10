@@ -30,6 +30,19 @@ if(USE_CUDA)
     message(STATUS "src: CUDA is enabled for lib${PROJECT_NAME}. CUDA runtime linking may be handled by compiler or main executable.")
 endif()
 
+# Conditionally add Metal specific source files (.mm) to the library
+if(USE_METAL)
+    message(STATUS "src: Adding Metal specific sources to lib${PROJECT_NAME}")
+    list(APPEND LIB_SOURCES
+        Backend/METAL/METALManager.mm         # Objective-C++ implementation file
+        #Simulation/Integrator/IntegratorMetal.mm # Future Metal integrator
+        #Simulation/Interactions/ExampleForceMetal.mm # Future Metal force calculations
+    )
+    # Ensure the OBJCXX language is enabled in your top-level project() call
+    # when USE_METAL is ON, so CMake knows how to compile .mm files.
+    message(STATUS "src: Metal is enabled for lib${PROJECT_NAME}. Metal framework linking handled by main executable.")
+endif()
+
 # Define the library with all collected sources.
 add_library("lib${PROJECT_NAME}" ${LIB_SOURCES})
 
@@ -69,4 +82,32 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
     endif()
+endif()
+
+# --- Metal specific linking and configuration for the library ---
+if(USE_METAL)
+    # Link Metal and Foundation frameworks to the library
+    find_library(METAL_FRAMEWORK Metal REQUIRED)
+    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    
+    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
+        target_link_libraries("lib${PROJECT_NAME}" 
+            PUBLIC 
+            ${METAL_FRAMEWORK}
+            ${FOUNDATION_FRAMEWORK}
+        )
+        message(STATUS "src: Linked Metal and Foundation frameworks to lib${PROJECT_NAME}")
+    else()
+        message(FATAL_ERROR "Metal or Foundation framework not found for lib${PROJECT_NAME}")
+    endif()
+    
+    # Add Metal-specific compile definitions
+    target_compile_definitions("lib${PROJECT_NAME}" PUBLIC USE_METAL)
+    
+    # Ensure ARC is enabled for Objective-C++ files
+    target_compile_options("lib${PROJECT_NAME}" PRIVATE
+        $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
+    )
+    
+    message(STATUS "src: Metal is enabled for lib${PROJECT_NAME}. Framework linking and ARC configured.")
 endif()

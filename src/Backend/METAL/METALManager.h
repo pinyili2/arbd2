@@ -199,19 +199,25 @@ public:
  * @note Command buffers are automatically waited on when the Event object is destroyed
  */
 class Event {
+private:
+    void* command_buffer_{nullptr}; // id<MTLCommandBuffer>
+    std::chrono::high_resolution_clock::time_point start_time_;
+    std::chrono::high_resolution_clock::time_point end_time_;
+    bool timing_available_{false};
+
 public:
     Event() = default;
     explicit Event(void* command_buffer); // id<MTLCommandBuffer>
     ~Event();
-    
+
     // Prevent copying
     Event(const Event&) = delete;
     Event& operator=(const Event&) = delete;
-    
+
     // Allow moving
     Event(Event&& other) noexcept;
     Event& operator=(Event&& other) noexcept;
-    
+
     void commit();
     void wait();
     
@@ -220,156 +226,97 @@ public:
     
     [[nodiscard]] void* get() noexcept { return command_buffer_; }
     [[nodiscard]] const void* get() const noexcept { return command_buffer_; }
-    
+
     operator void*() noexcept { return command_buffer_; }
     operator const void*() const noexcept { return command_buffer_; }
-    
-private:
-    void* command_buffer_{nullptr}; // id<MTLCommandBuffer>
-    std::chrono::high_resolution_clock::time_point start_time_;
-    std::chrono::high_resolution_clock::time_point end_time_;
-    bool timing_available_{false};
 };
 
 /**
- * @brief Modern Metal device management system
+ * @brief Main Metal manager class
  * 
- * This class provides a comprehensive Metal device management system with support for multiple devices,
- * queue management, and device selection. It handles device initialization, selection,
- * and provides utilities for multi-device operations.
+ * This class provides a high-level interface for managing Metal devices,
+ * command queues, and other resources.
  * 
  * Features:
- * - Multi-device support (integrated and discrete GPUs)
- * - Automatic queue management
- * - Device selection and synchronization
- * - Performance monitoring
- * - Exception handling integration
+ * - Automatic device discovery and selection
+ * - Device property querying
+ * - Command queue management
+ * - Synchronization utilities
+ * - Power preference settings (low power vs. high performance)
  * 
  * @example Basic Usage:
  * ```cpp
- * // Initialize Metal system
- * ARBD::METALManager::init();
+ * // Initialize the Metal manager
+ * ARBD::METAL::METALManager::init();
  * 
- * // Select specific devices
- * std::vector<unsigned int> device_ids = {0, 1};
- * ARBD::METALManager::select_devices(device_ids);
+ * // Get the current device
+ * auto& device = ARBD::METAL::METALManager::get_current_device();
  * 
- * // Use a specific device
- * ARBD::METALManager::use(0);
+ * // Use the device...
  * 
- * // Get current queue
- * auto& queue = ARBD::METALManager::get_current_queue();
- * 
- * // Synchronize all devices
- * ARBD::METALManager::sync();
+ * // Finalize the manager when done
+ * ARBD::METAL::METALManager::finalize();
  * ```
- * 
- * @example Multi-Device Operations:
- * ```cpp
- * // Get device properties
- * const auto& device = ARBD::METALManager::devices[0];
- * const auto& props = device.properties();
- * 
- * // Submit work to specific device
- * auto& queue = device.get_queue();
- * auto cmd_buffer = queue.create_command_buffer();
- * // ... encode work ...
- * queue.commit_and_wait(cmd_buffer);
- * ```
- * 
- * @note The class uses static methods for global device management.
- *       All operations are thread-safe and exception-safe.
  */
 class METALManager {
 public:
-    static constexpr size_t NUM_QUEUES = 4; // Multiple queues per device
-
     /**
-     * @brief Individual Metal device management class
-     * 
-     * This nested class represents a single Metal device and manages its resources,
-     * including queues and device properties.
-     * 
-     * Features:
-     * - Queue management
-     * - Device property access
-     * - Performance monitoring
-     * - Safe resource cleanup
-     * 
-     * @example Basic Usage:
-     * ```cpp
-     * // Get device properties
-     * const auto& device = ARBD::METALManager::devices[0];
-     * const auto& props = device.properties();
-     * 
-     * // Get a queue
-     * auto& queue = device.get_queue(0);
-     * 
-     * // Get next available queue
-     * auto& next_queue = device.get_next_queue();
-     * ```
+     * @brief Represents a single Metal device
      */
     class Device {
+    private:
+        friend class METALManager;
+        unsigned int id_{0};
+        void* device_{nullptr}; // id<MTLDevice>
+        std::array<Queue, 3> queues_; // e.g., for compute, blit, render
+        size_t next_queue_{0};
+        
+        // Device properties
+        std::string name_;
+        size_t max_threads_per_group_{1};
+        uint64_t recommended_max_working_set_size_{0};
+        bool has_unified_memory_{false};
+        bool is_low_power_{false};
+        bool is_removable_{false};
+        bool supports_compute_{false};
+
+        // Member Functions
+        void query_device_properties();
+
     public:
+        // Constructor
         explicit Device(void* device, unsigned int id); // id<MTLDevice>
-        ~Device() = default;
+        
+        void synchronize_all_queues() const;
 
-        // Delete copy constructor and copy assignment operator
-        Device(const Device&) = delete;
-        Device& operator=(const Device&) = delete;
-
-        // Enable move constructor and move assignment operator
-        Device(Device&&) = default;
-        Device& operator=(Device&&) = default;
-
-        [[nodiscard]] Queue& get_queue(size_t queue_id) {
-            return queues_[queue_id % NUM_QUEUES];
-        }
-
+        // Accessors
         [[nodiscard]] const Queue& get_queue(size_t queue_id) const {
-            return queues_[queue_id % NUM_QUEUES];
+            if (queue_id >= queues_.size()) {
+                ARBD_Exception(ExceptionType::ValueError, "Invalid queue ID: {}", queue_id);
+            }
+            return queues_[queue_id];
         }
 
-        [[nodiscard]] Queue& get_next_queue() {
-            last_queue_ = (last_queue_ + 1) % NUM_QUEUES;
-            return queues_[last_queue_];
+        Queue& get_next_queue() {
+            Queue& queue = queues_[next_queue_];
+            next_queue_ = (next_queue_ + 1) % queues_.size();
+            return queue;
         }
 
-        [[nodiscard]] unsigned int id() const noexcept { return id_; }
+        [[nodiscard]] unsigned int get_id() const noexcept { return id_; }
         void set_id(unsigned int new_id) noexcept { id_ = new_id; }
         [[nodiscard]] void* metal_device() const noexcept { return device_; } // id<MTLDevice>
+
         [[nodiscard]] const std::string& name() const noexcept { return name_; }
         [[nodiscard]] size_t max_threads_per_group() const noexcept { return max_threads_per_group_; }
-        [[nodiscard]] size_t recommended_max_working_set_size() const noexcept { return recommended_max_working_set_size_; }
+        [[nodiscard]] uint64_t recommended_max_working_set_size() const noexcept { return recommended_max_working_set_size_; }
         [[nodiscard]] bool has_unified_memory() const noexcept { return has_unified_memory_; }
         [[nodiscard]] bool is_low_power() const noexcept { return is_low_power_; }
         [[nodiscard]] bool is_removable() const noexcept { return is_removable_; }
         [[nodiscard]] bool supports_compute() const noexcept { return supports_compute_; }
-
-        void synchronize_all_queues();
-
-    private:
-        void query_device_properties();
-
-        unsigned int id_;
-        void* device_{nullptr}; // id<MTLDevice>
-        std::array<Queue, NUM_QUEUES> queues_;
-        int last_queue_{-1};
-        
-        // Device properties
-        std::string name_;
-        size_t max_threads_per_group_;
-        size_t recommended_max_working_set_size_;
-        bool has_unified_memory_;
-        bool is_low_power_;
-        bool is_removable_;
-        bool supports_compute_;
-        
-        // Friend class to allow METALManager to access private members
-        friend class METALManager;
     };
 
-    // Static interface
+    // Static API
     static void init();
     static void load_info();
     static void select_devices(std::span<const unsigned int> device_ids);
@@ -379,19 +326,18 @@ public:
     static int current();
     static void prefer_low_power(bool prefer);
     static void finalize();
-    
+
     [[nodiscard]] static size_t all_device_size() noexcept { return all_devices_.size(); }
     [[nodiscard]] static const std::vector<Device>& all_devices() noexcept { return all_devices_; }
     [[nodiscard]] static const std::vector<Device>& devices() noexcept { return devices_; }
     [[nodiscard]] static Queue& get_current_queue() { return devices_[current_device_].get_next_queue(); }
     [[nodiscard]] static Device& get_current_device() { return devices_[current_device_]; }
-    
-    // Device filtering utilities
+
+private:
     [[nodiscard]] static std::vector<unsigned int> get_discrete_gpu_device_ids();
     [[nodiscard]] static std::vector<unsigned int> get_integrated_gpu_device_ids();
     [[nodiscard]] static std::vector<unsigned int> get_low_power_device_ids();
 
-private:
     static void init_devices();
     static void discover_devices();
 

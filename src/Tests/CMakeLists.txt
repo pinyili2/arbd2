@@ -23,6 +23,22 @@ add_executable("arbd_tests"
 #array.cu
 )
 
+# Conditionally add Metal test file
+if(USE_METAL AND APPLE)
+    target_sources(arbd_tests PRIVATE
+        test_metal.mm
+    )
+    target_include_directories(arbd_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../
+    )
+    message(STATUS "Added Metal tests (test_metal.mm) to arbd_tests")
+    # Link against the main library to get access to Metal manager
+    target_link_libraries(arbd_tests PRIVATE libarbd)
+    message(STATUS "Added Metal framework support to arbd_tests")
+else()
+    message(WARNING "USE_METAL is ON but not on Apple platform - Metal tests will be excluded")
+endif()
+
 # Conditionally add SYCL test file
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_sources("arbd_tests" PRIVATE test_sycl.cpp)
@@ -66,6 +82,20 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_compile_definitions(arbd_tests PRIVATE PROJECT_USES_SYCL_ICPX)
   endif()
   message(STATUS "Added SYCL support to arbd_tests")
+endif()
+
+if(USE_METAL)
+  # Metal runtime linking is handled automatically on macOS
+  # but we ensure the Metal definitions are available
+  target_compile_definitions(arbd_tests PRIVATE USE_METAL)
+  find_library(METAL_FRAMEWORK Metal)
+  find_library(FOUNDATION_FRAMEWORK Foundation)
+  if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
+    target_link_libraries(arbd_tests PRIVATE ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    message(STATUS "Added Metal framework support to arbd_tests")
+  else()
+    message(WARNING "Metal or Foundation framework not found")
+  endif()
 endif()
 
 ## catch_discover_tests("${PROJECT_NAME}_TESTS")
