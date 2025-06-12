@@ -1,9 +1,0 @@
-<map id="CellDecomposition" name="CellDecomposition">
-<area shape="rect" id="Node000001" title=" " alt="" coords="167,599,309,1084"/>
-<area shape="rect" id="Node000002" href="$class_base_grid.html" title=" " alt="" coords="5,5,148,491"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="149,504,175,598,170,599,144,506"/>
-<area shape="rect" id="Node000003" href="$struct_cell_decomposition_1_1cell__t.html" title=" " alt="" coords="173,158,303,338"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="241,338,241,582,235,582,235,338"/>
-<area shape="rect" id="Node000004" href="$struct_cell_decomposition_1_1range__t.html" title=" " alt="" coords="327,188,458,308"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="391,308,377,432,365,504,349,575,317,670,312,668,343,574,360,503,372,431,386,307"/>
-</map>

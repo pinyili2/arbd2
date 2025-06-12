@@ -1,7 +1,0 @@
-<map id="FullTabulatedPotential" name="FullTabulatedPotential">
-<area shape="rect" id="Node000001" title=" " alt="" coords="71,474,239,619"/>
-<area shape="rect" id="Node000002" href="$class_tabulated_potential.html" title=" " alt="" coords="5,5,152,411"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="127,410,137,457,132,458,122,411"/>
-<area shape="rect" id="Node000003" href="$class_string.html" title=" " alt="" coords="177,25,285,391"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="192,391,177,458,172,456,187,390"/>
-</map>

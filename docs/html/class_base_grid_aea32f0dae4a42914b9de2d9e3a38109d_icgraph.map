@@ -1,7 +1,0 @@
-<map id="BaseGrid::copy_to_cuda" name="BaseGrid::copy_to_cuda">
-<area shape="rect" id="Node000001" title=" " alt="" coords="338,5,502,31"/>
-<area shape="rect" id="Node000002" href="$class_configuration.html#a0a8b9e1f55f815ad023f8fa640ff00d4" title=" " alt="" coords="103,5,290,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="323,21,290,21,290,16,323,16"/>
-<area shape="rect" id="Node000003" href="$arbd_8cpp.html#a0ddf1224851353fc92bfbff6f499fa97" title=" " alt="" coords="5,5,55,31"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="87,21,55,21,55,16,87,16"/>
-</map>

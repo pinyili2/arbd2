@@ -1,9 +1,0 @@
-<map id="Configuration::copyToCUDA" name="Configuration::copyToCUDA">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,31,193,56"/>
-<area shape="rect" id="Node000002" href="$class_base_grid.html#aea32f0dae4a42914b9de2d9e3a38109d" title=" " alt="" coords="241,5,405,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="193,30,225,27,226,32,193,36"/>
-<area shape="rect" id="Node000004" href="$class_g_p_u_manager.html#a46ae5a9f5bdf9140548189c627ae77cc" title=" " alt="" coords="249,55,397,80"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="193,51,233,55,233,61,193,56"/>
-<area shape="rect" id="Node000003" href="$class_base_grid.html#aedf9d1402ce84155fbb2f0e586f09fb5" title=" " alt="" coords="453,5,590,31"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="406,16,437,16,437,21,406,21"/>
-</map>

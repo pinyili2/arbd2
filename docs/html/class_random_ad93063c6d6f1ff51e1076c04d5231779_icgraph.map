@@ -1,9 +1,0 @@
-<map id="Random::gaussian" name="Random::gaussian">
-<area shape="rect" id="Node000001" title=" " alt="" coords="448,31,578,56"/>
-<area shape="rect" id="Node000002" href="$class_random.html#a1adbbb4beb5faf39f7cf02d7b7df5a37" title=" " alt="" coords="227,5,400,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="432,36,400,32,401,27,433,31"/>
-<area shape="rect" id="Node000003" href="$class_random.html#a9c63f7c481f0c2f27185dc034a497838" title=" " alt="" coords="227,55,400,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="433,56,401,60,400,54,432,50"/>
-<area shape="rect" id="Node000004" href="$class_random.html#aa06c78b65a889565823bf87de31a8fcb" title=" " alt="" coords="5,55,179,80"/>
-<area shape="poly" id="edge3_Node000003_Node000004" title=" " alt="" coords="211,70,179,70,179,65,211,65"/>
-</map>

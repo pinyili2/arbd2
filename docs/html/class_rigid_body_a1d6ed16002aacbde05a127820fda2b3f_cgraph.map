@@ -1,6 +1,0 @@
-<map id="RigidBody::RigidBody" name="RigidBody::RigidBody">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,29,155,55"/>
-<area shape="rect" id="Node000002" href="$class_rigid_body.html#a0818569527f3a61c54d87e14df1ad5c3" title=" " alt="" coords="203,29,408,55"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="155,40,187,40,187,45,155,45"/>
-<area shape="poly" id="edge2_Node000002_Node000002" title=" " alt="" coords="268,31,261,21,265,11,280,5,305,3,333,5,347,12,345,17,331,10,305,8,281,10,269,15,266,20,272,27"/>
-</map>

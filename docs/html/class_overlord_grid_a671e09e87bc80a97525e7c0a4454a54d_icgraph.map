@@ -1,7 +1,0 @@
-<map id="OverlordGrid::initUniqueGrids" name="OverlordGrid::initUniqueGrids">
-<area shape="rect" id="Node000001" title=" " alt="" coords="229,23,389,64"/>
-<area shape="rect" id="Node000002" href="$class_overlord_grid.html#a562b9de82b7af6cd95c61c64efdeb34e" title=" " alt="" coords="5,5,181,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="213,35,181,31,182,26,213,30"/>
-<area shape="rect" id="Node000003" href="$class_overlord_grid.html#a58f7234b16581ad857962f71eef04230" title=" " alt="" coords="5,55,181,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="213,57,182,60,181,55,213,52"/>
-</map>

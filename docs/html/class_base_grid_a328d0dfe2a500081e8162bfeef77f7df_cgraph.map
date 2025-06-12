@@ -1,7 +1,0 @@
-<map id="BaseGrid::wrap" name="BaseGrid::wrap">
-<area shape="rect" id="Node000001" title=" " alt="" coords="5,5,117,31"/>
-<area shape="rect" id="Node000002" href="$class_base_grid.html#ae71b4781b73ef160394ac23f5a45e232" title=" " alt="" coords="165,5,294,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="117,16,149,16,149,21,117,21"/>
-<area shape="rect" id="Node000003" href="$_base_grid_8h.html#a072363bb8c3808a42bf746de76567f3e" title=" " alt="" coords="342,5,419,31"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="295,16,327,16,327,21,295,21"/>
-</map>

@@ -1,9 +1,0 @@
-<map id="__fdividef" name="__fdividef">
-<area shape="rect" id="Node000001" title=" " alt="" coords="363,31,440,56"/>
-<area shape="rect" id="Node000002" href="$class_base_grid.html#ae71b4781b73ef160394ac23f5a45e232" title=" " alt="" coords="186,31,315,56"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="347,46,315,46,315,41,347,41"/>
-<area shape="rect" id="Node000003" href="$class_base_grid.html#a328d0dfe2a500081e8162bfeef77f7df" title=" " alt="" coords="16,5,127,31"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="170,35,127,29,128,23,171,30"/>
-<area shape="rect" id="Node000004" href="$class_base_grid.html#a53fd8223b5685028c1a5e2a8746aac4d" title=" " alt="" coords="5,55,138,80"/>
-<area shape="poly" id="edge3_Node000002_Node000004" title=" " alt="" coords="171,57,138,61,138,56,170,52"/>
-</map>

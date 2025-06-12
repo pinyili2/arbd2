@@ -1,7 +1,0 @@
-<map id="TrajectoryWriter::newDcd" name="TrajectoryWriter::newDcd">
-<area shape="rect" id="Node000001" title=" " alt="" coords="220,31,389,56"/>
-<area shape="rect" id="Node000002" href="$class_trajectory_writer.html#a3379d8926541022cb59acaa9e8413941" title=" " alt="" coords="5,5,172,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="204,34,172,31,172,25,205,29"/>
-<area shape="rect" id="Node000003" href="$class_trajectory_writer.html#a05180dc844ce6ec57731b38747da586b" title=" " alt="" coords="5,55,172,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="205,57,172,61,172,56,204,52"/>
-</map>

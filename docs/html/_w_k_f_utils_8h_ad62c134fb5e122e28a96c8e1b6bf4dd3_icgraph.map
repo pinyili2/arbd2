@@ -1,7 +1,0 @@
-<map id="wkf_timer_time" name="wkf_timer_time">
-<area shape="rect" id="Node000001" title="report elapsed time in seconds" alt="" coords="396,5,506,31"/>
-<area shape="rect" id="Node000002" href="$_w_k_f_utils_8cpp.html#a05e06402fee2975a9e1f8c566e7097f3" title="report elapsed time in seconds" alt="" coords="214,5,348,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="380,21,349,21,349,16,380,16"/>
-<area shape="rect" id="Node000003" href="$_w_k_f_utils_8cpp.html#a46351c11a324fe14320635fa19547c39" title="return true if it&#39;s time to print a status update message" alt="" coords="5,5,166,31"/>
-<area shape="poly" id="edge2_Node000002_Node000003" title=" " alt="" coords="198,21,166,21,166,16,198,16"/>
-</map>

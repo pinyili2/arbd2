@@ -1,7 +1,0 @@
-<map id="wkf_timer_start" name="wkf_timer_start">
-<area shape="rect" id="Node000001" title="start a timer (clears timer)" alt="" coords="214,31,325,56"/>
-<area shape="rect" id="Node000002" href="$_w_k_f_utils_8cpp.html#a56b652ed4886c434c8aa216ba3c5e5c3" title="initialize status message timer" alt="" coords="9,5,162,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="198,36,162,31,163,26,198,31"/>
-<area shape="rect" id="Node000003" href="$_w_k_f_utils_8cpp.html#a46351c11a324fe14320635fa19547c39" title="return true if it&#39;s time to print a status update message" alt="" coords="5,55,166,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="199,55,167,60,166,54,198,50"/>
-</map>

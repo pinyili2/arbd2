@@ -1,9 +1,0 @@
-<map id="RigidBodyGrid::RigidBodyGrid" name="RigidBodyGrid::RigidBodyGrid">
-<area shape="rect" id="Node000001" title=" " alt="" coords="251,55,448,80"/>
-<area shape="rect" id="Node000002" href="$class_rigid_body_grid.html#afbd897157512347df59dab989a91e27e" title=" " alt="" coords="35,5,173,31"/>
-<area shape="poly" id="edge1_Node000001_Node000002" title=" " alt="" coords="266,54,171,34,172,29,267,48"/>
-<area shape="rect" id="Node000003" href="$class_rigid_body_grid.html#aa8d316f28588e93277873b2b17e1907f" title=" " alt="" coords="20,55,188,80"/>
-<area shape="poly" id="edge2_Node000001_Node000003" title=" " alt="" coords="235,70,189,70,189,65,235,65"/>
-<area shape="rect" id="Node000004" href="$class_rigid_body_grid.html#abf18d191f281f3d3467137ed829e0b9f" title=" " alt="" coords="5,104,203,130"/>
-<area shape="poly" id="edge3_Node000001_Node000004" title=" " alt="" coords="267,87,172,106,171,101,266,81"/>
-</map>
