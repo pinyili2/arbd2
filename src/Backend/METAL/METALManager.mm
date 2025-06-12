@@ -24,7 +24,7 @@ DeviceMemory<T>::DeviceMemory(void* device, size_t count) : device_(device), siz
                                                            options:MTLResourceStorageModeShared];
         if (!mtl_buffer) {
             ARBD_Exception(ExceptionType::MetalRuntimeError, 
-                "Failed to allocate {} elements of type {}", count, typeid(T).name());
+                "Failed to allocate %zu elements of type %s", count, typeid(T).name());
         }
         buffer_ = (__bridge_retained void*)mtl_buffer;
     }
@@ -63,7 +63,7 @@ template<typename T>
 void DeviceMemory<T>::copyFromHost(std::span<const T> host_data) {
     if (host_data.size() > size_) {
         ARBD_Exception(ExceptionType::ValueError, 
-            "Tried to copy {} elements but only {} allocated", 
+            "Tried to copy %zu elements but only %zu allocated", 
             host_data.size(), size_);
     }
     if (!buffer_ || host_data.empty()) return;
@@ -77,7 +77,7 @@ template<typename T>
 void DeviceMemory<T>::copyToHost(std::span<T> host_data) const {
     if (host_data.size() > size_) {
         ARBD_Exception(ExceptionType::ValueError,
-            "Tried to copy {} elements but only {} allocated",
+            "Tried to copy %zu elements but only %zu allocated",
             host_data.size(), size_);
     }
     if (!buffer_ || host_data.empty()) return;
@@ -254,8 +254,8 @@ METALManager::Device::Device(void* device, unsigned int id)
     
     query_device_properties();
     
-    LOGINFO("Metal Device {} initialized: {}", id_, name_);
-    LOGINFO("  Max threads per group: {}, Unified memory: {}, Low power: {}", 
+    LOGINFO("Metal Device %u initialized: %s", id_, name_.c_str());
+    LOGINFO("  Max threads per group: %zu, Unified memory: %d, Low power: %d", 
          max_threads_per_group_, has_unified_memory_, is_low_power_);
     
     // Create queues
@@ -264,10 +264,10 @@ METALManager::Device::Device(void* device, unsigned int id)
             queues_[i] = Queue(device_); 
         }
     } catch (const ARBD::Exception& e) {
-        LOGERROR("ARBD::Exception during Metal Queue construction for device {}: {}", id_, e.what());
+        LOGERROR("ARBD::Exception during Metal Queue construction for device %u: %s", id_, e.what());
         throw; 
     } catch (const std::exception& e) {
-        LOGERROR("Unexpected std::exception during Metal Queue construction for device {}: {}", id_, e.what());
+        LOGERROR("Unexpected std::exception during Metal Queue construction for device %u: %s", id_, e.what());
         throw; 
     }
 }
@@ -333,7 +333,7 @@ void METALManager::init() {
         ARBD_Exception(ExceptionType::ValueError, "No Metal devices found");
     }
     
-    LOGINFO("Found {} Metal device(s)", all_devices_.size());
+    LOGINFO("Found %zu Metal device(s)", all_devices_.size());
 }
 
 void METALManager::discover_devices() {
@@ -361,11 +361,11 @@ void METALManager::discover_devices() {
                 bool low_power = [device isLowPower];
                 potential_device_infos.push_back({device, static_cast<unsigned int>(i), low_power});
                 
-                LOGDEBUG("Found Metal device: {} (Low power: {})", 
+                LOGDEBUG("Found Metal device: %s (Low power: %d)",
                     [[device name] UTF8String], low_power);
                 
             } catch (const std::exception& e) {
-                LOGWARN("Exception during Metal device discovery for device {}: {}", i, e.what());
+                LOGWARN("Exception during Metal device discovery for device %lu: %s", (unsigned long)i, e.what());
             }
         }
         
@@ -395,7 +395,7 @@ void METALManager::discover_devices() {
         }
         
     } catch (const std::exception& e) {
-        LOGERROR("Exception during Metal device discovery: {}", e.what());
+        LOGERROR("Exception during Metal device discovery: %s", e.what());
     }
 }
 
@@ -419,10 +419,10 @@ void METALManager::init_devices() {
         }
         msg += std::to_string(devices_[i].get_id());
         
-        LOGDEBUG("Metal Device {} ready: {}", devices_[i].get_id(), devices_[i].name());
+        LOGDEBUG("Metal Device %u ready: %s", devices_[i].get_id(), devices_[i].name().c_str());
     }
     
-    LOGINFO("Initialized Metal devices: {}", msg);
+    LOGINFO("Initialized Metal devices: %s", msg.c_str());
     current_device_ = 0;
 }
 
@@ -433,7 +433,7 @@ void METALManager::select_devices(std::span<const unsigned int> device_ids) {
     for (unsigned int id : device_ids) {
         if (id >= all_devices_.size()) {
             ARBD_Exception(ExceptionType::ValueError, 
-                "Invalid device ID: {}", id);
+                "Invalid device ID: %u", id);
         }
         devices_.emplace_back(all_devices_[id].metal_device(), id);
     }
@@ -450,7 +450,7 @@ void METALManager::use(int device_id) {
 void METALManager::sync(int device_id) {
     if (device_id >= static_cast<int>(devices_.size())) {
         ARBD_Exception(ExceptionType::ValueError, 
-            "Invalid device ID: {}", device_id);
+            "Invalid device ID: %d", device_id);
     }
     devices_[device_id].synchronize_all_queues();
 }
