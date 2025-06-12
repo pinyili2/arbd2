@@ -1,359 +1,394 @@
 /*********************************************************************
  * @file  Array.h
- * 
+ *
  * @brief Declaration of templated Array class.
  *********************************************************************/
 #pragma once
-#include <memory>
-#include <type_traits> // for std::common_type<T,U>
-#include <sstream>
+#include "ARBDException.h"
+#include "ARBDLogger.h"
 #include "Backend/Proxy.h"
-
-// Simple templated array object without resizing capabilities 
-template<typename T>
-struct Array {
-    HOST DEVICE inline Array<T>() : num(0), values(nullptr) {} // printf("Creating Array1 %x\n",this);
-    HOST inline Array<T>(size_t num) : num(num), values(nullptr) {
-	// printf("Constructing Array<%s> %x with values %x\n", type_name<T>().c_str(), this, values);
-	host_allocate();
-	// printf("Array<%s> %x with values %x\n", type_name<T>().c_str(), this, values);
-    }
-    HOST inline Array<T>(size_t num, const T* inp ) : num(num), values(nullptr) {
-	// printf("Constructing Array<%s> %x with values %x\n", type_name<T>().c_str(), this, values);
-	host_allocate();
-	for (size_t i = 0; i < num; ++i) {
-	    values[i] = inp[i];
-	}
-	// printf("Created Array3 %x with values %x\n",this, values);
-    }
-    HOST inline Array<T>(const Array<T>& a) { // copy constructor
-	// printf("Copy-constructing Array<T> %x from %x with values %x\n",this, &a, a.values);
-	num = a.num;
-	host_allocate();
-	for (size_t i = 0; i < num; ++i) {
-	    values[i] = a[i];
-	}
-	// printf("Copy-constructed Array<T> %x with values %x\n",this, values);
-    }
-    HOST inline Array<T>(Array<T>&& a) { // move constructor
-	// printf("Move-constructing Array<T> from %x with values %x\n", &a, a.values);
-	num = a.num;
-	values = a.values;
-	a.values = nullptr;
-	a.num = 0;		// not needed?
-	// printf("Move-constructed Array<T> with values %x\n",  values);
-    }
-    HOST DEVICE inline Array<T>& operator=(const Array<T>& a) { // copy assignment operator
-	num = a.num;
-#ifndef __CUDA_ARCH__
-	host_allocate();
+#include "Backend/Resource.h"
+#include <cassert>
+#if __cplusplus >= 202002L
+#include <compare>
+#include <span>
 #endif
-	for (size_t i = 0; i < num; ++i) {
-	    values[i] = a[i];
-	}
-	// printf("Copy-operator for Array<T> %x with values %x\n",this, values);
-	// printf("Copy-operator for Array<T>\n");
-	return *this;
+#include <memory>
+#include <sstream>
+#include <type_traits>
+
+namespace ARBD {
+
+// C++20 Concepts for better template constraints
+template <typename T>
+concept HasCopyToCuda = requires(T t) { t.copy_to_cuda(); };
+
+template <typename T>
+concept HasSendChildren =
+    requires(T t, const Resource &r) { t.send_children(r); };
+
+template <typename T>
+concept Arithmetic = ::std::is_arithmetic_v<T>;
+
+template <typename T>
+concept Trivial = ::std::is_trivial_v<T>;
+
+// Simple templated array object without resizing capabilities
+template <typename T> struct Array {
+  // Constructors
+  HOST DEVICE constexpr Array() noexcept : num(0), values(nullptr) {}
+
+  HOST constexpr explicit Array(size_t count) : num(count), values(nullptr) {
+    host_allocate();
+  }
+
+  HOST Array(size_t count, const T *input) : num(count), values(nullptr) {
+    host_allocate();
+    if (input) {
+      for (size_t i = 0; i < num; ++i) {
+        values[i] = input[i];
+      }
     }
-    HOST DEVICE inline Array<T>& operator=(Array<T>&& a) { // move assignment operator
+  }
+
+  // Constructor from span (C++20 feature)
+  HOST explicit Array(std::span<const T> input)
+      : num(input.size()), values(nullptr) {
+    host_allocate();
+    for (size_t i = 0; i < num; ++i) {
+      values[i] = input[i];
+    }
+  }
+
+  // Copy constructor
+  HOST Array(const Array<T> &other) : num(other.num), values(nullptr) {
+    host_allocate();
+    for (size_t i = 0; i < num; ++i) {
+      values[i] = other[i];
+    }
+  }
+
+  // Move constructor
+  HOST constexpr Array(Array<T> &&other) noexcept
+      : num(other.num), values(other.values) {
+    other.values = nullptr;
+    other.num = 0;
+  }
+
+  // Copy assignment operator
+  HOST DEVICE Array<T> &operator=(const Array<T> &other) {
+    if (this != &other) {
+      num = other.num;
 #ifndef __CUDA_ARCH__
-	host_deallocate();
+      host_allocate();
 #endif
-	num = a.num;
-	values = a.values;
-	a.num = 0;
-	a.values = nullptr;
-	// printf("Move-operator for Array<T> %x with values %x\n",this, values);
-	// printf("Move-operator for Array<T>\n");
-	return *this;
+      for (size_t i = 0; i < num; ++i) {
+        values[i] = other[i];
+      }
     }
-    HOST void clear() {
-	num = 0;
-	values = nullptr;
+    return *this;
+  }
+
+  // Move assignment operator
+  HOST DEVICE Array<T> &operator=(Array<T> &&other) noexcept {
+    if (this != &other) {
+#ifndef __CUDA_ARCH__
+      host_deallocate();
+#endif
+      num = other.num;
+      values = other.values;
+      other.num = 0;
+      other.values = nullptr;
+    }
+    return *this;
+  }
+
+  HOST ~Array() { host_deallocate(); }
+
+  // Element access
+  HOST DEVICE constexpr T &operator[](size_t i) noexcept {
+    assert(i < num);
+    return values[i];
+  }
+
+  HOST DEVICE constexpr const T &operator[](size_t i) const noexcept {
+    assert(i < num);
+    return values[i];
+  }
+
+  // C++20 three-way comparison
+  HOST DEVICE constexpr auto operator<=>(const Array<T> &other) const noexcept
+    requires ::std::three_way_comparable<T>
+  {
+    if (auto cmp = num <=> other.num; cmp != 0)
+      return cmp;
+    for (size_t i = 0; i < num; ++i) {
+      if (auto cmp = values[i] <=> other.values[i]; cmp != 0)
+        return cmp;
+    }
+    return ::std::strong_ordering::equal;
+  }
+
+  HOST DEVICE constexpr bool operator==(const Array<T> &other) const noexcept {
+    if (num != other.num)
+      return false;
+    for (size_t i = 0; i < num; ++i) {
+      if (values[i] != other.values[i])
+        return false;
+    }
+    return true;
+  }
+
+  // Utility methods
+  HOST constexpr void clear() noexcept {
+    num = 0;
+    values = nullptr;
+  }
+
+  HOST DEVICE constexpr size_t size() const noexcept { return num; }
+  HOST DEVICE constexpr bool empty() const noexcept { return num == 0; }
+  HOST constexpr T *data() const noexcept { return values; }
+
+  // Modern C++20 span interface
+  HOST constexpr ::std::span<T> span() noexcept { return {values, num}; }
+  HOST constexpr ::std::span<const T> span() const noexcept {
+    return {values, num};
+  }
+
+  // C++20 concepts-based send_children
+  template <typename U = T>
+    requires(!HasSendChildren<U>)
+  HOST Array<T> send_children(const Resource &location) {
+    T *values_d = nullptr;
+
+    if (num > 0) {
+      size_t sz = sizeof(T) * num;
+      LOGINFO("  Array<{}>.send_children(...): allocating for {} items",
+              type_name<T>(), num);
+
+      switch (location.type) {
+      case Resource::CUDA:
+        gpuErrchk(cudaMalloc(&values_d, sz));
+        for (size_t i = 0; i < num; ++i) {
+          send(location, values[i], values_d + i);
+        }
+        break;
+      case Resource::MPI:
+        ARBD::throw_not_implemented(
+            "Array<T>.send_children(location.type == MPI)");
+        break;
+      default:
+        ARBD::throw_value_error("Unknown Resource type");
+      }
     }
 
-    HOST DEVICE inline T& operator[](size_t i) {
-	assert( i < num );
-	return values[i];
+    LOGINFO("  Array<{}>.send_children(...): done", type_name<T>());
+    return Array<T>{num, values_d};
+  }
+
+  template <typename U = T>
+    requires HasSendChildren<U>
+  HOST Array<T> send_children(const Resource &location) {
+    T *values_d = nullptr;
+
+    if (num > 0) {
+      size_t sz = sizeof(T) * num;
+
+      switch (location.type) {
+      case Resource::CUDA:
+        gpuErrchk(cudaMalloc(&values_d, sz));
+        for (size_t i = 0; i < num; ++i) {
+          auto tmp = values[i].send_children(location);
+          send(location, tmp, values_d + i);
+          tmp.clear();
+        }
+        break;
+      case Resource::MPI:
+        ARBD::throw_not_implemented(
+            "Array<T>.send_children(location.type == MPI)");
+        break;
+      default:
+        ARBD::throw_value_error("Unknown Resource type");
+      }
     }
-    HOST DEVICE inline const T& operator[](size_t i) const {
-	assert( i < num );
-	return values[i];
-    }
-    HOST inline ~Array<T>() {
-	// printf("Destroying Array %x with values %x\n",this, values);
-	host_deallocate();
-    }
 
-    // // This ugly template allows overloading copy_to_cuda, depending on whether T.copy_to_cuda exists using C++14-compatible SFINAE
-    // template <typename Dummy = void, typename std::enable_if_t<!has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    // HOST inline Array<T>* copy_to_cuda(Array<T>* dev_ptr = nullptr) const {
-    // 	if (dev_ptr == nullptr) { // allocate if needed
-    // 	    // printf("   cudaMalloc for array\n");
-    // 	    gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
-    // 	}
+    return Array<T>{num, values_d};
+  }
 
-    // 	// Allocate values_d
-    // 	T* values_d = nullptr;
-    // 	if (num > 0) {
-    // 	    // printf("   cudaMalloc for %d items\n", num);
-    // 	    size_t sz = sizeof(T) * num;
-    // 	    gpuErrchk(cudaMalloc(&values_d, sz));
-
-    // 	    // Copy values
-    // 	    gpuErrchk(cudaMemcpy(values_d, values, sz, cudaMemcpyHostToDevice));
-    // 	}
-	    
-    // 	// Copy Array with pointers correctly assigned
-    // 	Array<T> tmp(0);
-    // 	tmp.num = num;
-    // 	tmp.values = values_d;
-    // 	gpuErrchk(cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
-    // 	tmp.clear();
-    // 	// printf("Copying Array<%s> %x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, dev_ptr);
-    // 	return dev_ptr;
-    // }    
-    
-    template <typename Dummy = void, typename std::enable_if_t<!has_send_children<T>::value, Dummy>* = nullptr>
-    HOST inline Array<T> send_children(const Resource& location) {
-	T* values_d = nullptr;
-	
-	// Allocate and copy at values_d
-	if (num > 0) { 
-	    size_t sz = sizeof(T) * num;
-	    LOGINFO("  Array<{}>.send_children(...): cudaMalloc for {} items", type_name<T>(), num);
-	    switch (location.type) {
-	    case Resource::GPU:
-		gpuErrchk(cudaMalloc(&values_d, sz));
-		// Copy values
-		for (size_t i = 0; i < num; ++i) {
-		    send(location, values[i], values_d+i);
-		    // values[i].copy_to_cuda(values_d + i); // TODO use send
-		}
-		break;
-	    case Resource::CPU:
-		Exception( NotImplementedError, "Array<T>.send_children(location.type == CPU)" );
-	    default:
-		Exception( ValueError, "Unknown Resource type" );
-	    }
-	}
-	LOGINFO("  Array<{}>.send_children(...): done copying", type_name<T>());
-
-	// Copy Array with pointers correctly assigned
-	Array<T> tmp(0);
-	tmp.num = num;
-	tmp.values = values_d;
-	// printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
-	LOGINFO("  Array<{}>.send_children(...): done", type_name<T>());
-	return tmp;
-    }
-    template <typename Dummy = void, typename std::enable_if_t<has_send_children<T>::value, Dummy>* = nullptr>
-    HOST inline Array<T> send_children(const Resource& location) {
-	T* values_d = nullptr;
-
-	// Allocate and copy at values_d
-	if (num > 0) { 
-	    size_t sz = sizeof(T) * num;
-	    // printf("   cudaMalloc for %d items\n", num);
-	    switch (location.type) {
-	    case Resource::GPU:
-		gpuErrchk(cudaMalloc(&values_d, sz));
-		// Copy values
-		for (size_t i = 0; i < num; ++i) {
-		    // printf("Sending_children for children\n");
-		    auto tmp = values[i].send_children(location);
-		    send(location, tmp, values_d+i);
-		    tmp.clear();
-		    // values[i].copy_to_cuda(values_d + i); // TODO use send
-		}
-		break;
-	    case Resource::CPU:
-		Exception( NotImplementedError, "Array<T>.send_children(location.type == CPU)" );
-	    default:
-		Exception( ValueError, "Unknown Resource type" );
-	    }
-	}
-
-	// Copy Array with pointers correctly assigned
-	Array<T> tmp(0);
-	tmp.num = num;
-	tmp.values = values_d;
-	// printf("Array<%s>.send_children() @%x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, values_d);
-	return tmp;
-    }
-    
 #ifdef USE_CUDA
-    // This ugly template allows overloading copy_to_cuda, depending on whether T.copy_to_cuda exists using C++14-compatible SFINAE
-    template <typename Dummy = void, typename std::enable_if_t<!has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    HOST inline Array<T>* copy_to_cuda(Array<T>* dev_ptr = nullptr) const {
-	if (dev_ptr == nullptr) { // allocate if needed
-	    // printf("   cudaMalloc for array\n");
-	    gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
-	}
-
-	// Allocate values_d
-	T* values_d = nullptr;
-	if (num > 0) {
-	    // printf("   cudaMalloc for %d items\n", num);
-	    size_t sz = sizeof(T) * num;
-	    gpuErrchk(cudaMalloc(&values_d, sz));
-
-	    // Copy values
-	    gpuErrchk(cudaMemcpy(values_d, values, sz, cudaMemcpyHostToDevice));
-	}
-	    
-	// Copy Array with pointers correctly assigned
-	Array<T> tmp(0);
-	tmp.num = num;
-	tmp.values = values_d;
-	gpuErrchk(cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
-	tmp.num = 0;
-	tmp.values = nullptr;
-	// printf("Copying Array<%s> %x with %d values %x to device at %x\n", type_name<T>().c_str(), this, num, values, dev_ptr);
-	return dev_ptr;
+  // C++20 concepts-based CUDA operations
+  template <typename U = T>
+    requires(!HasCopyToCuda<U>)
+  HOST Array<T> *copy_to_cuda(Array<T> *dev_ptr = nullptr) const {
+    if (dev_ptr == nullptr) {
+      gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
     }
 
-    template <typename Dummy = void, typename std::enable_if_t<has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    HOST inline Array<T>* copy_to_cuda(Array<T>* dev_ptr = nullptr) const {
-	// enable_if<!has_copy_to_cuda<T>::value, T>::type* = 0) const {
-	if (dev_ptr == nullptr) { // allocate if needed
-	    // printf("   cudaMalloc for array\n");
-	    gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
-	}
-
-	// Allocate values_d
-	T* values_d = nullptr;
-	if (num > 0) { 
-	    size_t sz = sizeof(T) * num;
-	    // printf("   cudaMalloc for %d items\n", num);
-	    gpuErrchk(cudaMalloc(&values_d, sz));
-
-	    // Copy values
-	    for (size_t i = 0; i < num; ++i) {
-		values[i].copy_to_cuda(values_d + i);
-	    }
-	}
-
-	// Copy Array with pointers correctly assigned
-	Array<T> tmp(0);
-	tmp.num = num;
-	tmp.values = values_d;
-	gpuErrchk(cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
-	tmp.num = 0;
-	tmp.values = nullptr;
-	// printf("Copying Array %x with values %x to device at %x\n",this, values, dev_ptr);
-	return dev_ptr;
+    T *values_d = nullptr;
+    if (num > 0) {
+      size_t sz = sizeof(T) * num;
+      gpuErrchk(cudaMalloc(&values_d, sz));
+      gpuErrchk(cudaMemcpy(values_d, values, sz, cudaMemcpyHostToDevice));
     }
 
-    template <typename Dummy = void, typename std::enable_if_t<!has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    HOST static Array<T> copy_from_cuda(Array<T>* dev_ptr) {
-	// TODO add argument: dest = nullptr 
-	// Create host object, copy raw device data over
-	Array<T> tmp(0);
-	if (dev_ptr != nullptr) {
-	    gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
+    Array<T> tmp{0, values_d};
+    tmp.num = num;
+    gpuErrchk(
+        cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
+    tmp.clear();
 
-	    if (tmp.num > 0) {
-		T* values_d = tmp.values;
-		tmp.values = new T[tmp.num];
-	    	    
-		// Copy values
-		size_t sz = sizeof(T) * tmp.num;
-		gpuErrchk(cudaMemcpy(tmp.values, values_d, sz, cudaMemcpyDeviceToHost));
-	    } else {
-		tmp.values = nullptr;
-	    }
-	}
-	// printf("Copying device Array %x to host %x with values %x\n", dev_ptr, &tmp, tmp.values);
-	return tmp;
+    return dev_ptr;
+  }
+
+  template <typename U = T>
+    requires HasCopyToCuda<U>
+  HOST Array<T> *copy_to_cuda(Array<T> *dev_ptr = nullptr) const {
+    if (dev_ptr == nullptr) {
+      gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
     }
 
-    template <typename Dummy = void, typename std::enable_if_t<has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    HOST static Array<T> copy_from_cuda(Array<T>* dev_ptr) {
-	// Create host object, copy raw device data over
-	Array<T> tmp(0);
+    T *values_d = nullptr;
+    if (num > 0) {
+      size_t sz = sizeof(T) * num;
+      gpuErrchk(cudaMalloc(&values_d, sz));
 
-	if (dev_ptr != nullptr) {
-	    gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-
-	    if (tmp.num > 0) {
-		T* values_d = tmp.values;
-		tmp.values = new T[tmp.num];
-	    	    
-		// Copy values
-		for (size_t i = 0; i < tmp.num; ++i) {
-		    tmp.values[i] = T::copy_from_cuda(values_d + i);
-		}
-	    } else {
-		tmp.values = nullptr;
-	    }
-	}
-	// printf("Copying device Array %x to host %x with values %x\n", dev_ptr, &tmp, tmp.values);
-	return tmp;
+      for (size_t i = 0; i < num; ++i) {
+        values[i].copy_to_cuda(values_d + i);
+      }
     }
 
-    template <typename Dummy = void, typename std::enable_if_t<!has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    HOST static void remove_from_cuda(Array<T>* dev_ptr, bool remove_self = true) {
-	// printf("Removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
-	if (dev_ptr == nullptr) return;
-	Array<T> tmp(0);
-	gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-	if (tmp.num > 0) {
-	    // Remove values
-	    gpuErrchk(cudaFree(tmp.values));
-	}
-	tmp.values = nullptr;
-	gpuErrchk(cudaMemset((void*) &(dev_ptr->values), 0, sizeof(T*))); // set nullptr on to device
-	if (remove_self) {
-	    gpuErrchk(cudaFree(dev_ptr));
-	    dev_ptr = nullptr;
-	}
-	// printf("...done removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
+    Array<T> tmp{0, values_d};
+    tmp.num = num;
+    gpuErrchk(
+        cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
+    tmp.clear();
+
+    return dev_ptr;
+  }
+
+  template <typename U = T>
+    requires(!HasCopyToCuda<U>)
+  HOST static Array<T> copy_from_cuda(Array<T> *dev_ptr) {
+    Array<T> tmp(0);
+    if (dev_ptr != nullptr) {
+      gpuErrchk(
+          cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
+
+      if (tmp.num > 0) {
+        T *values_d = tmp.values;
+        tmp.values = new T[tmp.num];
+        size_t sz = sizeof(T) * tmp.num;
+        gpuErrchk(cudaMemcpy(tmp.values, values_d, sz, cudaMemcpyDeviceToHost));
+      } else {
+        tmp.values = nullptr;
+      }
+    }
+    return tmp;
+  }
+
+  template <typename U = T>
+    requires HasCopyToCuda<U>
+  HOST static Array<T> copy_from_cuda(Array<T> *dev_ptr) {
+    Array<T> tmp(0);
+
+    if (dev_ptr != nullptr) {
+      gpuErrchk(
+          cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
+
+      if (tmp.num > 0) {
+        T *values_d = tmp.values;
+        tmp.values = new T[tmp.num];
+
+        for (size_t i = 0; i < tmp.num; ++i) {
+          tmp.values[i] = T::copy_from_cuda(values_d + i);
+        }
+      } else {
+        tmp.values = nullptr;
+      }
+    }
+    return tmp;
+  }
+
+  template <typename U = T>
+    requires(!HasCopyToCuda<U>)
+  HOST static void remove_from_cuda(Array<T> *dev_ptr,
+                                    bool remove_self = true) {
+    if (dev_ptr == nullptr)
+      return;
+
+    Array<T> tmp(0);
+    gpuErrchk(
+        cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
+
+    if (tmp.num > 0) {
+      gpuErrchk(cudaFree(tmp.values));
     }
 
-    template <typename Dummy = void, typename std::enable_if_t<has_copy_to_cuda<T>::value, Dummy>* = nullptr>
-    HOST static void remove_from_cuda(Array<T>* dev_ptr, bool remove_self = true) {
-	// printf("Removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
-	if (dev_ptr == nullptr) return;
-	Array<T> tmp(0);
-	gpuErrchk(cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-	if (tmp.num > 0) {
-	    // Remove values
-	    for (size_t i = 0; i < tmp.num; ++i) {
-		T::remove_from_cuda(tmp.values+i, false);
-	    }
-	}
-	tmp.values = nullptr;
-	gpuErrchk(cudaMemset((void*) &(dev_ptr->values), 0, sizeof(T*))); // set nullptr on device
-	if (remove_self) {
-	    gpuErrchk(cudaFree(dev_ptr));
-	    dev_ptr = nullptr;
-	}
-	// printf("...done removing device Array<%s> %x\n", typeid(T).name(), dev_ptr);
+    tmp.values = nullptr;
+    gpuErrchk(cudaMemset((void *)&(dev_ptr->values), 0, sizeof(T *)));
+
+    if (remove_self) {
+      gpuErrchk(cudaFree(dev_ptr));
+      dev_ptr = nullptr;
     }
+  }
+
+  template <typename U = T>
+    requires HasCopyToCuda<U>
+  HOST static void remove_from_cuda(Array<T> *dev_ptr,
+                                    bool remove_self = true) {
+    if (dev_ptr == nullptr)
+      return;
+
+    Array<T> tmp(0);
+    gpuErrchk(
+        cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
+
+    if (tmp.num > 0) {
+      for (size_t i = 0; i < tmp.num; ++i) {
+        T::remove_from_cuda(tmp.values + i, false);
+      }
+      gpuErrchk(cudaFree(tmp.values));
+    }
+
+    tmp.values = nullptr;
+    gpuErrchk(cudaMemset((void *)&(dev_ptr->values), 0, sizeof(T *)));
+
+    if (remove_self) {
+      gpuErrchk(cudaFree(dev_ptr));
+      dev_ptr = nullptr;
+    }
+  }
 #endif
-    HOST DEVICE size_t size() const { return num; }
 
-    HOST T* get_pointer() const { return values; }
-    
 private:
-    HOST void host_allocate() {
-	host_deallocate();
-	if (num > 0) {
-	    values = new T[num];
-	} else {
-	    values = nullptr;
-	}
-	// printf("Array<%s>.host_allocate() %d values at %x\n", typeid(T).name(), num, values);
+  // Private constructor for internal use
+  HOST constexpr Array(size_t count, T *ptr) : num(count), values(ptr) {}
 
+  HOST void host_allocate() {
+    host_deallocate();
+    if (num > 0) {
+      values = new T[num];
+    } else {
+      values = nullptr;
     }
-    HOST void host_deallocate() {
-	// printf("Array<%s>.host_deallocate() %d values at %x\n", typeid(T).name(), num, values);
-	if (values != nullptr) delete[] values;
-	values = nullptr;
+  }
+
+  HOST void host_deallocate() {
+    if (values != nullptr) {
+      delete[] values;
     }
-    
+    values = nullptr;
+  }
+
 public:
-    size_t num;
-    T* __restrict__ values;
+  size_t num;
+  T *__restrict__ values;
 };
+
+// Deduction guides for C++20
+template <typename T> Array(std::span<T>) -> Array<T>;
+
+template <typename T, size_t N> Array(T (&)[N]) -> Array<T>;
+
+} // namespace ARBD

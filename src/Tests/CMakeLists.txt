@@ -53,11 +53,11 @@ target_link_libraries("arbd_tests" PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2Wi
 ## Add optional libraries
 if(USE_CUDA)
   target_link_libraries(arbd_tests PUBLIC curand)
-  target_sources("arbd_tests" 
-  matrix3.cu
-  vector3_precision.cu
-  bitmask.cu
-  array.cu)
+  target_sources("arbd_tests" PRIVATE
+    matrix3.cu
+    vector3_precision.cu
+    bitmask.cu
+    array.cu)
 endif()
 if(USE_NCCL)
   target_link_libraries(arbd_tests PUBLIC nccl)

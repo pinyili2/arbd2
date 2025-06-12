@@ -19,9 +19,10 @@ endif()
 
 # Conditionally add CUDA specific source files (.cpp or .cu) to the library
 if(USE_CUDA)
+
     message(STATUS "src: Adding CUDA specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
-        #Backend/CUDA/CUDAManager.cpp         # Can be a .cpp file managing CUDA operations
+        Backend/CUDA/CUDAManager.cpp         # Can be a .cpp file managing CUDA operations
         #Simulation/Integrator/IntegratorCUDA.cu # Note .cu extension
         #Simulation/Interactions/ExampleForceCUDA.cu # Note .cu extension
     )
@@ -71,13 +72,13 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # it would go here. For example:
     # target_link_libraries("lib${PROJECT_NAME}" PRIVATE SYCL::sycl) # If such an imported target exists
     message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}. Ensure SYCL runtime is linked (usually automatic).")
-    
+
     # Link OpenMP for AdaptiveCpp
     if(USE_SYCL_ACPP AND OpenMP_CXX_FOUND)
         target_link_libraries("lib${PROJECT_NAME}" PUBLIC OpenMP_Custom)
         message(STATUS "src: Linked custom OpenMP to lib${PROJECT_NAME} for AdaptiveCpp backend")
     endif()
-    
+
     # Special handling for AdaptiveCpp to avoid duplicate C++ standard flags
     if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
@@ -89,10 +90,10 @@ if(USE_METAL)
     # Link Metal and Foundation frameworks to the library
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
-    
+
     if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
-        target_link_libraries("lib${PROJECT_NAME}" 
-            PUBLIC 
+        target_link_libraries("lib${PROJECT_NAME}"
+            PUBLIC
             ${METAL_FRAMEWORK}
             ${FOUNDATION_FRAMEWORK}
         )
@@ -100,14 +101,14 @@ if(USE_METAL)
     else()
         message(FATAL_ERROR "Metal or Foundation framework not found for lib${PROJECT_NAME}")
     endif()
-    
+
     # Add Metal-specific compile definitions
     target_compile_definitions("lib${PROJECT_NAME}" PUBLIC USE_METAL)
-    
+
     # Ensure ARC is enabled for Objective-C++ files
     target_compile_options("lib${PROJECT_NAME}" PRIVATE
         $<$<COMPILE_LANGUAGE:OBJCXX>:-fobjc-arc>
     )
-    
+
     message(STATUS "src: Metal is enabled for lib${PROJECT_NAME}. Framework linking and ARC configured.")
 endif()

@@ -74,7 +74,7 @@ template <typename T, typename Enable = void> struct Proxy {
    * regardless of its physical location.
    *
    * Key Features:
-   * - Resource-aware object management (CPU, GPU, SYCL, MPI)
+   * - Resource-aware object management (CPU, GPU, SYCL)
    * - Automatic metadata handling for complex objects
    * - RAII semantics with proper copy/move constructors
    * - Transparent object access via operator->
