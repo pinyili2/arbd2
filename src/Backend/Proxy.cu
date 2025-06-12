@@ -1,11 +1,9 @@
-#include "Proxy.h"
-
 #ifdef USE_CUDA
+#include "Proxy.h"
 #include <cuda.h>
 #include <cuda/std/utility>
 #include <cuda_runtime.h>
 #include "Backend/CUDA/CUDAManager.h"
-#include "Resource.h"
 
 namespace ARBD {
 

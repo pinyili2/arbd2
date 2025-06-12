@@ -1,5 +1,5 @@
-#include "Proxy.h"
-#include "Resource.h"
+#include <future>
+#include <cstring>
 
 #ifdef USE_SYCL
 #include "Backend/SYCL/SYCLManager.h"
@@ -9,7 +9,7 @@
 #ifdef USE_METAL
 #include "Backend/METAL/METALManager.h"
 #endif
-
+#include "Proxy.h"
 
 namespace ARBD {
 namespace ProxyImpl {
@@ -182,7 +182,7 @@ void* send_ignoring_children_impl(const Resource& location, T& obj, T* dest) {
                 // Note: This is conceptual - actual METAL allocation would be different
                 dest = static_cast<T*>(std::malloc(sizeof(T)));
                 if (!dest) {
-                    ARBD::throw_runtime_error("METAL allocation failed");
+                    ARBD::throw_metal_error("METAL allocation failed");
                 }
             }
             // Note: This is conceptual - actual METAL copy would use Metal APIs
