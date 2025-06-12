@@ -47,7 +47,7 @@ inline size_t get_device_id() {
 #ifdef USE_METAL
   try {
     return static_cast<size_t>(
-        ARBD::METAL::METALManager::get_current_device().id());
+        ARBD::METAL::METALManager::get_current_device().get_id());
   } catch (...) {
     return 0;
   }
