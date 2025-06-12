@@ -23,7 +23,7 @@ endif()
 
 # --- Project Options ---
 option(USE_CUDA "Use CUDA" OFF)
-option(USE_SYCL_ACPP "Use SYCL with AdaptiveCpp (acpp)" ON)
+option(USE_SYCL_ACPP "Use SYCL with AdaptiveCpp (acpp)" OFF)
 option(USE_SYCL_ICPX "Use SYCL with Intel DPC++ (icpx)" OFF)
 option(DEBUG_BUILD "Build with debug flags (overrides CMAKE_BUILD_TYPE)" OFF)
 option(USE_NCCL "Use NCCL for single node GPU peer communication" OFF)
@@ -74,7 +74,7 @@ if(USE_METAL AND APPLE)
     set(CMAKE_OBJCXX_STANDARD 20)
     set(CMAKE_OBJCXX_STANDARD_REQUIRED ON)
     set(CMAKE_OBJCXX_EXTENSIONS OFF)
-    
+
     # Enable ARC (Automatic Reference Counting) for Objective-C++
     set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -fobjc-arc")
 endif()
@@ -119,7 +119,7 @@ Example for USE_SYCL_ACPP on macOS:    cmake -D CMAKE_CXX_COMPILER=/opt/homebrew
                 message(WARNING "AdaptiveCpp on unknown OS ${CMAKE_SYSTEM_NAME}. Defaulting to OpenMP target.")
                 set(ACPP_TARGET_FLAGS "--acpp-targets=omp")
             endif()
-            
+
             if(NOT ACPP_TARGET_FLAGS STREQUAL "")
                 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ACPP_TARGET_FLAGS}")
                 message(STATUS "Applied AdaptiveCpp flags: ${ACPP_TARGET_FLAGS}")
@@ -166,14 +166,14 @@ if(USE_METAL)
     if(NOT APPLE)
         message(FATAL_ERROR "Metal is only available on Apple platforms (macOS, iOS, tvOS, watchOS)")
     endif()
-    
+
     message(STATUS "Metal support is enabled for Apple platforms.")
     add_definitions(-DUSE_METAL)
-    
+
     # Find Metal framework
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
-    
+
     if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
         message(STATUS "Found Metal framework: ${METAL_FRAMEWORK}")
         message(STATUS "Found Foundation framework: ${FOUNDATION_FRAMEWORK}")
@@ -260,8 +260,8 @@ if(USE_NVTX)
 endif()
 
 if(USE_METAL)
-    target_link_libraries("${PROJECT_NAME}" 
-        PRIVATE 
+    target_link_libraries("${PROJECT_NAME}"
+        PRIVATE
         ${METAL_FRAMEWORK}
         ${FOUNDATION_FRAMEWORK}
     )
