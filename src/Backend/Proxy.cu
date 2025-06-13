@@ -30,9 +30,8 @@ namespace ProxyImpl {
 // CUDA Implementation Functions
 // =============================================================================
 
-void *cuda_call_sync_impl(void *addr, void *func_ptr, void *args,
-                          size_t args_size, const Resource &location,
-                          size_t result_size) {
+void *cuda_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                     const Resource &location, size_t result_size) {
   if (location.is_local()) {
     if (result_size > 0) {
       // Allocate result storage on device
@@ -84,14 +83,13 @@ void *cuda_call_sync_impl(void *addr, void *func_ptr, void *args,
   }
 }
 
-std::future<void *> cuda_call_async_impl(void *addr, void *func_ptr, void *args,
-                                         size_t args_size,
-                                         const Resource &location,
-                                         size_t result_size) {
+std::future<void *> cuda_call_async(void *addr, void *func_ptr, void *args,
+                                    size_t args_size, const Resource &location,
+                                    size_t result_size) {
   if (location.is_local()) {
     return std::async(std::launch::async, [=] {
-      return cuda_call_sync_impl(addr, func_ptr, args, args_size, location,
-                                 result_size);
+      return cuda_call_sync(addr, func_ptr, args, args_size, location,
+                            result_size);
     });
   } else {
     return std::async(std::launch::async, [=] {
@@ -99,8 +97,8 @@ std::future<void *> cuda_call_async_impl(void *addr, void *func_ptr, void *args,
       CUDA_CHECK(cudaGetDevice(&current_device));
       CUDA_CHECK(cudaSetDevice(location.id));
 
-      void *result = cuda_call_sync_impl(addr, func_ptr, args, args_size,
-                                         location, result_size);
+      void *result = cuda_call_sync(addr, func_ptr, args, args_size, location,
+                                    result_size);
 
       CUDA_CHECK(cudaSetDevice(current_device));
       return result;
@@ -110,8 +108,8 @@ std::future<void *> cuda_call_async_impl(void *addr, void *func_ptr, void *args,
 
 // Specialized CUDA construct_remote implementation
 template <typename T>
-void *cuda_construct_remote_impl(const Resource &location, void *args,
-                                 size_t args_size) {
+void *cuda_construct_remote(const Resource &location, void *args,
+                            size_t args_size) {
   if (location.is_local()) {
     T *devptr = nullptr;
     LOGWARN(
@@ -130,17 +128,13 @@ void *cuda_construct_remote_impl(const Resource &location, void *args,
 }
 
 // Template instantiations for common types to help with CUDA compilation
-template void *cuda_construct_remote_impl<int>(const Resource &, void *,
-                                               size_t);
-template void *cuda_construct_remote_impl<float>(const Resource &, void *,
-                                                 size_t);
-template void *cuda_construct_remote_impl<double>(const Resource &, void *,
-                                                  size_t);
+template void *cuda_construct_remote<int>(const Resource &, void *, size_t);
+template void *cuda_construct_remote<float>(const Resource &, void *, size_t);
+template void *cuda_construct_remote<double>(const Resource &, void *, size_t);
 
 // Specialized CUDA send implementation (if needed)
 template <typename T>
-void *cuda_send_ignoring_children_impl(const Resource &location, T &obj,
-                                       T *dest) {
+void *cuda_send_ignoring_children(const Resource &location, T &obj, T *dest) {
   if (location.is_local()) {
     if (dest == nullptr) {
       LOGTRACE("   cudaMalloc for object");
@@ -154,12 +148,11 @@ void *cuda_send_ignoring_children_impl(const Resource &location, T &obj,
 }
 
 // Template instantiations for CUDA send operations
-template void *cuda_send_ignoring_children_impl<int>(const Resource &, int &,
-                                                     int *);
-template void *cuda_send_ignoring_children_impl<float>(const Resource &,
-                                                       float &, float *);
-template void *cuda_send_ignoring_children_impl<double>(const Resource &,
-                                                        double &, double *);
+template void *cuda_send_ignoring_children<int>(const Resource &, int &, int *);
+template void *cuda_send_ignoring_children<float>(const Resource &, float &,
+                                                  float *);
+template void *cuda_send_ignoring_children<double>(const Resource &, double &,
+                                                   double *);
 
 } // namespace ProxyImpl
 

@@ -21,9 +21,8 @@ namespace ProxyImpl {
 // =============================================================================
 
 #ifdef USE_SYCL
-void *sycl_call_sync_impl(void *addr, void *func_ptr, void *args,
-                          size_t args_size, const Resource &location,
-                          size_t result_size) {
+void *sycl_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                     const Resource &location, size_t result_size) {
   if (location.is_local()) {
     // For SYCL, execute on device if addr is device memory
     auto &device = ARBD::SYCL::SYCLManager::get_current_device();
@@ -56,14 +55,13 @@ void *sycl_call_sync_impl(void *addr, void *func_ptr, void *args,
   }
 }
 
-std::future<void *> sycl_call_async_impl(void *addr, void *func_ptr, void *args,
-                                         size_t args_size,
-                                         const Resource &location,
-                                         size_t result_size) {
+std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
+                                    size_t args_size, const Resource &location,
+                                    size_t result_size) {
   if (location.is_local()) {
     return std::async(std::launch::async, [=] {
-      return sycl_call_sync_impl(addr, func_ptr, args, args_size, location,
-                                 result_size);
+      return sycl_call_sync(addr, func_ptr, args, args_size, location,
+                            result_size);
     });
   } else {
     ARBD::throw_not_implemented(
@@ -71,16 +69,15 @@ std::future<void *> sycl_call_async_impl(void *addr, void *func_ptr, void *args,
   }
 }
 #else
-void *sycl_call_sync_impl(void *addr, void *func_ptr, void *args,
-                          size_t args_size, const Resource &location,
-                          size_t result_size) {
+void *sycl_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                     const Resource &location, size_t result_size) {
   ARBD::throw_not_implemented("SYCL support not enabled");
 }
 
-::std::future<void *> sycl_call_async_impl(void *addr, void *func_ptr,
-                                           void *args, size_t args_size,
-                                           const Resource &location,
-                                           size_t result_size) {
+::std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
+                                      size_t args_size,
+                                      const Resource &location,
+                                      size_t result_size) {
   ARBD::throw_not_implemented("SYCL support not enabled");
 }
 #endif
@@ -90,9 +87,8 @@ void *sycl_call_sync_impl(void *addr, void *func_ptr, void *args,
 // =============================================================================
 
 #ifdef USE_METAL
-void *metal_call_sync_impl(void *addr, void *func_ptr, void *args,
-                           size_t args_size, const Resource &location,
-                           size_t result_size) {
+void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                      const Resource &location, size_t result_size) {
   if (location.is_local()) {
     auto &device = ARBD::METAL::METALManager::get_current_device();
 
@@ -110,30 +106,28 @@ void *metal_call_sync_impl(void *addr, void *func_ptr, void *args,
   }
 }
 
-std::future<void *> metal_call_async_impl(void *addr, void *func_ptr,
-                                          void *args, size_t args_size,
-                                          const Resource &location,
-                                          size_t result_size) {
+std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
+                                     size_t args_size, const Resource &location,
+                                     size_t result_size) {
   if (location.is_local()) {
     return std::async(std::launch::async, [=] {
-      return metal_call_sync_impl(addr, func_ptr, args, args_size, location,
-                                  result_size);
+      return metal_call_sync(addr, func_ptr, args, args_size, location,
+                             result_size);
     });
   } else {
     ARBD::throw_not_implemented("Proxy::callAsync() non-local METAL calls");
   }
 }
 #else
-void *metal_call_sync_impl(void *addr, void *func_ptr, void *args,
-                           size_t args_size, const Resource &location,
-                           size_t result_size) {
+void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                      const Resource &location, size_t result_size) {
   ARBD::throw_not_implemented("METAL support not enabled");
 }
 
-::std::future<void *> metal_call_async_impl(void *addr, void *func_ptr,
-                                            void *args, size_t args_size,
-                                            const Resource &location,
-                                            size_t result_size) {
+::std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
+                                       size_t args_size,
+                                       const Resource &location,
+                                       size_t result_size) {
   ARBD::throw_not_implemented("METAL support not enabled");
 }
 #endif
@@ -143,7 +137,7 @@ void *metal_call_sync_impl(void *addr, void *func_ptr, void *args,
 // =============================================================================
 
 template <typename T>
-void *send_ignoring_children_impl(const Resource &location, T &obj, T *dest) {
+void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
   switch (location.type) {
   case Resource::CUDA:
     LOGINFO("   GPU...");
@@ -186,7 +180,7 @@ void *send_ignoring_children_impl(const Resource &location, T &obj, T *dest) {
           "`_send_ignoring_children(...)` on non-local SYCL");
     }
 #else
-    ARBD::throw_not_implemented("USE_SYCL is not enabled");
+    ARBD::throw_notemented("USE_SYCL is not enabled");
 #endif
     break;
 
@@ -206,11 +200,11 @@ void *send_ignoring_children_impl(const Resource &location, T &obj, T *dest) {
       // Note: This is conceptual - actual METAL copy would use Metal APIs
       std::memcpy(dest, &obj, sizeof(T));
     } else {
-      ARBD::throw_not_implemented(
+      ARBD::throw_notemented(
           "`_send_ignoring_children(...)` on non-local METAL");
     }
 #else
-    ARBD::throw_not_implemented("USE_METAL is not enabled");
+    ARBD::throw_metal_error("METAL is not enabled");
 #endif
     break;
 
@@ -223,8 +217,7 @@ void *send_ignoring_children_impl(const Resource &location, T &obj, T *dest) {
 }
 
 template <typename T>
-void *construct_remote_impl(const Resource &location, void *args,
-                            size_t args_size) {
+void *construct_remote(const Resource &location, void *args, size_t args_size) {
   switch (location.type) {
   case Resource::SYCL:
 #ifdef USE_SYCL
@@ -248,7 +241,7 @@ void *construct_remote_impl(const Resource &location, void *args,
       ARBD::throw_not_implemented("construct_remote() non-local SYCL calls");
     }
 #else
-    ARBD::throw_not_implemented("SYCL support not enabled");
+    ARBD::throw_notemented("SYCL support not enabled");
 #endif
     break;
 
@@ -274,7 +267,7 @@ void *construct_remote_impl(const Resource &location, void *args,
 
       return devptr;
     } else {
-      ARBD::throw_not_implemented("construct_remote() non-local METAL calls");
+      ARBD::throw_notemented("construct_remote() non-local METAL calls");
     }
 #else
     ARBD::throw_not_implemented("METAL support not enabled");
@@ -289,18 +282,18 @@ void *construct_remote_impl(const Resource &location, void *args,
 }
 
 // Explicit template instantiations for common types
-template void *send_ignoring_children_impl<int>(const Resource &, int &, int *);
-template void *send_ignoring_children_impl<float>(const Resource &, float &,
-                                                  float *);
-template void *send_ignoring_children_impl<double>(const Resource &, double &,
-                                                   double *);
-// template void* send_ignoring_children_impl<Vector3>(const Resource&,
+template void *send_ignoring_children<int>(const Resource &, int &, int *);
+template void *send_ignoring_children<float>(const Resource &, float &,
+                                             float *);
+template void *send_ignoring_children<double>(const Resource &, double &,
+                                              double *);
+// template void* send_ignoring_children<Vector3>(const Resource&,
 // Vector3&, Vector3*);
 
-template void *construct_remote_impl<int>(const Resource &, void *, size_t);
-template void *construct_remote_impl<float>(const Resource &, void *, size_t);
-template void *construct_remote_impl<double>(const Resource &, void *, size_t);
-// template void* construct_remote_impl<Vector3>(const Resource&, void*,
+template void *construct_remote<int>(const Resource &, void *, size_t);
+template void *construct_remote<float>(const Resource &, void *, size_t);
+template void *construct_remote<double>(const Resource &, void *, size_t);
+// template void* construct_remote<Vector3>(const Resource&, void*,
 // size_t);
 
 } // namespace ProxyImpl
