@@ -173,10 +173,7 @@ template <typename T> struct Array {
           send(location, values[i], values_d + i);
         }
         break;
-      case Resource::MPI:
-        ARBD::throw_not_implemented(
-            "Array<T>.send_children(location.type == MPI)");
-        break;
+
       default:
         ARBD::throw_value_error("Unknown Resource type");
       }
@@ -202,10 +199,6 @@ template <typename T> struct Array {
           send(location, tmp, values_d + i);
           tmp.clear();
         }
-        break;
-      case Resource::MPI:
-        ARBD::throw_not_implemented(
-            "Array<T>.send_children(location.type == MPI)");
         break;
       default:
         ARBD::throw_value_error("Unknown Resource type");
