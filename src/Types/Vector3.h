@@ -4,10 +4,10 @@
  * @brief Declaration of templated Vector3_t class.
  *********************************************************************/
 #pragma once
-#include "Backend/Proxy.h"
-#include "Backend/Resource.h"
 #include "ARBDException.h"
 #include "ARBDLogger.h"
+#include "Backend/Proxy.h"
+#include "Backend/Resource.h"
 #include <limits>
 #include <memory>
 #include <sstream>
@@ -19,6 +19,8 @@ template <typename T> using numeric_limits = ::cuda::std::numeric_limits<T>;
 #else
 template <typename T> using numeric_limits = ::std::numeric_limits<T>;
 #endif
+
+namespace ARBD {
 
 // C++20 Concepts for better template constraints
 template <typename T>
@@ -49,8 +51,15 @@ public:
       : x(x), y(y), z(z), w(0) {}
   HOST DEVICE constexpr Vector3_t(T x, T y, T z, T w) noexcept
       : x(x), y(y), z(z), w(w) {}
-  HOST DEVICE constexpr Vector3_t(const float4 a) noexcept
-      : x(a.x), y(a.y), z(a.z), w(a.w) {}
+  template <typename BackendVec>
+    requires requires(BackendVec v) {
+      v.x;
+      v.y;
+      v.z;
+    }
+  HOST DEVICE constexpr Vector3_t(const BackendVec &v) noexcept
+      : x(static_cast<T>(v.x)), y(static_cast<T>(v.y)), z(static_cast<T>(v.z)),
+        w(0) {}
 
   // C++20 concepts-based cross product
   template <typename U>
@@ -233,8 +242,8 @@ public:
 
   // String and printing
   HOST DEVICE void print() const noexcept {
-    printf("%0.3f %0.3f %0.3f\n", static_cast<double>(x),
-           static_cast<double>(y), static_cast<double>(z));
+    LOGINFO("%0.3f %0.3f %0.3f", static_cast<double>(x), static_cast<double>(y),
+            static_cast<double>(z));
   }
 
   auto to_string() const {
@@ -274,10 +283,12 @@ HOST DEVICE constexpr auto operator*(const float &s,
   return v * s;
 }
 
+} // namespace ARBD
+
 // Provide common type for vectors
 namespace std {
 template <typename T, typename U>
-struct common_type<Vector3_t<T>, Vector3_t<U>> {
-  using type = Vector3_t<common_type_t<T, U>>;
+struct common_type<ARBD::Vector3_t<T>, ARBD::Vector3_t<U>> {
+  using type = ARBD::Vector3_t<common_type_t<T, U>>;
 };
 } // namespace std
