@@ -6,7 +6,9 @@
 #include <cstring>
 #include <future>
 #include <typeinfo>
+#if __cplusplus >= 202002L
 #include <span>
+#endif
 
 namespace ARBD {
 
@@ -54,7 +56,7 @@ std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
                                     size_t args_size, const Resource &location,
                                     size_t result_size);
 
-// METAL-specific implementations (defined in Proxy.cpp)
+// METAL-specific implementations (defined in Proxy.mm)
 void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
                       const Resource &location, size_t result_size);
 std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
