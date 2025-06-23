@@ -6,6 +6,7 @@
 #include <cstring>
 #include <future>
 #include <typeinfo>
+#include <span>
 
 namespace ARBD {
 
