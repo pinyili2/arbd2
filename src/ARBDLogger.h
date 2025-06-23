@@ -231,7 +231,7 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #endif /* DEBUGMSG */
 
 // Device-specific logging for CUDA and SYCL
-#ifdef __CUDA_ARCH__
+#ifdef __CUDACC__ //(USE_CUDA)
   // CUDA device code - use printf
 #define DEVICE_LOCATION_STRINGIFY(line) #line
 #define DEVICE_LOCATION_TO_STRING(line) DEVICE_LOCATION_STRINGIFY(line)
@@ -245,7 +245,7 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define LOGWARN(...) LOGHELPER("WARN", __VA_ARGS__)
 #define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
 #define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
-#elif defined(__SYCL_DEVICE_ONLY__)
+#elif defined(USE_SYCL)
   // SYCL device code - use printf (similar to CUDA)
 #define DEVICE_LOCATION_STRINGIFY(line) #line
 #define DEVICE_LOCATION_TO_STRING(line) DEVICE_LOCATION_STRINGIFY(line)
