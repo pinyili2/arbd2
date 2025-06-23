@@ -4,21 +4,18 @@
  * @brief Declaration of templated Matrix3_t class.
  *********************************************************************/
 #pragma once
-#include <cassert>
-#include <memory>
-#include <type_traits>
 #include "ARBDException.h"
 #include "ARBDLogger.h"
 #include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include "Vector3.h"
+#include <cassert>
+#include <memory>
+#include <type_traits>
 
 // C++20 Concepts for Matrix constraints
-template <typename T>
-concept Arithmetic = ::std::is_arithmetic_v<T>;
 
-template <typename T>
-concept FloatingPoint = ::std::is_floating_point_v<T>;
+namespace ARBD {
 
 template <typename T, bool is_diag = false, bool check_diag = false>
   requires Arithmetic<T>
@@ -298,3 +295,4 @@ HOST DEVICE constexpr auto operator/(const Matrix3_t<T, is_diag, check_diag> &m,
                                      S s) noexcept {
   return m * (S(1) / s);
 }
+} // namespace ARBD

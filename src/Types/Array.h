@@ -28,9 +28,6 @@ concept HasSendChildren =
     requires(T t, const Resource &r) { t.send_children(r); };
 
 template <typename T>
-concept Arithmetic = ::std::is_arithmetic_v<T>;
-
-template <typename T>
 concept Trivial = ::std::is_trivial_v<T>;
 
 // Simple templated array object without resizing capabilities

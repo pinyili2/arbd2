@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Backend/CUDA/CUDAManager.h"
+#include "Types/Array.h"
+#include "Types/Bitmask.h"
 #include "Types/Matrix3.h"
 #include "Types/Vector3.h"
 #include <cstring>
@@ -8,6 +10,8 @@
 #include <stdarg.h> // For va_start, etc.
 
 #include "Types/TypeName.h"
+
+namespace ARBD {
 
 // Utility function used by types to return std::string using format syntax
 inline std::string string_format(const std::string fmt_str, ...) {
@@ -39,9 +43,6 @@ inline std::string string_format(const std::string fmt_str, ...) {
 using Vector3 = Vector3_t<float>;
 using Matrix3 = Matrix3_t<float, false>;
 
-#include "Types/Bitmask.h"
-
-#include "Types/Array.h"
 using VectorArr = Array<Vector3>;
 
 // Helpful routines
@@ -65,3 +66,4 @@ HOST DEVICE inline Vector3_t<size_t> index_to_ijk(size_t idx,
 using idx_t = size_t; /* We will sometimes refer to global
                        * particle index, which may be too
                        * large to represent via size_t */
+} // namespace ARBD

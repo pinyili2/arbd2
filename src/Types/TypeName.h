@@ -12,6 +12,7 @@
 #define HAS_CXXABI 0
 #endif
 
+namespace ARBD {
 // C++20 Concepts for type name functionality
 template <typename T>
 concept Demangable = requires { typeid(T).name(); };
@@ -148,3 +149,4 @@ template <typename T> std::string pretty_type_name() {
 
   return name;
 }
+} // namespace ARBD
