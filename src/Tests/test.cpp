@@ -1,6 +1,6 @@
 #include <iostream>
 
-#ifdef PROJECT_USES_SYCL
+#ifdef USE_SYCL
 #include <AdaptiveCpp/sycl.hpp>
 #include <vector>
 #include <numeric>

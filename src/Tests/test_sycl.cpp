@@ -14,7 +14,7 @@ using namespace ARBD::SYCL;
 TEST_CASE("SYCL Manager Initialization", "[sycl][manager]") {
     SECTION("Basic initialization") {
         REQUIRE_NOTHROW(SYCLManager::init());
-        REQUIRE(static_cast<int>(SYCLManager::all_device_size()) > 0);
+        REQUIRE(SYCLManager::all_device_size() > 0);
         
         INFO("Found " << SYCLManager::all_device_size() << " SYCL devices");
         
@@ -334,12 +334,14 @@ int main(int argc, char* argv[]) {
     int result = session.run();
     
     // Explicit cleanup to prevent mutex issues
+    /*
     try {
         SYCLManager::finalize();
     } catch (...) {
         // Ignore cleanup errors
         std::cerr << "Warning: SYCL cleanup had issues (ignored)" << std::endl;
     }
+    */
     
     return result;
 }

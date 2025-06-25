@@ -5,7 +5,7 @@
  * @brief Unified logging system combining ARBDLogger and Debug.h functionality
  *
  * This header provides a comprehensive logging solution that merges:
- * - Modern C++20 ARBDLogger with printf-style formatting
+ * - Modern C++20 ARBDLogger with printf-style formatting and string_view
  * - Classic Debug.h numeric level system (0-10 scale)
  * - Device-specific logging for CUDA and SYCL
  * - Universal compatibility across compilers
@@ -78,6 +78,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>   // For std::forward
 
 // Debug level configuration (from Debug.h)
 #ifndef MIN_DEBUG_LEVEL
@@ -103,52 +104,17 @@ enum class LogLevel {
 };
 
 class Logger {
-private:
-  // Helper function to convert std::string to const char* for printf compatibility
-  template<typename T>
-  static constexpr auto convert_for_printf(T&& arg) {
-    if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
-      return arg.c_str();
-    } else {
-      return std::forward<T>(arg);
-    }
-  }
-
 public:
   static LogLevel current_level;
 
-  // Printf-style variadic template logging with std::string support
-  template <typename... Args>
-  static void log(LogLevel level, const SourceLocation &loc, const char *fmt,
-                  Args &&...args) {
-    if (level < current_level)
-      return;
-
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-
-    auto &stream = (level >= LogLevel::ERROR) ? std::cerr : std::cout;
-
-    stream << "[" << std::put_time(std::localtime(&time_t), "%H:%M:%S") << "] "
-           << "[" << level_to_string(level) << "] ";
-
-    // Convert std::string arguments to c_str() for printf compatibility
-    char buffer[1024];
-    std::snprintf(buffer, sizeof(buffer), fmt, convert_for_printf(args)...);
-
-    stream << buffer << " (" << loc.file_name << ":" << loc.line << ")"
-           << std::endl;
-  }
-
-  // Simple string version
+  // Handles simple messages (no format args)
   static void log(LogLevel level, const SourceLocation &loc,
-                  const std::string &message) {
+                  std::string_view message) {
     if (level < current_level)
       return;
 
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
-
     auto &stream = (level >= LogLevel::ERROR) ? std::cerr : std::cout;
 
     stream << "[" << std::put_time(std::localtime(&time_t), "%H:%M:%S") << "] "
@@ -156,41 +122,66 @@ public:
            << loc.file_name << ":" << loc.line << ")" << std::endl;
   }
 
-  /**
-   * @brief Debug message function with numeric levels (from Debug.h)
-   */
+  // Handles printf-style format strings with arguments
   template <typename... Args>
-  static void debug_message(int level, const char *fmt,
-                            const SourceLocation &loc, Args &&...args) {
-    if ((level >= MIN_DEBUG_LEVEL) && (level <= MAX_DEBUG_LEVEL)) {
-      auto &stream = (level >= STDERR_LEVEL) ? std::cerr : std::cout;
+  static void log(LogLevel level, const SourceLocation &loc,
+                  const std::string_view fmt,
+                  Args &&...args) requires(sizeof...(Args) > 0) {
+    if (level < current_level)
+      return;
 
-      if (level >= STDERR_LEVEL) {
-        stream << "[ERROR " << level << "] ";
-      } else if (level > 0) {
-        stream << "[Debug " << level << "] ";
-      }
+    char buffer[1024];
+    std::snprintf(buffer, sizeof(buffer), fmt.data(),
+                  convert_arg(std::forward<Args>(args))...);
+    log(level, loc, std::string_view(buffer));
+  }
 
-      char buffer[1024];
-      std::snprintf(buffer, sizeof(buffer), fmt, convert_for_printf(args)...);
-
-      stream << loc.file_name << ":" << loc.line << " " << buffer << std::endl;
+private:
+  // Helper to convert arguments for printf compatibility
+  template <typename T> static auto convert_arg(T &&arg) {
+    if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
+      return arg.c_str();
+    } else if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {
+      return arg.data();
+    } else {
+      return std::forward<T>(arg);
     }
   }
 
-  // Simple debug message with string
-  static void debug_message_simple(int level, const std::string &message,
+public:
+  /**
+   * @brief Debug message function with numeric levels (from Debug.h)
+   */
+  static void debug_message_simple(int level, std::string_view message,
                                    const SourceLocation &loc) {
     if ((level >= MIN_DEBUG_LEVEL) && (level <= MAX_DEBUG_LEVEL)) {
       auto &stream = (level >= STDERR_LEVEL) ? std::cerr : std::cout;
-
       if (level >= STDERR_LEVEL) {
         stream << "[ERROR " << level << "] ";
       } else if (level > 0) {
         stream << "[Debug " << level << "] ";
       }
+      stream << loc.file_name << ":" << loc.line << " " << message
+             << std::endl;
+    }
+  }
 
-      stream << loc.file_name << ":" << loc.line << " " << message << std::endl;
+  template <typename... Args>
+  static void debug_message(int level, std::string_view fmt,
+                            const SourceLocation &loc,
+                            Args &&...args) requires(sizeof...(Args) > 0) {
+    if ((level >= MIN_DEBUG_LEVEL) && (level <= MAX_DEBUG_LEVEL)) {
+      auto &stream = (level >= STDERR_LEVEL) ? std::cerr : std::cout;
+      if (level >= STDERR_LEVEL) {
+        stream << "[ERROR " << level << "] ";
+      } else if (level > 0) {
+        stream << "[Debug " << level << "] ";
+      }
+      char buffer[1024];
+      std::snprintf(buffer, sizeof(buffer), fmt.data(),
+                    convert_arg(std::forward<Args>(args))...);
+      stream << loc.file_name << ":" << loc.line << " " << buffer
+             << std::endl;
     }
   }
 
@@ -215,6 +206,14 @@ private:
       return "UNKNOWN";
     }
   }
+
+  /**
+   * @brief Debug message function with numeric levels (from Debug.h)
+   */
+  static void debug_message(int level, const SourceLocation &loc,
+                            std::string_view message) {
+    debug_message_simple(level, message, loc);
+  }
 };
 
 // Initialize static member
@@ -227,19 +226,18 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define Debug(x) (x)
 
 // Macro wrapper to automatically capture source location
-#define DebugMsg(level, format, ...)                                           \
-  ARBD::Logger::debug_message(level, format, ARBD::SourceLocation(),           \
-                              ##__VA_ARGS__)
+#define DebugMsg(level, ...)                                                   \
+  ARBD::Logger::debug_message(level, ARBD::SourceLocation(), __VA_ARGS__)
 
 // Simple version for string compatibility
 #define DebugMessage(level, message)                                           \
-  ARBD::Logger::debug_message_simple(level, std::string(message),              \
+  ARBD::Logger::debug_message_simple(level, std::string_view(message),         \
                                      ARBD::SourceLocation())
 
 #else
   // Make void functions when DEBUGMSG is not defined
 #define Debug(x) static_cast<void>(0)
-#define DebugMsg(level, format, ...) static_cast<void>(0)
+#define DebugMsg(level, ...) static_cast<void>(0)
 #define DebugMessage(level, message) static_cast<void>(0)
 #endif /* DEBUGMSG */
 

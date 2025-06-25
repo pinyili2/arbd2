@@ -9,19 +9,13 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 
-# include(doctest)
-# Fix: Use the correct path to Catch.cmake from the fetched content
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch) # contains some cmake macros that will help with discovery of tests
 include(CTest)
 
 ## TODO, add a macro to add these projects, build with CUDA
 add_executable("arbd_tests"
-#matrix3.cu
-#vector3_precision.cu
-#bitmask.cu
-#array.cu
-)
+test.cpp)
 
 # Conditionally add Metal test file
 if(USE_METAL AND APPLE)
@@ -40,7 +34,7 @@ elseif(USE_METAL)
 endif()
 
 # Conditionally add SYCL test file
-if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
+if(USE_SYCL)
     target_sources("arbd_tests" PRIVATE test_sycl.cpp)
     message(STATUS "Added SYCL tests to arbd_tests")
 endif()
