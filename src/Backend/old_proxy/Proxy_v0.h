@@ -2,7 +2,7 @@
 
 #include "ARBDException.h"
 #include "ARBDLogger.h"
-#include "Resource.h"
+#include "Backend/Resource.h"
 #include <cstring>
 #include <future>
 
@@ -470,7 +470,7 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource &location, T &obj,
         auto &queue = device.get_next_queue();
         dest = sycl::malloc_device<T>(1, queue.get());
         if (!dest) {
-          ARBD::throw_runtime_error("SYCL allocation failed");
+          ARBD::throw_value_error("SYCL allocation failed");
         }
       }
       LOGINFO("   SYCL memcpying...");
@@ -593,7 +593,7 @@ Proxy<T> construct_remote(Resource location, Args &&...args) {
       auto &queue = device.get_next_queue();
       T *devptr = sycl::malloc_device<T>(1, queue.get());
       if (!devptr) {
-        ARBD::throw_runtime_error("SYCL allocation failed in construct_remote");
+        ARBD::throw_sycl_error("SYCL allocation failed in construct_remote");
       }
       // Create object on host then copy to device
       T host_obj{std::forward<Args>(args)...};
