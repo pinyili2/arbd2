@@ -9,10 +9,10 @@
 #include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include <cassert>
-#if __cplusplus >= 202002L
+
 #include <compare>
 #include <span>
-#endif
+
 
 #include <type_traits>
 
@@ -20,7 +20,7 @@ namespace ARBD {
 
 // C++20 Concepts for better template constraints
 template <typename T>
-concept HasCopyToCuda = requires(T t) { t.copy_to_cuda(); };
+concept HasCopyToCuda = requires(T t) { t.copy_to_cuda(); }; // TODO: remove this
 
 template <typename T>
 concept HasSendChildren =
@@ -75,9 +75,7 @@ template <typename T> struct Array {
   HOST DEVICE Array<T> &operator=(const Array<T> &other) {
     if (this != &other) {
       num = other.num;
-#ifndef __CUDA_ARCH__
-      host_allocate();
-#endif
+      // Memory management handled by backend-specific implementations
       for (size_t i = 0; i < num; ++i) {
         values[i] = other[i];
       }
@@ -85,12 +83,10 @@ template <typename T> struct Array {
     return *this;
   }
 
-  // Move assignment operator
+  // Move assignment operator  
   HOST DEVICE Array<T> &operator=(Array<T> &&other) noexcept {
     if (this != &other) {
-#ifndef __CUDA_ARCH__
-      host_deallocate();
-#endif
+      // Memory management handled by backend-specific implementations
       num = other.num;
       values = other.values;
       other.num = 0;
@@ -162,16 +158,10 @@ template <typename T> struct Array {
       LOGINFO("  Array<{}>.send_children(...): allocating for {} items",
               type_name<T>(), num);
 
-      switch (location.type) {
-      case Resource::CUDA:
-        gpuErrchk(cudaMalloc(&values_d, sz));
-        for (size_t i = 0; i < num; ++i) {
-          send(location, values[i], values_d + i);
-        }
-        break;
-
-      default:
-        ARBD::throw_value_error("Unknown Resource type");
+      // Use Proxy system for backend-agnostic memory allocation
+      values_d = static_cast<T*>(ProxyImpl::construct_remote<T>(location, nullptr, 0));
+      for (size_t i = 0; i < num; ++i) {
+        send(location, values[i], values_d + i);
       }
     }
 
@@ -187,168 +177,20 @@ template <typename T> struct Array {
     if (num > 0) {
       size_t sz = sizeof(T) * num;
 
-      switch (location.type) {
-      case Resource::CUDA:
-        gpuErrchk(cudaMalloc(&values_d, sz));
-        for (size_t i = 0; i < num; ++i) {
-          auto tmp = values[i].send_children(location);
-          send(location, tmp, values_d + i);
-          tmp.clear();
-        }
-        break;
-      default:
-        ARBD::throw_value_error("Unknown Resource type");
+      // Use Proxy system for backend-agnostic memory allocation
+      values_d = static_cast<T*>(ProxyImpl::construct_remote<T>(location, nullptr, 0));
+      for (size_t i = 0; i < num; ++i) {
+        auto tmp = values[i].send_children(location);
+        send(location, tmp, values_d + i);
+        tmp.clear();
       }
     }
 
     return Array<T>{num, values_d};
   }
 
-#ifdef USE_CUDA
-  // C++20 concepts-based CUDA operations
-  template <typename U = T>
-    requires(!HasCopyToCuda<U>)
-  HOST Array<T> *copy_to_cuda(Array<T> *dev_ptr = nullptr) const {
-    if (dev_ptr == nullptr) {
-      gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
-    }
-
-    T *values_d = nullptr;
-    if (num > 0) {
-      size_t sz = sizeof(T) * num;
-      gpuErrchk(cudaMalloc(&values_d, sz));
-      gpuErrchk(cudaMemcpy(values_d, values, sz, cudaMemcpyHostToDevice));
-    }
-
-    Array<T> tmp{0, values_d};
-    tmp.num = num;
-    gpuErrchk(
-        cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
-    tmp.clear();
-
-    return dev_ptr;
-  }
-
-  template <typename U = T>
-    requires HasCopyToCuda<U>
-  HOST Array<T> *copy_to_cuda(Array<T> *dev_ptr = nullptr) const {
-    if (dev_ptr == nullptr) {
-      gpuErrchk(cudaMalloc(&dev_ptr, sizeof(Array<T>)));
-    }
-
-    T *values_d = nullptr;
-    if (num > 0) {
-      size_t sz = sizeof(T) * num;
-      gpuErrchk(cudaMalloc(&values_d, sz));
-
-      for (size_t i = 0; i < num; ++i) {
-        values[i].copy_to_cuda(values_d + i);
-      }
-    }
-
-    Array<T> tmp{0, values_d};
-    tmp.num = num;
-    gpuErrchk(
-        cudaMemcpy(dev_ptr, &tmp, sizeof(Array<T>), cudaMemcpyHostToDevice));
-    tmp.clear();
-
-    return dev_ptr;
-  }
-
-  template <typename U = T>
-    requires(!HasCopyToCuda<U>)
-  HOST static Array<T> copy_from_cuda(Array<T> *dev_ptr) {
-    Array<T> tmp(0);
-    if (dev_ptr != nullptr) {
-      gpuErrchk(
-          cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-
-      if (tmp.num > 0) {
-        T *values_d = tmp.values;
-        tmp.values = new T[tmp.num];
-        size_t sz = sizeof(T) * tmp.num;
-        gpuErrchk(cudaMemcpy(tmp.values, values_d, sz, cudaMemcpyDeviceToHost));
-      } else {
-        tmp.values = nullptr;
-      }
-    }
-    return tmp;
-  }
-
-  template <typename U = T>
-    requires HasCopyToCuda<U>
-  HOST static Array<T> copy_from_cuda(Array<T> *dev_ptr) {
-    Array<T> tmp(0);
-
-    if (dev_ptr != nullptr) {
-      gpuErrchk(
-          cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-
-      if (tmp.num > 0) {
-        T *values_d = tmp.values;
-        tmp.values = new T[tmp.num];
-
-        for (size_t i = 0; i < tmp.num; ++i) {
-          tmp.values[i] = T::copy_from_cuda(values_d + i);
-        }
-      } else {
-        tmp.values = nullptr;
-      }
-    }
-    return tmp;
-  }
-
-  template <typename U = T>
-    requires(!HasCopyToCuda<U>)
-  HOST static void remove_from_cuda(Array<T> *dev_ptr,
-                                    bool remove_self = true) {
-    if (dev_ptr == nullptr)
-      return;
-
-    Array<T> tmp(0);
-    gpuErrchk(
-        cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-
-    if (tmp.num > 0) {
-      gpuErrchk(cudaFree(tmp.values));
-    }
-
-    tmp.values = nullptr;
-    gpuErrchk(cudaMemset((void *)&(dev_ptr->values), 0, sizeof(T *)));
-
-    if (remove_self) {
-      gpuErrchk(cudaFree(dev_ptr));
-      dev_ptr = nullptr;
-    }
-  }
-
-  template <typename U = T>
-    requires HasCopyToCuda<U>
-  HOST static void remove_from_cuda(Array<T> *dev_ptr,
-                                    bool remove_self = true) {
-    if (dev_ptr == nullptr)
-      return;
-
-    Array<T> tmp(0);
-    gpuErrchk(
-        cudaMemcpy(&tmp, dev_ptr, sizeof(Array<T>), cudaMemcpyDeviceToHost));
-
-    if (tmp.num > 0) {
-      for (size_t i = 0; i < tmp.num; ++i) {
-        T::remove_from_cuda(tmp.values + i, false);
-      }
-      gpuErrchk(cudaFree(tmp.values));
-    }
-
-    tmp.values = nullptr;
-    gpuErrchk(cudaMemset((void *)&(dev_ptr->values), 0, sizeof(T *)));
-
-    if (remove_self) {
-      gpuErrchk(cudaFree(dev_ptr));
-      dev_ptr = nullptr;
-    }
-  }
-#endif
+  // Backend-agnostic operations using Proxy system
+  // These replace the CUDA-specific copy_to_cuda methods
 
 private:
   // Private constructor for internal use

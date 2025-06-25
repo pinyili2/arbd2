@@ -173,4 +173,22 @@ proxy_sync_call_kernel<float, float>(float *, float *, float (float ::*)(), );
 
 } // namespace ARBD
 
+// CUDA-specific atomic operations for Bitmask
+#ifdef USE_CUDA
+namespace ARBD {
+namespace detail {
+  // CUDA device atomic operations
+  template<>
+  __device__ inline void atomic_or<unsigned int>(unsigned int* addr, unsigned int val) {
+    atomicOr(addr, val);
+  }
+  
+  template<>
+  __device__ inline void atomic_and<unsigned int>(unsigned int* addr, unsigned int val) {
+    atomicAnd(addr, val);
+  }
+}
+}
+#endif
+
 #endif // USE_CUDA

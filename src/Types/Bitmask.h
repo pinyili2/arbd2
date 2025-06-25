@@ -7,11 +7,6 @@
 #include <initializer_list>
 #include <memory>
 #include <string>
-#ifdef __CUDA_ARCH__
-#include <cuda/std/atomic>
-#include <cuda_runtime.h>
-
-#endif
 #include "ARBDException.h"
 #include "ARBDLogger.h"
 #include "Backend/Proxy.h"
@@ -40,6 +35,21 @@ protected:
   size_t len;
 };
 
+// Backend-agnostic atomic operations
+namespace detail {
+  template<typename T>
+  HOST DEVICE inline void atomic_or(T* addr, T val) {
+    // Default host implementation
+    *addr |= val;
+  }
+  
+  template<typename T>
+  HOST DEVICE inline void atomic_and(T* addr, T val) {
+    // Default host implementation  
+    *addr &= val;
+  }
+}
+
 // Don't use base because virtual member functions require device malloc
 class Bitmask {
   typedef size_t idx_t;
@@ -61,37 +71,24 @@ public:
   HOST DEVICE idx_t get_len() const { return len; }
 
   HOST DEVICE void set_mask(idx_t i, bool value) {
-    // return;
     assert(i < len);
     idx_t ci = i / data_stride;
     data_t change_bit = (data_t(1) << (i - ci * data_stride));
-#ifdef __CUDA_ARCH__
+    
     if (value) {
-      // atomicOr(  &mask[ci], change_bit );
-      cuda::std::atomic_ref<data_t>(mask[ci]).fetch_or(change_bit);
+      detail::atomic_or(&mask[ci], change_bit);
     } else {
-      // atomicAnd(  &mask[ci], change_bit );
-      cuda::std::atomic_ref<data_t>(mask[ci]).fetch_and(~change_bit);
+      detail::atomic_and(&mask[ci], ~change_bit);
     }
-#else
-    if (value) {
-      mask[ci] = mask[ci] | change_bit;
-    } else {
-      mask[ci] = mask[ci] & (~change_bit);
-    }
-#endif
   }
 
   HOST DEVICE bool get_mask(const idx_t i) const {
-    // return false;
     assert(i < len);
     const idx_t ci = i / data_stride;
     return mask[ci] & (data_t(1) << (i - ci * data_stride));
   }
 
   HOST DEVICE inline bool operator==(Bitmask &b) const {
-    // Inefficient but straightforward approach; directly comparing underlying
-    // data would be fine, but then we need to deal with data strides
     if (len != b.len)
       return false;
     for (idx_t i = 0; i < len; ++i) {
@@ -101,59 +98,12 @@ public:
     return true;
   }
 
-#ifdef USE_CUDA
-  HOST Bitmask *copy_to_cuda(Bitmask *tmp_obj_d = nullptr) const {
-    Bitmask obj_tmp(0);
-    data_t *mask_d = nullptr;
-    size_t sz = sizeof(data_t) * get_array_size();
-    if (tmp_obj_d == nullptr) {
-      gpuErrchk(cudaMalloc(&tmp_obj_d, sizeof(Bitmask)));
-    }
-    if (sz > 0) {
-      gpuErrchk(cudaMalloc(&mask_d, sz));
-      gpuErrchk(cudaMemcpy(mask_d, mask, sz, cudaMemcpyHostToDevice));
-    }
-    // printf("Bitmask::copy_to_cuda() len(%lld) mask(%x)\n", len, mask_d);
-    obj_tmp.len = len;
-    obj_tmp.mask = mask_d;
-    gpuErrchk(cudaMemcpy(tmp_obj_d, &obj_tmp, sizeof(Bitmask),
-                         cudaMemcpyHostToDevice));
-    obj_tmp.mask = nullptr;
-    return tmp_obj_d;
-  }
-
-  HOST static Bitmask copy_from_cuda(Bitmask *obj_d) {
-    Bitmask obj_tmp(0);
-    gpuErrchk(
-        cudaMemcpy(&obj_tmp, obj_d, sizeof(Bitmask), cudaMemcpyDeviceToHost));
-    printf("TEST: %d\n", obj_tmp.len);
-    if (obj_tmp.len > 0) {
-      size_t array_size = obj_tmp.get_array_size();
-      size_t sz = sizeof(data_t) * array_size;
-      data_t *data_addr = obj_tmp.mask;
-      obj_tmp.mask = new data_t[array_size];
-      gpuErrchk(
-          cudaMemcpy(obj_tmp.mask, data_addr, sz, cudaMemcpyDeviceToHost));
-    } else {
-      obj_tmp.mask = nullptr;
-    }
-    return obj_tmp;
-  }
-
-  HOST static void remove_from_cuda(Bitmask *obj_d) {
-    Bitmask obj_tmp(0);
-    gpuErrchk(
-        cudaMemcpy(&obj_tmp, obj_d, sizeof(Bitmask), cudaMemcpyDeviceToHost));
-    if (obj_tmp.len > 0) {
-      gpuErrchk(cudaFree(obj_tmp.mask));
-    }
-    obj_tmp.mask = nullptr;
-    gpuErrchk(cudaMemset((void *)&(obj_d->mask), 0,
-                         sizeof(data_t *))); // set nullptr on to device
-    gpuErrchk(cudaFree(obj_d));
-    obj_d = nullptr;
-  }
-#endif
+  // Backend-agnostic memory operations (implementations in backend files)
+  template<typename BackendResource>
+  Proxy<Bitmask> send_to_backend(const BackendResource& resource) const;
+  
+  template<typename BackendResource>
+  static Bitmask receive_from_backend(Proxy<Bitmask>& proxy);
 
   HOST auto to_string() const {
     std::string s;
