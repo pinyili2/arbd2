@@ -77,6 +77,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <type_traits>
 
 // Debug level configuration (from Debug.h)
 #ifndef MIN_DEBUG_LEVEL
@@ -102,10 +103,21 @@ enum class LogLevel {
 };
 
 class Logger {
+private:
+  // Helper function to convert std::string to const char* for printf compatibility
+  template<typename T>
+  static constexpr auto convert_for_printf(T&& arg) {
+    if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
+      return arg.c_str();
+    } else {
+      return std::forward<T>(arg);
+    }
+  }
+
 public:
   static LogLevel current_level;
 
-  // Printf-style variadic template logging
+  // Printf-style variadic template logging with std::string support
   template <typename... Args>
   static void log(LogLevel level, const SourceLocation &loc, const char *fmt,
                   Args &&...args) {
@@ -120,9 +132,9 @@ public:
     stream << "[" << std::put_time(std::localtime(&time_t), "%H:%M:%S") << "] "
            << "[" << level_to_string(level) << "] ";
 
-    // Use printf-style formatting for universal compatibility
+    // Convert std::string arguments to c_str() for printf compatibility
     char buffer[1024];
-    std::snprintf(buffer, sizeof(buffer), fmt, args...);
+    std::snprintf(buffer, sizeof(buffer), fmt, convert_for_printf(args)...);
 
     stream << buffer << " (" << loc.file_name << ":" << loc.line << ")"
            << std::endl;
@@ -160,7 +172,7 @@ public:
       }
 
       char buffer[1024];
-      std::snprintf(buffer, sizeof(buffer), fmt, args...);
+      std::snprintf(buffer, sizeof(buffer), fmt, convert_for_printf(args)...);
 
       stream << loc.file_name << ":" << loc.line << " " << buffer << std::endl;
     }
@@ -246,7 +258,7 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define LOGWARN(...) LOGHELPER("WARN", __VA_ARGS__)
 #define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
 #define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
-#elif defined(USE_SYCL)
+#elif defined(USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)
   // SYCL device code - use printf (similar to CUDA)
 #define DEVICE_LOCATION_STRINGIFY(line) #line
 #define DEVICE_LOCATION_TO_STRING(line) DEVICE_LOCATION_STRINGIFY(line)
@@ -261,7 +273,7 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
 #define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
 #else
-  // Host code macros - printf style
+  // Host code macros - use improved logger with std::string support
 #define LOGTRACE(...)                                                          \
   ARBD::Logger::log(ARBD::LogLevel::TRACE, ARBD::SourceLocation(), __VA_ARGS__)
 #define LOGDEBUG(...)                                                          \
