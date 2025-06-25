@@ -9,6 +9,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "src: Adding SYCL specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/SYCL/SYCLManager.cpp
+        Backend/Proxy_sycl.cpp
         #Simulation/Integrator/IntegratorSYCL.cpp
         #Simulation/Interactions/ExampleForceSYCL.cpp
         # Add any other SYCL-specific .cpp files here
@@ -23,6 +24,7 @@ if(USE_CUDA)
     message(STATUS "src: Adding CUDA specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/CUDA/CUDAManager.cpp         # Can be a .cpp file managing CUDA operations
+        Backend/Proxy.cu
         #Simulation/Integrator/IntegratorCUDA.cu # Note .cu extension
         #Simulation/Interactions/ExampleForceCUDA.cu # Note .cu extension
     )
