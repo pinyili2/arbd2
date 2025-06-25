@@ -30,7 +30,7 @@ void example_basic_usage() {
         LOGINFO("Available Metal devices:");
         for (const auto& device : METALManager::all_devices()) {
             LOGINFO("  Device {}: {} (Low power: {}, Unified memory: {})", 
-                device.id(), device.name(), device.is_low_power(), device.has_unified_memory());
+                device.get_id(), device.name(), device.is_low_power(), device.has_unified_memory());
         }
         
         // Select first device
@@ -105,9 +105,9 @@ void example_queue_operations() {
         
         auto& device = METALManager::get_current_device();
         
-        // Get multiple queues
-        auto& queue1 = device.get_queue(0);
-        auto& queue2 = device.get_queue(1);
+        // Get multiple queues  
+        auto& queue1 = const_cast<Queue&>(device.get_queue(0));
+        auto& queue2 = const_cast<Queue&>(device.get_queue(1));
         auto& queue3 = device.get_next_queue();
         
         LOGINFO("Created and accessed multiple Metal command queues");

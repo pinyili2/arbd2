@@ -15,8 +15,8 @@ namespace ProxyImpl {
 // =============================================================================
 
 #ifdef USE_METAL
-void* metal_call_sync_impl(void* addr, void* func_ptr, void* args, size_t args_size, 
-                          const Resource& location, size_t result_size) {
+void* metal_call_sync(void* addr, void* func_ptr, void* args, size_t args_size, 
+                     const Resource& location, size_t result_size) {
     if (location.is_local()) {
         auto &device = ARBD::METAL::METALManager::get_current_device();
 
@@ -34,27 +34,16 @@ void* metal_call_sync_impl(void* addr, void* func_ptr, void* args, size_t args_s
     }
 }
 
-std::future<void*> metal_call_async_impl(void* addr, void* func_ptr, void* args, 
-                                         size_t args_size, const Resource& location, 
-                                         size_t result_size) {
+std::future<void*> metal_call_async(void* addr, void* func_ptr, void* args, 
+                                    size_t args_size, const Resource& location, 
+                                    size_t result_size) {
     if (location.is_local()) {
         return std::async(std::launch::async, [=] {
-            return metal_call_sync_impl(addr, func_ptr, args, args_size, location, result_size);
+            return metal_call_sync(addr, func_ptr, args, args_size, location, result_size);
         });
     } else {
         ARBD::throw_not_implemented("Proxy::callAsync() non-local METAL calls");
     }
-}
-#else
-void* metal_call_sync_impl(void* addr, void* func_ptr, void* args, size_t args_size, 
-                          const Resource& location, size_t result_size) {
-    ARBD::throw_not_implemented("METAL support not enabled");
-}
-
-std::future<void*> metal_call_async_impl(void* addr, void* func_ptr, void* args, 
-                                         size_t args_size, const Resource& location, 
-                                         size_t result_size) {
-    ARBD::throw_not_implemented("METAL support not enabled");
 }
 #endif
 

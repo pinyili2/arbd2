@@ -13,8 +13,7 @@
 #include <compare>
 #include <span>
 #endif
-#include <memory>
-#include <sstream>
+
 #include <type_traits>
 
 namespace ARBD {

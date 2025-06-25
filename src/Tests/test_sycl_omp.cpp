@@ -1,6 +1,3 @@
-#ifdef PROJECT_USES_SYCL
-
-#include "Backend/SYCL/SYCLManager.h"
 #include <vector>
 #include <numeric>
 #include <iostream>
@@ -8,6 +5,10 @@
 #include <cassert>
 #include <cmath>
 #include <stdexcept>
+#ifdef USE_SYCL
+
+#include "Backend/SYCL/SYCLManager.h"
+
 
 using namespace ARBD::SYCL;
 

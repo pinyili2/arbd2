@@ -1,4 +1,4 @@
-#ifdef PROJECT_USES_SYCL
+#ifdef USE_SYCL
 
 #include "Backend/SYCL/SYCLManager.h"
 #include <vector>

@@ -1,13 +1,14 @@
-#ifdef PROJECT_USES_SYCL
+#include <vector>
+#include <numeric>
+#include <iostream>
+#ifdef USE_SYCL
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <catch2/catch_session.hpp>
 
 #include "Backend/SYCL/SYCLManager.h"
-#include <vector>
-#include <numeric>
-#include <iostream>
+
 
 using namespace ARBD::SYCL;
 

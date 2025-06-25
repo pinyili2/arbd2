@@ -8,10 +8,8 @@
 #include <sycl/sycl.hpp>
 #endif
 
-#ifdef USE_METAL
-#include "Backend/METAL/METALManager.h"
-#endif
 #include "Proxy.h"
+
 
 namespace ARBD {
 namespace ProxyImpl {
@@ -74,10 +72,9 @@ void *sycl_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
   ARBD::throw_not_implemented("SYCL support not enabled");
 }
 
-::std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
-                                      size_t args_size,
-                                      const Resource &location,
-                                      size_t result_size) {
+std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
+                                    size_t args_size, const Resource &location,
+                                    size_t result_size) {
   ARBD::throw_not_implemented("SYCL support not enabled");
 }
 #endif
@@ -86,51 +83,6 @@ void *sycl_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
 // METAL Implementation Functions
 // =============================================================================
 
-#ifdef USE_METAL
-void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
-                      const Resource &location, size_t result_size) {
-  if (location.is_local()) {
-    auto &device = ARBD::METAL::METALManager::get_current_device();
-
-    // Create result storage
-    void *result = new char[result_size];
-
-    // For METAL, execute on device (simplified for now)
-    // Note: Full METAL implementation would require compute shaders
-    // This is a placeholder implementation
-    std::memcpy(result, addr, std::min(result_size, sizeof(void *)));
-
-    return result;
-  } else {
-    ARBD::throw_not_implemented("Non-local METAL calls not supported");
-  }
-}
-
-std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
-                                     size_t args_size, const Resource &location,
-                                     size_t result_size) {
-  if (location.is_local()) {
-    return std::async(std::launch::async, [=] {
-      return metal_call_sync(addr, func_ptr, args, args_size, location,
-                             result_size);
-    });
-  } else {
-    ARBD::throw_not_implemented("Proxy::callAsync() non-local METAL calls");
-  }
-}
-#else
-void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
-                      const Resource &location, size_t result_size) {
-  ARBD::throw_not_implemented("METAL support not enabled");
-}
-
-::std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
-                                       size_t args_size,
-                                       const Resource &location,
-                                       size_t result_size) {
-  ARBD::throw_not_implemented("METAL support not enabled");
-}
-#endif
 
 // =============================================================================
 // General Send Implementation Functions
@@ -180,7 +132,7 @@ void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
           "`_send_ignoring_children(...)` on non-local SYCL");
     }
 #else
-    ARBD::throw_notemented("USE_SYCL is not enabled");
+    ARBD::throw_not_implemented("USE_SYCL is not enabled");
 #endif
     break;
 
@@ -200,7 +152,7 @@ void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
       // Note: This is conceptual - actual METAL copy would use Metal APIs
       std::memcpy(dest, &obj, sizeof(T));
     } else {
-      ARBD::throw_notemented(
+      ARBD::throw_not_implemented(
           "`_send_ignoring_children(...)` on non-local METAL");
     }
 #else
@@ -241,7 +193,7 @@ void *construct_remote(const Resource &location, void *args, size_t args_size) {
       ARBD::throw_not_implemented("construct_remote() non-local SYCL calls");
     }
 #else
-    ARBD::throw_notemented("SYCL support not enabled");
+    ARBD::throw_not_implemented("SYCL support not enabled");
 #endif
     break;
 
@@ -267,7 +219,7 @@ void *construct_remote(const Resource &location, void *args, size_t args_size) {
 
       return devptr;
     } else {
-      ARBD::throw_notemented("construct_remote() non-local METAL calls");
+      ARBD::throw_not_implemented("construct_remote() non-local METAL calls");
     }
 #else
     ARBD::throw_not_implemented("METAL support not enabled");

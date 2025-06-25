@@ -6,9 +6,8 @@
 #include <cstring>
 #include <future>
 #include <typeinfo>
-#if __cplusplus >= 202002L
 #include <span>
-#endif
+
 
 namespace ARBD {
 
@@ -40,28 +39,64 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
   Metadata_t(const Metadata_t<T> &other) : T::Metadata(other){};
 };
 
-// Forward declarations for implementation functions
+// Forward declarations and fallback implementations
 namespace ProxyImpl {
-// CUDA-specific implementations (defined in Proxy.cu)
+// CUDA-specific implementations (defined in Proxy.cu when USE_CUDA is enabled)
+#ifdef USE_CUDA
 void *cuda_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
                      const Resource &location, size_t result_size);
 std::future<void *> cuda_call_async(void *addr, void *func_ptr, void *args,
                                     size_t args_size, const Resource &location,
                                     size_t result_size);
+#else
+inline void *cuda_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                            const Resource &location, size_t result_size) {
+    ARBD::throw_not_implemented("CUDA support not enabled");
+}
+inline std::future<void *> cuda_call_async(void *addr, void *func_ptr, void *args,
+                                           size_t args_size, const Resource &location,
+                                           size_t result_size) {
+    ARBD::throw_not_implemented("CUDA support not enabled");
+}
+#endif
 
-// SYCL-specific implementations (defined in Proxy.cpp)
+// SYCL-specific implementations (defined in Proxy_sycl.cpp when USE_SYCL is enabled)
+#ifdef USE_SYCL
 void *sycl_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
                      const Resource &location, size_t result_size);
 std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
                                     size_t args_size, const Resource &location,
                                     size_t result_size);
+#else
+inline void *sycl_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                            const Resource &location, size_t result_size) {
+    ARBD::throw_not_implemented("SYCL support not enabled");
+}
+inline std::future<void *> sycl_call_async(void *addr, void *func_ptr, void *args,
+                                           size_t args_size, const Resource &location,
+                                           size_t result_size) {
+    ARBD::throw_not_implemented("SYCL support not enabled");
+}
+#endif
 
-// METAL-specific implementations (defined in Proxy.mm)
+// METAL-specific implementations (defined in Proxy.mm when USE_METAL is enabled)
+#if defined(USE_METAL) && defined(__OBJC__)
 void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
                       const Resource &location, size_t result_size);
 std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
                                      size_t args_size, const Resource &location,
                                      size_t result_size);
+#else
+inline void *metal_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
+                             const Resource &location, size_t result_size) {
+    ARBD::throw_not_implemented("METAL support not enabled");
+}
+inline std::future<void *> metal_call_async(void *addr, void *func_ptr, void *args,
+                                            size_t args_size, const Resource &location,
+                                            size_t result_size) {
+    ARBD::throw_not_implemented("METAL support not enabled");
+}
+#endif
 
 // General send implementations
 template <typename T>
