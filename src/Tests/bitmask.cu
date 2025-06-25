@@ -1,7 +1,8 @@
 #include "catch_boiler.h"
 #include "Types/Types.h"
 
-#include <catch2/catch_tostring.hpp>
+#include "../../extern/Catch2/extras/catch_amalgamated.hpp"
+
 namespace Catch {
     template <>
     struct StringMaker<Bitmask> {

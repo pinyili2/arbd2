@@ -1,10 +1,10 @@
 #include <vector>
 #include <numeric>
 #include <iostream>
-#include <limits>
+
 #include <cassert>
 #include <cmath>
-#include <stdexcept>
+
 #ifdef USE_SYCL
 
 #include "Backend/SYCL/SYCLManager.h"

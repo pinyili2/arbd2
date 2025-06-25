@@ -11,6 +11,11 @@
 #else
 #define HAS_CXXABI 0
 #endif
+#include "ARBDLogger.h"
+#include "Backend/Proxy.h"
+#include "Backend/Resource.h"
+#include "ARBDException.h"
+
 
 namespace ARBD {
 // C++20 Concepts for type name functionality
@@ -95,6 +100,49 @@ template <typename T> std::string add_qualifiers(std::string base_name) {
 
   return base_name;
 }
+
+
+// Character classification utilities (migrated from Useful.h)
+namespace char_utils {
+  constexpr bool is_real_char(char c) noexcept {
+    constexpr char real_chars[] = "0123456789-eE.";
+    for (char valid : real_chars) {
+      if (c == valid) return true;
+    }
+    return false;
+  }
+
+  constexpr bool is_int_char(char c) noexcept {
+    constexpr char int_chars[] = "0123456789-";
+    for (char valid : int_chars) {
+      if (c == valid) return true;
+    }
+    return false;
+  }
+}
+// Public character classification functions
+constexpr bool is_real_character(char c) noexcept {
+  return char_utils::is_real_char(c);
+}
+
+constexpr bool is_int_character(char c) noexcept {
+  return char_utils::is_int_char(c);
+}
+
+constexpr bool is_whitespace(char c) noexcept {
+  return c == ' ' || c == '\n' || c == '\t' || c == '\v' || 
+         c == '\b' || c == '\r' || c == '\f' || c == '\a';
+}
+
+// String utilities
+inline int first_space_position(const char* s, int max_len) noexcept {
+  for (int i = 0; i < max_len; ++i) {
+    if (s[i] == ' ') return i;
+  }
+  return -1;
+}
+
+// IndexList moved to Simulation folder - see Simulation/IndexList.h
 } // namespace detail
 
 // Primary type name function with C++20 concepts

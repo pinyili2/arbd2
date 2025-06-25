@@ -1,15 +1,18 @@
 #pragma once
-
 #include "Backend/CUDA/CUDAManager.h"
-#include "Types/Array.h"
-#include "Types/Bitmask.h"
-#include "Types/Matrix3.h"
-#include "Types/Vector3.h"
+#include "Backend/Proxy.h"
+#include "Backend/Resource.h"
+#include "ARBDException.h"
+#include "ARBDLogger.h"
+#include "Array.h"
+#include "Bitmask.h"
+#include "Matrix3.h"
+#include "Vector3.h"
 #include <cstring>
 #include <memory>   // For std::unique_ptr
 #include <stdarg.h> // For va_start, etc.
 
-#include "Types/TypeName.h"
+#include "TypeName.h"
 
 namespace ARBD {
 

@@ -3,9 +3,8 @@
 #include <iostream>
 #ifdef USE_SYCL
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <catch2/catch_session.hpp>
+// Use single header version which is self-contained
+#include "../../extern/Catch2/extras/catch_amalgamated.hpp"
 
 #include "Backend/SYCL/SYCLManager.h"
 
@@ -15,7 +14,7 @@ using namespace ARBD::SYCL;
 TEST_CASE("SYCL Manager Initialization", "[sycl][manager]") {
     SECTION("Basic initialization") {
         REQUIRE_NOTHROW(SYCLManager::init());
-        REQUIRE(SYCLManager::all_device_size() > 0);
+        REQUIRE(static_cast<int>(SYCLManager::all_device_size()) > 0);
         
         INFO("Found " << SYCLManager::all_device_size() << " SYCL devices");
         
