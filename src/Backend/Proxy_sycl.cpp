@@ -76,7 +76,7 @@ void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
     if (location.is_local()) {
       LOGINFO("   local SYCL...");
       if (dest == nullptr) {
-        LOGTRACE("   SYCL allocate memory for {}", typeid(T).name());
+        LOGTRACE("   SYCL allocate memory for {}", std::string_view(typeid(T).name()));
         auto &device = ARBD::SYCL::SYCLManager::get_current_device();
         auto &queue = device.get_next_queue();
         dest = sycl::malloc_device<T>(1, queue.get());

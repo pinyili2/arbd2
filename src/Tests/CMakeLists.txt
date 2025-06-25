@@ -35,7 +35,7 @@ if(USE_METAL AND APPLE)
     # Link against the main library to get access to Metal manager
     target_link_libraries(arbd_tests PRIVATE libarbd)
     message(STATUS "Added Metal framework support to arbd_tests")
-else()
+elseif(USE_METAL)
     message(WARNING "USE_METAL is ON but not on Apple platform - Metal tests will be excluded")
 endif()
 

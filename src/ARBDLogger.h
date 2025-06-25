@@ -76,6 +76,7 @@
 #include <iomanip>
 #include <iostream>
 #include <string>
+#include <string_view>
 
 // Debug level configuration (from Debug.h)
 #ifndef MIN_DEBUG_LEVEL

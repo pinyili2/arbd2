@@ -221,12 +221,10 @@ template <typename T, typename Enable = void> struct Proxy {
       ARBD::throw_value_error("Proxy::callSync(): Unknown resource type");
     }
 
-    if constexpr (sizeof(RetType) > 0) {
+    if constexpr (!std::is_void_v<RetType>) {
       RetType result = *static_cast<RetType *>(result_ptr);
       delete static_cast<RetType *>(result_ptr);
       return result;
-    } else {
-      return RetType{};
     }
   }
 
@@ -252,7 +250,7 @@ template <typename T, typename Enable = void> struct Proxy {
             const_cast<ArgPack *>(&pack), sizeof(pack), location,
             sizeof(RetType));
 
-        if constexpr (sizeof(RetType) > 0) {
+        if constexpr (!std::is_void_v<RetType>) {
           RetType result = *static_cast<RetType *>(result_ptr);
           delete static_cast<RetType *>(result_ptr);
           return result;
@@ -268,7 +266,7 @@ template <typename T, typename Enable = void> struct Proxy {
             const_cast<ArgPack *>(&pack), sizeof(pack), location,
             sizeof(RetType));
 
-        if constexpr (sizeof(RetType) > 0) {
+        if constexpr (!std::is_void_v<RetType>) {
           RetType result = *static_cast<RetType *>(result_ptr);
           delete static_cast<RetType *>(result_ptr);
           return result;
@@ -284,7 +282,7 @@ template <typename T, typename Enable = void> struct Proxy {
             const_cast<ArgPack *>(&pack), sizeof(pack), location,
             sizeof(RetType));
 
-        if constexpr (sizeof(RetType) > 0) {
+        if constexpr (!std::is_void_v<RetType>) {
           RetType result = *static_cast<RetType *>(result_ptr);
           delete static_cast<RetType *>(result_ptr);
           return result;
