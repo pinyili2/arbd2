@@ -106,7 +106,7 @@ Example for USE_SYCL_ACPP on macOS:    cmake -D CMAKE_CXX_COMPILER=/opt/homebrew
             set(ACPP_TARGET_FLAGS "")
             if(CMAKE_SYSTEM_NAME STREQUAL "Darwin") # macOS
                 message(STATUS "Setting AdaptiveCpp default target flags for macOS (CPU via OpenMP).")
-                set(ACPP_TARGET_FLAGS "--acpp-targets=omp,opencl")
+                set(ACPP_TARGET_FLAGS "--acpp-targets=omp")
                 # For M-series GPU using OpenCL: set(ACPP_TARGET_FLAGS "--acpp-targets=omp,opencl")
                 # Ensure OpenCL dev headers/libs are available if using OpenCL backend.
             elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
