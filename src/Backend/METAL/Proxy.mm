@@ -1,7 +1,7 @@
 #include <future>
 #include <cstring>
 
-#include "Proxy.h"
+#include "Backend/Proxy.h"
 
 #ifdef USE_METAL
 #include "Backend/METAL/METALManager.h"

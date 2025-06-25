@@ -1,6 +1,6 @@
 #ifdef USE_CUDA
 #include "Backend/CUDA/CUDAManager.h"
-#include "Proxy.h"
+#include "Backend/Proxy.h"
 #include <cuda.h>
 #include <cuda/std/utility>
 #include <cuda_runtime.h>
