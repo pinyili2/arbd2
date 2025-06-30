@@ -13,31 +13,38 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 include(Catch) # contains some cmake macros that will help with discovery of tests
 include(CTest)
 
-## TODO, add a macro to add these projects, build with CUDA
-add_executable("arbd_tests"
-test.cpp)
+# Only create the test executable if we have at least one backend
+if(USE_CUDA OR USE_METAL OR USE_SYCL)
+    add_executable("arbd_tests")
+    
+    # Conditionally add Metal test file
+    if(USE_METAL AND APPLE)
+        target_sources(arbd_tests PRIVATE
+            test_metal.mm
+        )
+        target_include_directories(arbd_tests PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/../
+        )
+        message(STATUS "Added Metal tests (test_metal.mm) to arbd_tests")
+        # Link against the main library to get access to Metal manager
+        target_link_libraries(arbd_tests PRIVATE libarbd)
+        message(STATUS "Added Metal framework support to arbd_tests")
+    elseif(USE_METAL)
+        message(WARNING "USE_METAL is ON but not on Apple platform - Metal tests will be excluded")
+    endif()
 
-# Conditionally add Metal test file
-if(USE_METAL AND APPLE)
-    target_sources(arbd_tests PRIVATE
-        test_metal.mm
-    )
-    target_include_directories(arbd_tests PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../
-    )
-    message(STATUS "Added Metal tests (test_metal.mm) to arbd_tests")
-    # Link against the main library to get access to Metal manager
-    target_link_libraries(arbd_tests PRIVATE libarbd)
-    message(STATUS "Added Metal framework support to arbd_tests")
-elseif(USE_METAL)
-    message(WARNING "USE_METAL is ON but not on Apple platform - Metal tests will be excluded")
-endif()
-
-# Conditionally add SYCL test file
-if(USE_SYCL)
-    target_sources("arbd_tests" PRIVATE test_sycl.cpp)
-    message(STATUS "Added SYCL tests to arbd_tests")
-endif()
+    # Conditionally add SYCL test file
+    if(USE_SYCL)
+        target_sources("arbd_tests" PRIVATE test_sycl.cpp)
+        message(STATUS "Added SYCL tests to arbd_tests")
+    endif()
+    if(USE_CUDA)
+        target_sources("arbd_tests" PRIVATE
+            matrix3.cu
+            vector3_precision.cu
+            bitmask.cu
+            array.cu)
+    endif()
 
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
 
@@ -47,11 +54,6 @@ target_link_libraries("arbd_tests" PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2Wi
 ## Add optional libraries
 if(USE_CUDA)
   target_link_libraries(arbd_tests PUBLIC curand)
-  target_sources("arbd_tests" PRIVATE
-    matrix3.cu
-    vector3_precision.cu
-    bitmask.cu
-    array.cu)
 endif()
 if(USE_NCCL)
   target_link_libraries(arbd_tests PUBLIC nccl)
@@ -92,7 +94,10 @@ if(USE_METAL)
   endif()
 endif()
 
-## catch_discover_tests("${PROJECT_NAME}_TESTS")
+    ## catch_discover_tests("${PROJECT_NAME}_TESTS")
 
-catch_discover_tests(arbd_tests)
-install(TARGETS arbd_tests)
+    catch_discover_tests(arbd_tests)
+    install(TARGETS arbd_tests)
+else()
+    message(STATUS "No backends enabled - skipping test executable")
+endif()
