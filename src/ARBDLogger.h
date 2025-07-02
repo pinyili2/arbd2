@@ -70,7 +70,7 @@
  * @note Host code uses iostreams with timestamps for compatibility
  */
 
-#include "ARBDException.h" // For SourceLocation
+#include "ARBDException.h" 
 #include <chrono>
 #include <cstdio>
 #include <iomanip>
@@ -138,7 +138,7 @@ public:
 
 private:
   // Helper to convert arguments for printf compatibility
-  template <typename T> static auto convert_arg(T &&arg) {
+  template <typename T> static auto convert_arg(T &&arg) -> auto {
     if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
       return arg.c_str();
     } else if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {

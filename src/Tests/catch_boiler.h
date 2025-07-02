@@ -31,6 +31,10 @@
 // Use Catch2 v3 headers with quotes
 #include "catch2/catch_test_macros.hpp"
 
+// Macro for run_trial function - defines run_trial as an alias to run_trial function
+#define DEF_RUN_TRIAL \
+    using Tests::run_trial;
+
 namespace Tests {
 
 // =============================================================================
@@ -77,7 +81,9 @@ public:
 #ifdef USE_CUDA
         case CUDA_BACKEND:
             ARBD::SignalManager::manage_segfault();
-            // CUDA initialization is typically automatic
+            // Initialize CUDA GPU Manager
+            ARBD::CUDA::GPUManager::init();
+            ARBD::CUDA::GPUManager::load_info();
             break;
 #endif
 #ifdef USE_SYCL
@@ -150,6 +156,8 @@ public:
         case CUDA_BACKEND: {
             R* ptr;
             ARBD::check_cuda_error(cudaMalloc((void**)&ptr, count * sizeof(R)), __FILE__, __LINE__);
+            // Initialize device memory to zero
+            ARBD::check_cuda_error(cudaMemset(ptr, 0, count * sizeof(R)), __FILE__, __LINE__);
             return ptr;
         }
 #endif
@@ -201,7 +209,7 @@ public:
         switch (current_backend_) {
 #ifdef USE_CUDA
         case CUDA_BACKEND:
-            cudaMemcpy(device_ptr, host_ptr, count * sizeof(R), cudaMemcpyHostToDevice);
+            ARBD::check_cuda_error(cudaMemcpy(device_ptr, host_ptr, count * sizeof(R), cudaMemcpyHostToDevice), __FILE__, __LINE__);
             break;
 #endif
 #ifdef USE_SYCL
@@ -224,7 +232,7 @@ public:
         switch (current_backend_) {
 #ifdef USE_CUDA
         case CUDA_BACKEND:
-            cudaMemcpy(host_ptr, device_ptr, count * sizeof(R), cudaMemcpyDeviceToHost);
+            ARBD::check_cuda_error(cudaMemcpy(host_ptr, device_ptr, count * sizeof(R), cudaMemcpyDeviceToHost), __FILE__, __LINE__);
             break;
 #endif
 #ifdef USE_SYCL
@@ -245,15 +253,16 @@ public:
     template<typename Op_t, typename R, typename ...T>
     void execute_kernel(R* result_device, T...args) {
         switch (current_backend_) {
-#if defined(USE_CUDA) && defined(__CUDACC__)
+#ifdef USE_CUDA
         case CUDA_BACKEND:
+#if defined(__CUDACC__)
             cuda_op_kernel<Op_t, R, T...><<<1,1>>>(result_device, args...);
+            ARBD::check_cuda_error(cudaGetLastError(), __FILE__, __LINE__);
             ARBD::check_cuda_error(cudaDeviceSynchronize(), __FILE__, __LINE__);
-            break;
-#elif defined(USE_CUDA)
-        case CUDA_BACKEND:
-            // CUDA backend requested but not compiling with nvcc
-            throw std::runtime_error("CUDA backend requires compilation with nvcc");
+#else
+            // Fallback: execute on host when not compiled with nvcc
+            *result_device = Op_t::op(args...);
+#endif
             break;
 #endif
 #ifdef USE_SYCL
@@ -432,8 +441,3 @@ namespace Tests::Binary {
         HOST DEVICE static R op(T a, U b) { return static_cast<R>(a/b); } 
     };
 }
-
-// Helper macro to define a run_trial function using the corrected headers
-#define DEF_RUN_TRIAL \
-    using namespace Tests; \
-    using namespace ARBD;
