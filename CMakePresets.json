@@ -2,6 +2,47 @@
   "version": 4,
   "configurePresets": [
     {
+      "name": "delta-cuda-debug",
+      "displayName": "Delta CUDA (Debug)",
+      "description": "Targets Delta with CUDA for GPU development (Debug build).",
+      "binaryDir": "${sourceDir}/build/delta-cuda-debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CUDA_COMPILER": "/sw/external/cudatoolkits/cuda-12.6.3/bin/nvcc",
+        "CMAKE_CXX_COMPILER": "/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-5.0.2-o2g3ojh/bin/mpicxx",
+        "CMAKE_C_COMPILER": "/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-5.0.2-o2g3ojh/bin/mpicc",
+        "USE_CUDA": "ON",
+        "USE_MPI": "ON",
+        "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "delta-cuda-release",
+      "displayName": "Delta CUDA (Release)",
+      "description": "Targets Delta with CUDA for GPU development (Release build).",
+      "binaryDir": "${sourceDir}/build/delta-cuda-release",
+      "cacheVariables": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "CMAKE_CUDA_COMPILER": "/sw/external/cudatoolkits/cuda-12.6.3/bin/nvcc",
+      "CMAKE_CXX_COMPILER": "/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-5.0.2-o2g3ojh/bin/mpicxx",
+      "CMAKE_C_COMPILER": "/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen3/gcc-11.4.0/openmpi-5.0.2-o2g3ojh/bin/mpicc",
+      "USE_CUDA": "ON",
+      "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
+    },
+    {
+      "name": "delta-sycl-release",
+      "displayName": "Delta SYCL (Release)",
+      "description": "Targets Delta with SYCL for GPU development (Release build).",
+      "binaryDir": "${sourceDir}/build/delta-sycl-release",
+      "cacheVariables": {
+      "CMAKE_BUILD_TYPE": "Release",
+      "CMAKE_CXX_COMPILER": "/sw/spack/deltas11-2023-03/apps/linux-rhel8-zen/gcc-8.5.0/intel-oneapi-compilers-2024.0.0-r5a4jwi/compiler/2024.0/bin/icpx",
+      "USE_SYCL_ICPX": "ON",
+      "CMAKE_CXX_EXTENSIONS": "OFF"
+      }
+    },
+    {
       "name": "macos-acpp-sycl-debug",
       "displayName": "macOS ACPP SYCL (Debug)",
       "description": "Targets macOS with acpp for SYCL development (Debug build).",
@@ -54,11 +95,11 @@
       }
     },
     {
-      "name": "linux-icpx-sycl-debug",
-      "displayName": "Linux Intel DPC++ SYCL (Debug)",
-      "description": "Targets Linux with Intel DPC++ (icpx) for SYCL development (Debug build).",
+      "name": "tbgl-icpx-sycl-debug",
+      "displayName": "tbgl Intel DPC++ SYCL (Debug)",
+      "description": "Targets tbgl with Intel DPC++ (icpx) for SYCL development (Debug build).",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/linux-icpx-sycl-debug",
+      "binaryDir": "${sourceDir}/build/tbgl-icpx-sycl-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_COMPILER": "/software/intel-oneapi-base-toolkit-2025.1.3.7/2025.1/bin/icpx",
@@ -67,11 +108,11 @@
       }
     },
     {
-      "name": "linux-icpx-sycl-release",
-      "displayName": "Linux Intel DPC++ SYCL (Release)",
-      "description": "Targets Linux with Intel DPC++ (icpx) for SYCL development (Release build).",
+      "name": "tbgl-icpx-sycl-release",
+      "displayName": "tbgl Intel DPC++ SYCL (Release)",
+      "description": "Targets tbgl with Intel DPC++ (icpx) for SYCL development (Release build).",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/linux-icpx-sycl-release",
+      "binaryDir": "${sourceDir}/build/tbgl-icpx-sycl-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_COMPILER": "/software/intel-oneapi-base-toolkit-2025.1.3.7/2025.1/bin/icpx",
@@ -80,11 +121,11 @@
       }
     },
     {
-      "name": "linux-cuda-debug",
-      "displayName": "Linux CUDA (Debug)",
-      "description": "Targets Linux with CUDA for GPU development (Debug build).",
+      "name": "tbgl-cuda-debug",
+      "displayName": "tbgl CUDA (Debug)",
+      "description": "Targets tbgl with CUDA for GPU development (Debug build).",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/linux-cuda-debug",
+      "binaryDir": "${sourceDir}/build/tbgl-cuda-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CUDA_COMPILER": "/software/cuda-12.4/bin/nvcc",
@@ -95,11 +136,11 @@
       }
     },
     {
-      "name": "linux-cuda-release",
-      "displayName": "Linux CUDA (Release)",
-      "description": "Targets Linux with CUDA for GPU development (Release build).",
+      "name": "tbgl-cuda-release",
+      "displayName": "tbgl CUDA (Release)",
+      "description": "Targets tbgl with CUDA for GPU development (Release build).",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/linux-cuda-release",
+      "binaryDir": "${sourceDir}/build/tbgl-cuda-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CUDA_COMPILER": "/software/cuda-12.4/bin/nvcc",
@@ -110,11 +151,11 @@
       }
     },
     {
-      "name": "linux-clang-debug",
-      "displayName": "Linux Clang 18.1 (Debug)",
-      "description": "Standard Linux build with Clang 18.1 (Debug build) - Full C++20 support.",
+      "name": "tbgl-clang-debug",
+      "displayName": "tbgl Clang 18.1 (Debug)",
+      "description": "Standard tbgl build with Clang 18.1 (Debug build) - Full C++20 support.",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/linux-clang-debug",
+      "binaryDir": "${sourceDir}/build/tbgl-clang-debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_COMPILER": "/data/server10/pinyili2/local/bin/clang++",
@@ -123,11 +164,11 @@
       }
     },
     {
-      "name": "linux-clang-release",
-      "displayName": "Linux Clang 18.1 (Release)",
-      "description": "Standard Linux build with Clang 18.1 (Release build) - Full C++20 support.",
+      "name": "tbgl-clang-release",
+      "displayName": "tbgl Clang 18.1 (Release)",
+      "description": "Standard tbgl build with Clang 18.1 (Release build) - Full C++20 support.",
       "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/linux-clang-release",
+      "binaryDir": "${sourceDir}/build/tbgl-clang-release",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_CXX_COMPILER": "/data/server10/pinyili2/local/bin/clang++",
@@ -158,34 +199,49 @@
       "displayName": "Build Release (Metal)"
     },
     {
-      "name": "linux-sycl-debug",
-      "configurePreset": "linux-icpx-sycl-debug",
-      "displayName": "Build Linux SYCL Debug"
+      "name": "tbgl-sycl-debug",
+      "configurePreset": "tbgl-icpx-sycl-debug",
+      "displayName": "Build tbgl SYCL Debug"
     },
     {
-      "name": "linux-sycl-release",
-      "configurePreset": "linux-icpx-sycl-release",
-      "displayName": "Build Linux SYCL Release"
+      "name": "tbgl-sycl-release",
+      "configurePreset": "tbgl-icpx-sycl-release",
+      "displayName": "Build tbgl SYCL Release"
     },
     {
-      "name": "linux-cuda-debug-build",
-      "configurePreset": "linux-cuda-debug",
-      "displayName": "Build Linux CUDA Debug"
+      "name": "tbgl-cuda-debug-build",
+      "configurePreset": "tbgl-cuda-debug",
+      "displayName": "Build tbgl CUDA Debug"
     },
     {
-      "name": "linux-cuda-release-build",
-      "configurePreset": "linux-cuda-release",
-      "displayName": "Build Linux CUDA Release"
+      "name": "tbgl-cuda-release-build",
+      "configurePreset": "tbgl-cuda-release",
+      "displayName": "Build tbgl CUDA Release"
     },
     {
-      "name": "linux-clang-debug-build",
-      "configurePreset": "linux-clang-debug",
-      "displayName": "Build Linux Clang Debug"
+      "name": "tbgl-clang-debug-build",
+      "configurePreset": "tbgl-clang-debug",
+      "displayName": "Build tbgl Clang Debug"
     },
     {
-      "name": "linux-clang-release-build",
-      "configurePreset": "linux-clang-release",
-      "displayName": "Build Linux Clang Release"
+      "name": "tbgl-clang-release-build",
+      "configurePreset": "tbgl-clang-release",
+      "displayName": "Build tbgl Clang Release"
+    },
+    {
+      "name": "delta-cuda-debug-build",
+      "configurePreset": "delta-cuda-debug",
+      "displayName": "Build Delta CUDA Debug"
+    },
+    {
+      "name": "delta-cuda-release-build",
+      "configurePreset": "delta-cuda-release",
+      "displayName": "Build Delta CUDA Release"
+    },
+    {
+      "name": "delta-sycl-release-build",
+      "configurePreset": "delta-sycl-release",
+      "displayName": "Build Delta SYCL Release"
     }
   ]
 }
