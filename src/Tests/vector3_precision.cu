@@ -4,20 +4,23 @@
 
 // #include "useful.h"
 #include "SignalManager.h"
-#include "../Types/Types.h"
+#include "Types/Types.h"
+#include "ARBDLogger.h"
+#include "Backend/CUDA/CUDAManager.h"
 #include <cuda.h>
 #include <nvfunctional>
+#include "catch_boiler.h"
+#include "catch2/catch_test_macros.hpp"
+#include "catch2/matchers/catch_matchers_floating_point.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
-
-#include "../type_name.h"
+#include "Types/TypeName.h"
+using namespace ARBD;
 
 namespace Tests::Vector3 {
     enum BinaryOp_t { ADD, CROSS, DOT, SUB, FINAL };
     BinaryOp_t& operator++(BinaryOp_t& op) { return op = static_cast<BinaryOp_t>( 1+static_cast<int>(op) ); }
 
-    std::string get_binary_op_name( BinaryOp_t op ) {
+    auto get_binary_op_name( BinaryOp_t op ) {
 	switch (op) {
 	case ADD:
 	    return "add";
@@ -27,38 +30,53 @@ namespace Tests::Vector3 {
 	    return "cross";
 	case DOT:
 	    return "dot";
-	}
-	return std::string(""); // (static_cast<int>(op)));
-    }
-
-    template<typename R, typename T, typename U>
-    __host__ __device__ nvstd::function<R(T,U)> get_binary_op_func( BinaryOp_t op) {
-	switch (op) {
-	case ADD:
-	    return [] (T a, U b) {return static_cast<R>(b+a);};
-	case SUB:
-	    return [] (T a, U b) {return static_cast<R>(b-a);};
-	case CROSS:
-	    return [] (T a, U b) {return static_cast<R>(b.cross(a));};
-	case DOT:
-	    return [] (T a, U b) {return static_cast<R>(b.dot(a));};
 	default:
-	    assert(false);
+	    return "";
 	}
-	return [] (T a, U b) {return static_cast<R>(b+a);};
     }
 
     template<typename R, typename T, typename U>
     __global__ void binary_op_test_kernel( BinaryOp_t op, R* result, T in1, U in2 ) {
-	nvstd::function<R(T,U)> fn = get_binary_op_func<R,T,U>(op);
-	if (blockIdx.x == 0) {
-	    *result = fn(in1,in2);
+	if (blockIdx.x == 0 && threadIdx.x == 0) {
+	    switch (op) {
+	    case ADD:
+		*result = static_cast<R>(in2 + in1);
+		break;
+	    case SUB:
+		*result = static_cast<R>(in2 - in1);
+		break;
+	    case CROSS:
+		*result = static_cast<R>(in2.cross(in1));
+		break;
+	    case DOT:
+		*result = static_cast<R>(in2.dot(in1));
+		break;
+	    default:
+		*result = static_cast<R>(in2 + in1);
+		break;
+	    }
+	}
+    }
+    
+    template<typename R, typename T, typename U>
+    R get_cpu_result(BinaryOp_t op, T in1, U in2) {
+	switch (op) {
+	case ADD:
+	    return static_cast<R>(in2 + in1);
+	case SUB:
+	    return static_cast<R>(in2 - in1);
+	case CROSS:
+	    return static_cast<R>(in2.cross(in1));
+	case DOT:
+	    return static_cast<R>(in2.dot(in1));
+	default:
+	    return static_cast<R>(in2 + in1);
 	}
     }
 
     template<typename T, typename U>
     void check_vectors_equal( T&& cpu, U&& gpu) {
-	CHECK( type_name<decltype(cpu)>() == type_name<decltype(gpu)>() ); // should be unneccesary
+	CHECK( ARBD::type_name<decltype(cpu)>() == ARBD::type_name<decltype(gpu)>() );
 	CHECK( cpu.x == gpu.x );
 	CHECK( cpu.y == gpu.y );
 	CHECK( cpu.z == gpu.z );
@@ -67,31 +85,31 @@ namespace Tests::Vector3 {
 
     template<typename A, typename B>
     void run_tests() {
-	using T = Vector3_t<A>;
-	using U = Vector3_t<B>;
+	using T = ARBD::Vector3_t<A>;
+	using U = ARBD::Vector3_t<B>;
 	using R = std::common_type_t<T,U>;
     
 	T v1(1,1.005,0);
 	U v2(0,2,0);
 	R *gpu_result_d, gpu_result, cpu_result;
-	cudaMalloc((void **)&gpu_result_d, sizeof(R));
+	ARBD::check_cuda_error(cudaMalloc((void **)&gpu_result_d, sizeof(R)), __FILE__, __LINE__);
 
 	for (BinaryOp_t op = ADD; op < FINAL; ++op) {
-	    INFO( get_binary_op_name( op ) );
+	    LOGINFO("Testing operation: %s", get_binary_op_name( op ));
 	    binary_op_test_kernel<R,T,U><<<1,1>>>(op, gpu_result_d, v1, v2);
-	    cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost);
-	    cudaDeviceSynchronize();
+	    ARBD::check_cuda_error(cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost), __FILE__, __LINE__);
+	    ARBD::check_cuda_error(cudaDeviceSynchronize(), __FILE__, __LINE__);
 	
 	    // Get cpu_result
-	    cpu_result = (get_binary_op_func<R,T,U>(op))(v1,v2);
+	    cpu_result = get_cpu_result<R,T,U>(op, v1, v2);
 
 	    // Check consistency
 	    check_vectors_equal(cpu_result, gpu_result);
 	}
-	cudaFree(gpu_result_d);
+	ARBD::check_cuda_error(cudaFree(gpu_result_d), __FILE__, __LINE__);
     }
 
-    TEST_CASE( "Check that Vector3_t binary operations are identical on GPU and CPU", "[Vector3]" ) {
+    TEST_CASE( "Check that Vector3_t binary operations are identical on GPU and CPU", "[Vector3]" ){
 	// INFO("Test case start");
     
 	run_tests<int,int>();

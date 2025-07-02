@@ -4,9 +4,11 @@
 #include "ARBDException.h"
 #include <array>
 #include <chrono>
+#include <iostream>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <sycl/sycl.hpp>
 #include <utility>
 #include <vector>

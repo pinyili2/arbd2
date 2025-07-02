@@ -6,6 +6,7 @@
 #include <memory>
 #include <type_traits>
 #include <unordered_map>
+#include <vector>
 
 #ifdef USE_CUDA
 #include "CUDA/CUDAManager.h"

@@ -8,18 +8,18 @@
 // Include backend-specific headers
 #ifdef USE_CUDA
 #include "SignalManager.h"
-#include "../Backend/CUDA/CUDAManager.h"
+#include "Backend/CUDA/CUDAManager.h"
 #include <cuda.h>
 #include <nvfunctional>
 #endif
 
 #ifdef USE_SYCL
-#include "../Backend/SYCL/SYCLManager.h"
+#include "Backend/SYCL/SYCLManager.h"
 #include <sycl/sycl.hpp>
 #endif
 
 #ifdef USE_METAL
-#include "../Backend/METAL/METALManager.h"
+#include "Backend/METAL/METALManager.h"
 #endif
 
 // Common includes
@@ -28,8 +28,8 @@
 #include "Types/TypeName.h"
 #include "ARBDLogger.h"
 
-// Use single header version which is self-contained
-#include "../../extern/Catch2/extras/catch_amalgamated.hpp"
+// Use Catch2 v3 headers with quotes
+#include "catch2/catch_test_macros.hpp"
 
 namespace Tests {
 
@@ -37,11 +37,11 @@ namespace Tests {
 // Backend-specific kernel implementations
 // =============================================================================
 
-#ifdef USE_CUDA
+#if defined(USE_CUDA) && defined(__CUDACC__)
 template<typename Op_t, typename R, typename ...T>
-__global__ void cuda_op_kernel(R* result, T...in) {
-    if (blockIdx.x == 0) {
-        *result = Op_t::op(in...);
+__global__ void cuda_op_kernel(R* result, T...args) {
+    if (blockIdx.x == 0 && threadIdx.x == 0) {
+        *result = Op_t::op(args...);
     }
 }
 #endif
@@ -149,7 +149,7 @@ public:
 #ifdef USE_CUDA
         case CUDA_BACKEND: {
             R* ptr;
-            cudaMalloc((void**)&ptr, count * sizeof(R));
+            ARBD::check_cuda_error(cudaMalloc((void**)&ptr, count * sizeof(R)), __FILE__, __LINE__);
             return ptr;
         }
 #endif
@@ -245,9 +245,15 @@ public:
     template<typename Op_t, typename R, typename ...T>
     void execute_kernel(R* result_device, T...args) {
         switch (current_backend_) {
-#ifdef USE_CUDA
+#if defined(USE_CUDA) && defined(__CUDACC__)
         case CUDA_BACKEND:
             cuda_op_kernel<Op_t, R, T...><<<1,1>>>(result_device, args...);
+            ARBD::check_cuda_error(cudaDeviceSynchronize(), __FILE__, __LINE__);
+            break;
+#elif defined(USE_CUDA)
+        case CUDA_BACKEND:
+            // CUDA backend requested but not compiling with nvcc
+            throw std::runtime_error("CUDA backend requires compilation with nvcc");
             break;
 #endif
 #ifdef USE_SYCL
@@ -426,3 +432,8 @@ namespace Tests::Binary {
         HOST DEVICE static R op(T a, U b) { return static_cast<R>(a/b); } 
     };
 }
+
+// Helper macro to define a run_trial function using the corrected headers
+#define DEF_RUN_TRIAL \
+    using namespace Tests; \
+    using namespace ARBD;

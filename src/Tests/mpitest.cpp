@@ -10,6 +10,26 @@
 #include <mpi.h>
 #endif
 
+using namespace ARBD;
+
+// Global MPI initialization for all tests
+struct MPITestSetup {
+    MPITestSetup() {
+#ifdef USE_MPI
+        ARBD::MPIBackend::init();
+#endif
+    }
+    
+    ~MPITestSetup() {
+#ifdef USE_MPI
+        ARBD::MPIBackend::finalize();
+#endif
+    }
+};
+
+// Create a global instance to initialize/finalize MPI once
+static MPITestSetup global_mpi_setup;
+
 namespace Tests::MPI {
 
 /**
@@ -48,7 +68,7 @@ public:
         int size = ARBD::MPIBackend::get_size();
 
         if (size != 8) {
-            ARBD::throw_value_error("MatrixCircularShift requires exactly 8 MPI processes, got {}", size);
+            ARBD::throw_value_error("MatrixCircularShift requires exactly 8 MPI processes, got %d", size);
         }
 
         // Calculate neighbor ranks with circular wraparound
@@ -61,7 +81,7 @@ public:
             recv_from = (rank + 1) % 8;
         }
 
-        LOGINFO("PE {}: Sending {} matrices to PE {}, receiving from PE {}", 
+        LOGINFO("PE %d: Sending %zu matrices to PE %d, receiving from PE %d", 
                rank, matrix_data.size(), send_to, recv_from);
 
         // Prepare receive buffer
@@ -74,7 +94,7 @@ public:
                      received_matrices.data(), received_matrices.size() * matrix_size, MPI_BYTE, 
                      recv_from, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        LOGINFO("PE {}: Successfully received {} matrices from PE {}", 
+        LOGINFO("PE %d: Successfully received %zu matrices from PE %d", 
                rank, received_matrices.size(), recv_from);
         
         return received_matrices;
@@ -174,7 +194,7 @@ TEST_CASE("MPI Matrix Circular Shift Basic Test", "[mpi][matrix][circular_shift]
         double expected_det = static_cast<double>(expected_sender);  // det([1,0,0;0,rank,0;0,0,1]) = rank
         REQUIRE(std::abs(det - expected_det) < 1e-10);
         
-        LOGINFO("PE {}: Received matrix from PE {} with determinant {}", 
+        LOGINFO("PE %d: Received matrix from PE %d with determinant %f", 
                rank, expected_sender, det);
     }
 
@@ -206,7 +226,7 @@ TEST_CASE("MPI Matrix Circular Shift Basic Test", "[mpi][matrix][circular_shift]
         // Check that middle element equals expected sender rank
         REQUIRE(std::abs(received_matrices[0].yy - static_cast<float>(expected_sender)) < 1e-6f);
         
-        LOGINFO("PE {}: Received matrix from PE {} with yy element = {}", 
+        LOGINFO("PE %d: Received matrix from PE %d with yy element = %f", 
                rank, expected_sender, received_matrices[0].yy);
     }
 #else
@@ -235,7 +255,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         // Matrix 3: Identity matrix
         my_matrices.emplace_back(1.0, 1.0, 1.0);  // Identity matrix
         
-        LOGINFO("PE {}: Sending {} matrices", rank, my_matrices.size());
+        LOGINFO("PE %d: Sending %zu matrices", rank, my_matrices.size());
         
         // Execute circular shift
         auto received_matrices = Tests::MPI::MatrixCircularShift::execute_matrix_shift(
@@ -259,7 +279,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         REQUIRE(std::abs(received_matrices[2].yy - 1.0) < 1e-10);
         REQUIRE(std::abs(received_matrices[2].zz - 1.0) < 1e-10);
         
-        LOGINFO("PE {}: Successfully verified all {} received matrices from PE {}", 
+        LOGINFO("PE %d: Successfully verified all %zu received matrices from PE %d", 
                rank, received_matrices.size(), expected_sender);
     }
 
@@ -276,20 +296,28 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         auto& received_matrix = received_matrices[0];
         int expected_sender = (rank + 7) % 8;
         
-        // Perform matrix operations
-        auto inverse_matrix = received_matrix.inverse();
-        auto product = received_matrix.transform(inverse_matrix);
-        
-        // Product should be approximately identity
-        REQUIRE(std::abs(product.xx - 1.0) < 1e-10);
-        REQUIRE(std::abs(product.yy - 1.0) < 1e-10);
-        REQUIRE(std::abs(product.zz - 1.0) < 1e-10);
-        REQUIRE(std::abs(product.xy) < 1e-10);
-        REQUIRE(std::abs(product.xz) < 1e-10);
-        REQUIRE(std::abs(product.yx) < 1e-10);
-        REQUIRE(std::abs(product.yz) < 1e-10);
-        REQUIRE(std::abs(product.zx) < 1e-10);
-        REQUIRE(std::abs(product.zy) < 1e-10);
+        // Only test matrix inverse if the received matrix is invertible (det != 0)
+        // Matrix from rank 0 has determinant 0 and is singular
+        if (expected_sender != 0) {
+            // Perform matrix operations
+            auto inverse_matrix = received_matrix.inverse();
+            auto product = received_matrix.transform(inverse_matrix);
+            
+            // Product should be approximately identity
+            REQUIRE(std::abs(product.xx - 1.0) < 1e-10);
+            REQUIRE(std::abs(product.yy - 1.0) < 1e-10);
+            REQUIRE(std::abs(product.zz - 1.0) < 1e-10);
+            REQUIRE(std::abs(product.xy) < 1e-10);
+            REQUIRE(std::abs(product.xz) < 1e-10);
+            REQUIRE(std::abs(product.yx) < 1e-10);
+            REQUIRE(std::abs(product.yz) < 1e-10);
+            REQUIRE(std::abs(product.zx) < 1e-10);
+            REQUIRE(std::abs(product.zy) < 1e-10);
+        } else {
+            // For rank 0 matrix, just verify it's singular
+            double det = received_matrix.det();
+            REQUIRE(std::abs(det) < 1e-10);  // Should be approximately 0
+        }
         
         // Test vector transformation
         ARBD::Vector3_t<double> test_vector(1.0, 1.0, 1.0);
@@ -300,7 +328,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         REQUIRE(std::abs(transformed.y - static_cast<double>(expected_sender)) < 1e-10);
         REQUIRE(std::abs(transformed.z - 1.0) < 1e-10);
         
-        LOGINFO("PE {}: Matrix operations verified for matrix from PE {}", 
+        LOGINFO("PE %d: Matrix operations verified for matrix from PE %d", 
                rank, expected_sender);
     }
 
@@ -329,7 +357,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         REQUIRE(Tests::MPI::MatrixCircularShift::verify_matrix_pattern(
             current_matrix, rank));
         
-        LOGINFO("PE {}: Complete ring circulation verified - returned to original matrix", rank);
+        LOGINFO("PE %d: Complete ring circulation verified - returned to original matrix", rank);
     }
 #else
     WARN("MPI support not enabled, skipping advanced matrix tests");
@@ -355,7 +383,7 @@ TEST_CASE("MPI Matrix Circular Shift Error Handling", "[mpi][matrix][circular_sh
             
             REQUIRE_THROWS_AS(Tests::MPI::MatrixCircularShift::execute_matrix_shift(
                 send_data, Tests::MPI::MatrixCircularShift::Direction::UP),
-                ARBD::ARBDException);
+                ARBD::Exception);
         }
     }
 

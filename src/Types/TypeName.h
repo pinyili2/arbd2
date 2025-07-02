@@ -153,9 +153,9 @@ std::string type_name() {
   if constexpr (std::is_fundamental_v<
                     std::remove_cv_t<std::remove_reference_t<T>>>) {
     using BaseType = std::remove_cv_t<std::remove_reference_t<T>>;
-    if constexpr (auto name = detail::basic_type_name<BaseType>();
-                  name != nullptr) {
-      return detail::add_qualifiers<T>(std::string(name));
+    constexpr const char* basic_name = detail::basic_type_name<BaseType>();
+    if constexpr (basic_name != nullptr) {
+      return detail::add_qualifiers<T>(std::string(basic_name));
     }
   }
 

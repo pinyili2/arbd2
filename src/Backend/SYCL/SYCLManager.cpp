@@ -21,7 +21,7 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
     
     query_device_properties();
     
-    LOGINFO("Device %u initialized: %s (%s)", id_, name_, vendor_);
+    LOGINFO("Device %u initialized: %s (%s)", id_, name_.c_str(), vendor_.c_str());
     LOGINFO("  Compute units: %u, Global memory: %.1fGB, Max work group: %zu", 
          max_compute_units_,
          static_cast<float>(global_mem_size_) / (1024.0f * 1024.0f * 1024.0f),
@@ -115,8 +115,8 @@ void SYCLManager::discover_devices() {
         
         for (const auto& platform : platforms) {
             LOGDEBUG("Platform: %s (%s)", 
-                platform.get_info<sycl::info::platform::name>(),
-                platform.get_info<sycl::info::platform::vendor>());
+                platform.get_info<sycl::info::platform::name>().c_str(),
+                platform.get_info<sycl::info::platform::vendor>().c_str());
             
             // Get all devices for this platform
             auto platform_devices = platform.get_devices();
@@ -126,7 +126,7 @@ void SYCLManager::discover_devices() {
                     // Test sycl::device copy construction explicitly
                     sycl::device temp_device_copy(device);
                     auto dev_type = temp_device_copy.get_info<sycl::info::device::device_type>();
-                    LOGDEBUG("Successfully test-copied sycl::device: %s", temp_device_copy.get_info<sycl::info::device::name>());
+                    LOGDEBUG("Successfully test-copied sycl::device: %s", temp_device_copy.get_info<sycl::info::device::name>().c_str());
 
                     // Store device info for later construction
                     potential_device_infos.push_back({std::move(temp_device_copy), device_id, dev_type});
@@ -212,10 +212,10 @@ void SYCLManager::init_devices() {
         
         // Devices are already initialized in constructor
         // Just log that they're ready
-        LOGDEBUG("Device %u ready: %s", devices_[i].id(), devices_[i].name());
+        LOGDEBUG("Device %u ready: %s", devices_[i].id(), devices_[i].name().c_str());
     }
     
-    LOGINFO("Initialized SYCL devices: %s", msg);
+    LOGINFO("Initialized SYCL devices: %s", msg.c_str());
     current_device_ = 0;
 }
 

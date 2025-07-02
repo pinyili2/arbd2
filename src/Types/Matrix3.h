@@ -17,6 +17,10 @@
 
 namespace ARBD {
 
+// Forward declaration for string_format function
+template<typename... Args>
+std::string string_format(const char* format, Args... args);
+
 template <typename T, bool is_diag = false, bool check_diag = false>
   requires Arithmetic<T>
 struct alignas(16 * sizeof(T)) Matrix3_t {

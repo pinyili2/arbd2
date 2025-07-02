@@ -8,6 +8,7 @@
 #include "ARBDLogger.h"
 #include "Backend/Proxy.h"
 #include "Backend/Resource.h"
+#include "TypeName.h"
 #include <cassert>
 
 #include <compare>

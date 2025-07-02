@@ -24,7 +24,7 @@ if(USE_CUDA)
     message(STATUS "src: Adding CUDA specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/CUDA/CUDAManager.cpp         # Can be a .cpp file managing CUDA operations
-        Backend/Proxy.cu
+        Backend/CUDA/Proxy.cu
         #Simulation/Integrator/IntegratorCUDA.cu # Note .cu extension
         #Simulation/Interactions/ExampleForceCUDA.cu # Note .cu extension
     )
@@ -86,6 +86,21 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
     endif()
+endif()
+
+# --- CUDA specific linking for the library ---
+if(USE_CUDA)
+    # Explicitly link the C++ standard library for CUDA targets
+    # This ensures that CUDA code can access std library symbols from the host compiler
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_link_libraries("lib${PROJECT_NAME}" PRIVATE stdc++ gcc_s gcc m pthread dl)
+        # Set additional linker flags for proper symbol resolution
+        target_link_options("lib${PROJECT_NAME}" PRIVATE -Wl,--no-as-needed)
+    else()
+        target_link_libraries("lib${PROJECT_NAME}" PRIVATE stdc++)
+    endif()
+    
+    message(STATUS "src: CUDA is enabled for lib${PROJECT_NAME}. Added explicit C++ standard library linking.")
 endif()
 
 # --- Metal specific linking and configuration for the library ---

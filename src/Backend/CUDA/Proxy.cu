@@ -4,9 +4,11 @@
 #include <cuda.h>
 #include <cuda/std/utility>
 #include <cuda_runtime.h>
+#include <new>
+#include <future>
 
 namespace ARBD {
-
+namespace ProxyImpl {
 // CUDA kernel declarations
 template <typename T, typename RetType, typename... Args>
 __global__ void proxy_sync_call_kernel(RetType *result, T *addr,
@@ -20,15 +22,12 @@ __global__ void proxy_sync_call_kernel(RetType *result, T *addr,
 template <typename T, typename... Args>
 __global__ void constructor_kernel(T *__restrict__ devptr, Args... args) {
   if (blockIdx.x == 0 && threadIdx.x == 0) {
-    new (devptr) T{args...};
+    // Use placement new for device construction
+    ::new (devptr) T(args...);
   }
 }
 
-namespace ProxyImpl {
 
-// =============================================================================
-// CUDA Implementation Functions
-// =============================================================================
 
 void *cuda_call_sync(void *addr, void *func_ptr, void *args, size_t args_size,
                      const Resource &location, size_t result_size) {
@@ -156,20 +155,8 @@ template void *cuda_send_ignoring_children<double>(const Resource &, double &,
 
 } // namespace ProxyImpl
 
-// Explicit template instantiations for commonly used kernel templates
-// This helps reduce compilation time and ensures the kernels are available
-
-// Constructor kernel instantiations
-template __global__ void constructor_kernel<int>(int *, int);
-template __global__ void constructor_kernel<float>(float *, float);
-template __global__ void constructor_kernel<double>(double *, double);
-
-// Proxy call kernel instantiations for common scenarios
-// Note: These would need to be expanded based on actual usage patterns
-template __global__ void proxy_sync_call_kernel<int, int>(int *, int *,
-                                                          int (int ::*)(), );
-template __global__ void
-proxy_sync_call_kernel<float, float>(float *, float *, float (float ::*)(), );
+// Note: Explicit template instantiations for __global__ functions are not allowed in CUDA
+// The kernels will be instantiated when called from host code
 
 } // namespace ARBD
 
@@ -177,7 +164,14 @@ proxy_sync_call_kernel<float, float>(float *, float *, float (float ::*)(), );
 #ifdef USE_CUDA
 namespace ARBD {
 namespace detail {
-  // CUDA device atomic operations
+  // Declare the template functions first
+  template<typename T>
+  __device__ inline void atomic_or(T* addr, T val);
+  
+  template<typename T>
+  __device__ inline void atomic_and(T* addr, T val);
+  
+  // CUDA device atomic operations - template specializations
   template<>
   __device__ inline void atomic_or<unsigned int>(unsigned int* addr, unsigned int val) {
     atomicOr(addr, val);

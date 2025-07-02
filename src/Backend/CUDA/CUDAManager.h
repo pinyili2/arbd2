@@ -9,11 +9,10 @@
 #include <cuda_runtime_api.h>
 #include <span>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace ARBD {
-namespace CUDA {
-
 inline void check_cuda_error(cudaError_t error, const char *file, int line) {
   if (error != cudaSuccess) {
     ARBD_Exception(ExceptionType::CUDARuntimeError, "CUDA error at %s:%d: %s",
@@ -22,6 +21,9 @@ inline void check_cuda_error(cudaError_t error, const char *file, int line) {
 }
 
 #define CUDA_CHECK(call) check_cuda_error(call, __FILE__, __LINE__)
+
+namespace CUDA {
+
 
 /**
  * @brief Modern RAII wrapper for CUDA device memory

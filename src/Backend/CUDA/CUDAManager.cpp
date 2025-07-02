@@ -256,7 +256,7 @@ void GPUManager::set_cache_config(cudaFuncCache config) {
   }
 }
 
-const cudaStream_t &GPUManager::get_stream(int gpu_id, size_t stream_id) {
+cudaStream_t GPUManager::get_stream(int gpu_id, size_t stream_id) {
   if (gpu_id >= static_cast<int>(gpus_.size())) {
     ARBD_Exception(ExceptionType::ValueError, "Invalid GPU index: {}", gpu_id);
   }
