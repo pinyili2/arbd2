@@ -43,19 +43,19 @@ public:
   BasePatch(const BasePatch &other)
       : num(other.num), capacity(other.capacity),
         patch_idx(++global_patch_idx) {
-    LOGTRACE("Copy constructing %s @%p", type_name<decltype(*this)>().c_str(),
+    LOGTRACE("Copy constructing {} @{}", type_name<decltype(*this)>().c_str(),
              static_cast<void *>(this));
   }
   // Move constructor
   BasePatch(BasePatch &&other)
       : num(std::move(other.num)), capacity(std::move(other.capacity)),
         patch_idx(std::move(other.patch_idx)) {
-    LOGTRACE("Move constructing %s @%p", type_name<decltype(*this)>().c_str(),
+    LOGTRACE("Move constructing {} @{}", type_name<decltype(*this)>().c_str(),
              static_cast<void *>(this));
   }
   // Move assignment operator
   BasePatch &operator=(BasePatch &&other) {
-    LOGTRACE("Move assigning %s @%p", type_name<decltype(*this)>().c_str(),
+    LOGTRACE("Move assigning {} @{}", type_name<decltype(*this)>().c_str(),
              static_cast<void *>(this));
     num = std::move(other.num);
     capacity = std::move(other.capacity);

@@ -298,7 +298,7 @@ public:
 	    sum += buf[i];
 	    sum2 += buf[i]*buf[i];
 	}
-	LOGINFO("RNG gaussian mean, std, count: %f, %f, %zu", sum/num_vals, sqrt((sum2/num_vals) - sum*sum/(num_vals*num_vals)), num_vals);
+	LOGINFO("RNG gaussian mean, std, count: {}, {}, {}", sum/num_vals, sqrt((sum2/num_vals) - sum*sum/(num_vals*num_vals)), num_vals);
 
 	if (rng_was_null) cudaFree( rng );
 	cudaFree( buf_d );
@@ -423,7 +423,7 @@ public:
 	    sum += buf[i];
 	    sum2 += buf[i]*buf[i];
 	}
-	LOGINFO("RNG gaussian mean, std, count: %f, %f, %zu", sum/num_vals, sqrt((sum2/num_vals) - sum*sum/(num_vals*num_vals)), num_vals);
+	LOGINFO("RNG gaussian mean, std, count: {}, {}, {}", sum/num_vals, sqrt((sum2/num_vals) - sum*sum/(num_vals*num_vals)), num_vals);
 
 	if (rng_was_null) cudaFree( rng );
 	cudaFree( buf_d );

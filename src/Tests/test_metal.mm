@@ -70,7 +70,7 @@ TEST_CASE("Metal Manager Device Properties", "[metal][manager][properties]") {
 
     for (const auto& device : devices) {
         SECTION("Device Properties for " + device.name()) {
-            LOGINFO("Device %u: %s", device.get_id(), device.name().c_str());
+            LOGINFO("Device {}: {}", device.get_id(), device.name().c_str());
             REQUIRE_NOTHROW(device.metal_device());
             REQUIRE(device.max_threads_per_group() > 0);
         }

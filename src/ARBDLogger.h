@@ -5,7 +5,7 @@
  * @brief Unified logging system combining ARBDLogger and Debug.h functionality
  *
  * This header provides a comprehensive logging solution that merges:
- * - Modern C++20 ARBDLogger with printf-style formatting and string_view
+ * - Modern C++20 ARBDLogger with fmt-style formatting and string_view
  * - Classic Debug.h numeric level system (0-10 scale)
  * - Device-specific logging for CUDA and SYCL
  * - Universal compatibility across compilers
@@ -17,9 +17,9 @@
  * #include "ARBDLogger.h"
  *
  * // Basic logging with different levels
- * LOGTRACE("This is a trace message: %d", 42);
- * LOGDEBUG("This is a debug message: %s", "hello world");
- * LOGINFO("This is an info message: %d + %d = %d", 3, 4, 7);
+ * LOGTRACE("This is a trace message: {}", 42);
+ * LOGDEBUG("This is a debug message: {}", "hello world");
+ * LOGINFO("This is an info message: {} + {} = {}", 3, 4, 7);
  * LOGWARN("This is a warning message");
  * LOGERROR("This is an error message");
  * LOGCRITICAL("This is a critical message");
@@ -41,9 +41,9 @@
  * DebugMessage(5, "Warning level (level 5 - goes to stderr)"); // stderr
  * DebugMessage(10, "CRASH BANG BOOM error (level 10 - stderr)");   // stderr
  *
- * // Format arguments (printf style)
- * DebugMsg(2, "Formatted debug: value = %d", 123);
- * DebugMsg(3, "Multiple args: %s and %s make %s", "foo", "bar", "foobar");
+ * // Format arguments (fmt style)
+ * DebugMsg(2, "Formatted debug: value = {}", 123);
+ * DebugMsg(3, "Multiple args: {} and {} make {}", "foo", "bar", "foobar");
  *
  * // Conditional compilation macro
  * Debug(std::cout << "This appears only when DEBUGMSG is defined" <<
@@ -54,13 +54,13 @@
  * @code
  * // CUDA kernel code
  * __global__ void my_kernel() {
- *     LOGINFO("Running on GPU thread %d", threadIdx.x);  // Uses printf
+ *     LOGINFO("Running on GPU thread {}", threadIdx.x);  // Uses printf
  * }
  *
  * // SYCL kernel code
  * queue.submit([&](handler& h) {
  *     h.parallel_for(range, [=](id<1> idx) {
- *         LOGDEBUG("SYCL work-item %d", idx[0]);  // Uses printf
+ *         LOGDEBUG("SYCL work-item {}", idx[0]);  // Uses printf
  *     });
  * });
  * @endcode
@@ -79,6 +79,8 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>   // For std::forward
+#define FMT_HEADER_ONLY
+#include "../extern/fmt/include/fmt/format.h"
 
 // Debug level configuration (from Debug.h)
 #ifndef MIN_DEBUG_LEVEL
@@ -122,29 +124,43 @@ public:
            << loc.file_name << ":" << loc.line << ")" << std::endl;
   }
 
-  // Handles printf-style format strings with arguments
+  // Handles fmt-style format strings with arguments
   template <typename... Args>
   static void log(LogLevel level, const SourceLocation &loc,
-                  const std::string_view fmt,
+                  const std::string_view fmt_str,
                   Args &&...args) requires(sizeof...(Args) > 0) {
     if (level < current_level)
       return;
 
-    char buffer[1024];
-    std::snprintf(buffer, sizeof(buffer), fmt.data(),
-                  convert_arg(std::forward<Args>(args))...);
-    log(level, loc, std::string_view(buffer));
+    std::string formatted_message;
+    try {
+      // Use fmt::format with string conversion to avoid compile-time format string validation
+      std::string fmt_str_copy(fmt_str);
+      formatted_message = fmt::format(fmt::runtime(fmt_str_copy), std::forward<Args>(args)...);
+    } catch (const fmt::format_error& e) {
+      // Fallback to show the format string and error
+      formatted_message = fmt::format("FORMAT_ERROR: {} ({})", fmt_str, e.what());
+    }
+    log(level, loc, std::string_view(formatted_message));
   }
 
 private:
-  // Helper to convert arguments for printf compatibility
-  template <typename T> static auto convert_arg(T &&arg) -> auto {
-    if constexpr (std::is_same_v<std::decay_t<T>, std::string>) {
-      return arg.c_str();
-    } else if constexpr (std::is_same_v<std::decay_t<T>, std::string_view>) {
-      return arg.data();
-    } else {
-      return std::forward<T>(arg);
+  static constexpr const char *level_to_string(LogLevel level) {
+    switch (level) {
+    case LogLevel::TRACE:
+      return "TRACE";
+    case LogLevel::DEBUG:
+      return "DEBUG";
+    case LogLevel::INFO:
+      return "INFO";
+    case LogLevel::WARN:
+      return "WARN";
+    case LogLevel::ERROR:
+      return "ERROR";
+    case LogLevel::CRITICAL:
+      return "CRITICAL";
+    default:
+      return "UNKNOWN";
     }
   }
 
@@ -167,7 +183,7 @@ public:
   }
 
   template <typename... Args>
-  static void debug_message(int level, std::string_view fmt,
+  static void debug_message(int level, std::string_view fmt_str,
                             const SourceLocation &loc,
                             Args &&...args) requires(sizeof...(Args) > 0) {
     if ((level >= MIN_DEBUG_LEVEL) && (level <= MAX_DEBUG_LEVEL)) {
@@ -177,10 +193,16 @@ public:
       } else if (level > 0) {
         stream << "[Debug " << level << "] ";
       }
-      char buffer[1024];
-      std::snprintf(buffer, sizeof(buffer), fmt.data(),
-                    convert_arg(std::forward<Args>(args))...);
-      stream << loc.file_name << ":" << loc.line << " " << buffer
+      std::string formatted_message;
+      try {
+        // Use fmt::format with string conversion to avoid compile-time format string validation
+        std::string fmt_str_copy(fmt_str);
+        formatted_message = fmt::format(fmt::runtime(fmt_str_copy), std::forward<Args>(args)...);
+      } catch (const fmt::format_error& e) {
+        // Fallback to show the format string and error
+        formatted_message = fmt::format("FORMAT_ERROR: {} ({})", fmt_str, e.what());
+      }
+      stream << loc.file_name << ":" << loc.line << " " << formatted_message
              << std::endl;
     }
   }
@@ -188,25 +210,6 @@ public:
   static void set_level(LogLevel level) { current_level = level; }
 
 private:
-  static constexpr const char *level_to_string(LogLevel level) {
-    switch (level) {
-    case LogLevel::TRACE:
-      return "TRACE";
-    case LogLevel::DEBUG:
-      return "DEBUG";
-    case LogLevel::INFO:
-      return "INFO";
-    case LogLevel::WARN:
-      return "WARN";
-    case LogLevel::ERROR:
-      return "ERROR";
-    case LogLevel::CRITICAL:
-      return "CRITICAL";
-    default:
-      return "UNKNOWN";
-    }
-  }
-
   /**
    * @brief Debug message function with numeric levels (from Debug.h)
    */
@@ -271,7 +274,7 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
 #define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
 #else
-  // Host code macros - use improved logger with std::string support
+  // Host code macros - use improved logger with fmt formatting
 #define LOGTRACE(...)                                                          \
   ARBD::Logger::log(ARBD::LogLevel::TRACE, ARBD::SourceLocation(), __VA_ARGS__)
 #define LOGDEBUG(...)                                                          \

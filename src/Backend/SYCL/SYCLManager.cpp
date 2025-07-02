@@ -21,8 +21,8 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
     
     query_device_properties();
     
-    LOGINFO("Device %u initialized: %s (%s)", id_, name_.c_str(), vendor_.c_str());
-    LOGINFO("  Compute units: %u, Global memory: %.1fGB, Max work group: %zu", 
+    LOGINFO("Device {} initialized: {} ({})", id_, name_.c_str(), vendor_.c_str());
+    LOGINFO("  Compute units: {}, Global memory: {:.1f}GB, Max work group: {}", 
          max_compute_units_,
          static_cast<float>(global_mem_size_) / (1024.0f * 1024.0f * 1024.0f),
          max_work_group_size_);
@@ -33,10 +33,10 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
             queues_[i] = Queue(device_); 
         }
     } catch (const ARBD::Exception& e) {
-        LOGERROR("ARBD::Exception during ARBD::Queue construction for device %u: %s", id_, e.what());
+        LOGERROR("ARBD::Exception during ARBD::Queue construction for device {}: {}", id_, e.what());
         throw; 
     } catch (const std::exception& e) {
-        LOGERROR("Unexpected std::exception during ARBD::Queue construction for device %u: %s", id_, e.what());
+        LOGERROR("Unexpected std::exception during ARBD::Queue construction for device {}: {}", id_, e.what());
         throw; 
     }
 }
@@ -95,7 +95,7 @@ void SYCLManager::init() {
         ARBD_Exception(ExceptionType::ValueError, "No SYCL devices found");
     }
     
-    LOGINFO("Found %zu SYCL device(s)", all_devices_.size());
+    LOGINFO("Found {} SYCL device(s)", all_devices_.size());
 }
 
 void SYCLManager::discover_devices() {
@@ -114,7 +114,7 @@ void SYCLManager::discover_devices() {
         unsigned int device_id = 0;
         
         for (const auto& platform : platforms) {
-            LOGDEBUG("Platform: %s (%s)", 
+            LOGDEBUG("Platform: {} ({})", 
                 platform.get_info<sycl::info::platform::name>().c_str(),
                 platform.get_info<sycl::info::platform::vendor>().c_str());
             
@@ -126,18 +126,18 @@ void SYCLManager::discover_devices() {
                     // Test sycl::device copy construction explicitly
                     sycl::device temp_device_copy(device);
                     auto dev_type = temp_device_copy.get_info<sycl::info::device::device_type>();
-                    LOGDEBUG("Successfully test-copied sycl::device: %s", temp_device_copy.get_info<sycl::info::device::name>().c_str());
+                    LOGDEBUG("Successfully test-copied sycl::device: {}", temp_device_copy.get_info<sycl::info::device::name>().c_str());
 
                     // Store device info for later construction
                     potential_device_infos.push_back({std::move(temp_device_copy), device_id, dev_type});
                     device_id++;
 
                 } catch (const sycl::exception& e) {
-                    LOGWARN("SYCL exception during device discovery for device id %u: %s", device_id, e.what());
+                    LOGWARN("SYCL exception during device discovery for device id {}: {}", device_id, e.what());
                 } catch (const ARBD::Exception& e) { 
-                    LOGWARN("ARBD::Exception during device discovery for device id %u: %s", device_id, e.what());
+                    LOGWARN("ARBD::Exception during device discovery for device id {}: {}", device_id, e.what());
                 } catch (const std::exception& e) { 
-                    LOGWARN("Std::exception during device discovery for device id %u: %s", device_id, e.what());
+                    LOGWARN("Std::exception during device discovery for device id {}: {}", device_id, e.what());
                 }
             }
         }
@@ -155,11 +155,11 @@ void SYCLManager::discover_devices() {
             
             // If no preferred devices found, fall back to any available devices
             if (selected_device_infos.empty()) {
-                            LOGWARN("No devices of preferred type %d found, using all available devices",
+                LOGWARN("No devices of preferred type {} found, using all available devices",
                 static_cast<int>(preferred_type_));
                 selected_device_infos = std::move(potential_device_infos);
             } else {
-                LOGINFO("Found %zu device(s) of preferred type %d", 
+                LOGINFO("Found {} device(s) of preferred type {}", 
                     selected_device_infos.size(), static_cast<int>(preferred_type_));
             }
         } else {
@@ -212,10 +212,10 @@ void SYCLManager::init_devices() {
         
         // Devices are already initialized in constructor
         // Just log that they're ready
-        LOGDEBUG("Device %u ready: %s", devices_[i].id(), devices_[i].name().c_str());
+        LOGDEBUG("Device {} ready: {}", devices_[i].id(), devices_[i].name());
     }
     
-    LOGINFO("Initialized SYCL devices: %s", msg.c_str());
+    LOGINFO("Initialized SYCL devices: {}", msg);
     current_device_ = 0;
 }
 

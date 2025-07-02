@@ -36,6 +36,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Define C++23 macros as empty to avoid compatibility issues
+add_compile_definitions(_GLIBCXX23_CONSTEXPR=)
+
 # Generate compile_commands.json for clangd and other tools
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -43,6 +46,12 @@ if(USE_CUDA)
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_EXTENSIONS OFF)
+    
+    # Set CUDA architectures for compatibility with modern GPUs
+    # Include common architectures: 7.0 (V100), 7.5 (T4), 8.0 (A100), 8.6 (A40), 8.9 (RTX 4090)
+    set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89")
+    
+    message(STATUS "CUDA architectures set to: ${CMAKE_CUDA_ARCHITECTURES}")
 endif()
 
 # Set a default build type if none was specified

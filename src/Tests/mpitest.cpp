@@ -81,7 +81,7 @@ public:
             recv_from = (rank + 1) % 8;
         }
 
-        LOGINFO("PE %d: Sending %zu matrices to PE %d, receiving from PE %d", 
+        LOGINFO("PE {}: Sending {} matrices to PE {}, receiving from PE {}", 
                rank, matrix_data.size(), send_to, recv_from);
 
         // Prepare receive buffer
@@ -94,7 +94,7 @@ public:
                      received_matrices.data(), received_matrices.size() * matrix_size, MPI_BYTE, 
                      recv_from, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        LOGINFO("PE %d: Successfully received %zu matrices from PE %d", 
+        LOGINFO("PE {}: Successfully received {} matrices from PE {}", 
                rank, received_matrices.size(), recv_from);
         
         return received_matrices;
@@ -194,7 +194,7 @@ TEST_CASE("MPI Matrix Circular Shift Basic Test", "[mpi][matrix][circular_shift]
         double expected_det = static_cast<double>(expected_sender);  // det([1,0,0;0,rank,0;0,0,1]) = rank
         REQUIRE(std::abs(det - expected_det) < 1e-10);
         
-        LOGINFO("PE %d: Received matrix from PE %d with determinant %f", 
+        LOGINFO("PE {}: Received matrix from PE {} with determinant {}", 
                rank, expected_sender, det);
     }
 
@@ -226,7 +226,7 @@ TEST_CASE("MPI Matrix Circular Shift Basic Test", "[mpi][matrix][circular_shift]
         // Check that middle element equals expected sender rank
         REQUIRE(std::abs(received_matrices[0].yy - static_cast<float>(expected_sender)) < 1e-6f);
         
-        LOGINFO("PE %d: Received matrix from PE %d with yy element = %f", 
+        LOGINFO("PE {}: Received matrix from PE {} with yy element = {}", 
                rank, expected_sender, received_matrices[0].yy);
     }
 #else
@@ -255,7 +255,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         // Matrix 3: Identity matrix
         my_matrices.emplace_back(1.0, 1.0, 1.0);  // Identity matrix
         
-        LOGINFO("PE %d: Sending %zu matrices", rank, my_matrices.size());
+        LOGINFO("PE {}: Sending {} matrices", rank, my_matrices.size());
         
         // Execute circular shift
         auto received_matrices = Tests::MPI::MatrixCircularShift::execute_matrix_shift(
@@ -279,7 +279,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         REQUIRE(std::abs(received_matrices[2].yy - 1.0) < 1e-10);
         REQUIRE(std::abs(received_matrices[2].zz - 1.0) < 1e-10);
         
-        LOGINFO("PE %d: Successfully verified all %zu received matrices from PE %d", 
+        LOGINFO("PE {}: Successfully verified all {} received matrices from PE {}", 
                rank, received_matrices.size(), expected_sender);
     }
 
@@ -328,7 +328,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         REQUIRE(std::abs(transformed.y - static_cast<double>(expected_sender)) < 1e-10);
         REQUIRE(std::abs(transformed.z - 1.0) < 1e-10);
         
-        LOGINFO("PE %d: Matrix operations verified for matrix from PE %d", 
+        LOGINFO("PE {}: Matrix operations verified for matrix from PE {}", 
                rank, expected_sender);
     }
 
@@ -357,7 +357,7 @@ TEST_CASE("MPI Matrix Circular Shift Advanced Operations", "[mpi][matrix][circul
         REQUIRE(Tests::MPI::MatrixCircularShift::verify_matrix_pattern(
             current_matrix, rank));
         
-        LOGINFO("PE %d: Complete ring circulation verified - returned to original matrix", rank);
+        LOGINFO("PE {}: Complete ring circulation verified - returned to original matrix", rank);
     }
 #else
     WARN("MPI support not enabled, skipping advanced matrix tests");

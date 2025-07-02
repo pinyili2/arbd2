@@ -95,7 +95,7 @@ namespace Tests::Vector3 {
 	ARBD::check_cuda_error(cudaMalloc((void **)&gpu_result_d, sizeof(R)), __FILE__, __LINE__);
 
 	for (BinaryOp_t op = ADD; op < FINAL; ++op) {
-	    LOGINFO("Testing operation: %s", get_binary_op_name( op ));
+	          LOGINFO("Testing operation: %s", get_binary_op_name( op ));
 	    binary_op_test_kernel<R,T,U><<<1,1>>>(op, gpu_result_d, v1, v2);
 	    ARBD::check_cuda_error(cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost), __FILE__, __LINE__);
 	    ARBD::check_cuda_error(cudaDeviceSynchronize(), __FILE__, __LINE__);
