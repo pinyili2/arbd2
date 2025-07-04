@@ -41,7 +41,17 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     add_executable(arbd_test_sycl test_sycl.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE ${COMMON_TEST_LIBS})
-    catch_discover_tests(arbd_test_sycl)
+    
+    # Instead of catch_discover_tests which causes bus errors on ACPP,
+    # we'll add a single test that runs the entire executable
+    add_test(NAME SYCL_Tests COMMAND arbd_test_sycl)
+    
+    # Set environment variables for SYCL test execution
+    set_tests_properties(SYCL_Tests PROPERTIES
+        ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+    
     install(TARGETS arbd_test_sycl)
     message(STATUS "Added SYCL test executable: arbd_test_sycl")
 
@@ -49,7 +59,14 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     add_executable(arbd_test_sycl_omp test_sycl_omp.cpp)
     target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_omp PRIVATE ${COMMON_TEST_LIBS})
-    catch_discover_tests(arbd_test_sycl_omp)
+    
+    # Add OMP test with environment variables
+    add_test(NAME SYCL_OMP_Tests COMMAND arbd_test_sycl_omp)
+    set_tests_properties(SYCL_OMP_Tests PROPERTIES
+        ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+    
     install(TARGETS arbd_test_sycl_omp)
     message(STATUS "Added SYCL OMP test executable: arbd_test_sycl_omp")
 endif()

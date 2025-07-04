@@ -19,6 +19,7 @@ sycl::info::device_type SYCLManager::preferred_type_{sycl::info::device_type::cp
 SYCLManager::Device::Device(const sycl::device& dev, unsigned int id) 
     : id_(id), device_(dev) {
     
+    // Query device properties first, before creating queues
     query_device_properties();
     
     LOGINFO("Device {} initialized: {} ({})", id_, name_.c_str(), vendor_.c_str());
@@ -27,10 +28,29 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
          static_cast<float>(global_mem_size_) / (1024.0f * 1024.0f * 1024.0f),
          max_work_group_size_);
     
-    // Create queues
+    // Create queues with more defensive error handling
     try {
         for (size_t i = 0; i < queues_.size(); ++i) { 
-            queues_[i] = Queue(device_); 
+            try {
+                // Test if device can create a basic queue first
+                sycl::queue test_queue(device_);
+                
+                // If successful, create our wrapped queue
+                queues_[i] = Queue(device_); 
+                LOGDEBUG("Successfully created queue {} for device {}", i, id_);
+            } catch (const sycl::exception& e) {
+                LOGERROR("SYCL exception creating queue {} for device {}: {}", i, id_, e.what());
+                // Try to create with different properties or fail gracefully
+                try {
+                    // Fallback: try without any special properties
+                    sycl::property_list empty_props;
+                    queues_[i] = Queue(device_, empty_props);
+                    LOGWARN("Created fallback queue {} for device {} without properties", i, id_);
+                } catch (const sycl::exception& e2) {
+                    LOGERROR("Failed to create fallback queue {} for device {}: {}", i, id_, e2.what());
+                    throw; // Re-throw if we can't create any queue
+                }
+            }
         }
     } catch (const ARBD::Exception& e) {
         LOGERROR("ARBD::Exception during ARBD::Queue construction for device {}: {}", id_, e.what());
@@ -43,25 +63,7 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
 
 void SYCLManager::Device::query_device_properties() {
     try {
-        name_ = device_.get_info<sycl::info::device::name>();
-        auto device_type = device_.get_info<sycl::info::device::device_type>();
-        is_cpu_ = (device_type == sycl::info::device_type::cpu);
-        is_gpu_ = (device_type == sycl::info::device_type::gpu);
-        is_accelerator_ = (device_type == sycl::info::device_type::accelerator);
-
-        // Commented out other get_info calls for testing
-        vendor_ = device_.get_info<sycl::info::device::vendor>();
-        version_ = device_.get_info<sycl::info::device::version>();
-        max_work_group_size_ = device_.get_info<sycl::info::device::max_work_group_size>();
-        max_compute_units_ = device_.get_info<sycl::info::device::max_compute_units>();
-        global_mem_size_ = device_.get_info<sycl::info::device::global_mem_size>();
-        local_mem_size_ = device_.get_info<sycl::info::device::local_mem_size>();
-        
-    } catch (const sycl::exception& e) {
-        std::cerr << "!!! query_device_properties caught sycl::exception: " << e.what() 
-                  << " for device (name might be uninit): " << name_ << std::endl;
-        check_sycl_error(e, __FILE__, __LINE__);
-        // Set defaults in case of error
+        // Set default values first
         name_ = "Unknown Device";
         vendor_ = "Unknown Vendor";
         version_ = "Unknown Version";
@@ -72,6 +74,66 @@ void SYCLManager::Device::query_device_properties() {
         is_cpu_ = false;
         is_gpu_ = false;
         is_accelerator_ = false;
+
+        // Try to get device type first (most critical)
+        try {
+            auto device_type = device_.get_info<sycl::info::device::device_type>();
+            is_cpu_ = (device_type == sycl::info::device_type::cpu);
+            is_gpu_ = (device_type == sycl::info::device_type::gpu);
+            is_accelerator_ = (device_type == sycl::info::device_type::accelerator);
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query device type for device {}: {}", id_, e.what());
+        }
+
+        // Try to get basic device info
+        try {
+            name_ = device_.get_info<sycl::info::device::name>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query device name for device {}: {}", id_, e.what());
+        }
+
+        try {
+            vendor_ = device_.get_info<sycl::info::device::vendor>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query device vendor for device {}: {}", id_, e.what());
+        }
+
+        try {
+            version_ = device_.get_info<sycl::info::device::version>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query device version for device {}: {}", id_, e.what());
+        }
+
+        // Try to get performance characteristics
+        try {
+            max_work_group_size_ = device_.get_info<sycl::info::device::max_work_group_size>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query max work group size for device {}: {}", id_, e.what());
+        }
+
+        try {
+            max_compute_units_ = device_.get_info<sycl::info::device::max_compute_units>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query max compute units for device {}: {}", id_, e.what());
+        }
+
+        try {
+            global_mem_size_ = device_.get_info<sycl::info::device::global_mem_size>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query global memory size for device {}: {}", id_, e.what());
+        }
+
+        try {
+            local_mem_size_ = device_.get_info<sycl::info::device::local_mem_size>();
+        } catch (const sycl::exception& e) {
+            LOGWARN("Failed to query local memory size for device {}: {}", id_, e.what());
+        }
+        
+    } catch (const sycl::exception& e) {
+        std::cerr << "!!! query_device_properties caught sycl::exception: " << e.what() 
+                  << " for device (name might be uninit): " << name_ << std::endl;
+        LOGERROR("Critical error querying device properties for device {}: {}", id_, e.what());
+        // Keep default values set above
     }
 }
 
@@ -276,7 +338,6 @@ int SYCLManager::current() {
 void SYCLManager::prefer_device_type(sycl::info::device_type type) {
     preferred_type_ = type;
     
-    // Re-sort devices based on new preference
     if (!all_devices_.empty()) {
         std::sort(all_devices_.begin(), all_devices_.end(), 
             [type](const Device& a, const Device& b) {
