@@ -1,5 +1,4 @@
 #pragma once
-#include "Backend/CUDA/CUDAManager.h"
 #include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include "ARBDException.h"

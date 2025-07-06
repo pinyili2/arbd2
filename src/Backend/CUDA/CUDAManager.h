@@ -11,6 +11,14 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+/**
+ * @brief Modern RAII wrapper for CUDA device memory
+ *
+ * @todo: finalize() method - SYCL and Metal have this, CUDA doesn't
+ * @todo: Consistent device terminology - Uses "GPU" vs "Device" in others
+ * @todo: get_current_device() method - Others have this convenience method
+ * @todo: current() method - Missing in favor of legacy methods
+ */
 
 namespace ARBD {
 inline void check_cuda_error(cudaError_t error, const char *file, int line) {
@@ -537,6 +545,7 @@ private:
   static std::vector<GPU> safe_gpus_;
   static std::vector<std::vector<bool>> peer_access_matrix_;
   static bool prefer_safe_;
+  
 };
 
 // ============================================================================

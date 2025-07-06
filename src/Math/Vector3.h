@@ -292,3 +292,23 @@ struct common_type<ARBD::Vector3_t<T>, ARBD::Vector3_t<U>> {
   using type = ARBD::Vector3_t<common_type_t<T, U>>;
 };
 } // namespace std
+
+//void example_vector_kernel() {
+  //Resource gpu_resource{Resource::CUDA, 0};
+  
+  // Create buffers for your Vector3_t type
+  //Vector3Buffer<float> positions(1000, gpu_resource);
+  //Vector3Buffer<float> velocities(1000, gpu_resource);
+  //Vector3Buffer<float> forces(1000, gpu_resource);
+  
+  // Shamrock-style kernel launch with ARBD2 types
+  //kernel_call(gpu_resource,
+  //    MultiRef{positions, velocities},  // inputs
+  //    MultiRef{forces},                 // outputs  
+  //    1000,                            // thread count
+  //    [](size_t i, const Vector3_t<float>* pos, const Vector3_t<float>* vel, 
+  //       Vector3_t<float>* force) {
+  //        // Your kernel logic using ARBD2 Vector3_t operations
+  //        force[i] = pos[i].cross(vel[i]) * 0.5f;
+  //    });
+//}

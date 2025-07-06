@@ -300,3 +300,21 @@ HOST DEVICE constexpr auto operator/(const Matrix3_t<T, is_diag, check_diag> &m,
   return m * (S(1) / s);
 }
 } // namespace ARBD
+
+//void example_matrix_kernel() {
+  //Resource gpu_resource{Resource::SYCL, 0};
+  
+  //Matrix3Buffer<double> transforms(100, gpu_resource);
+  //Vector3Buffer<double> points(100, gpu_resource);
+  //Vector3Buffer<double> results(100, gpu_resource);
+  
+  //kernel_call(gpu_resource,
+  //    MultiRef{transforms, points},
+  //    MultiRef{results},
+  //      100,
+  //    [](size_t i, const Matrix3_t<double>* transform, 
+  //       const Vector3_t<double>* point, Vector3_t<double>* result) {
+  //        // Use your Matrix3_t transform operation
+  //        result[i] = transform[i].transform(point[i]);
+  //    });
+//}

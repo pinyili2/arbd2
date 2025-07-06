@@ -481,7 +481,7 @@ private:
  */
 class SYCLManager {
 public:
-  static constexpr size_t NUM_QUEUES = 4; // Fewer queues than CUDA streams
+  static constexpr size_t NUM_QUEUES = 8; 
 
   /**
    * @brief Individual SYCL device management class
