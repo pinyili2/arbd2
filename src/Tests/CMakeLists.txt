@@ -46,7 +46,6 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     if(USE_SYCL_ACPP)
         target_link_libraries(arbd_test_sycl PRIVATE stdc++)
         # Also link Boost libraries for AdaptiveCpp
-        target_link_libraries(arbd_test_sycl PRIVATE Boost::context Boost::fiber Boost::atomic)
         target_link_directories(arbd_test_sycl PRIVATE "${BOOST_LIB_DIR}")
     endif()
     
@@ -71,7 +70,6 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # Fix C++ standard library linking for AdaptiveCpp
     if(USE_SYCL_ACPP)
         target_link_libraries(arbd_test_sycl_omp PRIVATE stdc++)
-        target_link_libraries(arbd_test_sycl_omp PRIVATE Boost::context Boost::fiber Boost::atomic)
         target_link_directories(arbd_test_sycl_omp PRIVATE "${BOOST_LIB_DIR}")
     endif()
     

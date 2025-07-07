@@ -76,13 +76,6 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # target_link_libraries("lib${PROJECT_NAME}" PRIVATE SYCL::sycl) # If such an imported target exists
     message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}. Ensure SYCL runtime is linked (usually automatic).")
 
-    # Link Boost libraries for AdaptiveCpp
-    if(USE_SYCL_ACPP)
-        # Link using imported targets to avoid transitive dependencies
-        target_link_libraries("lib${PROJECT_NAME}" PRIVATE Boost::context Boost::fiber Boost::atomic)
-        message(STATUS "src: Linked Boost imported targets to lib${PROJECT_NAME} for AdaptiveCpp backend")
-    endif()
-
     # Link OpenMP for AdaptiveCpp
     if(USE_SYCL_ACPP AND OpenMP_CXX_FOUND)
         target_link_libraries("lib${PROJECT_NAME}" PUBLIC OpenMP_Custom)

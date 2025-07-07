@@ -236,10 +236,18 @@ public:
   ~Queue() {
     try {
       if (queue_.has_value()) {
-        // queue_->wait(); // Still commented out from previous debugging
+        // Explicitly synchronize before destruction to avoid mutex issues
+        // during program termination. This ensures all pending operations
+        // complete before the queue's underlying resources are destroyed.
+        queue_->wait();
+        
+        // After synchronization, we can safely let the queue destruct
+        // by allowing std::optional to handle the cleanup automatically
       }
     } catch (...) {
-      // Don't throw from destructor
+      // Don't throw from destructor - ignore any errors during cleanup
+      // This is important during program termination when other resources
+      // may already be partially destroyed
     }
   }
 
@@ -253,7 +261,11 @@ public:
   Queue &operator=(Queue &&other) noexcept {
     if (this != &other) {
       if (queue_.has_value()) {
-        // try { queue_->wait(); } catch (...) {} // If re-enabled
+        try { 
+          queue_->wait(); 
+        } catch (...) {
+          // Ignore errors during cleanup to maintain noexcept guarantee
+        }
       }
       queue_ = std::move(other.queue_);
     }

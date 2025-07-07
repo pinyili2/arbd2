@@ -139,7 +139,15 @@ void SYCLManager::Device::query_device_properties() {
 
 void SYCLManager::Device::synchronize_all_queues() {
     for (auto& queue : queues_) {
-        queue.synchronize();
+        try {
+            queue.synchronize();
+        } catch (const sycl::exception& e) {
+            // Log SYCL errors but continue with other queues
+            std::cerr << "Warning: SYCL error during queue synchronization: " << e.what() << std::endl;
+        } catch (const std::exception& e) {
+            // Log other errors but continue with other queues
+            std::cerr << "Warning: Error during queue synchronization: " << e.what() << std::endl;
+        }
     }
 }
 
@@ -313,22 +321,42 @@ void SYCLManager::sync(int device_id) {
 
 void SYCLManager::sync() {
     for (auto& device : devices_) {
-        device.synchronize_all_queues();
+        try {
+            device.synchronize_all_queues();
+        } catch (const std::exception& e) {
+            // Log but continue with other devices
+            std::cerr << "Warning: Error synchronizing device " << device.id() << ": " << e.what() << std::endl;
+        }
     }
 }
 
 void SYCLManager::finalize() {
-    // Synchronize all devices first
-    sync();
-    
-    // Clear the device vectors which will trigger proper cleanup
-    // of Device objects and their associated queues
-    devices_.clear();
-    all_devices_.clear();
-    
-    // Reset state
-    current_device_ = 0;
-    preferred_type_ = sycl::info::device_type::gpu;
+    try {
+        // First, synchronize all devices to ensure all operations complete
+        if (!devices_.empty()) {
+            sync();
+        }
+        
+        // Clear current device reference first to prevent access during cleanup
+        current_device_ = 0;
+        
+        // Clear devices explicitly which will call Device destructors
+        // in a controlled manner
+        devices_.clear();
+        
+        // Now clear all_devices_ 
+        all_devices_.clear();
+        
+        // Reset to default state
+        preferred_type_ = sycl::info::device_type::cpu;
+        
+    } catch (const std::exception& e) {
+        // Log but don't throw during finalization to prevent cascading errors
+        std::cerr << "Warning: Error during SYCL finalization: " << e.what() << std::endl;
+    } catch (...) {
+        // Catch any other exceptions during cleanup
+        std::cerr << "Warning: Unknown error during SYCL finalization" << std::endl;
+    }
 }
 
 int SYCLManager::current() {
