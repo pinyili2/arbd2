@@ -42,6 +42,14 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE ${COMMON_TEST_LIBS})
     
+    # Fix C++ standard library linking for AdaptiveCpp
+    if(USE_SYCL_ACPP)
+        target_link_libraries(arbd_test_sycl PRIVATE stdc++)
+        # Also link Boost libraries for AdaptiveCpp
+        target_link_libraries(arbd_test_sycl PRIVATE Boost::context Boost::fiber Boost::atomic)
+        target_link_directories(arbd_test_sycl PRIVATE "${BOOST_LIB_DIR}")
+    endif()
+    
     # Instead of catch_discover_tests which causes bus errors on ACPP,
     # we'll add a single test that runs the entire executable
     add_test(NAME SYCL_Tests COMMAND arbd_test_sycl)
@@ -59,6 +67,13 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     add_executable(arbd_test_sycl_omp test_sycl_omp.cpp)
     target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_omp PRIVATE ${COMMON_TEST_LIBS})
+    
+    # Fix C++ standard library linking for AdaptiveCpp
+    if(USE_SYCL_ACPP)
+        target_link_libraries(arbd_test_sycl_omp PRIVATE stdc++)
+        target_link_libraries(arbd_test_sycl_omp PRIVATE Boost::context Boost::fiber Boost::atomic)
+        target_link_directories(arbd_test_sycl_omp PRIVATE "${BOOST_LIB_DIR}")
+    endif()
     
     # Add OMP test with environment variables
     add_test(NAME SYCL_OMP_Tests COMMAND arbd_test_sycl_omp)
