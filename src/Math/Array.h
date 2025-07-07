@@ -75,8 +75,21 @@ template <typename T> struct Array {
   // Copy assignment operator
   HOST DEVICE Array<T> &operator=(const Array<T> &other) {
     if (this != &other) {
-      num = other.num;
-      // Memory management handled by backend-specific implementations
+      // If sizes differ, we need to reallocate on host
+      if (num != other.num) {
+#ifdef __CUDA_ARCH__
+        // On device, we can't reallocate - this would require host memory management
+        // For now, assert that sizes match in device code
+        assert(num == other.num && "Array assignment with different sizes not supported on device");
+#else
+        // On host, reallocate to match the other array's size
+        host_deallocate();
+        num = other.num;
+        host_allocate();
+#endif
+      }
+      
+      // Now copy elements (sizes are guaranteed to match)
       for (size_t i = 0; i < num; ++i) {
         values[i] = other[i];
       }

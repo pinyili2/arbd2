@@ -13,14 +13,15 @@ namespace ARBD {
 namespace CUDA {
 
 // Static member initialization
-std::vector<GPUManager::GPU> GPUManager::all_gpus_;
-std::vector<GPUManager::GPU> GPUManager::gpus_;
-std::vector<GPUManager::GPU> GPUManager::safe_gpus_;
-std::vector<std::vector<bool>> GPUManager::peer_access_matrix_;
-bool GPUManager::prefer_safe_{false};
+std::vector<CUDAManager::Device> CUDAManager::all_devices_;
+std::vector<CUDAManager::Device> CUDAManager::devices_;
+std::vector<CUDAManager::Device> CUDAManager::safe_devices_;
+std::vector<std::vector<bool>> CUDAManager::peer_access_matrix_;
+bool CUDAManager::prefer_safe_{false};
+int CUDAManager::current_device_{0};
 
-// GPU class implementation
-GPUManager::GPU::GPU(unsigned int id) : id_(id) {
+// Device class implementation
+CUDAManager::Device::Device(unsigned int id) : id_(id) {
   CUDA_CHECK(cudaSetDevice(id_));
 
 #if CUDART_VERSION >= 12000
@@ -31,7 +32,7 @@ GPUManager::GPU::GPU(unsigned int id) : id_(id) {
 
   may_timeout_ = properties_.kernelExecTimeoutEnabled;
 
-  // Enhanced logging to match old GPUManager format
+  // Enhanced logging to match old naming format
   std::string timeout_str = may_timeout_ ? "(may timeout) " : "";
   LOGINFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM", id_, properties_.name,
           timeout_str, properties_.major, properties_.minor,
@@ -42,9 +43,9 @@ GPUManager::GPU::GPU(unsigned int id) : id_(id) {
   create_streams();
 }
 
-GPUManager::GPU::~GPU() { destroy_streams(); }
+CUDAManager::Device::~Device() { destroy_streams(); }
 
-void GPUManager::GPU::create_streams() {
+void CUDAManager::Device::create_streams() {
   int curr;
   CUDA_CHECK(cudaGetDevice(&curr));
   CUDA_CHECK(cudaSetDevice(id_));
@@ -63,9 +64,9 @@ void GPUManager::GPU::create_streams() {
   CUDA_CHECK(cudaSetDevice(curr));
 }
 
-void GPUManager::GPU::destroy_streams() {
+void CUDAManager::Device::destroy_streams() {
   int curr;
-  LOGTRACE("Destroying streams for GPU {}", id_);
+  LOGTRACE("Destroying streams for device {}", id_);
 
   if (cudaGetDevice(&curr) == cudaSuccess) { // Avoid errors during shutdown
     CUDA_CHECK(cudaSetDevice(id_));
@@ -74,7 +75,7 @@ void GPUManager::GPU::destroy_streams() {
   }
 }
 
-void GPUManager::GPU::synchronize_all_streams() {
+void CUDAManager::Device::synchronize_all_streams() {
   int curr;
   CUDA_CHECK(cudaGetDevice(&curr));
   CUDA_CHECK(cudaSetDevice(id_));
@@ -85,186 +86,220 @@ void GPUManager::GPU::synchronize_all_streams() {
   CUDA_CHECK(cudaSetDevice(curr));
 }
 
-// GPUManager static methods implementation
-void GPUManager::init() {
-  int num_gpus;
-  CUDA_CHECK(cudaGetDeviceCount(&num_gpus));
-  LOGINFO("Found {} GPU(s)", num_gpus);
+// CUDAManager static methods implementation
+void CUDAManager::init() {
+  int num_devices;
+  CUDA_CHECK(cudaGetDeviceCount(&num_devices));
+  LOGINFO("Found {} CUDA device(s)", num_devices);
 
-  all_gpus_.clear();
-  safe_gpus_.clear();
+  all_devices_.clear();
+  safe_devices_.clear();
 
-  for (int dev = 0; dev < num_gpus; dev++) {
-    all_gpus_.emplace_back(dev);
-    if (!all_gpus_.back().may_timeout()) {
-      safe_gpus_.emplace_back(dev);
+  for (int dev = 0; dev < num_devices; dev++) {
+    all_devices_.emplace_back(dev);
+    if (!all_devices_.back().may_timeout()) {
+      safe_devices_.emplace_back(dev);
     }
   }
 
-  if (all_gpus_.empty()) {
-    ARBD_Exception(ExceptionType::ValueError, "No GPUs found");
+  if (all_devices_.empty()) {
+    ARBD_Exception(ExceptionType::ValueError, "No CUDA devices found");
   }
 
   // Initialize peer access matrix
   query_peer_access();
 }
 
-void GPUManager::load_info() {
+void CUDAManager::load_info() {
   init();
-  gpus_.clear();
+  devices_.clear();
   if (prefer_safe_) {
-    for (const auto &gpu : safe_gpus_) {
-      gpus_.emplace_back(gpu.id());
+    for (const auto &device : safe_devices_) {
+      devices_.emplace_back(device.id());
     }
   } else {
-    for (const auto &gpu : all_gpus_) {
-      gpus_.emplace_back(gpu.id());
+    for (const auto &device : all_devices_) {
+      devices_.emplace_back(device.id());
     }
   }
-  if (!gpus_.empty()) {
+  if (!devices_.empty()) {
     init_devices();
   } else {
-    LOGWARN("No GPUs selected for initialization");
+    LOGWARN("No devices selected for initialization");
   }
 }
 
-void GPUManager::init_devices() {
-  LOGINFO("Initializing GPU devices...");
+void CUDAManager::init_devices() {
+  LOGINFO("Initializing CUDA devices...");
   std::string msg;
 
   // Build message string like the old implementation
-  for (size_t i = 0; i < gpus_.size(); i++) {
-    if (i != gpus_.size() - 1 && gpus_.size() > 1) {
-      msg += std::to_string(gpus_[i].id()) + ", ";
-    } else if (gpus_.size() > 1) {
-      msg += "and " + std::to_string(gpus_[i].id());
+  for (size_t i = 0; i < devices_.size(); i++) {
+    if (i != devices_.size() - 1 && devices_.size() > 1) {
+      msg += std::to_string(devices_[i].id()) + ", ";
+    } else if (devices_.size() > 1) {
+      msg += "and " + std::to_string(devices_[i].id());
     } else {
-      msg += std::to_string(gpus_[i].id());
+      msg += std::to_string(devices_[i].id());
     }
 
     use(static_cast<int>(i));
     CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
   }
 
-  LOGINFO("Initializing GPUs: {}", msg);
+  LOGINFO("Initializing devices: {}", msg);
   use(0);
   CUDA_CHECK(cudaDeviceSynchronize());
 }
 
-void GPUManager::use(int gpu_id) {
-  if (gpus_.empty()) {
-    ARBD_Exception(ExceptionType::ValueError, "No GPUs selected");
+void CUDAManager::use(int device_id) {
+  if (devices_.empty()) {
+    ARBD_Exception(ExceptionType::ValueError, "No devices selected");
   }
-  gpu_id = gpu_id % static_cast<int>(gpus_.size());
-  CUDA_CHECK(cudaSetDevice(gpus_[gpu_id].id()));
+  device_id = device_id % static_cast<int>(devices_.size());
+  current_device_ = device_id;
+  CUDA_CHECK(cudaSetDevice(devices_[device_id].id()));
 }
 
-void GPUManager::sync(int gpu_id) {
-  if (gpu_id >= static_cast<int>(gpus_.size())) {
-    ARBD_Exception(ExceptionType::ValueError, "Invalid GPU index: {}", gpu_id);
+void CUDAManager::sync(int device_id) {
+  if (device_id >= static_cast<int>(devices_.size())) {
+    ARBD_Exception(ExceptionType::ValueError, "Invalid device index: {}", device_id);
   }
 
   int curr;
   CUDA_CHECK(cudaGetDevice(&curr));
-  CUDA_CHECK(cudaSetDevice(gpus_[gpu_id].id()));
+  CUDA_CHECK(cudaSetDevice(devices_[device_id].id()));
   CUDA_CHECK(cudaDeviceSynchronize());
   CUDA_CHECK(cudaSetDevice(curr));
 }
 
-int GPUManager::current() {
-  int device;
-  CUDA_CHECK(cudaGetDevice(&device));
-  return device;
+void CUDAManager::sync() {
+  for (size_t i = 0; i < devices_.size(); ++i) {
+    sync(static_cast<int>(i));
+  }
 }
 
-void GPUManager::prefer_safe_gpus(bool safe) {
+int CUDAManager::current() {
+  return current_device_;
+}
+
+CUDAManager::Device& CUDAManager::get_current_device() {
+  if (devices_.empty()) {
+    ARBD_Exception(ExceptionType::ValueError, "No devices available");
+  }
+  if (current_device_ >= static_cast<int>(devices_.size())) {
+    ARBD_Exception(ExceptionType::ValueError, "Current device index {} out of range", current_device_);
+  }
+  return devices_[current_device_];
+}
+
+void CUDAManager::prefer_safe_devices(bool safe) {
   prefer_safe_ = safe;
 
-  if (safe && safe_gpus_.empty()) {
-    LOGWARN("No safe GPUs available (no GPUs without timeout enabled)");
+  if (safe && safe_devices_.empty()) {
+    LOGWARN("No safe devices available (no devices without timeout enabled)");
     return;
   }
 
-  // Update current GPU selection
-  gpus_.clear();
+  // Update current device selection
+  devices_.clear();
   if (prefer_safe_) {
-    for (const auto &gpu : safe_gpus_) {
-      gpus_.emplace_back(gpu.id());
+    for (const auto &device : safe_devices_) {
+      devices_.emplace_back(device.id());
     }
   } else {
-    for (const auto &gpu : all_gpus_) {
-      gpus_.emplace_back(gpu.id());
+    for (const auto &device : all_devices_) {
+      devices_.emplace_back(device.id());
     }
   }
 
-  if (!gpus_.empty()) {
+  if (!devices_.empty()) {
     init_devices();
   }
 }
 
-int GPUManager::get_safest_gpu() {
-  if (!safe_gpus_.empty()) {
-    return safe_gpus_[0].id();
+int CUDAManager::get_safest_device() {
+  if (!safe_devices_.empty()) {
+    return safe_devices_[0].id();
   }
 
-  if (!all_gpus_.empty()) {
-    LOGWARN("No safe GPUs available, returning first available GPU");
-    return all_gpus_[0].id();
+  if (!all_devices_.empty()) {
+    LOGWARN("No safe devices available, returning first available device");
+    return all_devices_[0].id();
   }
 
-  ARBD_Exception(ExceptionType::ValueError, "No GPUs available");
+  ARBD_Exception(ExceptionType::ValueError, "No devices available");
 }
 
-void GPUManager::enable_peer_access() {
-  if (gpus_.size() < 2) {
-    LOGINFO("Peer access not needed with fewer than 2 GPUs");
+void CUDAManager::finalize() {
+  LOGINFO("Finalizing CUDA manager...");
+  
+  // Synchronize all devices
+  sync();
+  
+  // Clear device vectors
+  devices_.clear();
+  safe_devices_.clear();
+  all_devices_.clear();
+  peer_access_matrix_.clear();
+  
+  // Reset state
+  current_device_ = 0;
+  prefer_safe_ = false;
+  
+  LOGINFO("CUDA manager finalized");
+}
+
+void CUDAManager::enable_peer_access() {
+  if (devices_.size() < 2) {
+    LOGINFO("Peer access not needed with fewer than 2 devices");
     return;
   }
 
-  LOGINFO("Enabling peer access between {} GPUs", gpus_.size());
+  LOGINFO("Enabling peer access between {} devices", devices_.size());
 
-  for (size_t i = 0; i < gpus_.size(); ++i) {
-    CUDA_CHECK(cudaSetDevice(gpus_[i].id()));
+  for (size_t i = 0; i < devices_.size(); ++i) {
+    CUDA_CHECK(cudaSetDevice(devices_[i].id()));
 
-    for (size_t j = 0; j < gpus_.size(); ++j) {
-      if (i != j && can_access_peer(gpus_[i].id(), gpus_[j].id())) {
-        cudaError_t result = cudaDeviceEnablePeerAccess(gpus_[j].id(), 0);
+    for (size_t j = 0; j < devices_.size(); ++j) {
+      if (i != j && can_access_peer(devices_[i].id(), devices_[j].id())) {
+        cudaError_t result = cudaDeviceEnablePeerAccess(devices_[j].id(), 0);
         if (result == cudaSuccess) {
-          LOGDEBUG("Enabled peer access: GPU {} -> GPU {}", gpus_[i].id(),
-                   gpus_[j].id());
+          LOGDEBUG("Enabled peer access: device {} -> device {}", devices_[i].id(),
+                   devices_[j].id());
         } else if (result != cudaErrorPeerAccessAlreadyEnabled) {
-          LOGWARN("Failed to enable peer access: GPU {} -> GPU {}: {}",
-                  gpus_[i].id(), gpus_[j].id(), cudaGetErrorString(result));
+          LOGWARN("Failed to enable peer access: device {} -> device {}: {}",
+                  devices_[i].id(), devices_[j].id(), cudaGetErrorString(result));
         }
       }
     }
   }
 }
 
-bool GPUManager::can_access_peer(int gpu1, int gpu2) {
-  if (gpu1 >= static_cast<int>(peer_access_matrix_.size()) ||
-      gpu2 >= static_cast<int>(peer_access_matrix_[gpu1].size())) {
+bool CUDAManager::can_access_peer(int device1, int device2) {
+  if (device1 >= static_cast<int>(peer_access_matrix_.size()) ||
+      device2 >= static_cast<int>(peer_access_matrix_[device1].size())) {
     return false;
   }
-  return peer_access_matrix_[gpu1][gpu2];
+  return peer_access_matrix_[device1][device2];
 }
 
-void GPUManager::set_cache_config(cudaFuncCache config) {
-  for (size_t i = 0; i < gpus_.size(); ++i) {
+void CUDAManager::set_cache_config(cudaFuncCache config) {
+  for (size_t i = 0; i < devices_.size(); ++i) {
     use(static_cast<int>(i));
     CUDA_CHECK(cudaDeviceSetCacheConfig(config));
   }
 }
 
-cudaStream_t GPUManager::get_stream(int gpu_id, size_t stream_id) {
-  if (gpu_id >= static_cast<int>(gpus_.size())) {
-    ARBD_Exception(ExceptionType::ValueError, "Invalid GPU index: {}", gpu_id);
+cudaStream_t CUDAManager::get_stream(int device_id, size_t stream_id) {
+  if (device_id >= static_cast<int>(devices_.size())) {
+    ARBD_Exception(ExceptionType::ValueError, "Invalid device index: {}", device_id);
   }
-  return gpus_[gpu_id].get_stream(stream_id);
+  return devices_[device_id].get_stream(stream_id);
 }
 
-void GPUManager::query_peer_access() {
-  size_t num_devices = all_gpus_.size();
+void CUDAManager::query_peer_access() {
+  size_t num_devices = all_devices_.size();
   peer_access_matrix_.resize(num_devices,
                              std::vector<bool>(num_devices, false));
 
@@ -272,13 +307,13 @@ void GPUManager::query_peer_access() {
     for (size_t j = 0; j < num_devices; ++j) {
       if (i != j) {
         int can_access;
-        CUDA_CHECK(cudaDeviceCanAccessPeer(&can_access, all_gpus_[i].id(),
-                                           all_gpus_[j].id()));
+        CUDA_CHECK(cudaDeviceCanAccessPeer(&can_access, all_devices_[i].id(),
+                                           all_devices_[j].id()));
         peer_access_matrix_[i][j] = (can_access == 1);
 
         if (can_access) {
-          LOGDEBUG("Peer access available: GPU {} -> GPU {}", all_gpus_[i].id(),
-                   all_gpus_[j].id());
+          LOGDEBUG("Peer access available: device {} -> device {}", all_devices_[i].id(),
+                   all_devices_[j].id());
         }
       }
     }

@@ -3,8 +3,6 @@
 #include <cstdio>
 
 // #include "useful.h"
-#include "SignalManager.h"
-#include "Types/Types.h"
 #include "ARBDLogger.h"
 #include "Backend/CUDA/CUDAManager.h"
 #include <cuda.h>
@@ -13,7 +11,7 @@
 #include "catch2/catch_test_macros.hpp"
 #include "catch2/matchers/catch_matchers_floating_point.hpp"
 
-#include "Types/TypeName.h"
+#include "Math/TypeName.h"
 using namespace ARBD;
 
 namespace Tests::Vector3 {

@@ -25,8 +25,10 @@
 // Common includes
 #include "Backend/Resource.h"
 #include "Backend/UnifiedBuffer.h"
-#include "Types/TypeName.h"
+
 #include "ARBDLogger.h"
+#include "Math/TypeName.h"
+#include "Math/Types.h"
 
 // Use Catch2 v3 headers with quotes
 #include "catch2/catch_test_macros.hpp"
@@ -82,8 +84,8 @@ public:
         case CUDA_BACKEND:
             ARBD::SignalManager::manage_segfault();
             // Initialize CUDA GPU Manager
-            ARBD::CUDA::GPUManager::init();
-            ARBD::CUDA::GPUManager::load_info();
+            ARBD::CUDA::CUDAManager::init();
+            ARBD::CUDA::CUDAManager::load_info();
             break;
 #endif
 #ifdef USE_SYCL

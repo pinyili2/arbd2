@@ -1,5 +1,5 @@
 #include "catch_boiler.h"
-#include "Types/Types.h"
+#include "Math/Types.h"
 
 #include "catch2/catch_test_macros.hpp"
 

@@ -2,119 +2,16 @@
 #include <iostream>
 #include <cstdio>
 
-// #include "useful.h"
-#include "SignalManager.h"
-#include "Types/Types.h"
+#include "catch_boiler.h"
+#include "Math/Types.h"
 #include <cuda.h>
 #include <nvfunctional>
 
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/benchmark/catch_benchmark.hpp"
 #include "catch2/matchers/catch_matchers_floating_point.hpp"
 
+DEF_RUN_TRIAL
+
 namespace Tests::TestArray {
-    // enum BinaryOp_t { ADD, CROSS, DOT, SUB, FINAL };
-    // BinaryOp_t& operator++(BinaryOp_t& op) { return op = static_cast<BinaryOp_t>( 1+static_cast<int>(op) ); }
-
-    // std::string get_binary_op_name( BinaryOp_t op ) {
-    // 	switch (op) {
-    // 	case ADD:
-    // 	    return "add";
-    // 	case SUB:
-    // 	    return "subtract";
-    // 	case CROSS:
-    // 	    return "cross";
-    // 	case DOT:
-    // 	    return "dot";
-    // 	}
-    // 	return std::string(""); // (static_cast<int>(op)));
-    // }
-
-    // template<typename R, typename T, typename U>
-    // __host__ __device__ nvstd::function<R(T,U)> get_binary_op_func( BinaryOp_t op) {
-    // 	switch (op) {
-    // 	case ADD:
-    // 	    return [] (T a, U b) {return static_cast<R>(b+a);};
-    // 	case SUB:
-    // 	    return [] (T a, U b) {return static_cast<R>(b-a);};
-    // 	case CROSS:
-    // 	    return [] (T a, U b) {return static_cast<R>(b.cross(a));};
-    // 	case DOT:
-    // 	    return [] (T a, U b) {return static_cast<R>(b.dot(a));};
-    // 	default:
-    // 	    assert(false);
-    // 	}
-    // 	return [] (T a, U b) {return static_cast<R>(b+a);};
-    // }
-
-    // template<typename R, typename T, typename U>
-    // __global__ void binary_op_test_kernel( BinaryOp_t op, R* result, T in1, U in2 ) {
-    // 	nvstd::function<R(T,U)> fn = get_binary_op_func<R,T,U>(op);
-    // 	if (blockIdx.x == 0) {
-    // 	    *result = fn(in1,in2);
-    // 	}
-    // }
-
-    // template<typename T, typename U>
-    // void check_vectors_equal( T&& cpu, U&& gpu) {
-    // 	CHECK( type_name<decltype(cpu)>() == type_name<decltype(gpu)>() ); // should be unneccesary
-    // 	CHECK( cpu.x == gpu.x );
-    // 	CHECK( cpu.y == gpu.y );
-    // 	CHECK( cpu.z == gpu.z );
-    // 	CHECK( cpu.w == gpu.w );
-    // }
-
-    // template<typename A, typename B>
-    // void run_tests() {
-    // 	using T = Vector3_t<A>;
-    // 	using U = Vector3_t<B>;
-    // 	using R = std::common_type_t<T,U>;
-    
-    // 	T v1(1,1.005,0);
-    // 	U v2(0,2,0);
-    // 	R *gpu_result_d, gpu_result, cpu_result;
-    // 	cudaMalloc((void **)&gpu_result_d, sizeof(R));
-
-    // 	for (BinaryOp_t op = ADD; op < FINAL; ++op) {
-    // 	    INFO( get_binary_op_name( op ) );
-    // 	    binary_op_test_kernel<R,T,U><<<1,1>>>(op, gpu_result_d, v1, v2);
-    // 	    cudaMemcpy(&gpu_result, gpu_result_d, sizeof(R), cudaMemcpyDeviceToHost);
-    // 	    cudaDeviceSynchronize();
-	
-    // 	    // Get cpu_result
-    // 	    cpu_result = (get_binary_op_func<R,T,U>(op))(v1,v2);
-
-    // 	    // Check consistency
-    // 	    check_vectors_equal(cpu_result, gpu_result);
-    // 	}
-    // 	cudaFree(gpu_result_d);
-    // }
-
-    // template <typename T>
-    // void print_enable_if_value_helper(std::true_type) {
-    // 	std::cout << "has_copy_to_cuda is true" << std::endl;
-    // }
-
-    // template <typename T>
-    // void print_enable_if_value_helper(std::false_type) {
-    // 	std::cout << "has_copy_to_cuda is false" << std::endl;
-    // }
-
-    // template <typename T>
-    // void print_enable_if_value_helper(std::true_type) {
-    // 	std::cout << "has_copy_to_cuda is true" << std::endl;
-    // }
-
-    // template <typename T>
-    // void print_enable_if_value_helper(std::false_type) {
-    // 	std::cout << "has_copy_to_cuda is false" << std::endl;
-    // }
-
-    // template <typename T>
-    // void print_enable_if_value() {
-    // 	print_enable_if_value_helper<has_copy_to_cuda<T>>(typename has_copy_to_cuda<T>::type{});
-    // }
-
     
     template<typename T> __host__ __device__ 
     void print_it(T x) { printf("Unsupported type\n"); }
@@ -127,9 +24,9 @@ namespace Tests::TestArray {
     template<> __host__ __device__
     void print_it(const double x) { printf("double %lf\n", x); }
     template<> __host__ __device__
-    void print_it(const ARBD::Vector3&& x) { x.print(); }
+    void print_it(const ARBD::Vector3_t<float>&& x) { x.print(); }
     template<> __host__ __device__
-    void print_it(const ARBD::Vector3& x) { x.print(); }
+    void print_it(const ARBD::Vector3_t<float>& x) { x.print(); }
     
     // Simple has_copy_to_cuda trait for testing
     template <typename T, typename = void>
@@ -141,9 +38,9 @@ namespace Tests::TestArray {
     template <typename T>
     void print_enable_if_value() {
 	if (has_copy_to_cuda<T>::value) {
-	    std::cout << "has_copy_to_cuda is true" << std::endl;
+	    printf("has_copy_to_cuda is true\n");
 	} else {
-	    std::cout << "has_copy_to_cuda is false" << std::endl;
+	    printf("has_copy_to_cuda is false\n");
 	}
     }
 
@@ -202,65 +99,77 @@ namespace Tests::TestArray {
     // 	return arr;
     // }
 
-    
-    TEST_CASE( "Test Array assignment and basic operations", "[Array]" ) {
-	{
-	    // Creation and copy assignment
-	    ARBD::Array<ARBD::Vector3> a = allocate_array_host<ARBD::Vector3>(10);
-	}
+} // End namespace Tests::TestArray
 
-	{
-	    // Allocation and deallocation
-	    ARBD::VectorArr a(10);
-	    a[0] = ARBD::Vector3(1);
-	    a[3] = ARBD::Vector3(3);
-
-	    // Just test basic array operations without CUDA for now
-	    REQUIRE( a[0].x == 1.0f );
-	    REQUIRE( a[3].x == 3.0f );
-
-	    print_enable_if_value<int>();  
-	    print_enable_if_value<ARBD::Vector3>();  
-	    print_enable_if_value<ARBD::VectorArr>();  
-	    print_enable_if_value<ARBD::Array<ARBD::VectorArr>>();  
-	}
-    }
-    
-    TEST_CASE( "Test Array nesting operations", "[Array]" ) {
-	{
-	    // Allocation and deallocation
-	    ARBD::VectorArr v1(10);
-	    for (int i = 0; i < v1.size(); ++i) {
-		v1[i] = ARBD::Vector3(i+1);
-	    }
- 	    ARBD::VectorArr v2(20);
-	    for (int i = 0; i < v2.size(); ++i) {
-		v2[i] = ARBD::Vector3(10*i+1);
-	    }
-	    
-	    ARBD::Array<ARBD::VectorArr> a(3);
-	    a[0] = v1;
-	    a[1] = v2;
-
-	    // Test nested array access
-	    REQUIRE( a[0][1].x == 2.0f );
-	    REQUIRE( a[1][1].x == 11.0f );
-	}
+TEST_CASE( "Test Array assignment and basic operations", "[Array]" ) {
+    {
+	// Creation and copy assignment
+	ARBD::Array<ARBD::Vector3_t<float>> a = Tests::TestArray::allocate_array_host<ARBD::Vector3_t<float>>(10);
     }
 
-    TEST_CASE( "Test basic CUDA kernels", "[Array]" ) {
-	{
-	    // Test basic CUDA kernel operations  
-	    size_t num = 1000;
-	    float* inp = allocate_plain_array_device<float>(num);
-	    float* out = allocate_plain_array_device<float>(num);
+    {
+	// Allocation and deallocation
+	ARBD::VectorArr a(10);
+	a[0] = ARBD::Vector3(1);
+	a[3] = ARBD::Vector3(3);
 
-	    call_copy_kernel(num, out, inp);
-	    
-	    ARBD::check_cuda_error(cudaFree(inp), __FILE__, __LINE__);
-	    ARBD::check_cuda_error(cudaFree(out), __FILE__, __LINE__);
-	    
-	    REQUIRE( true ); // Basic test that CUDA operations work
+	// Just test basic array operations without CUDA for now
+	REQUIRE( a[0].x == 1.0f );
+	REQUIRE( a[3].x == 3.0f );
+
+	Tests::TestArray::print_enable_if_value<int>();  
+	Tests::TestArray::print_enable_if_value<ARBD::Vector3_t<float>>();  
+	Tests::TestArray::print_enable_if_value<ARBD::VectorArr>();  
+	Tests::TestArray::print_enable_if_value<ARBD::Array<ARBD::VectorArr>>();  
+    }
+}
+
+TEST_CASE( "Test Array nesting operations", "[Array]" ) {
+    {
+	// Allocation and deallocation - Create arrays first
+	ARBD::VectorArr v1(10);
+	for (int i = 0; i < v1.size(); ++i) {
+	    v1[i] = ARBD::Vector3(i+1);
 	}
+	ARBD::VectorArr v2(20);
+	for (int i = 0; i < v2.size(); ++i) {
+	    v2[i] = ARBD::Vector3(10*i+1);
+	}
+	
+	// Test simple VectorArr access first to ensure they work
+	REQUIRE( v1[1].x == 2.0f );
+	REQUIRE( v2[1].x == 11.0f );
+	
+	// Test nested array creation and assignment - now should work with fixed copy assignment
+	ARBD::Array<ARBD::VectorArr> a(3);
+	
+	// Test that the nested array is functional
+	REQUIRE( a.size() == 3 );
+	
+	// Now test the fixed copy assignment - this should work without segfault
+	a[0] = v1;  // This now properly reallocates and copies
+	a[1] = v2;  // This now properly reallocates and copies
+	
+	// Test nested array access
+	REQUIRE( a[0][1].x == 2.0f );
+	REQUIRE( a[1][1].x == 11.0f );
+	
+	printf("Nested array assignment tests now working correctly!\n");
+    }
+}
+
+TEST_CASE( "Test basic CUDA kernels", "[Array]" ) {
+    {
+	// Test basic CUDA kernel operations  
+	size_t num = 1000;
+	float* inp = Tests::TestArray::allocate_plain_array_device<float>(num);
+	float* out = Tests::TestArray::allocate_plain_array_device<float>(num);
+
+	Tests::TestArray::call_copy_kernel(num, out, inp);
+	
+	ARBD::check_cuda_error(cudaFree(inp), __FILE__, __LINE__);
+	ARBD::check_cuda_error(cudaFree(out), __FILE__, __LINE__);
+	
+	REQUIRE( true ); // Basic test that CUDA operations work
     }
 }

@@ -1,5 +1,6 @@
 #include "catch_boiler.h"
-#include "Types/Types.h"
+#include "Math/Types.h"
+#include "Math/TypeName.h"
 
 #include "catch2/catch_tostring.hpp"
 namespace Catch {
@@ -11,7 +12,6 @@ namespace Catch {
     };
 }
 
-#include "Types/TypeName.h"
 
 DEF_RUN_TRIAL
 
