@@ -1,0 +1,51 @@
+
+======================   ALLOCATED NODES   ======================
+    gpub040: slots=8 max_slots=0 slots_inuse=0 state=UP
+	Flags: DAEMON_LAUNCHED:LOCATION_VERIFIED:SLOTS_GIVEN
+	aliases: gpub040.delta.ncsa.illinois.edu,gpub040
+=================================================================
+PE 5: Initialized with data range [5000-5099]
+PE 5: Starting UPWARD shift - sending to PE 6
+PE 5: Received data from PE 4, range [4000-4099]
+PE 5: Starting DOWNWARD shift - sending to PE 4
+PE 5: After downward shift, received data from PE 6, range [5000-5099]
+PE 0: Initialized with data range [0-99]
+PE 0: Starting UPWARD shift - sending to PE 1
+PE 0: Received data from PE 7, range [7000-7099]
+PE 0: Starting DOWNWARD shift - sending to PE 7
+PE 0: After downward shift, received data from PE 1, range [0-99]
+
+Circular shift demonstration completed:
+- PE 0 neighbors: prev=7, next=1
+- PE 7 neighbors: prev=6, next=0
+- Other PEs have sequential neighbors
+PE 6: Initialized with data range [6000-6099]
+PE 6: Starting UPWARD shift - sending to PE 7
+PE 6: Received data from PE 5, range [5000-5099]
+PE 6: Starting DOWNWARD shift - sending to PE 5
+PE 6: After downward shift, received data from PE 7, range [6000-6099]
+PE 7: Initialized with data range [7000-7099]
+PE 7: Starting UPWARD shift - sending to PE 0
+PE 7: Received data from PE 6, range [6000-6099]
+PE 7: Starting DOWNWARD shift - sending to PE 6
+PE 7: After downward shift, received data from PE 0, range [7000-7099]
+PE 3: Initialized with data range [3000-3099]
+PE 3: Starting UPWARD shift - sending to PE 4
+PE 3: Received data from PE 2, range [2000-2099]
+PE 3: Starting DOWNWARD shift - sending to PE 2
+PE 3: After downward shift, received data from PE 4, range [3000-3099]
+PE 1: Initialized with data range [1000-1099]
+PE 1: Starting UPWARD shift - sending to PE 2
+PE 1: Received data from PE 0, range [0-99]
+PE 1: Starting DOWNWARD shift - sending to PE 0
+PE 1: After downward shift, received data from PE 2, range [1000-1099]
+PE 4: Initialized with data range [4000-4099]
+PE 4: Starting UPWARD shift - sending to PE 5
+PE 4: Received data from PE 3, range [3000-3099]
+PE 4: Starting DOWNWARD shift - sending to PE 3
+PE 4: After downward shift, received data from PE 5, range [4000-4099]
+PE 2: Initialized with data range [2000-2099]
+PE 2: Starting UPWARD shift - sending to PE 3
+PE 2: Received data from PE 1, range [1000-1099]
+PE 2: Starting DOWNWARD shift - sending to PE 1
+PE 2: After downward shift, received data from PE 3, range [2000-2099]
