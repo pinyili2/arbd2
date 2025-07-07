@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Backend/Proxy.h"
+#include "Proxy.h"
 #include "Backend/Resource.h"
 #include <tuple>
 #include <vector>
