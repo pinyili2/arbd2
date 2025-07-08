@@ -24,7 +24,7 @@
 
 // Common includes
 #include "Backend/Resource.h"
-#include "Backend/UnifiedBuffer.h"
+#include "Backend/Buffer.h"
 
 #include "ARBDLogger.h"
 #include "Math/TypeName.h"

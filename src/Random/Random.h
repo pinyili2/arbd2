@@ -1,16 +1,29 @@
-// Random.h
-//Clean version for compile purposes
-
 #pragma once
 
-#include "GPUManager.h"
-#include "../Types.h"
-#include "../Proxy.h"
+#ifdef USE_CUDA 
+#include "Backend/CUDA/CUDAManager.h"
+#endif
+
+#ifdef USE_METAL
+#include "Backend/METAL/METALManager.h"
+#endif
+
+#ifdef USE_SYCL
+#include "Backend/SYCL/SYCLManager.h"
+#endif
+
+#include "ARBDLogger.h"
+#include "ARBDException.h"
+#include "Backend/Buffer.h"
+#include "Backend/Resource.h"
+#include "Math/Types.h"
+#include "Backend/Proxy.h"
 #include <map>
 #include <vector>
 #include <memory>
 #include <random>
 
+namespace ARBD {
 // CPU Implementation
 template<size_t num_states>
 class RandomCPU {
@@ -53,7 +66,7 @@ public:
         }
     }
 
-    Vector3 gaussian_vector(state_type* external_state = nullptr) {
+    Vector3_t gaussian_vector(state_type* external_state = nullptr) {
         return Vector3(gaussian(external_state), 
                       gaussian(external_state), 
                       gaussian(external_state));
@@ -119,3 +132,4 @@ private:
 };
 #endif
 
+} // namespace ARBD

@@ -1,4 +1,4 @@
-#include "Backend/UnifiedBuffer.h"
+#include "Backend/Buffer.h"
 #include "Backend/Resource.h"
 
 #ifdef USE_SYCL

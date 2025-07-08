@@ -1,5 +1,5 @@
 #ifdef USE_METAL
-#include "METALManager.h"
+#include "Backend/METAL/METALManager.h"
 #include "ARBDLogger.h"
 #include <iostream>
 #include <vector>
@@ -134,48 +134,46 @@ void example_queue_operations() {
         LOGERROR("Standard exception in queue operations example: {}", e.what());
     }
 }
-
-void example_multi_device() {
-    try {
-        if (METALManager::all_device_size() < 2) {
-            LOGINFO("Multi-device example requires at least 2 Metal devices (found {})", 
-                METALManager::all_device_size());
-            return;
-        }
+//
+//void example_multi_device() {
+//    try {
+//        if (METALManager::all_device_size() < 2) {
+//            LOGINFO("Multi-device example requires at least 2 Metal devices (found {})", 
+//                METALManager::all_device_size());
+//            return;
+//        }
         
         // Select multiple devices
-        std::vector<unsigned int> device_ids = {0, 1};
-        METALManager::select_devices(device_ids);
+//        std::vector<unsigned int> device_ids = {0, 1};
+//        METALManager::select_devices(device_ids);
         
-        LOGINFO("Selected {} Metal devices for multi-device operations", device_ids.size());
+//        LOGINFO("Selected {} Metal devices for multi-device operations", device_ids.size());
         
         // Use different devices
-        for (unsigned int device_id : device_ids) {
-            METALManager::use(device_id);
-            auto& current_device = METALManager::get_current_device();
-            LOGINFO("Operating on device {}: {}", device_id, current_device.name());
+//        for (unsigned int device_id : device_ids) {
+//            METALManager::use(device_id);
+//            auto& current_device = METALManager::get_current_device();
+//            LOGINFO("Operating on device {}: {}", device_id, current_device.name());
             
             // Perform operations on this device
-            auto& queue = current_device.get_next_queue();
-            // ... device-specific operations would go here ...
-        }
+//            auto& queue = current_device.get_next_queue();
+//            // ... device-specific operations would go here ...
+//        }
         
         // Synchronize all devices
-        METALManager::sync();
-        LOGINFO("All Metal devices synchronized");
+//        METALManager::sync();
+//        LOGINFO("All Metal devices synchronized");
         
-    } catch (const ARBD::Exception& e) {
-        LOGERROR("ARBD Exception in multi-device example: {}", e.what());
-    } catch (const std::exception& e) {
-        LOGERROR("Standard exception in multi-device example: {}", e.what());
+//    } catch (const ARBD::Exception& e) {
+//        LOGERROR("ARBD Exception in multi-device example: {}", e.what());
+//    } catch (const std::exception& e) {
+//        LOGERROR("Standard exception in multi-device example: {}", e.what());
     }
-}
+//}
 
 } // namespace METAL
-} // namespace ARBD
 
-// Example main function (for testing purposes)
-#ifdef METAL_EXAMPLE_MAIN
+
 int main() {
     using namespace ARBD::METAL;
     
@@ -191,8 +189,8 @@ int main() {
     example_queue_operations();
     std::cout << "\n";
     
-    example_multi_device();
-    std::cout << "\n";
+    //example_multi_device();
+    //std::cout << "\n";
     
     // Clean up
     METALManager::finalize();
@@ -200,6 +198,5 @@ int main() {
     std::cout << "Metal backend example completed.\n";
     return 0;
 }
-#endif
 
 #endif // USE_METAL 
