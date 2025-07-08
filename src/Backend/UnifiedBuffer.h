@@ -29,10 +29,11 @@ struct MemoryLocation {
   void *ptr;
   size_t size;
   bool is_valid;
+  bool is_owned; // Track if this memory was allocated by UnifiedBuffer
 
-  MemoryLocation() : ptr(nullptr), size(0), is_valid(false) {}
-  MemoryLocation(const Resource &res, void *p, size_t s)
-      : resource(res), ptr(p), size(s), is_valid(true) {}
+  MemoryLocation() : ptr(nullptr), size(0), is_valid(false), is_owned(false) {}
+  MemoryLocation(const Resource &res, void *p, size_t s, bool owned = true)
+      : resource(res), ptr(p), size(s), is_valid(true), is_owned(owned) {}
 };
 
 /**
@@ -65,8 +66,7 @@ private:
 #endif
 #ifdef USE_METAL
     case Resource::METAL: {
-      auto &device = ARBD::METAL::METALManager::get_current_device();
-      return device.allocate<char>(size);
+      return ARBD::METAL::METALManager::allocate_raw(size);
     }
 #endif
     default:
@@ -97,8 +97,7 @@ private:
 #endif
 #ifdef USE_METAL
     case Resource::METAL: {
-      auto &device = ARBD::METAL::METALManager::get_current_device();
-      device.deallocate(ptr);
+      ARBD::METAL::METALManager::deallocate_raw(ptr);
       break;
     }
 #endif
@@ -127,7 +126,7 @@ public:
     if (count_ > 0) {
       void *ptr = allocate_memory(sizeof(T) * count_, primary_location_);
       locations_[primary_location_.id] =
-          MemoryLocation(primary_location_, ptr, sizeof(T) * count_);
+          MemoryLocation(primary_location_, ptr, sizeof(T) * count_, true); // owned=true
     }
   }
 
@@ -137,12 +136,14 @@ public:
   UnifiedBuffer(size_t count, T *existing_data, const Resource &location)
       : count_(count), primary_location_(location) {
     locations_[location.id] =
-        MemoryLocation(location, existing_data, sizeof(T) * count_);
+        MemoryLocation(location, existing_data, sizeof(T) * count_, false); // owned=false
   }
 
   ~UnifiedBuffer() {
     for (auto &[id, loc] : locations_) {
-      deallocate_memory(loc.ptr, loc.resource);
+      if (loc.is_owned) { // Only deallocate memory we allocated
+        deallocate_memory(loc.ptr, loc.resource);
+      }
     }
   }
 
@@ -160,7 +161,9 @@ public:
   UnifiedBuffer &operator=(UnifiedBuffer &&other) noexcept {
     if (this != &other) {
       for (auto &[id, loc] : locations_) {
-        deallocate_memory(loc.ptr, loc.resource);
+        if (loc.is_owned) { // Only deallocate memory we allocated
+          deallocate_memory(loc.ptr, loc.resource);
+        }
       }
       locations_ = std::move(other.locations_);
       count_ = other.count_;
@@ -224,7 +227,7 @@ public:
 
     // Store location
     locations_[target.id] =
-        MemoryLocation(target, target_ptr, sizeof(T) * count_);
+        MemoryLocation(target, target_ptr, sizeof(T) * count_, true);
 
     LOGINFO("UnifiedBuffer: migrated data from {} to {}",
             source->resource.getTypeString(), target.getTypeString());
@@ -236,7 +239,9 @@ public:
   void release_at(const Resource &resource) {
     auto it = locations_.find(resource.id);
     if (it != locations_.end()) {
-      deallocate_memory(it->second.ptr, resource);
+      if (it->second.is_owned) { // Only deallocate memory we allocated
+        deallocate_memory(it->second.ptr, resource);
+      }
       locations_.erase(it);
     }
   }

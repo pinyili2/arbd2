@@ -2,6 +2,7 @@
 
 #ifdef USE_SYCL
 #include "ARBDException.h"
+#include "ARBDLogger.h"
 #include <array>
 #include <chrono>
 #include <iostream>
@@ -12,8 +13,6 @@
 #include <sycl/sycl.hpp>
 #include <utility>
 #include <vector>
-#include <system_error>
-#include <cerrno>
 
 namespace ARBD {
 namespace SYCL {
@@ -216,12 +215,10 @@ public:
   // RAII destructor - automatic cleanup
   ~Queue() {
     try {
-      // Synchronize any pending operations before destruction
-      // This ensures proper cleanup and prevents resource leaks
       queue_.wait();
     } catch (...) {
-      // Never throw from destructor - log error instead
-      std::cerr << "Warning: Exception during Queue cleanup - continuing with destruction\n";
+      // Never throw from destructor - log error to stderr directly
+      LOGWARN("Warning: Exception during Queue cleanup - continuing with destruction");
     }
   }
 

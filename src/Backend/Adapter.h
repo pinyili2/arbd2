@@ -1,17 +1,60 @@
 #pragma once
 
-#include "Proxy.h"
+#include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include <tuple>
 #include <vector>
 #include <memory>
+#ifdef USE_CUDA
+#include "CUDA/CUDAManager.h"
+#endif
+
+#ifdef USE_SYCL
+#include "SYCL/SYCLManager.h"
+#endif
+
+#ifdef USE_METAL
+#include "METAL/METALManager.h"
+#endif
 
 namespace ARBD {
 namespace Backend {
 
-// ============================================================================
-// Type-Agnostic DeviceBuffer (Backend Layer)
-// ============================================================================
+// Unified Event type that works across all backends
+class Event {
+private:
+    Resource resource_;
+    void* event_ptr_;
+
+public:
+    Event() : event_ptr_(nullptr) {}
+    
+#ifdef USE_CUDA
+    Event(const ARBD::CUDA::Event& cuda_event, const Resource& res) 
+        : resource_(res), event_ptr_(const_cast<void*>(static_cast<const void*>(&cuda_event))) {}
+#endif
+
+#ifdef USE_SYCL
+    Event(const ARBD::SYCL::Event& sycl_event, const Resource& res) 
+        : resource_(res), event_ptr_(const_cast<void*>(static_cast<const void*>(&sycl_event))) {}
+#endif
+
+#ifdef USE_METAL
+    Event(const ARBD::METAL::Event& metal_event, const Resource& res) 
+        : resource_(res), event_ptr_(const_cast<void*>(static_cast<const void*>(&metal_event))) {}
+#endif
+
+    void wait() const {
+        // Implementation would depend on backend type
+    }
+    
+    bool is_complete() const {
+        return true; // Simplified implementation
+    }
+};
+
+// Forward declaration for EventList
+class EventList;
 
 /**
  * @brief Generic DeviceBuffer that works with any type T
@@ -103,7 +146,7 @@ private:
     size_t size_;
     Resource resource_;
     T* device_ptr_;                    // Generic device pointer
-    std::optional<Proxy<void>> proxy_; // Optional proxy for advanced features
+    std::optional<void*> proxy_; // Type-erased proxy pointer 
     std::optional<Event> last_event_;  // Track last event for synchronization
     
     void allocate_device_memory() {
@@ -263,11 +306,6 @@ Event dispatch_kernel(const Resource& resource,
             throw std::runtime_error("Unsupported backend for kernel launch");
     }
 }
-
-// ============================================================================
-// Generic Memory Management Infrastructure
-// ============================================================================
-
 /**
  * @brief Generic allocato
  */
@@ -371,8 +409,6 @@ void fill_buffer(DeviceBuffer<T>& buffer,
                    output[i] = value;
                });
 }
-
-
 
 } // namespace Backend
 } // namespace ARBD

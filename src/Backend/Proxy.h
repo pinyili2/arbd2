@@ -191,7 +191,6 @@ template <typename T, typename Enable = void> struct Proxy {
    */
   template <typename RetType, typename... Args1, typename... Args2>
   RetType callSync(RetType (T::*memberFunc)(Args1...), Args2 &&...args) {
-    // Pack arguments for implementation functions
     struct ArgPack {
       std::tuple<Args2...> arguments;
       RetType (T::*func)(Args1...);
