@@ -68,10 +68,6 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
   Metadata_t(const Metadata_t<T> &other) : T::Metadata(other){};
 };
 
-// ============================================================================
-// Forward Declarations and Proxy Infrastructure
-// ============================================================================
-
 // Forward declarations for backend-specific implementations
 namespace ProxyImpl {
 // CUDA-specific implementations (defined in Proxy.cu when USE_CUDA is enabled)

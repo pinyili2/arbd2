@@ -263,8 +263,17 @@ void SYCLManager::discover_devices() {
 
 void SYCLManager::load_info() {
     init();
-    devices_ = std::move(all_devices_); // Use move instead of copy
-    init_devices();
+    
+    // For single device case (Mac), explicitly select only the first device
+    // to avoid multi-device context issues
+    if (all_devices_.size() == 1) {
+        LOGINFO("Single device detected, selecting device 0 for single-device operation");
+        select_devices(std::span<const unsigned int>{&all_devices_[0].id_, 1});
+    } else {
+        // Multi-device case - use all discovered devices
+        devices_ = std::move(all_devices_);
+        init_devices();
+    }
 }
 
 void SYCLManager::init_devices() {

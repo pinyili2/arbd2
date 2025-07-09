@@ -51,10 +51,6 @@ struct KernelConfig {
 template<typename... Args>
 using KernelFunction = std::function<void(size_t, Args...)>;
 
-// ============================================================================
-// Backend-Specific Kernel Wrappers (only when backends are available)
-// ============================================================================
-
 #ifdef USE_CUDA
 template<typename Kernel, typename... Args>
 __global__ void cuda_kernel_wrapper(size_t n, Kernel kernel, Args... args) {
@@ -65,12 +61,8 @@ __global__ void cuda_kernel_wrapper(size_t n, Kernel kernel, Args... args) {
 }
 #endif
 
-// ============================================================================
-// Kernel Dispatchers (using ifdefs instead of switch statements)
-// ============================================================================
-
 /**
- * @brief Generic kernel dispatcher - implementation detail from Adapter.h
+ * @brief Generic kernel dispatcher
  */
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event dispatch_kernel(const Resource& resource,
@@ -107,10 +99,6 @@ Event dispatch_kernel(const Resource& resource,
                                std::forward<Args>(args)...);
     }
 }
-
-// ============================================================================
-// Backend-Specific Kernel Launchers (only when backends are available)
-// ============================================================================
 
 #ifdef USE_CUDA
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>

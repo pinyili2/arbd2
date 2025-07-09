@@ -13,6 +13,7 @@
 using namespace ARBD;
 
 TEST_CASE("SYCL Resource Creation and Properties", "[SYCL][Resource]") {
+    //Passed
     Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Resource type is correct") {
@@ -114,7 +115,7 @@ TEST_CASE("SYCL DeviceBuffer Data Transfer", "[sycl][buffer][transfer]") {
     }
 }
 
-TEST_CASE("SYCL UnifiedBuffer Operations", "[SYCL][UnifiedBuffer]") {
+TEST_CASE("SYCL UnifiedBuffer Operations", "[SYCL][unified_buffer]") {
     Resource sycl_resource(ResourceType::SYCL, 0);
     const size_t count = 200;
     
@@ -169,14 +170,26 @@ TEST_CASE("SYCL Event Management", "[sycl][events]") {
         CHECK(event_list.empty());
         CHECK(event_list.all_complete());
         
-        Event event1;
-        Event event2;
+        // Create simple SYCL events using queue operations
+        auto& device = SYCL::SYCLManager::get_current_device();
+        auto& queue = device.get_next_queue();
+        
+        // Create a simple memory operation to generate a real event
+        void* dummy_ptr = sycl::malloc_device<char>(1, queue.get());
+        auto sycl_event1 = queue.get().memset(dummy_ptr, 0, 1);
+        auto sycl_event2 = queue.get().memset(dummy_ptr, 0, 1);
+        
+        Event event1(sycl_event1, sycl_resource);
+        Event event2(sycl_event2, sycl_resource);
         
         event_list.add(event1);
         event_list.add(event2);
         
         CHECK_FALSE(event_list.empty());
         CHECK_NOTHROW(event_list.wait_all());
+        
+        // Clean up
+        sycl::free(dummy_ptr, queue.get());
     }
     
     SECTION("Event dependency tracking") {

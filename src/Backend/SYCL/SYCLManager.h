@@ -184,21 +184,20 @@ public:
  */
 class Queue {
 private:
-  sycl::queue queue_;  // Always valid - no optional needed!
-  sycl::device device_; // Store device separately to avoid calling queue_.get_device()
-
+  sycl::queue queue_; 
+  sycl::device device_; 
 public:
   // Delete default constructor to prevent invalid state
   Queue() = delete;
 
   // Constructor guarantees valid queue or throws
-  explicit Queue(const sycl::device &dev) : queue_(dev) {
+  explicit Queue(const sycl::device &dev) : queue_(dev), device_(dev) {
     // Constructor body can be empty - queue_ is constructed in initializer list
     // If sycl::queue construction fails, it will throw and our object won't exist
   }
 
   explicit Queue(const sycl::device &dev, const sycl::property_list &props) 
-      : queue_(dev, props) {
+      : queue_(dev, props), device_(dev) {
     // Same as above - guaranteed valid or throws
   }
 
@@ -211,6 +210,7 @@ public:
     // Create context with all devices, but queue with first device
     sycl::context ctx(devices);
     queue_ = sycl::queue(ctx, devices[0], props);
+    device_ = devices[0]; // Store the primary device
   }
 
   // RAII destructor - automatic cleanup
@@ -228,7 +228,7 @@ public:
   Queue &operator=(const Queue &) = delete;
 
   // Allow moving for efficiency
-  Queue(Queue &&other) noexcept : queue_(std::move(other.queue_)) {}
+  Queue(Queue &&other) noexcept : queue_(std::move(other.queue_)), device_(std::move(other.device_)) {}
 
   Queue &operator=(Queue &&other) noexcept {
     if (this != &other) {
@@ -239,6 +239,7 @@ public:
         // Log but don't throw during assignment
       }
       queue_ = std::move(other.queue_);
+      device_ = std::move(other.device_);
     }
     return *this;
   }
@@ -262,7 +263,7 @@ public:
   }
 
   [[nodiscard]] std::vector<sycl::device> get_devices() const {
-    return {queue_.get_device()};
+    return {device_}; // Use stored device instead of calling queue_.get_device()
   }
 
   // Direct access to underlying queue - always safe
@@ -582,6 +583,15 @@ public:
   [[nodiscard]] static std::vector<unsigned int> get_gpu_device_ids();
   [[nodiscard]] static std::vector<unsigned int> get_cpu_device_ids();
   [[nodiscard]] static std::vector<unsigned int> get_accelerator_device_ids();
+
+  // Add missing static method declaration
+  [[nodiscard]] static Device &get_device(unsigned int device_id) {
+    if (device_id >= devices_.size()) {
+      ARBD_Exception(ExceptionType::ValueError, 
+          "Invalid device ID: {}", device_id);
+    }
+    return devices_[device_id];
+  }
 
 private:
   static void init_devices();
