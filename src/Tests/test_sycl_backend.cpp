@@ -51,6 +51,14 @@ struct SYCLTestFixture {
     }
 };
 
+// A simple class for proxy testing
+class TestMath {
+public:
+    int add(int a, int b) {
+        return a + b;
+    }
+};
+
 // ============================================================================
 // Test Cases
 // ============================================================================
@@ -172,6 +180,30 @@ TEST_CASE_METHOD(SYCLTestFixture, "SYCL Kernel Launch", "[sycl][kernels]") {
         std::iota(expected_result.begin(), expected_result.end(), 0);
 
         CHECK(host_result == expected_result);
+    }
+}
+
+TEST_CASE_METHOD(SYCLTestFixture, "SYCL Proxy Test", "[sycl][proxy]") {
+    if (SYCL::SYCLManager::all_devices().empty()) return;
+
+    SECTION("Proxy method call") {
+        // 1. Create an instance of the test class on the host
+
+        TestMath math_obj;
+        int a = 5;
+
+        // 2. Send the object to the SYCL device to create a proxy
+        auto proxy = ARBD::send(sycl_resource, math_obj);
+        REQUIRE(proxy.is_valid());
+
+        // 3. Define the method to be called
+        auto method_to_call = &TestMath::add;
+
+        // 4. Call the method synchronously on the proxy
+        int result = proxy.callSync(method_to_call, 5, 7);
+
+        // 5. Verify the result
+        CHECK(result == 12);
     }
 }
 

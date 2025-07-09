@@ -10,25 +10,10 @@
 #include <functional>
 #include <tuple>
 #include "Kernels.h"
-
-#ifdef USE_SYCL
-#include "Backend/SYCL/SYCLManager.h"
-#include <sycl/sycl.hpp>
-#endif
-
-#ifdef USE_METAL
-#include "Backend/METAL/METALManager.h"
-#include <Metal/Metal.h>
-#endif
-
-#ifdef USE_CUDA
-#include "Backend/CUDA/CUDAManager.h"
-#endif
-
 /**
  * @file Proxy.h
  * @brief Backend-agnostic proxy system for remote object method calls
- *
+ * 
  * This file provides the Proxy template class and supporting infrastructure for
  * making synchronous and asynchronous method calls on objects located on different
  * compute backends (CUDA, SYCL, Metal, etc.). The proxy system handles serialization,
@@ -144,80 +129,10 @@ inline std::future<void *> metal_call_async(void *addr, void *func_ptr, void *ar
 
 // General send implementations
 template <typename T>
-void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
-  switch (location.type) {
-  case ResourceType::SYCL:
-    LOGINFO("Using SYCL...");
-#ifdef USE_SYCL
-    if (location.is_local()) {
-      LOGINFO("   local SYCL...");
-      if (dest == nullptr) {
-        LOGTRACE("   SYCL allocate memory for {}", std::string_view(typeid(T).name()));
-        auto &device = ARBD::SYCL::SYCLManager::get_current_device();
-        auto &queue = device.get_next_queue();
-        dest = sycl::malloc_device<T>(1, queue.get());
-        if (!dest) {
-          ARBD::throw_sycl_error("SYCL allocation failed");
-        }
-      }
-      LOGINFO("   SYCL memcpying...");
-      auto &device = ARBD::SYCL::SYCLManager::get_current_device();
-      auto &queue = device.get_next_queue();
-      queue.get().memcpy(dest, &obj, sizeof(T)).wait();
-    } else {
-      ARBD::throw_not_implemented(
-          "`_send_ignoring_children(...)` on non-local SYCL");
-    }
-#else
-    ARBD::throw_not_implemented("USE_SYCL is not enabled");
-#endif
-    break;
-
-  default:
-    // This part would need implementations for CUDA, METAL, etc.
-    // For now, we only focus on the SYCL case that caused the error.
-    ARBD::throw_value_error(
-        "send_ignoring_children called with unsupported resource type");
-  }
-
-  return dest;
-}
+void *send_ignoring_children(const Resource &location, T &obj, T *dest);
 
 template <typename T>
-void *construct_remote(const Resource &location, void *args, size_t args_size) {
-  switch (location.type) {
-  case ResourceType::SYCL:
-#ifdef USE_SYCL
-    if (location.is_local()) {
-      auto &device = ARBD::SYCL::SYCLManager::get_current_device();
-      auto &queue = device.get_next_queue();
-      T *devptr = sycl::malloc_device<T>(1, queue.get());
-      if (!devptr) {
-        ARBD::throw_sycl_error("SYCL allocation failed in construct_remote");
-      }
-
-      // For SYCL, we need to construct on host then copy
-      // Note: This is simplified - proper implementation would handle args
-      // properly
-      T *temp_obj = new T(); // Would construct with args in practice
-      queue.get().memcpy(devptr, temp_obj, sizeof(T)).wait();
-      delete temp_obj;
-
-      return devptr;
-    } else {
-      ARBD::throw_not_implemented("construct_remote() non-local SYCL calls");
-    }
-#else
-    ARBD::throw_not_implemented("SYCL support not enabled");
-#endif
-    break;
-
-  default:
-    ARBD::throw_value_error("SYCL construct_remote called with non-SYCL resource type");
-  }
-
-  return nullptr;
-}
+void *construct_remote(const Resource &location, void *args, size_t args_size);
 } // namespace ProxyImpl
 
 // ============================================================================
