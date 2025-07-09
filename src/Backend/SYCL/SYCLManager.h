@@ -66,7 +66,7 @@ inline void check_sycl_error(const sycl::exception &e, std::string_view file,
  * ```
  *
  * @note The class prevents copying to avoid accidental memory leaks.
- *       Use move semantics when transferring ownership.
+ * Use move semantics when transferring ownership.
  */
 template <typename T> class DeviceMemory {
 private:
@@ -175,7 +175,7 @@ public:
  *
  * // Submit work - no need to check if queue is valid
  * queue.submit([&](sycl::handler& h) {
- *     // kernel code
+ * // kernel code
  * });
  * queue.synchronize();
  * ```
@@ -190,27 +190,15 @@ public:
   // Delete default constructor to prevent invalid state
   Queue() = delete;
 
-  // Constructor guarantees valid queue or throws
-  explicit Queue(const sycl::device &dev) : queue_(dev), device_(dev) {
-    // Constructor body can be empty - queue_ is constructed in initializer list
-    // If sycl::queue construction fails, it will throw and our object won't exist
+  // **MODIFIED**: Explicitly create a single-device context to prevent ambiguity.
+  // This guarantees that the queue is not considered "multi-device" by the runtime.
+  explicit Queue(const sycl::device &dev) 
+      : queue_(sycl::context({dev}), dev), device_(dev) {
   }
 
+  // **MODIFIED**: Also apply the explicit single-device context here.
   explicit Queue(const sycl::device &dev, const sycl::property_list &props) 
-      : queue_(dev, props), device_(dev) {
-    // Same as above - guaranteed valid or throws
-  }
-
-  // Constructor for multiple devices
-  explicit Queue(const std::vector<sycl::device> &devices,
-                 const sycl::property_list &props = {}) {
-    if (devices.empty()) {
-      throw std::invalid_argument("Cannot create queue with empty device list");
-    }
-    // Create context with all devices, but queue with first device
-    sycl::context ctx(devices);
-    queue_ = sycl::queue(ctx, devices[0], props);
-    device_ = devices[0]; // Store the primary device
+      : queue_(sycl::context({dev}), dev, props), device_(dev) {
   }
 
   // RAII destructor - automatic cleanup
@@ -262,8 +250,9 @@ public:
     return queue_.get_context();
   }
 
-  [[nodiscard]] std::vector<sycl::device> get_devices() const {
-    return {device_}; // Use stored device instead of calling queue_.get_device()
+  // Return the specific device associated with this queue.
+  [[nodiscard]] const sycl::device& get_device() const {
+      return device_;
   }
 
   // Direct access to underlying queue - always safe
@@ -296,7 +285,7 @@ public:
  * ```cpp
  * // Submit work and get an event
  * ARBD::Event event = queue.submit([&](sycl::handler& h) {
- *     // kernel code
+ * // kernel code
  * });
  *
  * // Wait for completion
@@ -431,12 +420,12 @@ private:
  * // Submit work to specific device
  * auto& queue = device.get_queue();
  * queue.submit([&](sycl::handler& h) {
- *     // kernel code
+ * // kernel code
  * });
  * ```
  *
  * @note The class uses static methods for global device management.
- *       All operations are thread-safe and exception-safe.
+ * All operations are thread-safe and exception-safe.
  */
 class SYCLManager {
 public:

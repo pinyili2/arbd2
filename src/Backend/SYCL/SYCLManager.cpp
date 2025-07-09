@@ -33,8 +33,8 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
 std::array<ARBD::SYCL::Queue, SYCLManager::NUM_QUEUES> 
 SYCLManager::Device::create_queues(const sycl::device& dev, unsigned int id) {
     try {
-        // Test if device can create a basic queue first
-        sycl::queue test_queue(dev);
+        // Test if device can create a basic queue first with explicit single-device context
+        sycl::queue test_queue(sycl::context({dev}), dev);
         
         // If successful, create all our wrapped queues
         // Note: We need to construct each queue individually since Queue() is deleted
