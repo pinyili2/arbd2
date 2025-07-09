@@ -1,4 +1,5 @@
 #include "catch_boiler.h"
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 using Catch::Approx;
 
 #ifdef USE_METAL
@@ -11,15 +12,15 @@ using Catch::Approx;
 #include <vector>
 #include <numeric>
 #include <string>
-#import <Metal/Metal.h>
 
+//Only one GPU unit for METAL. 
 using namespace ARBD;
 
 TEST_CASE("Metal Resource Creation and Properties", "[metal][resource]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Resource type is correct") {
-        CHECK(metal_resource.type == Resource::METAL);
+        CHECK(metal_resource.type == ResourceType::METAL);
         CHECK(metal_resource.id == 0);
     }
     
@@ -43,7 +44,7 @@ TEST_CASE("Metal Resource Creation and Properties", "[metal][resource]") {
 }
 
 TEST_CASE("Metal DeviceBuffer Basic Operations", "[metal][buffer]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Empty buffer creation") {
         DeviceBuffer<int> buffer;
@@ -57,7 +58,7 @@ TEST_CASE("Metal DeviceBuffer Basic Operations", "[metal][buffer]") {
         
         CHECK(buffer.size() == count);
         CHECK_FALSE(buffer.empty());
-        CHECK(buffer.get_resource().type == Resource::METAL);
+        CHECK(buffer.get_resource().type == ResourceType::METAL);
         CHECK(buffer.data() != nullptr);
     }
     
@@ -90,7 +91,7 @@ TEST_CASE("Metal DeviceBuffer Basic Operations", "[metal][buffer]") {
 }
 
 TEST_CASE("Metal DeviceBuffer Data Transfer", "[metal][buffer][transfer]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 100;
     
     SECTION("Host to device copy") {
@@ -150,7 +151,7 @@ TEST_CASE("Metal DeviceBuffer Data Transfer", "[metal][buffer][transfer]") {
 }
 
 TEST_CASE("Metal UnifiedBuffer Operations", "[metal][unified_buffer]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 200;
     
     SECTION("Unified buffer creation") {
@@ -158,7 +159,7 @@ TEST_CASE("Metal UnifiedBuffer Operations", "[metal][unified_buffer]") {
         
         CHECK(buffer.size() == count);
         CHECK_FALSE(buffer.empty());
-        CHECK(buffer.primary_location().type == Resource::METAL);
+        CHECK(buffer.primary_location().type == ResourceType::METAL);
     }
     
     SECTION("Memory migration") {
@@ -171,7 +172,7 @@ TEST_CASE("Metal UnifiedBuffer Operations", "[metal][unified_buffer]") {
         
         auto locations = buffer.available_locations();
         CHECK(locations.size() >= 1);
-        CHECK(locations[0].type == Resource::METAL);
+        CHECK(locations[0].type == ResourceType::METAL);
     }
     
     SECTION("Data copy operations") {
@@ -210,7 +211,7 @@ TEST_CASE("Metal UnifiedBuffer Operations", "[metal][unified_buffer]") {
 }
 
 TEST_CASE("Metal Event Management", "[metal][events]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Empty event is complete") {
         Event empty_event;
@@ -246,15 +247,16 @@ TEST_CASE("Metal Event Management", "[metal][events]") {
         DeviceBuffer<float> buffer(50, metal_resource);
         Event last_event = buffer.get_last_event();
         
-        // For default constructed events
+        // For default constructed events  
         if (last_event.is_valid()) {
             CHECK_NOTHROW(last_event.wait());
+            CHECK(last_event.is_complete());
         }
     }
 }
 
 TEST_CASE("Metal Memory Operations", "[metal][memory]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Memory allocation and deallocation") {
         const size_t size = 1024 * sizeof(float);
@@ -302,7 +304,7 @@ TEST_CASE("Metal Memory Operations", "[metal][memory]") {
 }
 
 TEST_CASE("Metal Kernel Launch Infrastructure", "[metal][kernels]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("LaunchConfig creation") {
         using namespace Kernels;
@@ -381,14 +383,14 @@ TEST_CASE("Metal Kernel Launch Infrastructure", "[metal][kernels]") {
 }
 
 TEST_CASE("Metal GenericAllocator", "[metal][allocator]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Basic allocation") {
         const size_t count = 150;
         auto buffer = GenericAllocator<float>::allocate(count, metal_resource);
         
         CHECK(buffer.size() == count);
-        CHECK(buffer.get_resource().type == Resource::METAL);
+        CHECK(buffer.get_resource().type == ResourceType::METAL);
     }
     
     SECTION("Zero-initialized allocation") {
@@ -431,7 +433,7 @@ TEST_CASE("Metal GenericAllocator", "[metal][allocator]") {
 }
 
 TEST_CASE("Metal MultiRef Operations", "[metal][multiref]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 75;
     
     SECTION("MultiRef with multiple buffers") {
@@ -464,7 +466,7 @@ TEST_CASE("Metal MultiRef Operations", "[metal][multiref]") {
 }
 
 TEST_CASE("Metal Utility Functions", "[metal][utilities]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 80;
     
     SECTION("Buffer copy utility") {
@@ -503,12 +505,12 @@ TEST_CASE("Metal Utility Functions", "[metal][utilities]") {
 }
 
 TEST_CASE("Metal Proxy Basic Operations", "[metal][proxy]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Proxy construction") {
         Proxy<int> int_proxy(metal_resource, nullptr);
         
-        CHECK(int_proxy.get_location().type == Resource::METAL);
+        CHECK(int_proxy.get_location().type == ResourceType::METAL);
         CHECK_FALSE(int_proxy.is_valid()); // No object assigned yet
     }
     
@@ -520,21 +522,20 @@ TEST_CASE("Metal Proxy Basic Operations", "[metal][proxy]") {
         CHECK(int_proxy.get_address() == &value);
     }
     
-    SECTION("Remote kernel call") {
+    SECTION("Basic proxy functionality") {
         const size_t count = 50;
-        std::vector<int> data(count, 1);
+        int test_value = 42;
         
-        auto increment_kernel = [](size_t i, int* ptr) {
-            ptr[i] += 1;
-        };
+        Proxy<int> int_proxy(metal_resource, &test_value);
         
-        auto result = remote_kernel_call(metal_resource, count, increment_kernel, data);
-        CHECK_NOTHROW(result.wait());
+        CHECK(int_proxy.is_valid());
+        CHECK(int_proxy.get_address() == &test_value);
+        CHECK(int_proxy.get_location().type == ResourceType::METAL);
     }
 }
 
 TEST_CASE("Metal Integration Test", "[metal][integration]") {
-    Resource metal_resource(Resource::METAL, 0);
+    Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 1000;
     
     SECTION("Complete workflow: allocation -> computation -> verification") {
@@ -608,6 +609,88 @@ TEST_CASE("Metal Integration Test", "[metal][integration]") {
         for (size_t i = 0; i < pipeline_count; ++i) {
             float expected = initial_data[i];
             CHECK(final_result[i] == Approx(expected).epsilon(0.001f));
+        }
+    }
+}
+
+TEST_CASE("Metal Remote Kernel Call", "[metal][remote_kernel_call]") {
+    Resource metal_resource(ResourceType::METAL, 0);
+    
+    SECTION("Remote kernel call with data modification") {
+        const size_t count = 10;
+        std::vector<int> data(count, 1);
+        
+        auto increment_kernel = [](size_t i, int* ptr) {
+            ptr[i]++;
+        };
+        
+        auto result = remote_kernel_call(metal_resource, count, increment_kernel, data);
+        result.wait();
+        
+        for (size_t i = 0; i < count; ++i) {
+            CHECK(data[i] == 2);
+        }
+    }
+    
+    SECTION("Kernel call with host-side pointer") {
+        const size_t count = 5;
+        std::vector<int> data(count, 10);
+        
+        auto host_ptr_kernel = [](size_t i, int* vec) {
+            vec[i] *= 2;
+        };
+        
+        remote_kernel_call(metal_resource, count, host_ptr_kernel, data.data()).wait();
+        
+        for (size_t i = 0; i < count; ++i) {
+            CHECK(data[i] == 20);
+        }
+    }
+    
+    SECTION("Kernel with multiple arguments") {
+        const size_t count = 10;
+        std::vector<int> data(count, 0);
+        
+        auto multi_arg_kernel = [](size_t i, int* ptr, int val1, int val2) {
+            ptr[i] = val1 + val2;
+        };
+        
+        remote_kernel_call(metal_resource, count, multi_arg_kernel, data, 5, 10).wait();
+        
+        for (size_t i = 0; i < count; ++i) {
+            CHECK(data[i] == 15);
+        }
+    }
+    
+    SECTION("Fill operation via kernel") {
+        const size_t count = 100;
+        std::vector<int> data(count, 0);
+        const int fill_value = 7;
+        
+        auto fill_kernel = [](size_t i, int* ptr, int value) {
+            ptr[i] = value;
+        };
+        
+        remote_kernel_call(metal_resource, count, fill_kernel, data, fill_value).wait();
+        
+        for (const auto& val : data) {
+            CHECK(val == fill_value);
+        }
+    }
+    
+    SECTION("Complex kernel with multiple buffers") {
+        const size_t count = 10;
+        std::vector<float> input(count, 2.0f);
+        std::vector<float> output(count, 0.0f);
+        
+        auto complex_kernel = [](size_t i, const float* in, float* out, float factor) {
+            out[i] = in[i] * factor;
+        };
+        
+        remote_kernel_call(metal_resource, count, complex_kernel, input, output, 3.0f).wait();
+        
+        for (size_t i = 0; i < count; ++i) {
+            CHECK(output[i] == Approx(input[i] * 3.0f));
         }
     }
 }

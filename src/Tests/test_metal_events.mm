@@ -1,9 +1,6 @@
 #ifdef USE_METAL
 
-#include <catch2/catch_test_macros.hpp>
-#include "Backend/Events.h"
-#include "Backend/Resource.h"
-#include "Backend/METAL/METALManager.h"
+#include "catch_boiler.h"
 
 using namespace ARBD;
 using namespace ARBD::BACKEND;
@@ -25,11 +22,11 @@ TEST_CASE("Metal Event Creation and Basic Operations", "[metal][events]") {
         ARBD::METAL::Event metal_event(cmd_buffer);
         
         // Create unified event
-        Resource metal_resource(Resource::METAL, 0);
+        Resource metal_resource(ResourceType::METAL, 0);
         Event unified_event(metal_event, metal_resource);
         
         REQUIRE(unified_event.is_valid());
-        REQUIRE(unified_event.get_resource().type == Resource::METAL);
+        REQUIRE(unified_event.get_resource().type == ResourceType::METAL);
     }
     
     SECTION("Metal Event wait and completion") {
@@ -38,7 +35,7 @@ TEST_CASE("Metal Event Creation and Basic Operations", "[metal][events]") {
         ARBD::METAL::Event metal_event(cmd_buffer);
         
         // Create unified event
-        Resource metal_resource(Resource::METAL, 0);
+        Resource metal_resource(ResourceType::METAL, 0);
         Event unified_event(metal_event, metal_resource);
         
         // Commit the command buffer
@@ -65,7 +62,7 @@ TEST_CASE("Metal Event Creation and Basic Operations", "[metal][events]") {
             // Commit the command buffer before adding to event list
             metal_event.commit();
             
-            Resource metal_resource(Resource::METAL, 0);
+            Resource metal_resource(ResourceType::METAL, 0);
             Event unified_event(metal_event, metal_resource);
             
             event_list.add(unified_event);

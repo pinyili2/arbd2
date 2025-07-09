@@ -1,5 +1,4 @@
 #include "catch_boiler.h"
-#include <catch2/catch_test_macros.hpp>
 #ifdef USE_SYCL
 
 #include "Backend/Buffer.h"
@@ -13,11 +12,11 @@
 
 using namespace ARBD;
 
-TEST_CASE("SYCL Resource Creation and Properties", "[sycl][resource]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+TEST_CASE("SYCL Resource Creation and Properties", "[SYCL][Resource]") {
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Resource type is correct") {
-        CHECK(sycl_resource.type == Resource::SYCL);
+        CHECK(sycl_resource.type == ResourceType::SYCL);
         CHECK(sycl_resource.id == 0);
     }
     
@@ -40,7 +39,7 @@ TEST_CASE("SYCL Resource Creation and Properties", "[sycl][resource]") {
 }
 
 TEST_CASE("SYCL DeviceBuffer Basic Operations", "[sycl][buffer]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Empty buffer creation") {
         DeviceBuffer<int> buffer;
@@ -54,7 +53,7 @@ TEST_CASE("SYCL DeviceBuffer Basic Operations", "[sycl][buffer]") {
         
         CHECK(buffer.size() == count);
         CHECK_FALSE(buffer.empty());
-        CHECK(buffer.get_resource().type == Resource::SYCL);
+        CHECK(buffer.get_resource().type == ResourceType::SYCL);
         CHECK(buffer.data() != nullptr);
     }
     
@@ -73,7 +72,7 @@ TEST_CASE("SYCL DeviceBuffer Basic Operations", "[sycl][buffer]") {
 }
 
 TEST_CASE("SYCL DeviceBuffer Data Transfer", "[sycl][buffer][transfer]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     const size_t count = 100;
     
     SECTION("Host to device copy") {
@@ -115,8 +114,8 @@ TEST_CASE("SYCL DeviceBuffer Data Transfer", "[sycl][buffer][transfer]") {
     }
 }
 
-TEST_CASE("SYCL UnifiedBuffer Operations", "[sycl][unified_buffer]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+TEST_CASE("SYCL UnifiedBuffer Operations", "[SYCL][UnifiedBuffer]") {
+    Resource sycl_resource(ResourceType::SYCL, 0);
     const size_t count = 200;
     
     SECTION("Unified buffer creation") {
@@ -124,7 +123,7 @@ TEST_CASE("SYCL UnifiedBuffer Operations", "[sycl][unified_buffer]") {
         
         CHECK(buffer.size() == count);
         CHECK_FALSE(buffer.empty());
-        CHECK(buffer.primary_location().type == Resource::SYCL);
+        CHECK(buffer.primary_location().type == ResourceType::SYCL);
     }
     
     SECTION("Memory migration") {
@@ -137,7 +136,7 @@ TEST_CASE("SYCL UnifiedBuffer Operations", "[sycl][unified_buffer]") {
         
         auto locations = buffer.available_locations();
         CHECK(locations.size() >= 1);
-        CHECK(locations[0].type == Resource::SYCL);
+        CHECK(locations[0].type == ResourceType::SYCL);
     }
     
     SECTION("Data copy operations") {
@@ -157,7 +156,7 @@ TEST_CASE("SYCL UnifiedBuffer Operations", "[sycl][unified_buffer]") {
 }
 
 TEST_CASE("SYCL Event Management", "[sycl][events]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Empty event is complete") {
         Event empty_event;
@@ -191,7 +190,7 @@ TEST_CASE("SYCL Event Management", "[sycl][events]") {
 }
 
 TEST_CASE("SYCL Kernel Launch Infrastructure", "[sycl][kernels]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("LaunchConfig creation") {
         using namespace Kernels;
@@ -239,7 +238,7 @@ TEST_CASE("SYCL Kernel Launch Infrastructure", "[sycl][kernels]") {
 }
 
 TEST_CASE("SYCL Memory Operations", "[sycl][memory]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Memory allocation and deallocation") {
         const size_t size = 1024 * sizeof(float);
@@ -278,14 +277,14 @@ TEST_CASE("SYCL Memory Operations", "[sycl][memory]") {
 }
 
 TEST_CASE("SYCL GenericAllocator", "[sycl][allocator]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Basic allocation") {
         const size_t count = 150;
         auto buffer = GenericAllocator<float>::allocate(count, sycl_resource);
         
         CHECK(buffer.size() == count);
-        CHECK(buffer.get_resource().type == Resource::SYCL);
+        CHECK(buffer.get_resource().type == ResourceType::SYCL);
     }
     
     SECTION("Zero-initialized allocation") {
@@ -313,8 +312,8 @@ TEST_CASE("SYCL GenericAllocator", "[sycl][allocator]") {
     }
 }
 
-TEST_CASE("SYCL MultiRef Operations", "[sycl][multiref]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+TEST_CASE("SYCL MultiRef Operations", "[SYCL][multiref]") {
+    Resource sycl_resource(ResourceType::SYCL, 0);
     const size_t count = 75;
     
     SECTION("MultiRef with multiple buffers") {
@@ -354,7 +353,7 @@ TEST_CASE("SYCL MultiRef Operations", "[sycl][multiref]") {
 }
 
 TEST_CASE("SYCL Utility Functions", "[sycl][utilities]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     const size_t count = 80;
     
     SECTION("Buffer copy utility") {
@@ -387,18 +386,18 @@ TEST_CASE("SYCL Utility Functions", "[sycl][utilities]") {
         buffer.copy_to_host(result.data(), count);
         
         for (float val : result) {
-            CHECK(val == Approx(fill_value));
+            CHECK(val == Catch::Approx(fill_value));
         }
     }
 }
 
 TEST_CASE("SYCL Proxy Basic Operations", "[sycl][proxy]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     
     SECTION("Proxy construction") {
-        Proxy<int> int_proxy(sycl_resource);
+        Proxy<int> int_proxy(sycl_resource, nullptr);
         
-        CHECK(int_proxy.get_location().type == Resource::SYCL);
+        CHECK(int_proxy.get_location().type == ResourceType::SYCL);
         CHECK_FALSE(int_proxy.is_valid()); // No object assigned yet
     }
     
@@ -412,7 +411,7 @@ TEST_CASE("SYCL Proxy Basic Operations", "[sycl][proxy]") {
 }
 
 TEST_CASE("SYCL Integration Test", "[sycl][integration]") {
-    Resource sycl_resource(Resource::SYCL, 0);
+    Resource sycl_resource(ResourceType::SYCL, 0);
     const size_t count = 1000;
     
     SECTION("Complete workflow: allocation -> computation -> verification") {
@@ -442,7 +441,7 @@ TEST_CASE("SYCL Integration Test", "[sycl][integration]") {
         
         for (size_t i = 0; i < count; ++i) {
             float expected = host_input[i] * 2.0f;
-            CHECK(host_output[i] == Approx(expected));
+            CHECK(host_output[i] == Catch::Approx(expected));
         }
     }
 }

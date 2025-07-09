@@ -185,6 +185,7 @@ public:
 class Queue {
 private:
   sycl::queue queue_;  // Always valid - no optional needed!
+  sycl::device device_; // Store device separately to avoid calling queue_.get_device()
 
 public:
   // Delete default constructor to prevent invalid state

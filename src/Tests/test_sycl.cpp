@@ -319,39 +319,4 @@ TEST_CASE("SYCL Error Handling", "[sycl][error]") {
     }
 }
 
-// Custom main function to handle SYCL cleanup properly
-int main(int argc, char* argv[]) {
-    // Initialize Catch2
-    Catch::Session session;
-    
-    // Parse command line arguments
-    int returnCode = session.applyCommandLine(argc, argv);
-    if (returnCode != 0) {
-        return returnCode;
-    }
-    
-    // Run the tests
-    int result = session.run();
-    
-    // Explicit cleanup to prevent mutex issues
-    /*
-    try {
-        SYCLManager::finalize();
-    } catch (...) {
-        // Ignore cleanup errors
-        std::cerr << "Warning: SYCL cleanup had issues (ignored)" << std::endl;
-    }
-    */
-    
-    return result;
-}
-
-#else // PROJECT_USES_SYCL
-
-// Fallback main when SYCL is not enabled
-int main() {
-    std::cout << "SYCL support not enabled, skipping SYCL tests" << std::endl;
-    return 0;
-}
-
 #endif // PROJECT_USES_SYCL

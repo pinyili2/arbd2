@@ -17,14 +17,14 @@ TEST_CASE("UnifiedBuffer SYCL Basic Allocation", "[UnifiedBuffer][SYCL]") {
             SKIP("No SYCL devices available");
         }
         
-        ARBD::Resource sycl_resource{ARBD::Resource::SYCL, 0};
+        ARBD::Resource sycl_resource{ARBD::ResourceType::SYCL, 0};
         
         SECTION("Basic allocation and deallocation") {
             ARBD::UnifiedBuffer<float> buffer(1000, sycl_resource);
             
             REQUIRE(buffer.size() == 1000);
             REQUIRE(!buffer.empty());
-            REQUIRE(buffer.primary_location().type == ARBD::Resource::SYCL);
+            REQUIRE(buffer.primary_location().type == ARBD::ResourceType::SYCL);
             
             // Check that pointer is valid
             float* ptr = buffer.get_ptr(sycl_resource);
@@ -68,7 +68,7 @@ TEST_CASE("UnifiedBuffer SYCL Data Migration", "[UnifiedBuffer][SYCL]") {
             SKIP("No SYCL devices available");
         }
         
-        ARBD::Resource sycl_resource{ARBD::Resource::SYCL, 0};
+        ARBD::Resource sycl_resource{ARBD::ResourceType::SYCL, 0};
         ARBD::Resource host_resource{}; // Default host resource
         
         SECTION("Ensure availability at different resources") {
@@ -76,7 +76,7 @@ TEST_CASE("UnifiedBuffer SYCL Data Migration", "[UnifiedBuffer][SYCL]") {
             // Should be available at primary location
             auto locations = buffer.available_locations();
             REQUIRE(locations.size() == 1);
-            REQUIRE(locations[0].type == ARBD::Resource::SYCL);
+            REQUIRE(locations[0].type == ARBD::ResourceType::SYCL);
             
             // Ensure availability at host (should trigger migration)
             buffer.ensure_available_at(host_resource);
@@ -103,7 +103,7 @@ TEST_CASE("UnifiedBuffer SYCL Data Migration", "[UnifiedBuffer][SYCL]") {
             buffer.release_at(host_resource);
             auto locations = buffer.available_locations();
             REQUIRE(locations.size() == 1);
-            REQUIRE(locations[0].type == ARBD::Resource::SYCL);
+            REQUIRE(locations[0].type == ARBD::ResourceType::SYCL);
         }
         
         ARBD::SYCL::SYCLManager::finalize();
@@ -122,7 +122,7 @@ TEST_CASE("UnifiedBuffer SYCL Move Semantics", "[UnifiedBuffer][SYCL]") {
             SKIP("No SYCL devices available");
         }
         
-        ARBD::Resource sycl_resource{ARBD::Resource::SYCL, 0};
+        ARBD::Resource sycl_resource{ARBD::ResourceType::SYCL, 0};
         
         SECTION("Move constructor") {
             ARBD::UnifiedBuffer<float> buffer1(1000, sycl_resource);
@@ -199,12 +199,12 @@ TEST_CASE("UnifiedBuffer SYCL Error Handling", "[UnifiedBuffer][SYCL]") {
             SKIP("No SYCL devices available");
         }
         
-        ARBD::Resource sycl_resource{ARBD::Resource::SYCL, 0};
+        ARBD::Resource sycl_resource{ARBD::ResourceType::SYCL, 0};
         
         SECTION("Get pointer for non-existent location") {
             ARBD::UnifiedBuffer<float> buffer(100, sycl_resource);
             
-            ARBD::Resource other_resource{ARBD::Resource::SYCL, 999}; // Non-existent device
+            ARBD::Resource other_resource{ARBD::ResourceType::SYCL, 999}; // Non-existent device
             
             // This should trigger ensure_available_at and potentially fail gracefully
             // or migrate from existing location

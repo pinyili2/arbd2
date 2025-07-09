@@ -9,6 +9,7 @@
 #include <functional>
 #include <future>
 #include <optional>
+#include <map>
 
 #ifdef USE_CUDA
 #include "CUDA/CUDAManager.h"
@@ -267,7 +268,7 @@ public:
         last_event_ = e;
     }
     
-    Event get_last_event() const { return last_event_; }
+    Event get_last_event() const { return last_event_.value_or(Event{}); }
     
     // Properties
     size_t size() const { return size_; }

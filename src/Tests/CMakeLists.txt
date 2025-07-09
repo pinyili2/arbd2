@@ -25,10 +25,18 @@ endif()
 
 # Metal Tests
 if(USE_METAL AND APPLE)
-    add_executable(arbd_test_metal test_metal.mm unifiedbuffer_metal.mm test_metal_events.mm test_metal_backend.mm)
+    add_executable(arbd_test_metal test_metal.mm unifiedbuffer_metal.mm 
+    test_metal_events.mm test_metal_backend.mm test_metal_kernels.metal)
     target_include_directories(arbd_test_metal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
-    target_link_libraries(arbd_test_metal PRIVATE ${COMMON_TEST_LIBS} ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
-    catch_discover_tests(arbd_test_metal)
+    # Use Catch2 with main to provide the entry point for the test executable
+    target_link_libraries(arbd_test_metal PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2WithMain ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    
+    # Add single test instead of catch_discover_tests to avoid conflicts with amalgamated header
+    add_test(NAME Metal_Tests COMMAND arbd_test_metal)
+    set_tests_properties(Metal_Tests PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+    
     install(TARGETS arbd_test_metal)
     message(STATUS "Added Metal test executable: arbd_test_metal")
 elseif(USE_METAL)
@@ -37,16 +45,28 @@ endif()
 
 # SYCL Tests
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
-    # Test for test_sycl.cpp
-    add_executable(arbd_test_sycl test_sycl.cpp unifiedbuffer_sycl.cpp test_sycl_backend.cpp)
+    # Test for test_sycl.cpp - now uses Catch2's main function
+    add_executable(arbd_test_sycl 
+        test_sycl.cpp
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl PRIVATE ${COMMON_TEST_LIBS})
+    target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
+    
+    # Test for backend and buffer tests - using amalgamated Catch2
+    add_executable(arbd_test_sycl_backend 
+        unifiedbuffer_sycl.cpp 
+        test_sycl_backend.cpp
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
     
     # Fix C++ standard library linking for AdaptiveCpp
     if(USE_SYCL_ACPP)
         target_link_libraries(arbd_test_sycl PRIVATE stdc++)
+        target_link_libraries(arbd_test_sycl_backend PRIVATE stdc++)
         # Also link Boost libraries for AdaptiveCpp
         target_link_directories(arbd_test_sycl PRIVATE "${BOOST_LIB_DIR}")
+        target_link_directories(arbd_test_sycl_backend PRIVATE "${BOOST_LIB_DIR}")
     endif()
     
     # Instead of catch_discover_tests which causes bus errors on ACPP,
@@ -61,11 +81,21 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     
     install(TARGETS arbd_test_sycl)
     message(STATUS "Added SYCL test executable: arbd_test_sycl")
+    
+    # Add test for backend tests
+    add_test(NAME SYCL_Backend_Tests COMMAND arbd_test_sycl_backend)
+    set_tests_properties(SYCL_Backend_Tests PROPERTIES
+        ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+    
+    install(TARGETS arbd_test_sycl_backend)
+    message(STATUS "Added SYCL backend test executable: arbd_test_sycl_backend")
 
-    # Test for test_sycl_omp.cpp
+    # Test for test_sycl_omp.cpp - it has its own main and doesn't use Catch2
     add_executable(arbd_test_sycl_omp test_sycl_omp.cpp)
     target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl_omp PRIVATE ${COMMON_TEST_LIBS})
+    target_link_libraries(arbd_test_sycl_omp PRIVATE "lib${PROJECT_NAME}")
     
     # Fix C++ standard library linking for AdaptiveCpp
     if(USE_SYCL_ACPP)

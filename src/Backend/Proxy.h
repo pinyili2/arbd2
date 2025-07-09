@@ -193,10 +193,8 @@ public:
                                           size_t num_elements,
                                           const Kernels::KernelConfig& config,
                                           KernelFunc&& kernel,
-                                          Args*... args) {
-        return std::async(std::launch::async, [=]() {
-            // CUDA kernel dispatch implementation
-            // This would integrate with the CUDA proxy system
+                                          Args&&... args) {
+        return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
             for (size_t i = 0; i < num_elements; ++i) {
                 kernel(i, args...);
             }
@@ -208,9 +206,8 @@ public:
                                           size_t num_elements,
                                           const Kernels::KernelConfig& config,
                                           KernelFunc&& kernel,
-                                          Args*... args) {
-        return std::async(std::launch::async, [=]() {
-            // SYCL kernel dispatch implementation
+                                          Args&&... args) {
+        return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
             for (size_t i = 0; i < num_elements; ++i) {
                 kernel(i, args...);
             }
@@ -222,9 +219,8 @@ public:
                                            size_t num_elements,
                                            const Kernels::KernelConfig& config,
                                            KernelFunc&& kernel,
-                                           Args*... args) {
-        return std::async(std::launch::async, [=]() {
-            // Metal kernel dispatch implementation
+                                           Args&&... args) {
+        return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
             for (size_t i = 0; i < num_elements; ++i) {
                 kernel(i, args...);
             }
@@ -235,9 +231,9 @@ public:
     static std::future<void> dispatch_cpu(size_t num_elements,
                                          const Kernels::KernelConfig& config,
                                          KernelFunc&& kernel,
-                                         Args*... args) {
+                                         Args&&... args) {
         if (config.async) {
-            return std::async(std::launch::async, [=]() {
+            return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
                 for (size_t i = 0; i < num_elements; ++i) {
                     kernel(i, args...);
                 }
@@ -253,22 +249,70 @@ public:
     }
 };
 
+// Helper to decay and remove pointer/reference to get base type
+template <typename T>
+using base_type_t = std::remove_cv_t<std::remove_pointer_t<std::decay_t<T>>>;
+
+// Helper to check if a type is a vector
+template <typename T>
+struct is_vector : std::false_type {};
+
+template <typename T, typename A>
+struct is_vector<std::vector<T, A>> : std::true_type {};
+
+template<typename T>
+static constexpr bool is_vector_v = is_vector<std::decay_t<T>>::value;
+
+// Argument wrapper for remote_kernel_call
+template<typename T>
+auto get_kernel_arg(T&& arg) {
+    if constexpr (is_vector_v<T>) {
+        return arg.data();
+    } else {
+        return arg;
+    }
+}
+
 /**
- * @brief Simplified kernel launch function that works with proxy objects
+ * @brief Enhanced kernel launch function that works with proxy objects
  */
-template<typename KernelFunc, typename... Objects>
+template<typename KernelFunc, typename... Args>
 RemoteResult<void> remote_kernel_call(const Resource& resource,
-                                     size_t num_elements,
-                                     KernelFunc&& kernel,
-                                     Objects&... objects) {
-    
-    Kernels::KernelConfig config;
-    config.async = true;
-    
-    auto future = RemoteKernelDispatcher::dispatch_cpu(num_elements, config, 
-                                                      std::forward<KernelFunc>(kernel), 
-                                                      (&objects)...);
-    
+                                    size_t num_elements,
+                                    KernelFunc&& kernel,
+                                    Args&&... args) {
+    Kernels::KernelConfig config; // Default config for now
+    std::future<void> future;
+
+    switch (resource.type) {
+        case ResourceType::CPU:
+            future = RemoteKernelDispatcher::dispatch_cpu(num_elements, config,
+                kernel, get_kernel_arg(std::forward<Args>(args))...
+            );
+            break;
+        case ResourceType::CUDA:
+            #ifdef USE_CUDA
+                future = RemoteKernelDispatcher::dispatch_cuda(resource, num_elements, config, kernel, get_kernel_arg(std::forward<Args>(args))...);
+            #else
+                throw_not_implemented("CUDA support not enabled");
+            #endif
+            break;
+        case ResourceType::SYCL:
+            #ifdef USE_SYCL
+                future = RemoteKernelDispatcher::dispatch_sycl(resource, num_elements, config, kernel, get_kernel_arg(std::forward<Args>(args))...);
+            #else
+                throw_not_implemented("SYCL support not enabled");
+            #endif
+            break;
+        case ResourceType::METAL:
+            #if defined(USE_METAL) && defined(__OBJC__)
+                future = RemoteKernelDispatcher::dispatch_metal(resource, num_elements, config, kernel, get_kernel_arg(std::forward<Args>(args))...);
+            #else
+                throw_not_implemented("METAL support not enabled");
+            #endif
+            break;
+    }
+
     return RemoteResult<void>(std::move(future));
 }
 

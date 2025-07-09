@@ -70,7 +70,7 @@ std::future<void*> sycl_call_async(void* addr, void* func_ptr, void* args,
 template <typename T>
 void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
   switch (location.type) {
-  case Resource::SYCL:
+  case ResourceType::SYCL:
     LOGINFO("Using SYCL...");
 #ifdef USE_SYCL
     if (location.is_local()) {
@@ -108,7 +108,7 @@ void *send_ignoring_children(const Resource &location, T &obj, T *dest) {
 template <typename T>
 void *construct_remote(const Resource &location, void *args, size_t args_size) {
   switch (location.type) {
-  case Resource::SYCL:
+  case ResourceType::SYCL:
 #ifdef USE_SYCL
     if (location.is_local()) {
       auto &device = ARBD::SYCL::SYCLManager::get_current_device();

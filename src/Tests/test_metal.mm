@@ -1,33 +1,11 @@
 #ifdef USE_METAL
 
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/catch_session.hpp"
-#include "Backend/METAL/METALManager.h"
+#include "catch_boiler.h"
 #include "ARBDException.h"
-#include "ARBDLogger.h"
 #include <vector>
 #include <string>
 #include <numeric>
-
-// Helper to get a default device for tests that need one
-// Note: This is a simplified version for testing purposes.
-// In a real application, you would use the METALManager to select devices.
-#ifdef __OBJC__
-#import <Metal/Metal.h>
-
-static id<MTLDevice> get_default_device() {
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    if (!device) {
-        throw std::runtime_error("Metal is not supported on this device");
-    }
-    return device;
-}
-#else
-// Mock function for non-Objective-C environments
-static void* get_default_device() {
-    return nullptr;
-}
-#endif
+#include "Backend/METAL/METALManager.h"
 
 // This test case is a placeholder for when Metal is not supported.
 // We need at least one test case in the file.
@@ -35,19 +13,15 @@ TEST_CASE("Metal Support Check", "[metal]") {
 #ifndef __OBJC__
     WARN("Metal tests are disabled because Objective-C is not available.");
 #else
-    id<MTLDevice> device = MTLCreateSystemDefaultDevice();
-    REQUIRE(device != nullptr);
+    // Use the METALManager to check for available devices. This is a more
+    // thorough check that ensures the manager can initialize and find devices.
+    REQUIRE_NOTHROW(ARBD::METAL::METALManager::init());
+    REQUIRE(ARBD::METAL::METALManager::all_device_size() > 0);
+    REQUIRE_NOTHROW(ARBD::METAL::METALManager::finalize());
 #endif
 }
 
-
 TEST_CASE("Metal Manager Initialization", "[metal][manager]") {
-    SECTION("Manager Initialization and Finalization") {
-        REQUIRE_NOTHROW(ARBD::METAL::METALManager::init());
-        REQUIRE(ARBD::METAL::METALManager::all_device_size() > 0);
-        REQUIRE_NOTHROW(ARBD::METAL::METALManager::finalize());
-    }
-
     SECTION("Device Discovery and Properties") {
         ARBD::METAL::METALManager::init();
         auto& devices = ARBD::METAL::METALManager::all_devices();

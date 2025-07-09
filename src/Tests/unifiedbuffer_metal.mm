@@ -1,8 +1,7 @@
+#ifdef USE_METAL
 #include "catch_boiler.h"
 #include "Backend/Buffer.h"
 #include "Backend/Resource.h"
-
-#ifdef USE_METAL
 #include "Backend/METAL/METALManager.h"
 #include <vector>
 #include <numeric>
@@ -17,14 +16,14 @@ TEST_CASE("UnifiedBuffer Metal Basic Allocation", "[UnifiedBuffer][Metal]") {
             SKIP("No Metal devices available");
         }
         
-        ARBD::Resource metal_resource{ARBD::Resource::METAL, 0};
+        ARBD::Resource metal_resource{ARBD::ResourceType::METAL, 0};
         
         SECTION("Basic allocation and deallocation") {
             ARBD::UnifiedBuffer<float> buffer(1000, metal_resource);
             
             REQUIRE(buffer.size() == 1000);
             REQUIRE(!buffer.empty());
-            REQUIRE(buffer.primary_location().type == ARBD::Resource::METAL);
+            REQUIRE(buffer.primary_location().type == ARBD::ResourceType::METAL);
             
             // Check that pointer is valid
             float* ptr = buffer.get_ptr(metal_resource);
@@ -68,7 +67,7 @@ TEST_CASE("UnifiedBuffer Metal Data Migration", "[UnifiedBuffer][Metal]") {
             SKIP("No Metal devices available");
         }
         
-        ARBD::Resource metal_resource{ARBD::Resource::METAL, 0};
+        ARBD::Resource metal_resource{ARBD::ResourceType::METAL, 0};
         ARBD::Resource host_resource{}; // Default host resource
         
         SECTION("Ensure availability at different resources") {
@@ -77,7 +76,7 @@ TEST_CASE("UnifiedBuffer Metal Data Migration", "[UnifiedBuffer][Metal]") {
             // Should be available at primary location
             auto locations = buffer.available_locations();
             REQUIRE(locations.size() == 1);
-            REQUIRE(locations[0].type == ARBD::Resource::METAL);
+            REQUIRE(locations[0].type == ARBD::ResourceType::METAL);
             
             // Metal buffers should only have 1 location
             REQUIRE(buffer.get_ptr(metal_resource) != nullptr);
@@ -89,7 +88,7 @@ TEST_CASE("UnifiedBuffer Metal Data Migration", "[UnifiedBuffer][Metal]") {
             // Metal buffer should only have 1 location
             auto locations = buffer.available_locations();
             REQUIRE(locations.size() == 1);
-            REQUIRE(locations[0].type == ARBD::Resource::METAL);
+            REQUIRE(locations[0].type == ARBD::ResourceType::METAL);
         }
         
         ARBD::METAL::METALManager::finalize();
@@ -108,7 +107,7 @@ TEST_CASE("UnifiedBuffer Metal Unified Memory", "[UnifiedBuffer][Metal]") {
             SKIP("No Metal devices available");
         }
         
-        ARBD::Resource metal_resource{ARBD::Resource::METAL, 0};
+        ARBD::Resource metal_resource{ARBD::ResourceType::METAL, 0};
         auto& device = ARBD::METAL::METALManager::get_current_device();
         
         SECTION("Test unified memory access") {
@@ -157,7 +156,7 @@ TEST_CASE("UnifiedBuffer Metal Move Semantics", "[UnifiedBuffer][Metal]") {
             SKIP("No Metal devices available");
         }
         
-        ARBD::Resource metal_resource{ARBD::Resource::METAL, 0};
+        ARBD::Resource metal_resource{ARBD::ResourceType::METAL, 0};
         
         SECTION("Move constructor") {
             ARBD::UnifiedBuffer<float> buffer1(1000, metal_resource);
@@ -251,52 +250,4 @@ TEST_CASE("UnifiedBuffer Metal Raw Allocation Functions", "[UnifiedBuffer][Metal
     }
 }
 
-TEST_CASE("UnifiedBuffer Metal Multi-Device", "[UnifiedBuffer][Metal]") {
-    try {
-        // Initialize Metal backend
-        ARBD::METAL::METALManager::init();
-        ARBD::METAL::METALManager::load_info();
-        
-        //if (ARBD::METAL::METALManager::all_device_size() < 1) {
-        //    SKIP("No Metal devices available");
-        //}
-        
-        SECTION("Single device operations") {
-            ARBD::Resource metal_resource{ARBD::Resource::METAL, 0};
-            ARBD::UnifiedBuffer<float> buffer(500, metal_resource);
-            
-            REQUIRE(buffer.size() == 500);
-            REQUIRE(buffer.get_ptr(metal_resource) != nullptr);
-        }
-        
-        if (ARBD::METAL::METALManager::all_device_size() > 1) {
-            SECTION("Multi-device scenarios") {
-                ARBD::Resource device0{ARBD::Resource::METAL, 0};
-                ARBD::Resource device1{ARBD::Resource::METAL, 1};
-                
-                ARBD::UnifiedBuffer<int> buffer0(100, device0);
-                ARBD::UnifiedBuffer<int> buffer1(100, device1);
-                
-                // Each buffer should be available only on its own device
-                REQUIRE(buffer0.get_ptr(device0) != nullptr);
-                REQUIRE(buffer1.get_ptr(device1) != nullptr);
-                
-                // Each buffer should only have 1 location
-                auto locations0 = buffer0.available_locations();
-                auto locations1 = buffer1.available_locations();
-                REQUIRE(locations0.size() == 1);
-                REQUIRE(locations1.size() == 1);
-            }
-        }
-        
-        ARBD::METAL::METALManager::finalize();
-    } catch (const ARBD::Exception& e) {
-        FAIL("Metal multi-device test failed with ARBD exception: " << e.what());
-    }
-}
-
-#else
-TEST_CASE("UnifiedBuffer Metal - Metal Not Available", "[UnifiedBuffer][Metal]") {
-    SKIP("Metal support not compiled in");
-}
-#endif 
+#endif // USE_METAL 
