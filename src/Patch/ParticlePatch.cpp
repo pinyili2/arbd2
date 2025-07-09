@@ -7,9 +7,9 @@
 //     // rb_pos = rb_orient = rb_mom = rb_ang_mom = type = rb_type = nullptr;
 // };
 
-size_t BasePatch::global_patch_idx = 0;
+size_t ARBD::BasePatch::global_patch_idx = 0;
 
-void Patch::initialize() {
+void ARBD::Patch::initialize() {
     LOGINFO("Creating Patch::Data");
     /*
     Data* data = new Data{nullptr,nullptr,nullptr,nullptr};	// TODO free
@@ -28,12 +28,12 @@ void Patch::initialize() {
     LOGINFO("Data sent");
     */
     LOGWARN("Patch::initialize(): Creating Data on CPU resource");
-    Resource r = Resource{Resource::CPU,0};
+    Resource r = Resource{Resource::SYCL,0};
     metadata.data = construct_remote<Data>(r, capacity);
 };
 
-Patch* Patch::copy_to_cuda(Patch* dev_ptr) const {
-    Exception(NotImplementedError, "Deprecated");
+ARBD::Patch* ARBD::Patch::copy_to_cuda(ARBD::Patch* dev_ptr) const {
+    Exception(ARBD::NotImplementedError, "Deprecated");
     
     if (dev_ptr == nullptr) { // allocate if needed
 	gpuErrchk(cudaMalloc(&dev_ptr, sizeof( typeid(this) )));

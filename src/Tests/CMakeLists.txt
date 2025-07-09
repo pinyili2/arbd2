@@ -25,7 +25,7 @@ endif()
 
 # Metal Tests
 if(USE_METAL AND APPLE)
-    add_executable(arbd_test_metal test_metal.mm unifiedbuffer_metal.mm)
+    add_executable(arbd_test_metal test_metal.mm unifiedbuffer_metal.mm test_metal_events.mm test_metal_backend.mm)
     target_include_directories(arbd_test_metal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
     target_link_libraries(arbd_test_metal PRIVATE ${COMMON_TEST_LIBS} ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
     catch_discover_tests(arbd_test_metal)
@@ -38,7 +38,7 @@ endif()
 # SYCL Tests
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # Test for test_sycl.cpp
-    add_executable(arbd_test_sycl test_sycl.cpp unifiedbuffer_sycl.cpp)
+    add_executable(arbd_test_sycl test_sycl.cpp unifiedbuffer_sycl.cpp test_sycl_backend.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE ${COMMON_TEST_LIBS})
     

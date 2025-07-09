@@ -7,9 +7,38 @@
 #include <future>
 #include <typeinfo>
 #include <span>
-
+#include <functional>
+#include <tuple>
+#include "Kernels.h"
+/**
+ * @file Proxy.h
+ * @brief Backend-agnostic proxy system for remote object method calls
+ * 
+ * This file provides the Proxy template class and supporting infrastructure for
+ * making synchronous and asynchronous method calls on objects located on different
+ * compute backends (CUDA, SYCL, Metal, etc.). The proxy system handles serialization,
+ * backend-specific dispatch, and result retrieval transparently.
+ */
 
 namespace ARBD {
+
+// Helper functions for transfer type
+inline TransferType get_transfer_type(const Resource& src, const Resource& dest) {
+    if (src.is_host() && dest.is_device()) return TransferType::HOST_TO_DEVICE;
+    if (src.is_device() && dest.is_host()) return TransferType::DEVICE_TO_HOST;
+    if (src.is_device() && dest.is_device()) return TransferType::DEVICE_TO_DEVICE;
+    return TransferType::HOST_TO_HOST;
+}
+
+inline const char* to_string(TransferType type) {
+    switch (type) {
+        case TransferType::HOST_TO_DEVICE: return "HOST_TO_DEVICE";
+        case TransferType::DEVICE_TO_HOST: return "DEVICE_TO_HOST";
+        case TransferType::DEVICE_TO_DEVICE: return "DEVICE_TO_DEVICE";
+        case TransferType::HOST_TO_HOST: return "HOST_TO_HOST";
+    }
+    return "UNKNOWN_TRANSFER";
+}
 
 /**
  * @brief Concept to check if a type has a 'send_children' method that accepts a
@@ -39,7 +68,11 @@ struct Metadata_t<T, void_t<typename T::Metadata>> : T::Metadata {
   Metadata_t(const Metadata_t<T> &other) : T::Metadata(other){};
 };
 
-// Forward declarations and fallback implementations
+// ============================================================================
+// Forward Declarations and Proxy Infrastructure
+// ============================================================================
+
+// Forward declarations for backend-specific implementations
 namespace ProxyImpl {
 // CUDA-specific implementations (defined in Proxy.cu when USE_CUDA is enabled)
 #ifdef USE_CUDA
@@ -106,13 +139,192 @@ template <typename T>
 void *construct_remote(const Resource &location, void *args, size_t args_size);
 } // namespace ProxyImpl
 
+// ============================================================================
+// Enhanced Kernel and Remote Call Infrastructure
+// ============================================================================
+
+/**
+ * @brief Result wrapper for remote method calls
+ */
+template<typename T>
+struct RemoteResult {
+    T result;
+    std::future<void> completion_future;
+    
+    RemoteResult(T&& res, std::future<void>&& future) 
+        : result(std::forward<T>(res)), completion_future(std::move(future)) {}
+    
+    void wait() { completion_future.wait(); }
+    bool is_ready() const { 
+        return completion_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready; 
+    }
+    
+    T get() {
+        wait();
+        return std::move(result);
+    }
+};
+
+// Specialization for void type
+template<>
+struct RemoteResult<void> {
+    std::future<void> completion_future;
+    
+    RemoteResult(std::future<void>&& future) 
+        : completion_future(std::move(future)) {}
+    
+    void wait() { completion_future.wait(); }
+    bool is_ready() const { 
+        return completion_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready; 
+    }
+    
+    void get() {
+        wait();
+    }
+};
+
+/**
+ * @brief Enhanced kernel dispatcher for remote calls
+ */
+class RemoteKernelDispatcher {
+public:
+    template<typename KernelFunc, typename... Args>
+    static std::future<void> dispatch_cuda(const Resource& resource,
+                                          size_t num_elements,
+                                          const Kernels::KernelConfig& config,
+                                          KernelFunc&& kernel,
+                                          Args*... args) {
+        return std::async(std::launch::async, [=]() {
+            // CUDA kernel dispatch implementation
+            // This would integrate with the CUDA proxy system
+            for (size_t i = 0; i < num_elements; ++i) {
+                kernel(i, args...);
+            }
+        });
+    }
+
+    template<typename KernelFunc, typename... Args>
+    static std::future<void> dispatch_sycl(const Resource& resource,
+                                          size_t num_elements,
+                                          const Kernels::KernelConfig& config,
+                                          KernelFunc&& kernel,
+                                          Args*... args) {
+        return std::async(std::launch::async, [=]() {
+            // SYCL kernel dispatch implementation
+            for (size_t i = 0; i < num_elements; ++i) {
+                kernel(i, args...);
+            }
+        });
+    }
+
+    template<typename KernelFunc, typename... Args>
+    static std::future<void> dispatch_metal(const Resource& resource,
+                                           size_t num_elements,
+                                           const Kernels::KernelConfig& config,
+                                           KernelFunc&& kernel,
+                                           Args*... args) {
+        return std::async(std::launch::async, [=]() {
+            // Metal kernel dispatch implementation
+            for (size_t i = 0; i < num_elements; ++i) {
+                kernel(i, args...);
+            }
+        });
+    }
+
+    template<typename KernelFunc, typename... Args>
+    static std::future<void> dispatch_cpu(size_t num_elements,
+                                         const Kernels::KernelConfig& config,
+                                         KernelFunc&& kernel,
+                                         Args*... args) {
+        if (config.async) {
+            return std::async(std::launch::async, [=]() {
+                for (size_t i = 0; i < num_elements; ++i) {
+                    kernel(i, args...);
+                }
+            });
+        } else {
+            for (size_t i = 0; i < num_elements; ++i) {
+                kernel(i, args...);
+            }
+            std::promise<void> promise;
+            promise.set_value();
+            return promise.get_future();
+        }
+    }
+};
+
+/**
+ * @brief Simplified kernel launch function that works with proxy objects
+ */
+template<typename KernelFunc, typename... Objects>
+RemoteResult<void> remote_kernel_call(const Resource& resource,
+                                     size_t num_elements,
+                                     KernelFunc&& kernel,
+                                     Objects&... objects) {
+    
+    Kernels::KernelConfig config;
+    config.async = true;
+    
+    auto future = RemoteKernelDispatcher::dispatch_cpu(num_elements, config, 
+                                                      std::forward<KernelFunc>(kernel), 
+                                                      (&objects)...);
+    
+    return RemoteResult<void>(std::move(future));
+}
+
+/**
+ * @brief Kernel chain for sequential remote execution
+ */
+class RemoteKernelChain {
+private:
+    Resource resource_;
+    std::vector<std::future<void>> futures_;
+    
+public:
+    explicit RemoteKernelChain(const Resource& resource) : resource_(resource) {}
+    
+    template<typename KernelFunc, typename... Objects>
+    RemoteKernelChain& then(size_t num_elements, KernelFunc&& kernel, Objects&... objects) {
+        // Wait for previous operations to complete
+        for (auto& future : futures_) {
+            future.wait();
+        }
+        futures_.clear();
+        
+        auto result = remote_kernel_call(resource_, num_elements,
+                                       std::forward<KernelFunc>(kernel), objects...);
+        futures_.push_back(std::move(result.completion_future));
+        
+        return *this;
+    }
+    
+    void wait() {
+        for (auto& future : futures_) {
+            future.wait();
+        }
+    }
+    
+    bool is_ready() const {
+        for (const auto& future : futures_) {
+            if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
+                return false;
+            }
+        }
+        return true;
+    }
+};
+
+// ============================================================================
+// Main Proxy Template Class
+// ============================================================================
+
 template <typename T, typename Enable = void> struct Proxy {
   static_assert(!std::is_same<T, Proxy>::value,
                 "Cannot make a Proxy of a Proxy object");
 
   // Constructors
   Proxy()
-      : location(Resource{Resource::SYCL, 0}), addr(nullptr),
+      : location(Resource::Local()), addr(nullptr),
         metadata(nullptr) {
     LOGINFO("Constructing Proxy<{}> @{}", typeid(T).name(),
             static_cast<void *>(this));
@@ -187,7 +399,7 @@ template <typename T, typename Enable = void> struct Proxy {
   auto operator->() const { return addr; };
 
   /**
-   * @brief Synchronous method call implementation
+   * @brief Enhanced synchronous method call implementation with better error handling
    */
   template <typename RetType, typename... Args1, typename... Args2>
   RetType callSync(RetType (T::*memberFunc)(Args1...), Args2 &&...args) {
@@ -200,27 +412,65 @@ template <typename T, typename Enable = void> struct Proxy {
 
     void *result_ptr = nullptr;
 
-    switch (location.type) {
-    case Resource::CUDA:
-      result_ptr = ProxyImpl::cuda_call_sync(
-          addr, reinterpret_cast<void *>(&memberFunc), &pack, sizeof(pack),
-          location, sizeof(RetType));
-      break;
-    case Resource::SYCL:
-      result_ptr = ProxyImpl::sycl_call_sync(
-          addr, reinterpret_cast<void *>(&memberFunc), &pack, sizeof(pack),
-          location, sizeof(RetType));
-      break;
-    case Resource::METAL:
-      result_ptr = ProxyImpl::metal_call_sync(
-          addr, reinterpret_cast<void *>(&memberFunc), &pack, sizeof(pack),
-          location, sizeof(RetType));
-      break;
-    default:
-      ARBD::throw_value_error("Proxy::callSync(): Unknown resource type");
+    try {
+      if (location.is_host()) {
+        // Host execution - direct function call
+        if constexpr (!std::is_void_v<RetType>) {
+          auto result = std::apply(
+              [&](auto &&...a) {
+                return (static_cast<T *>(addr)->*memberFunc)(
+                    std::forward<decltype(a)>(a)...);
+              },
+              pack.arguments);
+          result_ptr = new RetType(std::move(result));
+        } else {
+          std::apply(
+              [&](auto &&...a) {
+                (static_cast<T *>(addr)->*memberFunc)(
+                    std::forward<decltype(a)>(a)...);
+              },
+              pack.arguments);
+        }
+      } else if (location.is_device()) {
+        // Device execution - dispatch to backend
+        switch (location.type) {
+#ifdef USE_CUDA
+        case ResourceType::CUDA:
+          result_ptr = ProxyImpl::cuda_call_sync(
+              addr, reinterpret_cast<void *>(&memberFunc), &pack, sizeof(pack),
+              location, sizeof(RetType));
+          break;
+#endif
+#ifdef USE_SYCL
+        case ResourceType::SYCL:
+          result_ptr = ProxyImpl::sycl_call_sync(
+              addr, reinterpret_cast<void *>(&memberFunc), &pack, sizeof(pack),
+              location, sizeof(RetType));
+          break;
+#endif
+#ifdef USE_METAL
+        case ResourceType::METAL:
+          result_ptr = ProxyImpl::metal_call_sync(
+              addr, reinterpret_cast<void *>(&memberFunc), &pack, sizeof(pack),
+              location, sizeof(RetType));
+          break;
+#endif
+        default:
+          ARBD::throw_value_error(
+              "Proxy::callSync(): Unsupported device type");
+        }
+      } else {
+        ARBD::throw_value_error("Proxy::callSync(): Invalid resource location");
+      }
+    } catch (const std::exception &e) {
+      LOGERROR("Proxy::callSync() failed: {}", e.what());
+      throw;
     }
 
     if constexpr (!std::is_void_v<RetType>) {
+      if (!result_ptr) {
+        throw std::runtime_error("Proxy::callSync(): Null result pointer");
+      }
       RetType result = *static_cast<RetType *>(result_ptr);
       delete static_cast<RetType *>(result_ptr);
       return result;
@@ -228,10 +478,10 @@ template <typename T, typename Enable = void> struct Proxy {
   }
 
   /**
-   * @brief Asynchronous method call implementation
+   * @brief Enhanced asynchronous method call implementation with RemoteResult
    */
   template <typename RetType, typename... Args1, typename... Args2>
-  std::future<RetType> callAsync(RetType (T::*memberFunc)(Args1...),
+  RemoteResult<RetType> callAsync(RetType (T::*memberFunc)(Args1...),
                                  Args2 &&...args) {
     // Pack arguments for implementation functions
     struct ArgPack {
@@ -241,61 +491,108 @@ template <typename T, typename Enable = void> struct Proxy {
 
     ArgPack pack{std::make_tuple(std::forward<Args2>(args)...), memberFunc};
 
-    switch (location.type) {
-    case Resource::CUDA:
-      return std::async(std::launch::async, [this, pack, memberFunc]() {
-        void *result_ptr = ProxyImpl::cuda_call_sync(
-            addr, reinterpret_cast<void *>(&memberFunc),
-            const_cast<ArgPack *>(&pack), sizeof(pack), location,
-            sizeof(RetType));
-
-        if constexpr (!std::is_void_v<RetType>) {
-          RetType result = *static_cast<RetType *>(result_ptr);
-          delete static_cast<RetType *>(result_ptr);
-          return result;
+    auto future_result = std::async(std::launch::async, [this, pack, memberFunc]() -> void* {
+      void *result_ptr = nullptr;
+      
+      try {
+        if (location.is_host()) {
+            // Host execution
+            if constexpr (!std::is_void_v<RetType>) {
+                auto result = std::apply([&](auto&&... a) {
+                    return (static_cast<T*>(addr)->*memberFunc)(std::forward<decltype(a)>(a)...);
+                }, pack.arguments);
+                result_ptr = new RetType(std::move(result));
+            } else {
+                std::apply([&](auto&&... a) {
+                    (static_cast<T*>(addr)->*memberFunc)(std::forward<decltype(a)>(a)...);
+                }, pack.arguments);
+            }
+        } else if (location.is_device()) {
+          // Device execution
+          std::future<void *> backend_future;
+          switch (location.type) {
+#ifdef USE_CUDA
+          case ResourceType::CUDA:
+            backend_future = ProxyImpl::cuda_call_async(
+                addr, reinterpret_cast<void *>(&memberFunc),
+                const_cast<ArgPack *>(&pack), sizeof(pack), location,
+                sizeof(RetType));
+            break;
+#endif
+#ifdef USE_SYCL
+          case ResourceType::SYCL:
+            backend_future = ProxyImpl::sycl_call_async(
+                addr, reinterpret_cast<void *>(&memberFunc),
+                const_cast<ArgPack *>(&pack), sizeof(pack), location,
+                sizeof(RetType));
+            break;
+#endif
+#ifdef USE_METAL
+          case ResourceType::METAL:
+            backend_future = ProxyImpl::metal_call_async(
+                addr, reinterpret_cast<void *>(&memberFunc),
+                const_cast<ArgPack *>(&pack), sizeof(pack), location,
+                sizeof(RetType));
+            break;
+#endif
+          default:
+            throw std::runtime_error(
+                "Proxy::callAsync(): Unsupported device type");
+          }
+          if (backend_future.valid()) {
+            result_ptr = backend_future.get();
+          }
         } else {
-          return RetType{};
+            throw std::runtime_error("Proxy::callAsync(): Invalid resource location");
         }
-      });
+      } catch (const std::exception& e) {
+        LOGERROR("Proxy::callAsync() failed: {}", e.what());
+        throw;
+      }
+      return result_ptr;
+    });
 
-    case Resource::SYCL:
-      return std::async(std::launch::async, [this, pack, memberFunc]() {
-        void *result_ptr = ProxyImpl::sycl_call_sync(
-            addr, reinterpret_cast<void *>(&memberFunc),
-            const_cast<ArgPack *>(&pack), sizeof(pack), location,
-            sizeof(RetType));
-
-        if constexpr (!std::is_void_v<RetType>) {
-          RetType result = *static_cast<RetType *>(result_ptr);
-          delete static_cast<RetType *>(result_ptr);
-          return result;
-        } else {
-          return RetType{};
+    if constexpr (!std::is_void_v<RetType>) {
+        void* result_ptr = future_result.get();
+        if (!result_ptr) {
+            throw std::runtime_error("Proxy::callAsync(): Null result pointer");
         }
-      });
-
-    case Resource::METAL:
-      return std::async(std::launch::async, [this, pack, memberFunc]() {
-        void *result_ptr = ProxyImpl::metal_call_sync(
-            addr, reinterpret_cast<void *>(&memberFunc),
-            const_cast<ArgPack *>(&pack), sizeof(pack), location,
-            sizeof(RetType));
-
-        if constexpr (!std::is_void_v<RetType>) {
-          RetType result = *static_cast<RetType *>(result_ptr);
-          delete static_cast<RetType *>(result_ptr);
-          return result;
-        } else {
-          return RetType{};
-        }
-      });
-
-    default:
-      ARBD::throw_value_error("Proxy::callAsync(): Unknown resource type");
+        RetType result = *static_cast<RetType *>(result_ptr);
+        delete static_cast<RetType *>(result_ptr);
+        
+        std::promise<void> promise;
+        promise.set_value();
+        return RemoteResult<RetType>(std::move(result), promise.get_future());
+    } else {
+        future_result.wait();
+        std::promise<void> promise;
+        promise.set_value();
+        return RemoteResult<void>(promise.get_future());
     }
-
-    return std::async(std::launch::async, [] { return RetType{}; });
   }
+
+  /**
+   * @brief Batch method call for multiple operations
+   */
+  template <typename... Methods>
+  auto callBatch(Methods&&... methods) {
+    return std::make_tuple(methods(*this)...);
+  }
+
+  /**
+   * @brief Get the resource location of this proxy
+   */
+  const Resource& get_location() const { return location; }
+
+  /**
+   * @brief Check if the proxy is valid (has a valid address)
+   */
+  bool is_valid() const { return addr != nullptr; }
+
+  /**
+   * @brief Get the raw address (for debugging)
+   */
+  void* get_address() const { return addr; }
 
   Resource location;
   T *addr;
@@ -305,17 +602,23 @@ template <typename T, typename Enable = void> struct Proxy {
 // Specialization for arithmetic types
 template <typename T>
 struct Proxy<T, typename std::enable_if_t<std::is_arithmetic<T>::value>> {
-  Proxy() : location{Resource{Resource::SYCL, 0}}, addr{nullptr} {};
+  Proxy() : location{Resource::Local()}, addr{nullptr} {};
   Proxy(const Resource &r, T *obj) : location{r}, addr{obj} {};
 
   auto operator->() { return addr; }
   auto operator->() const { return addr; }
 
+  const Resource& get_location() const { return location; }
+  bool is_valid() const { return addr != nullptr; }
+  void* get_address() const { return addr; }
+
   Resource location;
   T *addr;
 };
 
-// Template function implementations
+// ============================================================================
+// Template Function Implementations
+// ============================================================================
 
 template <typename T>
 HOST inline Proxy<T> _send_ignoring_children(const Resource &location, T &obj,
@@ -332,8 +635,11 @@ HOST inline Proxy<T> _send_ignoring_children(const Resource &location, T &obj,
 template <typename T>
   requires(!has_send_children<T>)
 HOST inline Proxy<T> send(const Resource &location, T &obj, T *dest = nullptr) {
-  LOGINFO("...Sending object {} @{} to device at {}", typeid(T).name(),
-          static_cast<void *>(&obj), static_cast<void *>(dest));
+  Resource src = Resource::Local();
+  TransferType transfer_type = get_transfer_type(src, location);
+  LOGINFO("...Sending object {} @{} to device at {} (transfer type: {})",
+          typeid(T).name(), static_cast<void *>(&obj),
+          static_cast<void *>(dest), to_string(transfer_type));
 
   Proxy<T> ret = _send_ignoring_children(location, obj, dest);
   LOGTRACE("...done sending");
@@ -343,8 +649,11 @@ HOST inline Proxy<T> send(const Resource &location, T &obj, T *dest = nullptr) {
 template <typename T>
   requires has_send_children<T>
 HOST inline Proxy<T> send(const Resource &location, T &obj, T *dest = nullptr) {
-  LOGINFO("Sending complex object {} @{} to device at {}", typeid(T).name(),
-          static_cast<void *>(&obj), static_cast<void *>(dest));
+  Resource src = Resource::Local();
+  TransferType transfer_type = get_transfer_type(src, location);
+  LOGINFO("Sending complex object {} @{} to device at {} (transfer type: {})",
+          typeid(T).name(), static_cast<void *>(&obj),
+          static_cast<void *>(dest), to_string(transfer_type));
 
   auto dummy = obj.send_children(location);
   Proxy<T> ret = _send_ignoring_children<T>(location, dummy, dest);
@@ -370,6 +679,34 @@ Proxy<T> construct_remote(Resource location, Args &&...args) {
   // design)
   T temp_obj{std::forward<Args>(args)...};
   return Proxy<T>(location, temp_obj, typed_ptr);
+}
+
+// ============================================================================
+// Utility Functions for Proxy Management
+// ============================================================================
+
+/**
+ * @brief Create a proxy chain for sequential operations
+ */
+template<typename T>
+RemoteKernelChain make_proxy_chain(const Proxy<T>& proxy) {
+    return RemoteKernelChain(proxy.get_location());
+}
+
+/**
+ * @brief Batch send multiple objects to the same location
+ */
+template<typename... Types>
+auto send_batch(const Resource& location, Types&... objects) {
+    return std::make_tuple(send(location, objects)...);
+}
+
+/**
+ * @brief Wait for multiple proxy operations to complete
+ */
+template<typename... Results>
+void wait_all(Results&... results) {
+    (results.wait(), ...);
 }
 
 } // namespace ARBD

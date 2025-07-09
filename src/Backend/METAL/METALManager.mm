@@ -227,6 +227,13 @@ void Event::wait() {
     if (!command_buffer_) return;
     
     id<MTLCommandBuffer> cmd_buffer = (__bridge id<MTLCommandBuffer>)command_buffer_;
+
+    MTLCommandBufferStatus status = [cmd_buffer status];
+    if (status == MTLCommandBufferStatusNotEnqueued) {
+        // Command buffer was never committed, just return
+        return;
+    }
+    
     [cmd_buffer waitUntilCompleted];
     
     if (timing_available_) {
@@ -238,7 +245,14 @@ bool Event::is_complete() const {
     if (!command_buffer_) return true;
     
     id<MTLCommandBuffer> cmd_buffer = (__bridge id<MTLCommandBuffer>)command_buffer_;
-    return [cmd_buffer status] == MTLCommandBufferStatusCompleted;
+    MTLCommandBufferStatus status = [cmd_buffer status];
+    
+    // If the command buffer was never committed, consider it complete
+    if (status == MTLCommandBufferStatusNotEnqueued) {
+        return true;
+    }
+    
+    return status == MTLCommandBufferStatusCompleted;
 }
 
 std::chrono::nanoseconds Event::get_execution_time() const {
