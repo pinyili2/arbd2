@@ -47,15 +47,16 @@ endif()
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # Test for test_sycl.cpp - now uses Catch2's main function
     add_executable(arbd_test_sycl 
-        test_sycl.cpp
+        sycl_manager.cpp
+        sycl_unifiedbuffer.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
     
     # Test for backend and buffer tests - using amalgamated Catch2
     add_executable(arbd_test_sycl_backend 
-        unifiedbuffer_sycl.cpp 
-        test_sycl_backend.cpp
+        sycl_backend.cpp
+        sycl_kernels.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
@@ -93,7 +94,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "Added SYCL backend test executable: arbd_test_sycl_backend")
 
     # Test for test_sycl_omp.cpp - it has its own main and doesn't use Catch2
-    add_executable(arbd_test_sycl_omp test_sycl_omp.cpp)
+    add_executable(arbd_test_sycl_omp sycl_omp.cpp)
     target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_omp PRIVATE "lib${PROJECT_NAME}")
     

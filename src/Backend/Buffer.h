@@ -700,16 +700,71 @@ private:
     }
 };
 
+
+template<typename T>
+class TypedAllocator {
+public:
+    static DeviceBuffer<T> allocate(size_t count, const Resource& resource) {
+        return DeviceBuffer<T>(count, resource);
+    }
+
+    static DeviceBuffer<T> allocate_zeroed(size_t count, const Resource& resource) {
+        DeviceBuffer<T> buffer(count, resource);
+
+        // Zero initialization kernel
+        kernel_call(resource,
+                   MultiRef<>{},  // No inputs
+                   make_multi_ref(buffer),
+                   count,
+                   [](size_t i, T* output) {
+                       output[i] = T{};
+                   });
+
+        return buffer;
+    }
+
+    template<typename InitFunc>
+    static DeviceBuffer<T> allocate_initialized(size_t count,
+                                               const Resource& resource,
+                                               InitFunc&& init_func) {
+        DeviceBuffer<T> buffer(count, resource);
+
+        // Custom initialization kernel
+        kernel_call(resource,
+                   MultiRef<>{},  // No inputs
+                   make_multi_ref(buffer),
+                   count,
+                   [init_func](size_t i, T* output) {
+                       output[i] = init_func(i);
+                   });
+
+        return buffer;
+    }
+
+    // Specialized allocator for common patterns
+    static DeviceBuffer<T> allocate_sequence(size_t count,
+                                            const Resource& resource,
+                                            T start = T{0},
+                                            T step = T{1}) {
+        return allocate_initialized(count, resource,
+            [start, step](size_t i) { return start + static_cast<T>(i) * step; });
+    }
+};
+
 // Convenience aliases
 template<typename T>
 using Allocator = GenericAllocator<T>;
 
-// ============================================================================
-// Generic Utility Functions (Enhanced from Adapter.h)
-// ============================================================================
+template<typename T>
+using AdvancedAllocator = TypedAllocator<T>;
 
+// Specialized aliases for common types
+using FloatAllocator = TypedAllocator<float>;
+using DoubleAllocator = TypedAllocator<double>;
+using IntAllocator = TypedAllocator<int>;
 /**
  * @brief Copy data between buffers - type-agnostic
+ * Fallback for fill_async in Kernels.h
  */
 template<typename T>
 void copy_buffer(const DeviceBuffer<T>& source,

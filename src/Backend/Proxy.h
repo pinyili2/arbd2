@@ -221,225 +221,6 @@ void *construct_remote(const Resource &location, void *args, size_t args_size) {
 } // namespace ProxyImpl
 
 // ============================================================================
-// Enhanced Kernel and Remote Call Infrastructure
-// ============================================================================
-
-/**
- * @brief Result wrapper for remote method calls
- */
-template<typename T>
-struct RemoteResult {
-    T result;
-    std::future<void> completion_future;
-    
-    RemoteResult(T&& res, std::future<void>&& future) 
-        : result(std::forward<T>(res)), completion_future(std::move(future)) {}
-    
-    void wait() { completion_future.wait(); }
-    bool is_ready() const { 
-        return completion_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready; 
-    }
-    
-    T get() {
-        wait();
-        return std::move(result);
-    }
-};
-
-// Specialization for void type
-template<>
-struct RemoteResult<void> {
-    std::future<void> completion_future;
-    
-    RemoteResult(std::future<void>&& future) 
-        : completion_future(std::move(future)) {}
-    
-    void wait() { completion_future.wait(); }
-    bool is_ready() const { 
-        return completion_future.wait_for(std::chrono::seconds(0)) == std::future_status::ready; 
-    }
-    
-    void get() {
-        wait();
-    }
-};
-
-/**
- * @brief Enhanced kernel dispatcher for remote calls
- */
-class RemoteKernelDispatcher {
-public:
-    template<typename KernelFunc, typename... Args>
-    static std::future<void> dispatch_cuda(const Resource& resource,
-                                          size_t num_elements,
-                                          const Kernels::KernelConfig& config,
-                                          KernelFunc&& kernel,
-                                          Args&&... args) {
-        return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
-            for (size_t i = 0; i < num_elements; ++i) {
-                kernel(i, args...);
-            }
-        });
-    }
-
-    template<typename KernelFunc, typename... Args>
-    static std::future<void> dispatch_sycl(const Resource& resource,
-                                          size_t num_elements,
-                                          const Kernels::KernelConfig& config,
-                                          KernelFunc&& kernel,
-                                          Args&&... args) {
-        return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
-            for (size_t i = 0; i < num_elements; ++i) {
-                kernel(i, args...);
-            }
-        });
-    }
-
-    template<typename KernelFunc, typename... Args>
-    static std::future<void> dispatch_metal(const Resource& resource,
-                                           size_t num_elements,
-                                           const Kernels::KernelConfig& config,
-                                           KernelFunc&& kernel,
-                                           Args&&... args) {
-        return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
-            for (size_t i = 0; i < num_elements; ++i) {
-                kernel(i, args...);
-            }
-        });
-    }
-
-    template<typename KernelFunc, typename... Args>
-    static std::future<void> dispatch_cpu(size_t num_elements,
-                                         const Kernels::KernelConfig& config,
-                                         KernelFunc&& kernel,
-                                         Args&&... args) {
-        if (config.async) {
-            return std::async(std::launch::async, [=, kernel = std::forward<KernelFunc>(kernel)]() mutable {
-                for (size_t i = 0; i < num_elements; ++i) {
-                    kernel(i, args...);
-                }
-            });
-        } else {
-            for (size_t i = 0; i < num_elements; ++i) {
-                kernel(i, args...);
-            }
-            std::promise<void> promise;
-            promise.set_value();
-            return promise.get_future();
-        }
-    }
-};
-
-// Helper to decay and remove pointer/reference to get base type
-template <typename T>
-using base_type_t = std::remove_cv_t<std::remove_pointer_t<std::decay_t<T>>>;
-
-// Helper to check if a type is a vector
-template <typename T>
-struct is_vector : std::false_type {};
-
-template <typename T, typename A>
-struct is_vector<std::vector<T, A>> : std::true_type {};
-
-template<typename T>
-static constexpr bool is_vector_v = is_vector<std::decay_t<T>>::value;
-
-// Argument wrapper for remote_kernel_call
-template<typename T>
-auto get_kernel_arg(T&& arg) {
-    if constexpr (is_vector_v<T>) {
-        return arg.data();
-    } else {
-        return arg;
-    }
-}
-
-/**
- * @brief Enhanced kernel launch function that works with proxy objects
- */
-template<typename KernelFunc, typename... Args>
-RemoteResult<void> remote_kernel_call(const Resource& resource,
-                                    size_t num_elements,
-                                    KernelFunc&& kernel,
-                                    Args&&... args) {
-    Kernels::KernelConfig config; // Default config for now
-    std::future<void> future;
-
-    switch (resource.type) {
-        case ResourceType::CPU:
-            future = RemoteKernelDispatcher::dispatch_cpu(num_elements, config,
-                kernel, get_kernel_arg(std::forward<Args>(args))...
-            );
-            break;
-        case ResourceType::CUDA:
-            #ifdef USE_CUDA
-                future = RemoteKernelDispatcher::dispatch_cuda(resource, num_elements, config, kernel, get_kernel_arg(std::forward<Args>(args))...);
-            #else
-                throw_not_implemented("CUDA support not enabled");
-            #endif
-            break;
-        case ResourceType::SYCL:
-            #ifdef USE_SYCL
-                future = RemoteKernelDispatcher::dispatch_sycl(resource, num_elements, config, kernel, get_kernel_arg(std::forward<Args>(args))...);
-            #else
-                throw_not_implemented("SYCL support not enabled");
-            #endif
-            break;
-        case ResourceType::METAL:
-            #if defined(USE_METAL) && defined(__OBJC__)
-                future = RemoteKernelDispatcher::dispatch_metal(resource, num_elements, config, kernel, get_kernel_arg(std::forward<Args>(args))...);
-            #else
-                throw_not_implemented("METAL support not enabled");
-            #endif
-            break;
-    }
-
-    return RemoteResult<void>(std::move(future));
-}
-
-/**
- * @brief Kernel chain for sequential remote execution
- */
-class RemoteKernelChain {
-private:
-    Resource resource_;
-    std::vector<std::future<void>> futures_;
-    
-public:
-    explicit RemoteKernelChain(const Resource& resource) : resource_(resource) {}
-    
-    template<typename KernelFunc, typename... Objects>
-    RemoteKernelChain& then(size_t num_elements, KernelFunc&& kernel, Objects&... objects) {
-        // Wait for previous operations to complete
-        for (auto& future : futures_) {
-            future.wait();
-        }
-        futures_.clear();
-        
-        auto result = remote_kernel_call(resource_, num_elements,
-                                       std::forward<KernelFunc>(kernel), objects...);
-        futures_.push_back(std::move(result.completion_future));
-        
-        return *this;
-    }
-    
-    void wait() {
-        for (auto& future : futures_) {
-            future.wait();
-        }
-    }
-    
-    bool is_ready() const {
-        for (const auto& future : futures_) {
-            if (future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) {
-                return false;
-            }
-        }
-        return true;
-    }
-};
-
-// ============================================================================
 // Main Proxy Template Class
 // ============================================================================
 
@@ -606,7 +387,7 @@ template <typename T, typename Enable = void> struct Proxy {
    * @brief Enhanced asynchronous method call implementation with RemoteResult
    */
   template <typename RetType, typename... Args1, typename... Args2>
-  RemoteResult<RetType> callAsync(RetType (T::*memberFunc)(Args1...),
+  Kernels::RemoteResult<RetType> callAsync(RetType (T::*memberFunc)(Args1...),
                                  Args2 &&...args) {
     // Pack arguments for implementation functions
     struct ArgPack {
@@ -687,12 +468,12 @@ template <typename T, typename Enable = void> struct Proxy {
         
         std::promise<void> promise;
         promise.set_value();
-        return RemoteResult<RetType>(std::move(result), promise.get_future());
+        return Kernels::RemoteResult<RetType>(std::move(result), promise.get_future());
     } else {
         future_result.wait();
         std::promise<void> promise;
         promise.set_value();
-        return RemoteResult<void>(promise.get_future());
+        return Kernels::RemoteResult<void>(promise.get_future());
     }
   }
 
@@ -814,8 +595,8 @@ Proxy<T> construct_remote(Resource location, Args &&...args) {
  * @brief Create a proxy chain for sequential operations
  */
 template<typename T>
-RemoteKernelChain make_proxy_chain(const Proxy<T>& proxy) {
-    return RemoteKernelChain(proxy.get_location());
+Kernels::RemoteKernelChain make_proxy_chain(const Proxy<T>& proxy) {
+    return Kernels::RemoteKernelChain(proxy.get_location());
 }
 
 /**
