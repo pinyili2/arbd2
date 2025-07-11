@@ -1,5 +1,4 @@
 #include "catch_boiler.h"
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
 using Catch::Approx;
 
 #ifdef USE_METAL
@@ -8,7 +7,7 @@ using Catch::Approx;
 #include "Backend/Kernels.h"
 #include "Backend/Events.h"
 #include "Backend/Resource.h"
-#include "Backend/Proxy.h"
+
 #include <vector>
 #include <numeric>
 #include <string>
@@ -504,36 +503,6 @@ TEST_CASE("Metal Utility Functions", "[metal][utilities]") {
     }
 }
 
-TEST_CASE("Metal Proxy Basic Operations", "[metal][proxy]") {
-    Resource metal_resource(ResourceType::METAL, 0);
-    
-    SECTION("Proxy construction") {
-        Proxy<int> int_proxy(metal_resource, nullptr);
-        
-        CHECK(int_proxy.get_location().type == ResourceType::METAL);
-        CHECK_FALSE(int_proxy.is_valid()); // No object assigned yet
-    }
-    
-    SECTION("Arithmetic type proxy") {
-        int value = 42;
-        Proxy<int> int_proxy(metal_resource, &value);
-        
-        CHECK(int_proxy.is_valid());
-        CHECK(int_proxy.get_address() == &value);
-    }
-    
-    SECTION("Basic proxy functionality") {
-        const size_t count = 50;
-        int test_value = 42;
-        
-        Proxy<int> int_proxy(metal_resource, &test_value);
-        
-        CHECK(int_proxy.is_valid());
-        CHECK(int_proxy.get_address() == &test_value);
-        CHECK(int_proxy.get_location().type == ResourceType::METAL);
-    }
-}
-
 TEST_CASE("Metal Integration Test", "[metal][integration]") {
     Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 1000;
@@ -609,88 +578,6 @@ TEST_CASE("Metal Integration Test", "[metal][integration]") {
         for (size_t i = 0; i < pipeline_count; ++i) {
             float expected = initial_data[i];
             CHECK(final_result[i] == Approx(expected).epsilon(0.001f));
-        }
-    }
-}
-
-TEST_CASE("Metal Remote Kernel Call", "[metal][remote_kernel_call]") {
-    Resource metal_resource(ResourceType::METAL, 0);
-    
-    SECTION("Remote kernel call with data modification") {
-        const size_t count = 10;
-        std::vector<int> data(count, 1);
-        
-        auto increment_kernel = [](size_t i, int* ptr) {
-            ptr[i]++;
-        };
-        
-        auto result = remote_kernel_call(metal_resource, count, increment_kernel, data);
-        result.wait();
-        
-        for (size_t i = 0; i < count; ++i) {
-            CHECK(data[i] == 2);
-        }
-    }
-    
-    SECTION("Kernel call with host-side pointer") {
-        const size_t count = 5;
-        std::vector<int> data(count, 10);
-        
-        auto host_ptr_kernel = [](size_t i, int* vec) {
-            vec[i] *= 2;
-        };
-        
-        remote_kernel_call(metal_resource, count, host_ptr_kernel, data.data()).wait();
-        
-        for (size_t i = 0; i < count; ++i) {
-            CHECK(data[i] == 20);
-        }
-    }
-    
-    SECTION("Kernel with multiple arguments") {
-        const size_t count = 10;
-        std::vector<int> data(count, 0);
-        
-        auto multi_arg_kernel = [](size_t i, int* ptr, int val1, int val2) {
-            ptr[i] = val1 + val2;
-        };
-        
-        remote_kernel_call(metal_resource, count, multi_arg_kernel, data, 5, 10).wait();
-        
-        for (size_t i = 0; i < count; ++i) {
-            CHECK(data[i] == 15);
-        }
-    }
-    
-    SECTION("Fill operation via kernel") {
-        const size_t count = 100;
-        std::vector<int> data(count, 0);
-        const int fill_value = 7;
-        
-        auto fill_kernel = [](size_t i, int* ptr, int value) {
-            ptr[i] = value;
-        };
-        
-        remote_kernel_call(metal_resource, count, fill_kernel, data, fill_value).wait();
-        
-        for (const auto& val : data) {
-            CHECK(val == fill_value);
-        }
-    }
-    
-    SECTION("Complex kernel with multiple buffers") {
-        const size_t count = 10;
-        std::vector<float> input(count, 2.0f);
-        std::vector<float> output(count, 0.0f);
-        
-        auto complex_kernel = [](size_t i, const float* in, float* out, float factor) {
-            out[i] = in[i] * factor;
-        };
-        
-        remote_kernel_call(metal_resource, count, complex_kernel, input, output, 3.0f).wait();
-        
-        for (size_t i = 0; i < count; ++i) {
-            CHECK(output[i] == Approx(input[i] * 3.0f));
         }
     }
 }

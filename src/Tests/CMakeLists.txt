@@ -25,20 +25,34 @@ endif()
 
 # Metal Tests
 if(USE_METAL AND APPLE)
-    add_executable(arbd_test_metal test_metal.mm unifiedbuffer_metal.mm 
-    test_metal_events.mm test_metal_backend.mm test_metal_kernels.metal)
+    add_executable(arbd_test_metal 
+        metal_backend.mm #Still not working
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
-    # Use Catch2 with main to provide the entry point for the test executable
-    target_link_libraries(arbd_test_metal PRIVATE "lib${PROJECT_NAME}" Catch2::Catch2WithMain ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    target_link_libraries(arbd_test_metal PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
     
-    # Add single test instead of catch_discover_tests to avoid conflicts with amalgamated header
     add_test(NAME Metal_Tests COMMAND arbd_test_metal)
     set_tests_properties(Metal_Tests PROPERTIES
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
     )
     
     install(TARGETS arbd_test_metal)
-    message(STATUS "Added Metal test executable: arbd_test_metal")
+
+    add_executable(arbd_test_metal_math 
+        metal_bitmask.mm
+        metal_events.mm
+        metal_test.mm
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    target_include_directories(arbd_test_metal_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
+    target_link_libraries(arbd_test_metal_math PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    
+    add_test(NAME Metal_Math_Tests COMMAND arbd_test_metal_math)
+    set_tests_properties(Metal_Math_Tests PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+    
+    install(TARGETS arbd_test_metal_math)
+    message(STATUS "Added Metal math test executable: arbd_test_metal_math")
 elseif(USE_METAL)
     message(WARNING "USE_METAL is ON but not on Apple platform - Metal tests will be excluded")
 endif()
