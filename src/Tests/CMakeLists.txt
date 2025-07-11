@@ -55,11 +55,17 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     
     # Test for backend and buffer tests - using amalgamated Catch2
     add_executable(arbd_test_sycl_backend 
-        sycl_backend.cpp
-        sycl_kernels.cpp
+            sycl_backend.cpp
+            sycl_kernels.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
+
+    add_executable(arbd_test_sycl_math 
+            sycl_bitmask.cpp
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}")
     
     # Fix C++ standard library linking for AdaptiveCpp
     if(USE_SYCL_ACPP)
@@ -93,26 +99,15 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     install(TARGETS arbd_test_sycl_backend)
     message(STATUS "Added SYCL backend test executable: arbd_test_sycl_backend")
 
-    # Test for test_sycl_omp.cpp - it has its own main and doesn't use Catch2
-    add_executable(arbd_test_sycl_omp sycl_omp.cpp)
-    target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl_omp PRIVATE "lib${PROJECT_NAME}")
-    
-    # Fix C++ standard library linking for AdaptiveCpp
-    if(USE_SYCL_ACPP)
-        target_link_libraries(arbd_test_sycl_omp PRIVATE stdc++)
-        target_link_directories(arbd_test_sycl_omp PRIVATE "${BOOST_LIB_DIR}")
-    endif()
-    
-    # Add OMP test with environment variables
-    add_test(NAME SYCL_OMP_Tests COMMAND arbd_test_sycl_omp)
-    set_tests_properties(SYCL_OMP_Tests PROPERTIES
+    add_test(NAME SYCL_Math_Tests COMMAND arbd_test_sycl_math)
+    set_tests_properties(SYCL_Math_Tests PROPERTIES
         ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
     )
     
-    install(TARGETS arbd_test_sycl_omp)
-    message(STATUS "Added SYCL OMP test executable: arbd_test_sycl_omp")
+    install(TARGETS arbd_test_sycl_math)
+    message(STATUS "Added SYCL math test executable: arbd_test_sycl_math")
+
 endif()
 
 # CUDA Tests

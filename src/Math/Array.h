@@ -6,11 +6,10 @@
 #pragma once
 #include "ARBDException.h"
 #include "ARBDLogger.h"
-#include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include "TypeName.h"
 #include <cassert>
-
+#include "Backend/Buffer.h"
 #include <compare>
 #include <span>
 
@@ -168,15 +167,14 @@ template <typename T> struct Array {
     T *values_d = nullptr;
 
     if (num > 0) {
-      size_t sz = sizeof(T) * num;
       LOGINFO("  Array<{}>.send_children(...): allocating for {} items",
               type_name<T>(), num);
 
-      // Use Proxy system for backend-agnostic memory allocation
-      values_d = static_cast<T*>(ProxyImpl::construct_remote<T>(location, nullptr, 0));
-      for (size_t i = 0; i < num; ++i) {
-        send(location, values[i], values_d + i);
-      }
+      // Use Buffer system for backend-agnostic memory allocation
+      values_d = static_cast<T*>(MemoryOps::allocate(sizeof(T) * num, location));
+      
+      // Copy data to device using Buffer operations
+      MemoryOps::copy_from_host(values_d, values, sizeof(T) * num, location);
     }
 
     LOGINFO("  Array<{}>.send_children(...): done", type_name<T>());
@@ -189,13 +187,13 @@ template <typename T> struct Array {
     T *values_d = nullptr;
 
     if (num > 0) {
-      size_t sz = sizeof(T) * num;
-
-      // Use Proxy system for backend-agnostic memory allocation
-      values_d = static_cast<T*>(ProxyImpl::construct_remote<T>(location, nullptr, 0));
+      // Use Buffer system for backend-agnostic memory allocation
+      values_d = static_cast<T*>(MemoryOps::allocate(sizeof(T) * num, location));
+      
       for (size_t i = 0; i < num; ++i) {
         auto tmp = values[i].send_children(location);
-        send(location, tmp, values_d + i);
+        // Copy individual elements to device memory
+        MemoryOps::copy_from_host(values_d + i, &tmp, sizeof(T), location);
         tmp.clear();
       }
     }

@@ -12,7 +12,6 @@
 #define HAS_CXXABI 0
 #endif
 #include "ARBDLogger.h"
-#include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include "ARBDException.h"
 

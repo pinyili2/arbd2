@@ -1,5 +1,4 @@
 #pragma once
-#include "Backend/Proxy.h"
 #include "Backend/Resource.h"
 #include "ARBDException.h"
 #include "ARBDLogger.h"

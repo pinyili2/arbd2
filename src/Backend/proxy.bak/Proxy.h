@@ -2,14 +2,14 @@
 
 #include "ARBDException.h"
 #include "ARBDLogger.h"
-#include "Resource.h"
+#include "Backend/Resource.h"
 #include <cstring>
 #include <future>
 #include <typeinfo>
 #include <span>
 #include <functional>
 #include <tuple>
-#include "Kernels.h"
+#include "Backend/Kernels.h"
 
 #ifdef USE_SYCL
 #include "Backend/SYCL/SYCLManager.h"

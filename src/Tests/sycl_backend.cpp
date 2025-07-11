@@ -6,7 +6,6 @@
 #include "Backend/Kernels.h"
 #include "Backend/Events.h"
 #include "Backend/Resource.h"
-#include "Backend/Proxy.h"
 #include <vector>
 #include <numeric>
 #include <string>
