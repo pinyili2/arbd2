@@ -460,6 +460,7 @@ struct ExecutionPolicy {
     bool use_shared_memory = false;
     size_t shared_memory_size = 0;
 };
+
 inline size_t get_grid_size(size_t n, size_t block_size) {
     return (n + block_size - 1) / block_size;
 }
