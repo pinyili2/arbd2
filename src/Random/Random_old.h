@@ -1,6 +1,5 @@
 #pragma once
 #include "Math/Types.h"
-#include "Proxy.h"
 #include <map>
 #include <vector>
 
