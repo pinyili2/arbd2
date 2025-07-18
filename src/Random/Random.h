@@ -5,15 +5,13 @@
 #include "Backend/Resource.h"
 #include "Backend/Events.h"
 #include "Backend/Kernels.h"
+#include "Backend/Resource.h"
 #include "Math/Types.h"
 #include "ARBDLogger.h"
 #include "ARBDException.h"
 #include <memory>
 
 namespace ARBD {
-
-// Forward declarations
-template<size_t num_states> class RandomGPU;
 
 // Random number generator configuration
 struct RandomConfig {
