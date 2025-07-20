@@ -28,15 +28,15 @@ void ARBD::Patch::initialize() {
     LOGINFO("Data sent");
     */
     LOGWARN("Patch::initialize(): Creating Data on CPU resource");
-    Resource r = Resource{Resource::SYCL,0};
-    metadata.data = construct_remote<Data>(r, capacity);
+    Resource r = Resource{ResourceType::SYCL,0};
+    //metadata.data = construct_remote<Data>(r, capacity);
 };
 
 ARBD::Patch* ARBD::Patch::copy_to_cuda(ARBD::Patch* dev_ptr) const {
-    Exception(ARBD::NotImplementedError, "Deprecated");
+    throw_not_implemented("deprecated");
     
     if (dev_ptr == nullptr) { // allocate if needed
-	gpuErrchk(cudaMalloc(&dev_ptr, sizeof( typeid(this) )));
+	//gpuErrchk(cudaMalloc(&dev_ptr, sizeof( typeid(this) )));
     }
 
     // Patch* tmp;

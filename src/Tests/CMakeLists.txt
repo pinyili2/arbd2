@@ -1,15 +1,6 @@
 #find_package(Catch2 3 REQUIRED)
-Include(FetchContent)
 
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v3.4.0 # or a later release
-)
-
-FetchContent_MakeAvailable(Catch2)
-
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/extern/Catch2/extras)
 include(Catch) # contains some cmake macros that will help with discovery of tests
 include(CTest)
 
@@ -26,7 +17,7 @@ endif()
 # Metal Tests
 if(USE_METAL AND APPLE)
     add_executable(arbd_test_metal 
-        metal_backend.mm #Still not working
+        Backends/metal_backend.mm #Still not working
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
     target_link_libraries(arbd_test_metal PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
@@ -39,9 +30,9 @@ if(USE_METAL AND APPLE)
     install(TARGETS arbd_test_metal)
 
     add_executable(arbd_test_metal_math 
-        metal_bitmask.mm
-        metal_events.mm
-        metal_test.mm
+        Math/metal_bitmask.mm
+        Kernels/metal_events.mm
+        Kernels/metal_test.mm
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
     target_link_libraries(arbd_test_metal_math PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
@@ -61,22 +52,21 @@ endif()
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # Test for test_sycl.cpp - now uses Catch2's main function
     add_executable(arbd_test_sycl 
-        sycl_manager.cpp
-        sycl_unifiedbuffer.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
     
     # Test for backend and buffer tests - using amalgamated Catch2
-    add_executable(arbd_test_sycl_backend 
-            sycl_backend.cpp
-            sycl_kernels.cpp
+    add_executable(arbd_test_sycl_backend
+        Backends/sycl_manager.cpp
+        Backends/sycl_backend.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
 
     add_executable(arbd_test_sycl_math 
-            sycl_bitmask.cpp
+        Math/sycl_bitmask.cpp
+        Math/sycl_random.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}")

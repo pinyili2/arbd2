@@ -205,7 +205,6 @@ private:
 
 /**
  * @brief Enhanced device buffer with event tracking for single-location memory
- * Merged from Adapter.h with improved backend-specific implementations
  */
 template <typename T> 
 class DeviceBuffer {
@@ -567,10 +566,6 @@ public:
   }
 };
 
-// ============================================================================
-// Multi-Buffer Reference Management (Enhanced from Adapter.h)
-// ============================================================================
-
 /**
  * @brief Generic multi-reference adapter that works with any type providing access methods
  */
@@ -651,7 +646,7 @@ auto make_multi_ref(Args&... args) {
 }
 
 // ============================================================================
-// Generic Allocator (Enhanced from Adapter.h)
+// Generic Allocator
 // ============================================================================
 
 template<typename T>

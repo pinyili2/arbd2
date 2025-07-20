@@ -18,8 +18,14 @@
 #include <curand_kernel.h>
 #endif
 
-// #include "SimSystem.h"
-// #include "useful.h"
+#ifdef USE_METAL
+#include <metal/metal.hpp>
+#endif
+
+#ifdef USE_SYCL
+#include <sycl/sycl.hpp>
+#endif
+
 #include "Math/Types.h"
 
 #include "PatchOp.h"
@@ -103,14 +109,14 @@ public:
         pos_force = momentum = nullptr;
         particle_types = particle_order = nullptr;
       } else {
-        pos_force = new VectorArr(capacity);
-        momentum = new VectorArr(capacity);
+        pos_force = new VecArray(capacity);
+        momentum = new VecArray(capacity);
         particle_types = new Array<size_t>(capacity);
         particle_order = new Array<size_t>(capacity);
       }
     }
-    VectorArr *pos_force;
-    VectorArr *momentum;
+    VecArray *pos_force;
+    VecArray *momentum;
     Array<size_t> *particle_types;
     Array<size_t> *particle_order;
 

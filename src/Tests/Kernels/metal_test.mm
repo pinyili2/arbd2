@@ -1,6 +1,6 @@
 #ifdef USE_METAL
 
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 #include "ARBDException.h"
 #include <vector>
 #include <string>

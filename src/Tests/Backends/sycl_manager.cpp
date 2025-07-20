@@ -4,11 +4,10 @@
 #ifdef USE_SYCL
 
 // Use single header version which is self-contained
-#include "../../extern/Catch2/extras/catch_amalgamated.hpp"
-
+#include "../../../extern/Catch2/extras/catch_amalgamated.hpp"
+#include "../catch_boiler.h"
 #include "Backend/SYCL/SYCLManager.h"
-
-
+using namespace ARBD;
 using namespace ARBD::SYCL;
 
 TEST_CASE("SYCL Manager Initialization", "[sycl][manager]") {

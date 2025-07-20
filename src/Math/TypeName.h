@@ -196,4 +196,5 @@ template <typename T> std::string pretty_type_name() {
 
   return name;
 }
+
 } // namespace ARBD

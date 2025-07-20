@@ -1,6 +1,6 @@
 #ifdef USE_METAL
 
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 
 using namespace ARBD;
 using namespace ARBD::BACKEND;

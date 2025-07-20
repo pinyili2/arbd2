@@ -1,6 +1,6 @@
 // File: src/Tests/test_mpi_circular_shift.cpp
-#include "catch_boiler.h"
-#include "Types/Types.h"
+#include "../catch_boiler.h"
+#include "Math/Types.h"
 #include "Backend/MPIBackend.h"
 #include "ARBDLogger.h"
 #include <vector>

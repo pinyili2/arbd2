@@ -5,7 +5,7 @@
 #include "Backend/SYCL/SYCLManager.h"
 #include <vector>
 #include <numeric>
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 
 TEST_CASE("UnifiedBuffer SYCL Basic Allocation", "[UnifiedBuffer][SYCL]") {
     try {

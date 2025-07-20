@@ -1,8 +1,7 @@
-#include "catch_boiler.h"
-using Catch::Approx;
+#include "../catch_boiler.h"
 
 #ifdef USE_METAL
-
+using Catch::Approx;
 #include "Backend/Buffer.h"
 #include "Backend/Kernels.h"
 #include "Backend/Events.h"
