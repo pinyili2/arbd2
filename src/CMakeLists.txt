@@ -70,21 +70,32 @@ target_include_directories("lib${PROJECT_NAME}"
 # or add SYCL specific include dirs for this target if necessary.
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # For Intel DPC++ (icpx), linking is usually handled by -fsycl.
-    # For AdaptiveCpp (acpp), linking is also typically automatic when using acpp as the compiler.
-    # If explicit linking to a SYCL runtime library target provided by acpp or icpx is needed,
-    # it would go here. For example:
-    # target_link_libraries("lib${PROJECT_NAME}" PRIVATE SYCL::sycl) # If such an imported target exists
-    message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}. Ensure SYCL runtime is linked (usually automatic).")
+    message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}.")
+
+    # Explicit linking for AdaptiveCpp runtime libraries
+    if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
+        # Find ACPP installation directory from the compiler path
+        get_filename_component(ACPP_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        get_filename_component(ACPP_INSTALL_DIR "${ACPP_BIN_DIR}" DIRECTORY)
+        set(ACPP_LIB_DIR "${ACPP_INSTALL_DIR}/lib")
+
+                        # Link ACPP runtime libraries explicitly
+        target_link_libraries("lib${PROJECT_NAME}" PRIVATE
+            "${ACPP_LIB_DIR}/libacpp-rt.so"
+            "${ACPP_LIB_DIR}/libacpp-common.so"
+            "${ACPP_LIB_DIR}/libacpp-clang.so"
+            "${ACPP_LIB_DIR}/libclang-cpp.so.17"
+            "${ACPP_LIB_DIR}/libLLVM.so"
+        )
+
+        message(STATUS "src: Explicitly linked ACPP runtime libraries from ${ACPP_LIB_DIR}")
+        message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
+    endif()
 
     # Link OpenMP for AdaptiveCpp
     if(USE_SYCL_ACPP AND OpenMP_CXX_FOUND)
         target_link_libraries("lib${PROJECT_NAME}" PUBLIC OpenMP_Custom)
         message(STATUS "src: Linked custom OpenMP to lib${PROJECT_NAME} for AdaptiveCpp backend")
-    endif()
-
-    # Special handling for AdaptiveCpp to avoid duplicate C++ standard flags
-    if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
-        message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
     endif()
 endif()
 
@@ -99,7 +110,7 @@ if(USE_CUDA)
     else()
         target_link_libraries("lib${PROJECT_NAME}" PRIVATE stdc++)
     endif()
-    
+
     message(STATUS "src: CUDA is enabled for lib${PROJECT_NAME}. Added explicit C++ standard library linking.")
 endif()
 

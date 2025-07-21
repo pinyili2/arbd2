@@ -41,14 +41,42 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     add_executable(arbd_test_sycl test_sycl.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE ${COMMON_TEST_LIBS})
-    catch_discover_tests(arbd_test_sycl)
-    install(TARGETS arbd_test_sycl)
-    message(STATUS "Added SYCL test executable: arbd_test_sycl")
 
     # Test for test_sycl_omp.cpp
     add_executable(arbd_test_sycl_omp test_sycl_omp.cpp)
     target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_omp PRIVATE ${COMMON_TEST_LIBS})
+
+    # Explicit linking for AdaptiveCpp runtime libraries for test executables
+    if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
+        # Find ACPP installation directory from the compiler path
+        get_filename_component(ACPP_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        get_filename_component(ACPP_INSTALL_DIR "${ACPP_BIN_DIR}" DIRECTORY)
+        set(ACPP_LIB_DIR "${ACPP_INSTALL_DIR}/lib")
+
+                        # Link ACPP runtime libraries to test executables
+        target_link_libraries(arbd_test_sycl PRIVATE
+            "${ACPP_LIB_DIR}/libacpp-rt.so"
+            "${ACPP_LIB_DIR}/libacpp-common.so"
+            "${ACPP_LIB_DIR}/libacpp-clang.so"
+            "${ACPP_LIB_DIR}/libclang-cpp.so.17"
+            "${ACPP_LIB_DIR}/libLLVM.so"
+        )
+        target_link_libraries(arbd_test_sycl_omp PRIVATE
+            "${ACPP_LIB_DIR}/libacpp-rt.so"
+            "${ACPP_LIB_DIR}/libacpp-common.so"
+            "${ACPP_LIB_DIR}/libacpp-clang.so"
+            "${ACPP_LIB_DIR}/libclang-cpp.so.17"
+            "${ACPP_LIB_DIR}/libLLVM.so"
+        )
+
+        message(STATUS "Linked ACPP runtime libraries to SYCL test executables")
+    endif()
+
+    catch_discover_tests(arbd_test_sycl)
+    install(TARGETS arbd_test_sycl)
+    message(STATUS "Added SYCL test executable: arbd_test_sycl")
+
     catch_discover_tests(arbd_test_sycl_omp)
     install(TARGETS arbd_test_sycl_omp)
     message(STATUS "Added SYCL OMP test executable: arbd_test_sycl_omp")
@@ -56,7 +84,7 @@ endif()
 
 # CUDA Tests
 if(USE_CUDA)
-    add_executable(arbd_test_cuda 
+    add_executable(arbd_test_cuda
         matrix3.cu
         vector3_precision.cu
         bitmask.cu
@@ -74,24 +102,24 @@ if(USE_MPI)
     add_executable(arbd_test_mpi mpitest.cpp)
     target_include_directories(arbd_test_mpi PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_mpi PRIVATE ${COMMON_TEST_LIBS})
-    
+
     # Ensure MPI test uses only CXX, not CUDA compiler
     set_target_properties(arbd_test_mpi PROPERTIES
         LINKER_LANGUAGE CXX
         CUDA_SEPARABLE_COMPILATION OFF
         CUDA_RESOLVE_DEVICE_SYMBOLS OFF
     )
-    
+
     # Explicitly set this as a CXX-only target to avoid CUDA flag inheritance
     set_source_files_properties(mpitest.cpp PROPERTIES LANGUAGE CXX)
-    
+
     # Fix C++ standard library linking issues (same as main executable)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_link_libraries(arbd_test_mpi PRIVATE -Wl,--whole-archive stdc++ -Wl,--no-whole-archive)
         target_link_libraries(arbd_test_mpi PRIVATE gcc_s gcc m pthread dl)
         target_link_options(arbd_test_mpi PRIVATE -Wl,--no-as-needed)
     endif()
-    
+
     catch_discover_tests(arbd_test_mpi)
     install(TARGETS arbd_test_mpi)
     message(STATUS "Added MPI test executable: arbd_test_mpi")
