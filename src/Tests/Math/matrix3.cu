@@ -1,8 +1,13 @@
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 #include "Math/Types.h"
 #include "Math/TypeName.h"
-
-#include "catch2/catch_tostring.hpp"
+#include "Backend/CUDA/CUDAManager.h"
+#include "Backend/Resource.h"
+#include "Backend/Buffer.h"
+#include "Backend/Events.h"
+#include "ARBDLogger.h"
+#include "ARBDException.h"
+#include "Math/TypeName.h"
 namespace Catch {
     template<typename T, bool b1, bool b2>
     struct StringMaker<ARBD::Matrix3_t<T,b1,b2>> {
@@ -32,10 +37,10 @@ namespace Tests::Unary::Matrix3 {
     void run_tests() {
 	using T = ARBD::Matrix3_t<A, is_diag, check_diag>;
 	// std::ostream test_info;
-	INFO( "Testing " << ARBD::Type_name<T>() << " unary operators that" );
+	INFO( "Testing " << ARBD::type_name<T>() << " unary operators that" );
 	{
 	    using R = A;
-	    INFO(  "    return " << ARBD::Type_name<R>() );
+	    INFO(  "    return " << ARBD::type_name<R>() );
 	    run_trial<DeterminantOp<R,T>,R,T>( "Testing determinant", R(6), T(1,2,3) );
 	    run_trial<NormalizeDetOp<R,T>,R,T>( "Testing that normalized matrix has determinant == 1", R(1), T(1,1,1) );
 	    // run_trial<NormalizeDetOp<R,T>,R,T>( "Testing that normalized matrix has determinant == 1", R(1), T(2,2,2) );

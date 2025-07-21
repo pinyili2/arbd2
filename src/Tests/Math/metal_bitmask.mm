@@ -1,4 +1,4 @@
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 #ifdef USE_METAL
 
 #include "Math/Bitmask.h"

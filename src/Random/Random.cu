@@ -8,6 +8,7 @@
 #include "ARBDLogger.h"
 #include "ARBDException.h"
 #include "Random.h"
+#include "openrand/philox.h"
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>

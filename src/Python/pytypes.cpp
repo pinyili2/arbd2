@@ -1,4 +1,5 @@
 #include "Math/Array.h"
+#include "Math/Types.h"
 #include "Math/Vector3.h"
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
@@ -81,7 +82,7 @@ auto vector_arr_to_numpy_array(Array<Vector3_t<T>>& inp) {
     // Create a Python object that will free the allocated
     // memory when destroyed:
 
-    T* ptr = reinterpret_cast<T*>(inp.span().data());
+    T* ptr = reinterpret_cast<T*>(std::span(inp).data());
 
     // unsigned char* cptr = reinterpret_cast<unsigned char*>(inp.get_pointer());
     // Vector3_t<T> tmp(1);

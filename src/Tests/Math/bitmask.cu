@@ -1,4 +1,4 @@
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 #include "Math/Bitmask.h"
 #include "Math/Types.h"
 
@@ -6,7 +6,7 @@
 #include "Backend/CUDA/CUDAManager.h"
 #endif
 
-#include "catch2/catch_test_macros.hpp"
+#include "../../extern/Catch2/extras/catch_amalgamated.hpp"
 
 namespace Catch {
     template <>

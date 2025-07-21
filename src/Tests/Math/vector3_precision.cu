@@ -1,17 +1,23 @@
-#include <float.h>
 #include <iostream>
 #include <cstdio>
-
-// #include "useful.h"
+#include <cmath>
+#include <cstdint>
+#include <cstring>
+#include <cassert>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
+#include <cassert>
 #include "ARBDLogger.h"
+#include "ARBDException.h"
+#include "Backend/Resource.h"
 #include "Backend/CUDA/CUDAManager.h"
 #include <cuda.h>
 #include <nvfunctional>
-#include "catch_boiler.h"
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/matchers/catch_matchers_floating_point.hpp"
-
+#include "Math/Types.h"
 #include "Math/TypeName.h"
+#include "../catch_boiler.h"
+
 using namespace ARBD;
 
 namespace Tests::Vector3 {

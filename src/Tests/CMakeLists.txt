@@ -56,7 +56,6 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
     
-    # Test for backend and buffer tests - using amalgamated Catch2
     add_executable(arbd_test_sycl_backend
         Backends/sycl_manager.cpp
         Backends/sycl_backend.cpp
@@ -71,7 +70,6 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}")
     
-    # Fix C++ standard library linking for AdaptiveCpp
     if(USE_SYCL_ACPP)
         target_link_libraries(arbd_test_sycl PRIVATE stdc++)
         target_link_libraries(arbd_test_sycl_backend PRIVATE stdc++)

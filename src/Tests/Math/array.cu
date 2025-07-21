@@ -1,13 +1,17 @@
 #include <float.h>
 #include <iostream>
 #include <cstdio>
+#include "Backend/CUDA/CUDAManager.h"
+#include "Backend/Resource.h"
+#include "Backend/Buffer.h"
+#include "Backend/Events.h"
 
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 #include "Math/Types.h"
 #include <cuda.h>
 #include <nvfunctional>
 
-#include "catch2/matchers/catch_matchers_floating_point.hpp"
+#include "../../extern/Catch2/extras/catch_amalgamated.hpp"
 
 DEF_RUN_TRIAL
 

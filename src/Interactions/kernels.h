@@ -1,7 +1,7 @@
 #pragma once
 
 // #include "../useful.h"
-#include "../../Core/Types.h"
+#include "Math/Types.h"
 
 #ifdef __CUDACC__
     #define HOST __host__
@@ -10,7 +10,7 @@
     #define HOST
     #define DEVICE
 #endif
-
+namespace ARBD {
 namespace InteractionKernels {
     HOST DEVICE  void __inline__ HarmonicBonds() {
 	// std::cout << "Computes::BDIntegrate_inline" << std::endl;
@@ -21,4 +21,5 @@ namespace InteractionKernels {
 	printf("Interaction::HarmonicBonds\n");
 	// pos[idx] = pos[idx] + force[idx] * root_Dt + normal_sample_3D;
     };
+}
 }

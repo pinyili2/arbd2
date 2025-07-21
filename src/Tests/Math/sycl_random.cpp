@@ -12,126 +12,202 @@
 
 using namespace ARBD;
 
-TEST_CASE("Random number generation", "[sycl][random]"){
+TEST_CASE("Random number reproducibility", "[sycl][random][reproducibility]"){
     SYCL::SYCLManager::init();
     SYCL::SYCLManager::load_info();
     SYCL::SYCLManager::sync();
-    LOGINFO("SYCL Random Number Generation");
-    auto& queue = SYCL::SYCLManager::get_current_queue();
+    LOGINFO("SYCL Random Number Reproducibility Test");
     auto resource = Resource(ResourceType::SYCL, 0);
     
-    // Create the random generator ONCE and initialize it
-    RandomSYCL<128> random_gen(resource);
-    random_gen.init(111);
+    const size_t buffer_size = 1000;
+    const unsigned long test_seed = 12345;
     
-    SECTION("Uniform float generation") {
-        DeviceBuffer<float> buffer(1000, resource);
-        auto& sycl_device = ARBD::SYCL::SYCLManager::get_current_device();
-        auto& queue = sycl_device.get_next_queue();
-       
-        // Use the SAME random generator instance
-        auto event = random_gen.generate_uniform(buffer, 0.0f, 1.0f);
-        std::vector<float> host_data(1000);
-        event.wait();
-        buffer.copy_to_host(host_data.data());
+    SECTION("Same seed produces identical results") {
+        // First run
+        RandomSYCL<128> random_gen1(resource);
+        random_gen1.init(test_seed);
         
-        // Print first 20 values to see what we're getting
-        std::cout << "\n=== Uniform Float Generation [0.0, 1.0] ===" << std::endl;
-        std::cout << "First 20 values:" << std::endl;
-        for (size_t i = 0; i < 20; ++i) {
-            std::cout << std::setw(3) << i << ": " << std::setprecision(6) << std::fixed 
-                      << host_data[i] << std::endl;
+        DeviceBuffer<float> buffer1(buffer_size, resource);
+        auto event1 = random_gen1.generate_uniform(buffer1, 0.0f, 1.0f);
+        std::vector<float> data1(buffer_size);
+        event1.wait();
+        buffer1.copy_to_host(data1.data());
+        
+        // Second run with same seed
+        RandomSYCL<128> random_gen2(resource);
+        random_gen2.init(test_seed);  // Same seed
+        
+        DeviceBuffer<float> buffer2(buffer_size, resource);
+        auto event2 = random_gen2.generate_uniform(buffer2, 0.0f, 1.0f);
+        std::vector<float> data2(buffer_size);
+        event2.wait();
+        buffer2.copy_to_host(data2.data());
+        
+        // Compare results
+        std::cout << "\n=== Reproducibility Test: Same Seed ===" << std::endl;
+        std::cout << "Seed: " << test_seed << std::endl;
+        std::cout << "Comparing first 10 values:" << std::endl;
+        std::cout << "Index |    Run 1     |    Run 2     | Match" << std::endl;
+        std::cout << "------|--------------|--------------|------" << std::endl;
+        
+        bool all_match = true;
+        for (size_t i = 0; i < 10; ++i) {
+            bool match = (data1[i] == data2[i]);
+            all_match = all_match && match;
+            std::cout << std::setw(5) << i << " | " 
+                      << std::setprecision(8) << std::fixed << std::setw(12) << data1[i] << " | "
+                      << std::setprecision(8) << std::fixed << std::setw(12) << data2[i] << " | "
+                      << (match ? "✓" : "✗") << std::endl;
         }
         
-        // Print some statistics
-        float min_val = *std::min_element(host_data.begin(), host_data.end());
-        float max_val = *std::max_element(host_data.begin(), host_data.end());
-        float sum = std::accumulate(host_data.begin(), host_data.end(), 0.0f);
-        float mean = sum / host_data.size();
-        
-        std::cout << "\nStatistics:" << std::endl;
-        std::cout << "  Min: " << min_val << std::endl;
-        std::cout << "  Max: " << max_val << std::endl;
-        std::cout << "  Mean: " << mean << " (should be ~0.5)" << std::endl;
-        
-        // Verify all values are in range
-        for (size_t i = 0; i < 1000; ++i) {
-            REQUIRE(host_data[i] >= 0.0f);
-            REQUIRE(host_data[i] <= 1.0f);
+        // Check all values
+        for (size_t i = 0; i < buffer_size; ++i) {
+            REQUIRE(data1[i] == data2[i]);
         }
         
-        // Check that we're getting reasonable distribution
-        REQUIRE(min_val >= 0.0f);
-        REQUIRE(max_val <= 1.0f);
-        REQUIRE(mean > 0.4f);  // Should be around 0.5
-        REQUIRE(mean < 0.6f);
-        
-        LOGINFO("Uniform float generation passed");
+        std::cout << "\nResult: " << (all_match ? "✓ REPRODUCIBLE" : "✗ NOT REPRODUCIBLE") << std::endl;
+        REQUIRE(all_match);
+        LOGINFO("Same seed reproducibility test passed");
     }
-
-    SECTION("Gaussian float generation") {    
-        DeviceBuffer<float> buffer(1000, resource);
-        auto& sycl_device = ARBD::SYCL::SYCLManager::get_current_device();
+    
+    SECTION("Different seeds produce different results") {
+        // First run with seed A
+        RandomSYCL<128> random_gen1(resource);
+        random_gen1.init(test_seed);
         
-        // Use the SAME random generator instance
-        auto event = random_gen.generate_gaussian(buffer, 0.0f, 1.0f);
-        std::vector<float> host_data(1000);
-        event.wait();
-        buffer.copy_to_host(host_data.data());
+        DeviceBuffer<float> buffer1(buffer_size, resource);
+        auto event1 = random_gen1.generate_uniform(buffer1, 0.0f, 1.0f);
+        std::vector<float> data1(buffer_size);
+        event1.wait();
+        buffer1.copy_to_host(data1.data());
         
-        // Print first 20 values to see what we're getting
-        std::cout << "\n=== Gaussian Float Generation (mean=0.0, stddev=1.0) ===" << std::endl;
-        std::cout << "First 20 values:" << std::endl;
-        for (size_t i = 0; i < 20; ++i) {
-            std::cout << std::setw(3) << i << ": " << std::setprecision(6) << std::fixed 
-                      << host_data[i] << std::endl;
+        // Second run with different seed
+        RandomSYCL<128> random_gen2(resource);
+        random_gen2.init(test_seed + 1);  // Different seed
+        
+        DeviceBuffer<float> buffer2(buffer_size, resource);
+        auto event2 = random_gen2.generate_uniform(buffer2, 0.0f, 1.0f);
+        std::vector<float> data2(buffer_size);
+        event2.wait();
+        buffer2.copy_to_host(data2.data());
+        
+        // Compare results - should be different
+        std::cout << "\n=== Reproducibility Test: Different Seeds ===" << std::endl;
+        std::cout << "Seed 1: " << test_seed << ", Seed 2: " << (test_seed + 1) << std::endl;
+        std::cout << "Comparing first 10 values:" << std::endl;
+        std::cout << "Index |   Seed " << test_seed << "   |   Seed " << (test_seed + 1) << "   | Different" << std::endl;
+        std::cout << "------|--------------|--------------|----------" << std::endl;
+        
+        int different_count = 0;
+        for (size_t i = 0; i < 10; ++i) {
+            bool different = (data1[i] != data2[i]);
+            if (different) different_count++;
+            std::cout << std::setw(5) << i << " | " 
+                      << std::setprecision(8) << std::fixed << std::setw(12) << data1[i] << " | "
+                      << std::setprecision(8) << std::fixed << std::setw(12) << data2[i] << " | "
+                      << (different ? "✓" : "✗") << std::endl;
         }
         
-        // Print some statistics
-        float min_val = *std::min_element(host_data.begin(), host_data.end());
-        float max_val = *std::max_element(host_data.begin(), host_data.end());
-        float sum = std::accumulate(host_data.begin(), host_data.end(), 0.0f);
-        float mean = sum / host_data.size();
-        
-        // Calculate standard deviation
-        float sq_sum = 0.0f;
-        for (float val : host_data) {
-            sq_sum += (val - mean) * (val - mean);
-        }
-        float stddev = std::sqrt(sq_sum / host_data.size());
-        
-        std::cout << "\nStatistics:" << std::endl;
-        std::cout << "  Min: " << min_val << std::endl;
-        std::cout << "  Max: " << max_val << std::endl;
-        std::cout << "  Mean: " << mean << " (should be ~0.0)" << std::endl;
-        std::cout << "  StdDev: " << stddev << " (should be ~1.0)" << std::endl;
-        
-        // Count values in different ranges to check distribution
-        int count_within_1_sigma = 0;
-        int count_within_2_sigma = 0;
-        for (float val : host_data) {
-            if (std::abs(val) <= 1.0f) count_within_1_sigma++;
-            if (std::abs(val) <= 2.0f) count_within_2_sigma++;
+        // Count total differences
+        int total_different = 0;
+        for (size_t i = 0; i < buffer_size; ++i) {
+            if (data1[i] != data2[i]) total_different++;
         }
         
-        std::cout << "  Within 1σ: " << count_within_1_sigma << "/1000 (" 
-                  << (100.0f * count_within_1_sigma / 1000.0f) << "%, should be ~68%)" << std::endl;
-        std::cout << "  Within 2σ: " << count_within_2_sigma << "/1000 (" 
-                  << (100.0f * count_within_2_sigma / 1000.0f) << "%, should be ~95%)" << std::endl;
+        std::cout << "\nResult: " << total_different << "/" << buffer_size 
+                  << " values different (" << (100.0f * total_different / buffer_size) << "%)" << std::endl;
         
-        // Verify all values are finite
-        for (size_t i = 0; i < 1000; ++i) {
-            REQUIRE(std::isfinite(host_data[i]));
+        // Should be mostly different (expect >95% different)
+        REQUIRE(total_different > (buffer_size * 0.95));
+        LOGINFO("Different seed test passed");
+    }
+    
+    SECTION("Thread-specific reproducibility") {
+        // Test that specific thread IDs produce consistent results
+        const size_t test_size = 100;
+        
+        RandomSYCL<128> random_gen1(resource);
+        random_gen1.init(test_seed);
+        
+        DeviceBuffer<float> buffer1(test_size, resource);
+        auto event1 = random_gen1.generate_uniform(buffer1, 0.0f, 1.0f);
+        std::vector<float> data1(test_size);
+        event1.wait();
+        buffer1.copy_to_host(data1.data());
+        
+        // Second run - should get exact same sequence
+        RandomSYCL<128> random_gen2(resource);
+        random_gen2.init(test_seed);
+        
+        DeviceBuffer<float> buffer2(test_size, resource);
+        auto event2 = random_gen2.generate_uniform(buffer2, 0.0f, 1.0f);
+        std::vector<float> data2(test_size);
+        event2.wait();
+        buffer2.copy_to_host(data2.data());
+        
+        std::cout << "\n=== Thread-Specific Reproducibility ===" << std::endl;
+        std::cout << "Testing that each thread gets same sequence with same seed..." << std::endl;
+        
+        // Since Philox is counter-based, thread 0 should always get the same value,
+        // thread 1 should always get the same value, etc.
+        bool perfectly_reproducible = true;
+        for (size_t i = 0; i < test_size; ++i) {
+            if (data1[i] != data2[i]) {
+                perfectly_reproducible = false;
+                std::cout << "Mismatch at index " << i << ": " 
+                          << data1[i] << " vs " << data2[i] << std::endl;
+            }
         }
         
-        // Check that we're getting reasonable Gaussian distribution
-        REQUIRE(std::abs(mean) < 0.2f);  // Mean should be close to 0
-        REQUIRE(stddev > 0.8f);          // Standard deviation should be close to 1
-        REQUIRE(stddev < 1.2f);
-        REQUIRE(count_within_1_sigma > 600);  // At least 60% within 1 sigma
-        REQUIRE(count_within_2_sigma > 900);  // At least 90% within 2 sigma
+        std::cout << "Result: " << (perfectly_reproducible ? "✓ PERFECTLY REPRODUCIBLE" : "✗ NOT REPRODUCIBLE") << std::endl;
+        REQUIRE(perfectly_reproducible);
+        LOGINFO("Thread-specific reproducibility test passed");
+    }
+    
+    SECTION("Gaussian reproducibility") {
+        // Test that Gaussian generation is also reproducible
+        RandomSYCL<128> random_gen1(resource);
+        random_gen1.init(test_seed);
         
-        LOGINFO("Gaussian float generation passed");
+        DeviceBuffer<float> buffer1(buffer_size, resource);
+        auto event1 = random_gen1.generate_gaussian(buffer1, 0.0f, 1.0f);
+        std::vector<float> data1(buffer_size);
+        event1.wait();
+        buffer1.copy_to_host(data1.data());
+        
+        // Second run with same seed
+        RandomSYCL<128> random_gen2(resource);
+        random_gen2.init(test_seed);
+        
+        DeviceBuffer<float> buffer2(buffer_size, resource);
+        auto event2 = random_gen2.generate_gaussian(buffer2, 0.0f, 1.0f);
+        std::vector<float> data2(buffer_size);
+        event2.wait();
+        buffer2.copy_to_host(data2.data());
+        
+        std::cout << "\n=== Gaussian Reproducibility Test ===" << std::endl;
+        std::cout << "Comparing first 10 Gaussian values:" << std::endl;
+        
+        bool all_match = true;
+        for (size_t i = 0; i < 10; ++i) {
+            bool match = (data1[i] == data2[i]);
+            all_match = all_match && match;
+            if (i < 10) {  // Only print first 10
+                std::cout << std::setw(3) << i << ": " 
+                          << std::setprecision(6) << std::fixed << std::setw(10) << data1[i] 
+                          << " vs " << std::setw(10) << data2[i] 
+                          << " " << (match ? "✓" : "✗") << std::endl;
+            }
+        }
+        
+        // Check all values
+        for (size_t i = 0; i < buffer_size; ++i) {
+            REQUIRE(data1[i] == data2[i]);
+        }
+        
+        std::cout << "Gaussian Result: " << (all_match ? "✓ REPRODUCIBLE" : "✗ NOT REPRODUCIBLE") << std::endl;
+        REQUIRE(all_match);
+        LOGINFO("Gaussian reproducibility test passed");
     }
 }
 

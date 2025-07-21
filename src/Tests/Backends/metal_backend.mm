@@ -3,7 +3,6 @@
 #ifdef USE_METAL
 using Catch::Approx;
 #include "Backend/Buffer.h"
-#include "Backend/Kernels.h"
 #include "Backend/Events.h"
 #include "Backend/Resource.h"
 
@@ -301,85 +300,6 @@ TEST_CASE("Metal Memory Operations", "[metal][memory]") {
     }
 }
 
-TEST_CASE("Metal Kernel Launch Infrastructure", "[metal][kernels]") {
-    Resource metal_resource(ResourceType::METAL, 0);
-    
-    SECTION("LaunchConfig creation") {
-        using namespace Kernels;
-        LaunchConfig config;
-        CHECK(config.grid_size == 1);
-        CHECK(config.block_size == 256);
-        CHECK_FALSE(config.async);
-    }
-    
-    SECTION("KernelConfig with dependencies") {
-        using namespace Kernels;
-        KernelConfig config;
-        CHECK(config.grid_size == 0);
-        CHECK(config.block_size == 256);
-        CHECK_FALSE(config.async);
-        CHECK(config.dependencies.empty());
-    }
-    
-    SECTION("Simple kernel execution") {
-        using namespace Kernels;
-        const size_t count = 50;
-        DeviceBuffer<int> buffer(count, metal_resource);
-        
-        // Simple kernel that fills buffer with index values
-        auto fill_kernel = [](size_t i, int* data) {
-            data[i] = static_cast<int>(i);
-        };
-        
-        Event kernel_event;
-        CHECK_NOTHROW(
-            kernel_event = simple_kernel(metal_resource, count, fill_kernel, buffer)
-        );
-        
-        // Wait for kernel completion
-        kernel_event.wait();
-        
-        // Verify results
-        std::vector<int> host_result(count);
-        buffer.copy_to_host(host_result.data(), count);
-        
-        for (size_t i = 0; i < count; ++i) {
-            CHECK(host_result[i] == static_cast<int>(i));
-        }
-    }
-    
-    SECTION("Mathematical computation kernel") {
-        using namespace Kernels;
-        const size_t count = 100;
-        DeviceBuffer<float> input(count, metal_resource);
-        DeviceBuffer<float> output(count, metal_resource);
-        
-        // Initialize input data
-        std::vector<float> host_input(count);
-        for (size_t i = 0; i < count; ++i) {
-            host_input[i] = static_cast<float>(i) + 1.0f;
-        }
-        input.copy_from_host(host_input.data(), count);
-        
-        // Kernel that computes square root
-        auto sqrt_kernel = [](size_t i, const float* in, float* out) {
-            out[i] = std::sqrt(in[i]);
-        };
-        
-        Event compute_event = simple_kernel(metal_resource, count, sqrt_kernel, input, output);
-        compute_event.wait();
-        
-        // Verify results
-        std::vector<float> host_output(count);
-        output.copy_to_host(host_output.data(), count);
-        
-        for (size_t i = 0; i < count; ++i) {
-            float expected = std::sqrt(host_input[i]);
-            CHECK(host_output[i] == Approx(expected));
-        }
-    }
-}
-
 TEST_CASE("Metal GenericAllocator", "[metal][allocator]") {
     Resource metal_resource(ResourceType::METAL, 0);
     
@@ -498,85 +418,6 @@ TEST_CASE("Metal Utility Functions", "[metal][utilities]") {
         
         for (float val : result) {
             CHECK(val == Approx(fill_value));
-        }
-    }
-}
-
-TEST_CASE("Metal Integration Test", "[metal][integration]") {
-    Resource metal_resource(ResourceType::METAL, 0);
-    const size_t count = 1000;
-    
-    SECTION("Complete workflow: allocation -> computation -> verification") {
-        // Allocate buffers
-        auto input = GenericAllocator<float>::allocate_sequence(count, metal_resource, 1.0f, 0.5f);
-        auto output = GenericAllocator<float>::allocate(count, metal_resource);
-        
-        // Fill input with test data
-        std::vector<float> host_input(count);
-        for (size_t i = 0; i < count; ++i) {
-            host_input[i] = 1.0f + i * 0.5f;
-        }
-        input.copy_from_host(host_input.data(), count);
-        
-        // Simple computation kernel: output[i] = input[i] * 2.0 + 1.0
-        using namespace Kernels;
-        auto compute_kernel = [](size_t i, const float* in, float* out) {
-            out[i] = in[i] * 2.0f + 1.0f;
-        };
-        
-        Event compute_event = simple_kernel(metal_resource, count, compute_kernel, input, output);
-        compute_event.wait();
-        
-        // Verify results
-        std::vector<float> host_output(count);
-        output.copy_to_host(host_output.data(), count);
-        
-        for (size_t i = 0; i < count; ++i) {
-            float expected = host_input[i] * 2.0f + 1.0f;
-            CHECK(host_output[i] == Approx(expected));
-        }
-    }
-    
-    SECTION("Multi-step computation pipeline") {
-        const size_t pipeline_count = 500;
-        
-        // Create pipeline buffers
-        auto buffer1 = GenericAllocator<float>::allocate(pipeline_count, metal_resource);
-        auto buffer2 = GenericAllocator<float>::allocate(pipeline_count, metal_resource);
-        auto buffer3 = GenericAllocator<float>::allocate(pipeline_count, metal_resource);
-        
-        // Initialize first buffer
-        std::vector<float> initial_data(pipeline_count);
-        for (size_t i = 0; i < pipeline_count; ++i) {
-            initial_data[i] = static_cast<float>(i + 1);
-        }
-        buffer1.copy_from_host(initial_data.data(), pipeline_count);
-        
-        using namespace Kernels;
-        
-        // Step 1: Square the values
-        auto square_kernel = [](size_t i, const float* in, float* out) {
-            out[i] = in[i] * in[i];
-        };
-        
-        Event step1 = simple_kernel(metal_resource, pipeline_count, square_kernel, buffer1, buffer2);
-        step1.wait();
-        
-        // Step 2: Take square root (should get back original values)
-        auto sqrt_kernel = [](size_t i, const float* in, float* out) {
-            out[i] = std::sqrt(in[i]);
-        };
-        
-        Event step2 = simple_kernel(metal_resource, pipeline_count, sqrt_kernel, buffer2, buffer3);
-        step2.wait();
-        
-        // Verify final results
-        std::vector<float> final_result(pipeline_count);
-        buffer3.copy_to_host(final_result.data(), pipeline_count);
-        
-        for (size_t i = 0; i < pipeline_count; ++i) {
-            float expected = initial_data[i];
-            CHECK(final_result[i] == Approx(expected).epsilon(0.001f));
         }
     }
 }

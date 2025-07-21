@@ -697,7 +697,7 @@ private:
 
 
 template<typename T>
-class TypedAllocator {
+class TypedAllocator { // TODO: implement this
 public:
     static DeviceBuffer<T> allocate(size_t count, const Resource& resource) {
         return DeviceBuffer<T>(count, resource);

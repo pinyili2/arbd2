@@ -4,7 +4,6 @@
 #include "Backend/Buffer.h"
 #include "Backend/Resource.h"
 #include "Backend/Events.h"
-#include "Backend/Kernels.h"
 #include "Backend/Resource.h"
 #include "Math/Types.h"
 #include "ARBDLogger.h"
