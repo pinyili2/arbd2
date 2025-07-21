@@ -76,16 +76,38 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         get_filename_component(ACPP_INSTALL_DIR "${ACPP_BIN_DIR}" DIRECTORY)
         set(ACPP_LIB_DIR "${ACPP_INSTALL_DIR}/lib")
 
-                        # Link ACPP runtime libraries explicitly
-        target_link_libraries("lib${PROJECT_NAME}" PRIVATE
-            "${ACPP_LIB_DIR}/libacpp-rt.so"
-            "${ACPP_LIB_DIR}/libacpp-common.so"
-            "${ACPP_LIB_DIR}/libacpp-clang.so"
-            "${ACPP_LIB_DIR}/libclang-cpp.so.17"
-            "${ACPP_LIB_DIR}/libLLVM.so"
-        )
+        # Determine the appropriate library extension for the platform
+        if(APPLE)
+            set(ACPP_LIB_EXT "dylib")
+        else()
+            set(ACPP_LIB_EXT "so")
+        endif()
 
-        message(STATUS "src: Explicitly linked ACPP runtime libraries from ${ACPP_LIB_DIR}")
+        # Find and link the essential ACPP runtime libraries
+        find_library(ACPP_RT_LIB NAMES "acpp-rt" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
+        find_library(ACPP_COMMON_LIB NAMES "acpp-common" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
+
+        if(ACPP_RT_LIB AND ACPP_COMMON_LIB)
+            target_link_libraries("lib${PROJECT_NAME}" PRIVATE
+                ${ACPP_RT_LIB}
+                ${ACPP_COMMON_LIB}
+            )
+            message(STATUS "src: Successfully linked ACPP runtime libraries:")
+            message(STATUS "  - ACPP Runtime: ${ACPP_RT_LIB}")
+            message(STATUS "  - ACPP Common: ${ACPP_COMMON_LIB}")
+        else()
+            message(WARNING "Could not find required ACPP runtime libraries in ${ACPP_LIB_DIR}")
+            message(WARNING "  - ACPP_RT_LIB: ${ACPP_RT_LIB}")
+            message(WARNING "  - ACPP_COMMON_LIB: ${ACPP_COMMON_LIB}")
+        endif()
+
+        # Optional LLVM/Clang libraries - try to find them but don't fail if missing
+        find_library(ACPP_CLANG_LIB NAMES "acpp-clang" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
+        if(ACPP_CLANG_LIB)
+            target_link_libraries("lib${PROJECT_NAME}" PRIVATE ${ACPP_CLANG_LIB})
+            message(STATUS "  - ACPP Clang: ${ACPP_CLANG_LIB}")
+        endif()
+
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
     endif()
 
