@@ -11,6 +11,9 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+/**
+ * @brief Modern RAII wrapper for CUDA device memory
+ */
 
 namespace ARBD {
 inline void check_cuda_error(cudaError_t error, const char *file, int line) {
@@ -346,46 +349,49 @@ private:
 };
 
 /**
- * @brief Modern GPU management system
+ * @brief Modern device management system
  *
- * This class provides a comprehensive GPU management system with support for
- * multiple GPUs, stream management, and device selection. It handles GPU
- * initialization, selection, and provides utilities for multi-GPU operations.
+ * This class provides a comprehensive device management system with support for
+ * multiple devices, stream management, and device selection. It handles device
+ * initialization, selection, and provides utilities for multi-device operations.
  *
  * Features:
- * - Multi-GPU support
+ * - Multi-device support
  * - Automatic stream management
- * - GPU selection and synchronization
+ * - Device selection and synchronization
  * - Peer-to-peer memory access
- * - Safe GPU timeout handling
+ * - Safe device timeout handling
  *
  * @example Basic Usage:
  * ```cpp
- * // Initialize GPU system
- * ARBD::CUDA::GPUManager::init();
+ * // Initialize device system
+ * ARBD::CUDA::CUDAManager::init();
  *
- * // Select specific GPUs
- * std::vector<unsigned int> gpu_ids = {0, 1};
- * ARBD::CUDA::GPUManager::select_gpus(gpu_ids);
+ * // Select specific devices
+ * std::vector<unsigned int> device_ids = {0, 1};
+ * ARBD::CUDA::CUDAManager::select_devices(device_ids);
  *
- * // Use a specific GPU
- * ARBD::CUDA::GPUManager::use(0);
+ * // Use a specific device
+ * ARBD::CUDA::CUDAManager::use(0);
  *
- * // Synchronize all GPUs (moved to NCCLManager)
- * ARBD::CUDA::NCCLManager::sync_all();
+ * // Get current device
+ * auto& device = ARBD::CUDA::CUDAManager::get_current_device();
+ *
+ * // Finalize when done
+ * ARBD::CUDA::CUDAManager::finalize();
  * ```
  *
- * @note The class uses static methods for global GPU management.
+ * @note The class uses static methods for global device management.
  *       All operations are thread-safe and exception-safe.
  */
-class GPUManager {
+class CUDAManager {
 public:
   static constexpr size_t NUM_STREAMS = 8;
 
   /**
-   * @brief Individual GPU management class
+   * @brief Individual device management class
    *
-   * This nested class represents a single GPU device and manages its resources,
+   * This nested class represents a single CUDA device and manages its resources,
    * including streams and device properties.
    *
    * Features:
@@ -396,27 +402,27 @@ public:
    *
    * @example Basic Usage:
    * ```cpp
-   * // Get GPU properties
-   * const auto& gpu = ARBD::CUDA::GPUManager::gpus()[0];
-   * const auto& props = gpu.properties();
+   * // Get device properties
+   * const auto& device = ARBD::CUDA::CUDAManager::devices()[0];
+   * const auto& props = device.properties();
    *
    * // Get a stream
-   * cudaStream_t stream = gpu.get_stream(0);
+   * cudaStream_t stream = device.get_stream(0);
    *
    * // Get next available stream
-   * cudaStream_t next_stream = gpu.get_next_stream();
+   * cudaStream_t next_stream = device.get_next_stream();
    * ```
    */
-  class GPU {
+  class Device {
   public:
-    explicit GPU(unsigned int id);
-    ~GPU();
+    explicit Device(unsigned int id);
+    ~Device();
 
     // Prevent copying, allow moving
-    GPU(const GPU &) = delete;
-    GPU &operator=(const GPU &) = delete;
-    GPU(GPU &&) = default;
-    GPU &operator=(GPU &&) = default;
+    Device(const Device &) = delete;
+    Device &operator=(const Device &) = delete;
+    Device(Device &&) = default;
+    Device &operator=(Device &&) = default;
 
     [[nodiscard]] cudaStream_t get_stream(size_t stream_id) const {
       return streams_[stream_id % NUM_STREAMS].get();
@@ -471,72 +477,82 @@ public:
   // Static interface
   static void init();
   static void load_info();
-  static void select_gpus(const std::vector<unsigned int> &gpu_ids) {
-    gpus_.clear();
-    gpus_.reserve(gpu_ids.size());
+  static void select_devices(const std::vector<unsigned int> &device_ids) {
+    devices_.clear();
+    devices_.reserve(device_ids.size());
 
-    for (unsigned int id : gpu_ids) {
-      // Find the GPU with matching ID in all_gpus_
-      auto it = std::find_if(all_gpus_.begin(), all_gpus_.end(),
-                             [id](const GPU &gpu) { return gpu.id() == id; });
+    for (unsigned int id : device_ids) {
+      // Find the device with matching ID in all_devices_
+      auto it = std::find_if(all_devices_.begin(), all_devices_.end(),
+                             [id](const Device &device) { return device.id() == id; });
 
-      if (it == all_gpus_.end()) {
+      if (it == all_devices_.end()) {
         ARBD_Exception(ExceptionType::ValueError,
-                       "Invalid GPU ID: {} (not found in available GPUs)", id);
+                       "Invalid device ID: {} (not found in available devices)", id);
       }
 
-      // Copy construct the GPU (since we can't move from all_gpus_)
-      // This creates a new GPU object with the same ID
-      gpus_.emplace_back(id);
+      // Copy construct the device (since we can't move from all_devices_)
+      // This creates a new device object with the same ID
+      devices_.emplace_back(id);
     }
 
     init_devices();
   }
-  static void use(int gpu_id);
-  static void sync(int gpu_id);
+  static void use(int device_id);
+  static void sync(int device_id);
+  static void sync();
   static int current();
-  static void prefer_safe_gpus(bool safe = true);
-  static int get_safest_gpu();
+  static void prefer_safe_devices(bool safe = true);
+  static int get_safest_device();
+  static void finalize();
+
+  // Current device access
+  static Device& get_current_device();
 
   // Peer-to-peer operations
   static void enable_peer_access();
-  static bool can_access_peer(int gpu1, int gpu2);
+  static bool can_access_peer(int device1, int device2);
 
   // Cache configuration
   static void set_cache_config(cudaFuncCache config = cudaFuncCachePreferL1);
 
   // Advanced stream access
-  static cudaStream_t get_stream(int gpu_id, size_t stream_id);
+  static cudaStream_t get_stream(int device_id, size_t stream_id);
 
-  // Legacy compatibility methods
-  static int getInitialGPU() { return get_safest_gpu(); }
-  static void safe(bool make_safe) { prefer_safe_gpus(make_safe); }
+  // Legacy compatibility methods (deprecated, use new names)
+  [[deprecated("Use get_safest_device() instead")]]
+  static int getInitialGPU() { return get_safest_device(); }
+  [[deprecated("Use prefer_safe_devices() instead")]]
+  static void safe(bool make_safe) { prefer_safe_devices(make_safe); }
 
-  [[nodiscard]] static size_t all_gpu_size() noexcept {
-    return all_gpus_.size();
+  [[nodiscard]] static size_t all_device_size() noexcept {
+    return all_devices_.size();
   }
-  [[nodiscard]] static size_t allGpuSize() noexcept { return all_gpus_.size(); }
+  [[deprecated("Use all_device_size() instead")]]
+  [[nodiscard]] static size_t allGpuSize() noexcept { return all_devices_.size(); }
   [[nodiscard]] static bool safe() noexcept { return prefer_safe_; }
   [[nodiscard]] static cudaStream_t get_next_stream() {
-    if (gpus_.empty()) {
-      ARBD_Exception(ExceptionType::ValueError, "No GPUs available");
+    if (devices_.empty()) {
+      ARBD_Exception(ExceptionType::ValueError, "No devices available");
     }
-    return gpus_[0].get_next_stream();
+    return devices_[0].get_next_stream();
   }
-  [[nodiscard]] static const std::vector<GPU> &gpus() noexcept { return gpus_; }
-  [[nodiscard]] static const std::vector<GPU> &all_gpus() noexcept {
-    return all_gpus_;
+  [[nodiscard]] static const std::vector<Device> &devices() noexcept { return devices_; }
+  [[nodiscard]] static const std::vector<Device> &all_devices() noexcept {
+    return all_devices_;
   }
 
 private:
   static void init_devices();
   static void query_peer_access();
 
-  static std::vector<GPU> all_gpus_;
-  static std::vector<GPU> gpus_;
-  static std::vector<GPU> safe_gpus_;
+  static std::vector<Device> all_devices_;
+  static std::vector<Device> devices_;
+  static std::vector<Device> safe_devices_;
   static std::vector<std::vector<bool>> peer_access_matrix_;
   static bool prefer_safe_;
+  static int current_device_;
+  
 };
 
 // ============================================================================
@@ -705,30 +721,33 @@ __device__ constexpr T warp_broadcast(T value, int leader) noexcept {
 
 // Utility macros for backward compatibility
 /**
- * @brief Temporarily switch to a specific GPU and execute code
- * @param gpu_id GPU device ID to switch to
- * @param code Code block to execute on the specified GPU
+ * @brief Temporarily switch to a specific device and execute code
+ * @param device_id CUDA device ID to switch to
+ * @param code Code block to execute on the specified device
  *
  * @example Usage:
  * ```cpp
- * WITH_GPU(1, {
- *     // This code runs on GPU 1
+ * WITH_DEVICE(1, {
+ *     // This code runs on device 1
  *     cudaMalloc(&ptr, size);
  *     my_kernel<<<blocks, threads>>>();
  * });
- * // GPU context is restored after the block
+ * // Device context is restored after the block
  * ```
  */
-#define WITH_GPU(gpu_id, code)                                                 \
+#define WITH_DEVICE(device_id, code)                                           \
   do {                                                                         \
-    int _wg_current_device;                                                    \
-    ARBD::CUDA::check_cuda_error(cudaGetDevice(&_wg_current_device), __FILE__, \
+    int _wd_current_device;                                                    \
+    ARBD::CUDA::check_cuda_error(cudaGetDevice(&_wd_current_device), __FILE__, \
                                  __LINE__);                                    \
-    ARBD::CUDA::check_cuda_error(cudaSetDevice(gpu_id), __FILE__, __LINE__);   \
+    ARBD::CUDA::check_cuda_error(cudaSetDevice(device_id), __FILE__, __LINE__); \
     code;                                                                      \
-    ARBD::CUDA::check_cuda_error(cudaSetDevice(_wg_current_device), __FILE__,  \
+    ARBD::CUDA::check_cuda_error(cudaSetDevice(_wd_current_device), __FILE__,  \
                                  __LINE__);                                    \
   } while (0)
+
+// Legacy compatibility macro (deprecated)
+#define WITH_GPU(gpu_id, code) WITH_DEVICE(gpu_id, code)
 
 /**
  * @brief Legacy error checking macro (for backward compatibility)

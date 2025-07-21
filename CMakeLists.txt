@@ -42,6 +42,8 @@ add_compile_definitions(_GLIBCXX23_CONSTEXPR=)
 # Generate compile_commands.json for clangd and other tools
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include_directories(${CMAKE_SOURCE_DIR}/extern/OpenRAND/include)
+
 if(USE_CUDA)
     set(CMAKE_CUDA_STANDARD 20)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -64,17 +66,112 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
-# Compiler specific flags
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  if(CMAKE_CXX_FLAGS_RELEASE)
-    string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-  endif()
-if(USE_CUDA AND CMAKE_CUDA_FLAGS_RELEASE)
-    string(REPLACE "-O2" "-O3" CMAKE_CUDA_FLAGS_RELEASE ${CMAKE_CUDA_FLAGS_RELEASE})
-  endif()
+# --- Optimization Flags Configuration ---
+# Set optimization level (can be overridden with -DOPT_LEVEL=2 or -DOPT_LEVEL=3)
+if(NOT DEFINED OPT_LEVEL)
+    set(OPT_LEVEL 3)
 endif()
-if(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-    # string(REPLACE "-O2" "-O3" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE}) # If desired for Intel
+
+message(STATUS "Setting optimization level to -O${OPT_LEVEL}")
+
+# Configure optimization flags for different compilers
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # GCC
+    set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    
+    # Add additional GCC-specific optimizations
+    if(OPT_LEVEL GREATER_EQUAL 3)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native")
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -march=native -mtune=native")
+    endif()
+    
+    if(USE_CUDA AND CMAKE_CUDA_FLAGS_RELEASE)
+        set(CMAKE_CUDA_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+        set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    endif()
+    
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Clang/AppleClang
+    set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    
+    # Add additional Clang-specific optimizations
+    if(OPT_LEVEL GREATER_EQUAL 3)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native")
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -march=native -mtune=native")
+    endif()
+    
+    if(USE_CUDA AND CMAKE_CUDA_FLAGS_RELEASE)
+        set(CMAKE_CUDA_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+        set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    endif()
+    
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
+    # Intel compilers (icpx, icc)
+    set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    
+    # Add Intel-specific optimizations
+    if(OPT_LEVEL GREATER_EQUAL 3)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -xHost")
+        set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -xHost")
+    endif()
+    
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # Microsoft Visual C++
+    set(CMAKE_CXX_FLAGS_RELEASE "/O${OPT_LEVEL} /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O${OPT_LEVEL} /Zi /DNDEBUG")
+    
+else()
+    # Generic fallback
+    set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+endif()
+
+# Special handling for SYCL compilers (acpp, icpx)
+if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
+    # SYCL compilers need optimization flags to be explicitly set
+    message(STATUS "SYCL detected: Ensuring optimization flags are properly set")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    
+    # For ACPP specifically, ensure optimization flags are added to general flags too
+    if(USE_SYCL_ACPP)
+        # Add optimization flags to general CXX flags to ensure they're always present
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O${OPT_LEVEL}")
+        message(STATUS "ACPP: Added -O${OPT_LEVEL} to CMAKE_CXX_FLAGS")
+    endif()
+endif()
+
+# Metal (Objective-C++) optimization flags
+if(USE_METAL AND APPLE)
+    set(CMAKE_OBJCXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
+    set(CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
+    
+    if(OPT_LEVEL GREATER_EQUAL 3)
+        set(CMAKE_OBJCXX_FLAGS_RELEASE "${CMAKE_OBJCXX_FLAGS_RELEASE} -march=native -mtune=native")
+        set(CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO "${CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO} -march=native -mtune=native")
+    endif()
+endif()
+
+# Ensure optimization flags are applied globally (including to external dependencies)
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    # Add optimization flags to the general CMAKE_CXX_FLAGS to ensure they're always present
+    string(FIND "${CMAKE_CXX_FLAGS}" "-O" OPT_FLAG_FOUND)
+    if(OPT_FLAG_FOUND EQUAL -1)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O${OPT_LEVEL}")
+        message(STATUS "Added -O${OPT_LEVEL} to CMAKE_CXX_FLAGS for global optimization")
+    endif()
+endif()
+
+message(STATUS "C++ Release flags: ${CMAKE_CXX_FLAGS_RELEASE}")
+message(STATUS "C++ General flags: ${CMAKE_CXX_FLAGS}")
+if(USE_CUDA)
+    message(STATUS "CUDA Release flags: ${CMAKE_CUDA_FLAGS_RELEASE}")
+endif()
+if(USE_METAL)
+    message(STATUS "Objective-C++ Release flags: ${CMAKE_OBJCXX_FLAGS_RELEASE}")
 endif()
 
 # Metal specific setup
@@ -116,8 +213,6 @@ Example for USE_SYCL_ACPP on macOS:    cmake -D CMAKE_CXX_COMPILER=/opt/homebrew
             if(CMAKE_SYSTEM_NAME STREQUAL "Darwin") # macOS
                 message(STATUS "Setting AdaptiveCpp default target flags for macOS (CPU via OpenMP).")
                 set(ACPP_TARGET_FLAGS "--acpp-targets=omp")
-                # For M-series GPU using OpenCL: set(ACPP_TARGET_FLAGS "--acpp-targets=omp,opencl")
-                # Ensure OpenCL dev headers/libs are available if using OpenCL backend.
             elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
                 message(STATUS "Setting AdaptiveCpp default target flags for Linux (CPU via OpenMP).")
                 set(ACPP_TARGET_FLAGS "--acpp-targets=generic -O3")
@@ -131,7 +226,6 @@ Example for USE_SYCL_ACPP on macOS:    cmake -D CMAKE_CXX_COMPILER=/opt/homebrew
                 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ACPP_TARGET_FLAGS}")
                 message(STATUS "Applied AdaptiveCpp flags: ${ACPP_TARGET_FLAGS}")
             endif()
-            # acpp generally enables SYCL mode automatically. No -fsycl needed.
             set(SYCL_COMPILER_CONFIGURED_CORRECTLY TRUE)
         else()
             message(WARNING "USE_SYCL_ACPP is ON, but CMAKE_CXX_COMPILER (${CMAKE_CXX_COMPILER}) does not appear to be 'acpp'.
@@ -171,7 +265,7 @@ endif()
 # --- Metal Configuration ---
 if(USE_METAL)
     if(NOT APPLE)
-        message(FATAL_ERROR "Metal is only available on Apple platforms (macOS, iOS, tvOS, watchOS)")
+        message(FATAL_ERROR "Metal is only available on Apple platforms")
     endif()
 
     message(STATUS "Metal support is enabled for Apple platforms.")

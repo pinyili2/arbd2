@@ -11,9 +11,7 @@
 #include <cstdio>    // For printf
 #include <cstring>   // For strcmp
 #include <string>    // For std::string (modern C++)
-#include <vector>    // For std::vector (modern C++)
 #include <iostream>  // For std::cout, std::endl (modern C++)
-#include <algorithm> // For std::max (though using std::max from <algorithm> is preferred)
 #include "SignalManager.h"
 
 // Define this if not provided by CMake/build system for version info

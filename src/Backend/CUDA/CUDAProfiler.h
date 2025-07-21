@@ -266,7 +266,10 @@ private:
 
 #elif defined(USE_CUDA) && !defined(USE_NVTX)
 // No-op implementations when NVTX is not available
-
+#include <string>
+#include <string_view>
+#include <array>
+#include <cstdint>
 namespace ARBD {
 namespace CUDA {
 class Profiler {

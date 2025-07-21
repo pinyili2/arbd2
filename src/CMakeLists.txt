@@ -9,9 +9,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "src: Adding SYCL specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/SYCL/SYCLManager.cpp
-        Backend/SYCL/Proxy_sycl.cpp
-        #Simulation/Integrator/IntegratorSYCL.cpp
-        #Simulation/Interactions/ExampleForceSYCL.cpp
+        Random/Random_SYCL.cpp
         # Add any other SYCL-specific .cpp files here
     )
     # If your SYCL implementation uses a different file extension for device code
@@ -24,7 +22,7 @@ if(USE_CUDA)
     message(STATUS "src: Adding CUDA specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/CUDA/CUDAManager.cpp         # Can be a .cpp file managing CUDA operations
-        Backend/CUDA/Proxy.cu
+        Random/Random.cu
         #Simulation/Integrator/IntegratorCUDA.cu # Note .cu extension
         #Simulation/Interactions/ExampleForceCUDA.cu # Note .cu extension
     )
@@ -38,7 +36,6 @@ if(USE_METAL)
     message(STATUS "src: Adding Metal specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/METAL/METALManager.mm         # Objective-C++ implementation file
-        Backend/Proxy.mm                      # METAL proxy implementation
         #Simulation/Integrator/IntegratorMetal.mm # Future Metal integrator
         #Simulation/Interactions/ExampleForceMetal.mm # Future Metal force calculations
     )

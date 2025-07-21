@@ -1,15 +1,6 @@
 #find_package(Catch2 3 REQUIRED)
-Include(FetchContent)
 
-FetchContent_Declare(
-  Catch2
-  GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-  GIT_TAG        v3.4.0 # or a later release
-)
-
-FetchContent_MakeAvailable(Catch2)
-
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/extern/Catch2/extras)
 include(Catch) # contains some cmake macros that will help with discovery of tests
 include(CTest)
 
@@ -25,61 +16,100 @@ endif()
 
 # Metal Tests
 if(USE_METAL AND APPLE)
-    add_executable(arbd_test_metal test_metal.mm)
+    add_executable(arbd_test_metal
+        Backends/metal_backend.mm #Still not working
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
-    target_link_libraries(arbd_test_metal PRIVATE ${COMMON_TEST_LIBS} ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
-    catch_discover_tests(arbd_test_metal)
+    target_link_libraries(arbd_test_metal PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+
+    add_test(NAME Metal_Tests COMMAND arbd_test_metal)
+    set_tests_properties(Metal_Tests PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+
     install(TARGETS arbd_test_metal)
-    message(STATUS "Added Metal test executable: arbd_test_metal")
+
+    add_executable(arbd_test_metal_math
+        Math/metal_bitmask.mm
+        Kernels/metal_events.mm
+        Kernels/metal_test.mm
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    target_include_directories(arbd_test_metal_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
+    target_link_libraries(arbd_test_metal_math PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+
+    add_test(NAME Metal_Math_Tests COMMAND arbd_test_metal_math)
+    set_tests_properties(Metal_Math_Tests PROPERTIES
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+
+    install(TARGETS arbd_test_metal_math)
+    message(STATUS "Added Metal math test executable: arbd_test_metal_math")
 elseif(USE_METAL)
     message(WARNING "USE_METAL is ON but not on Apple platform - Metal tests will be excluded")
 endif()
 
 # SYCL Tests
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
-    # Test for test_sycl.cpp
-    add_executable(arbd_test_sycl test_sycl.cpp)
+    # Test for test_sycl.cpp - now uses Catch2's main function
+    add_executable(arbd_test_sycl
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl PRIVATE ${COMMON_TEST_LIBS})
+    target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
 
-    # Test for test_sycl_omp.cpp
-    add_executable(arbd_test_sycl_omp test_sycl_omp.cpp)
-    target_include_directories(arbd_test_sycl_omp PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl_omp PRIVATE ${COMMON_TEST_LIBS})
+    add_executable(arbd_test_sycl_backend
+        Backends/sycl_manager.cpp
+        Backends/sycl_backend.cpp
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
 
-    # Explicit linking for AdaptiveCpp runtime libraries for test executables
-    if(USE_SYCL_ACPP AND CMAKE_CXX_COMPILER MATCHES "acpp")
-        # Find ACPP installation directory from the compiler path
-        get_filename_component(ACPP_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
-        get_filename_component(ACPP_INSTALL_DIR "${ACPP_BIN_DIR}" DIRECTORY)
-        set(ACPP_LIB_DIR "${ACPP_INSTALL_DIR}/lib")
+    add_executable(arbd_test_sycl_math
+        Math/sycl_bitmask.cpp
+        Math/sycl_random.cpp
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}")
 
-                        # Link ACPP runtime libraries to test executables
-        target_link_libraries(arbd_test_sycl PRIVATE
-            "${ACPP_LIB_DIR}/libacpp-rt.so"
-            "${ACPP_LIB_DIR}/libacpp-common.so"
-            "${ACPP_LIB_DIR}/libacpp-clang.so"
-            "${ACPP_LIB_DIR}/libclang-cpp.so.17"
-            "${ACPP_LIB_DIR}/libLLVM.so"
-        )
-        target_link_libraries(arbd_test_sycl_omp PRIVATE
-            "${ACPP_LIB_DIR}/libacpp-rt.so"
-            "${ACPP_LIB_DIR}/libacpp-common.so"
-            "${ACPP_LIB_DIR}/libacpp-clang.so"
-            "${ACPP_LIB_DIR}/libclang-cpp.so.17"
-            "${ACPP_LIB_DIR}/libLLVM.so"
-        )
-
-        message(STATUS "Linked ACPP runtime libraries to SYCL test executables")
+    if(USE_SYCL_ACPP)
+        target_link_libraries(arbd_test_sycl PRIVATE stdc++)
+        target_link_libraries(arbd_test_sycl_backend PRIVATE stdc++)
+        # Also link Boost libraries for AdaptiveCpp
+        target_link_directories(arbd_test_sycl PRIVATE "${BOOST_LIB_DIR}")
+        target_link_directories(arbd_test_sycl_backend PRIVATE "${BOOST_LIB_DIR}")
     endif()
 
-    catch_discover_tests(arbd_test_sycl)
+    # Instead of catch_discover_tests which causes bus errors on ACPP,
+    # we'll add a single test that runs the entire executable
+    add_test(NAME SYCL_Tests COMMAND arbd_test_sycl)
+
+    # Set environment variables for SYCL test execution
+    set_tests_properties(SYCL_Tests PROPERTIES
+        ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+
     install(TARGETS arbd_test_sycl)
     message(STATUS "Added SYCL test executable: arbd_test_sycl")
 
-    catch_discover_tests(arbd_test_sycl_omp)
-    install(TARGETS arbd_test_sycl_omp)
-    message(STATUS "Added SYCL OMP test executable: arbd_test_sycl_omp")
+    # Add test for backend tests
+    add_test(NAME SYCL_Backend_Tests COMMAND arbd_test_sycl_backend)
+    set_tests_properties(SYCL_Backend_Tests PROPERTIES
+        ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+
+    install(TARGETS arbd_test_sycl_backend)
+    message(STATUS "Added SYCL backend test executable: arbd_test_sycl_backend")
+
+    add_test(NAME SYCL_Math_Tests COMMAND arbd_test_sycl_math)
+    set_tests_properties(SYCL_Math_Tests PROPERTIES
+        ENVIRONMENT "ACPP_TARGETS=omp;SYCL_DEVICE_FILTER=cpu;ACPP_DEBUG=1"
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/src/Tests
+    )
+
+    install(TARGETS arbd_test_sycl_math)
+    message(STATUS "Added SYCL math test executable: arbd_test_sycl_math")
+
 endif()
 
 # CUDA Tests
