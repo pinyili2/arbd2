@@ -1,6 +1,5 @@
-#include "Random.h"
-
 #ifdef USE_SYCL
+#include "Random.h"
 #include "Backend/SYCL/SYCLManager.h"
 #include "Backend/Buffer.h"
 #include "Backend/Events.h"

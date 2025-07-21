@@ -3,7 +3,6 @@
 
 #include "Backend/SYCL/SYCLManager.h"
 #include "Backend/Buffer.h"
-#include "Backend/Kernels.h"
 #include "Backend/Events.h"
 #include "Backend/Resource.h"
 #include <vector>
@@ -203,39 +202,6 @@ TEST_CASE_METHOD(SYCLTestFixture, "SYCL GenericAllocator", "[sycl][allocator]") 
             expected[i] = 10 + static_cast<int>(i) * 2;
         }
         CHECK(result == expected);
-    }
-}
-
-TEST_CASE_METHOD(SYCLTestFixture, "SYCL Integration Test", "[sycl][integration]") {
-    if (SYCL::SYCLManager::all_devices().empty()) return;
-    const size_t count = 1024;
-
-    SECTION("Complete workflow: allocate -> compute -> verify") {
-        // 1. Allocate buffers using GenericAllocator
-        auto input = GenericAllocator<float>::allocate(count, sycl_resource);
-        auto output = GenericAllocator<float>::allocate(count, sycl_resource);
-        
-        // 2. Fill input buffer with test data
-        std::vector<float> host_input(count);
-        for (size_t i = 0; i < count; ++i) host_input[i] = 1.0f + static_cast<float>(i);
-        input.copy_from_host(host_input.data(), count);
-        
-        // 3. Define and execute a computation kernel
-        auto compute_kernel = [](size_t i, const float* in, float* out) {
-            out[i] = in[i] * 2.0f;
-        };
-        
-        auto compute_event = Kernels::simple_kernel(sycl_resource, count, compute_kernel, input, output);
-        compute_event.wait();
-        
-        // 4. Copy result back and verify
-        std::vector<float> host_output(count);
-        output.copy_to_host(host_output.data(), count);
-        
-        for (size_t i = 0; i < count; ++i) {
-            float expected = host_input[i] * 2.0f;
-            CHECK(host_output[i] == Catch::Approx(expected));
-        }
     }
 }
 

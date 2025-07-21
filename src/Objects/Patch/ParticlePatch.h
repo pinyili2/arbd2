@@ -19,7 +19,7 @@
 #endif
 
 #ifdef USE_METAL
-#include <metal/metal.hpp>
+#include <Metal/Metal.h>
 #endif
 
 #ifdef USE_SYCL

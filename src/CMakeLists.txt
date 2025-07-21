@@ -9,7 +9,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "src: Adding SYCL specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/SYCL/SYCLManager.cpp
-        Random/Random.cpp
+        Random/Random_SYCL.cpp
         # Add any other SYCL-specific .cpp files here
     )
     # If your SYCL implementation uses a different file extension for device code
