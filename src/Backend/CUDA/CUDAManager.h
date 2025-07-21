@@ -7,7 +7,6 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
-#include <span>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -26,7 +25,6 @@ inline void check_cuda_error(cudaError_t error, const char *file, int line) {
 #define CUDA_CHECK(call) check_cuda_error(call, __FILE__, __LINE__)
 
 namespace CUDA {
-
 
 /**
  * @brief Modern RAII wrapper for CUDA device memory
@@ -102,46 +100,55 @@ public:
     return *this;
   }
 
-  // Modern copy operations using std::span
-  void copyFromHost(std::span<const T> host_data,
+  // Modern copy operations using pointer + size
+  void copyFromHost(const T *host_data, size_t count,
                     cudaStream_t stream = nullptr) {
-    if (host_data.size() > size_) {
+    if (count > size_) {
       ARBD_Exception(ExceptionType::ValueError,
-                     "Tried to copy %zu elements but only %zu allocated",
-                     host_data.size(), size_);
+                     "Tried to copy %zu elements but only %zu allocated", count,
+                     size_);
     }
-    if (!ptr_ || host_data.empty())
+    if (!ptr_ || !host_data || count == 0)
       return;
 
     if (stream) {
-      CUDA_CHECK(cudaMemcpyAsync(ptr_, host_data.data(),
-                                 host_data.size() * sizeof(T),
+      CUDA_CHECK(cudaMemcpyAsync(ptr_, host_data, count * sizeof(T),
                                  cudaMemcpyHostToDevice, stream));
     } else {
-      CUDA_CHECK(cudaMemcpy(ptr_, host_data.data(),
-                            host_data.size() * sizeof(T),
+      CUDA_CHECK(cudaMemcpy(ptr_, host_data, count * sizeof(T),
                             cudaMemcpyHostToDevice));
     }
   }
 
-  void copyToHost(std::span<T> host_data, cudaStream_t stream = nullptr) const {
-    if (host_data.size() > size_) {
+  // Overload for containers like std::vector
+  template <typename Container>
+  void copyFromHost(const Container &host_data, cudaStream_t stream = nullptr) {
+    copyFromHost(host_data.data(), host_data.size(), stream);
+  }
+
+  void copyToHost(T *host_data, size_t count,
+                  cudaStream_t stream = nullptr) const {
+    if (count > size_) {
       ARBD_Exception(ExceptionType::ValueError,
-                     "Tried to copy %zu elements but only %zu allocated",
-                     host_data.size(), size_);
+                     "Tried to copy %zu elements but only %zu allocated", count,
+                     size_);
     }
-    if (!ptr_ || host_data.empty())
+    if (!ptr_ || !host_data || count == 0)
       return;
 
     if (stream) {
-      CUDA_CHECK(cudaMemcpyAsync(host_data.data(), ptr_,
-                                 host_data.size() * sizeof(T),
+      CUDA_CHECK(cudaMemcpyAsync(host_data, ptr_, count * sizeof(T),
                                  cudaMemcpyDeviceToHost, stream));
     } else {
-      CUDA_CHECK(cudaMemcpy(host_data.data(), ptr_,
-                            host_data.size() * sizeof(T),
+      CUDA_CHECK(cudaMemcpy(host_data, ptr_, count * sizeof(T),
                             cudaMemcpyDeviceToHost));
     }
+  }
+
+  // Overload for containers like std::vector
+  template <typename Container>
+  void copyToHost(Container &host_data, cudaStream_t stream = nullptr) const {
+    copyToHost(host_data.data(), host_data.size(), stream);
   }
 
   // Accessors
@@ -353,7 +360,8 @@ private:
  *
  * This class provides a comprehensive device management system with support for
  * multiple devices, stream management, and device selection. It handles device
- * initialization, selection, and provides utilities for multi-device operations.
+ * initialization, selection, and provides utilities for multi-device
+ * operations.
  *
  * Features:
  * - Multi-device support
@@ -391,8 +399,8 @@ public:
   /**
    * @brief Individual device management class
    *
-   * This nested class represents a single CUDA device and manages its resources,
-   * including streams and device properties.
+   * This nested class represents a single CUDA device and manages its
+   * resources, including streams and device properties.
    *
    * Features:
    * - Stream management
@@ -483,12 +491,14 @@ public:
 
     for (unsigned int id : device_ids) {
       // Find the device with matching ID in all_devices_
-      auto it = std::find_if(all_devices_.begin(), all_devices_.end(),
-                             [id](const Device &device) { return device.id() == id; });
+      auto it = std::find_if(
+          all_devices_.begin(), all_devices_.end(),
+          [id](const Device &device) { return device.id() == id; });
 
       if (it == all_devices_.end()) {
         ARBD_Exception(ExceptionType::ValueError,
-                       "Invalid device ID: {} (not found in available devices)", id);
+                       "Invalid device ID: {} (not found in available devices)",
+                       id);
       }
 
       // Copy construct the device (since we can't move from all_devices_)
@@ -507,7 +517,7 @@ public:
   static void finalize();
 
   // Current device access
-  static Device& get_current_device();
+  static Device &get_current_device();
 
   // Peer-to-peer operations
   static void enable_peer_access();
@@ -520,16 +530,21 @@ public:
   static cudaStream_t get_stream(int device_id, size_t stream_id);
 
   // Legacy compatibility methods (deprecated, use new names)
-  [[deprecated("Use get_safest_device() instead")]]
-  static int getInitialGPU() { return get_safest_device(); }
-  [[deprecated("Use prefer_safe_devices() instead")]]
-  static void safe(bool make_safe) { prefer_safe_devices(make_safe); }
+  [[deprecated("Use get_safest_device() instead")]] static int getInitialGPU() {
+    return get_safest_device();
+  }
+  [[deprecated("Use prefer_safe_devices() instead")]] static void
+  safe(bool make_safe) {
+    prefer_safe_devices(make_safe);
+  }
 
   [[nodiscard]] static size_t all_device_size() noexcept {
     return all_devices_.size();
   }
-  [[deprecated("Use all_device_size() instead")]]
-  [[nodiscard]] static size_t allGpuSize() noexcept { return all_devices_.size(); }
+  [[deprecated("Use all_device_size() instead")]] [[nodiscard]] static size_t
+  allGpuSize() noexcept {
+    return all_devices_.size();
+  }
   [[nodiscard]] static bool safe() noexcept { return prefer_safe_; }
   [[nodiscard]] static cudaStream_t get_next_stream() {
     if (devices_.empty()) {
@@ -537,7 +552,9 @@ public:
     }
     return devices_[0].get_next_stream();
   }
-  [[nodiscard]] static const std::vector<Device> &devices() noexcept { return devices_; }
+  [[nodiscard]] static const std::vector<Device> &devices() noexcept {
+    return devices_;
+  }
   [[nodiscard]] static const std::vector<Device> &all_devices() noexcept {
     return all_devices_;
   }
@@ -552,7 +569,6 @@ private:
   static std::vector<std::vector<bool>> peer_access_matrix_;
   static bool prefer_safe_;
   static int current_device_;
-  
 };
 
 // ============================================================================
@@ -740,7 +756,8 @@ __device__ constexpr T warp_broadcast(T value, int leader) noexcept {
     int _wd_current_device;                                                    \
     ARBD::CUDA::check_cuda_error(cudaGetDevice(&_wd_current_device), __FILE__, \
                                  __LINE__);                                    \
-    ARBD::CUDA::check_cuda_error(cudaSetDevice(device_id), __FILE__, __LINE__); \
+    ARBD::CUDA::check_cuda_error(cudaSetDevice(device_id), __FILE__,           \
+                                 __LINE__);                                    \
     code;                                                                      \
     ARBD::CUDA::check_cuda_error(cudaSetDevice(_wd_current_device), __FILE__,  \
                                  __LINE__);                                    \

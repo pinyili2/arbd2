@@ -115,14 +115,19 @@ endif()
 # CUDA Tests
 if(USE_CUDA)
     add_executable(arbd_test_cuda
-        matrix3.cu
-        vector3_precision.cu
-        bitmask.cu
-        array.cu
-    )
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda")
+        Math/vector3_precision.cu
+        Math/bitmask.cu
+        #Math/array.cu
+        ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda --allow-unsupported-compiler")
     target_include_directories(arbd_test_cuda PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_cuda PRIVATE ${COMMON_TEST_LIBS})
+    target_link_libraries(arbd_test_cuda PRIVATE "lib${PROJECT_NAME}")
+    if(USE_CUDA)
+        target_link_libraries(arbd_test_cuda PRIVATE curand)
+    endif()
+    if(USE_NCCL)
+        target_link_libraries(arbd_test_cuda PRIVATE nccl)
+    endif()
     catch_discover_tests(arbd_test_cuda)
     install(TARGETS arbd_test_cuda)
     message(STATUS "Added CUDA test executable: arbd_test_cuda")

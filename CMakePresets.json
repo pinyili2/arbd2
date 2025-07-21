@@ -132,8 +132,9 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_CUDA_COMPILER": "/software/cuda-12.4/bin/nvcc",
-                "CMAKE_CXX_COMPILER": "/data/server10/pinyili2/local/bin/clang++",
-                "CMAKE_C_COMPILER": "/data/server10/pinyili2/local/bin/clang",
+                "CMAKE_CUDA_HOST_COMPILER": "/software/gcc-12.3.0/bin/gcc",
+                "CMAKE_CXX_COMPILER": "/software/gcc-12.3.0/bin/g++",
+                "CMAKE_C_COMPILER": "/software/gcc-12.3.0/bin/gcc",
                 "USE_CUDA": "ON",
                 "CMAKE_CXX_EXTENSIONS": "OFF"
             }
@@ -147,8 +148,9 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_CUDA_COMPILER": "/software/cuda-12.4/bin/nvcc",
-                "CMAKE_CXX_COMPILER": "/data/server10/pinyili2/local/bin/clang++",
-                "CMAKE_C_COMPILER": "/data/server10/pinyili2/local/bin/clang",
+                "CMAKE_CUDA_HOST_COMPILER": "/software/gcc-12.3.0/bin/gcc",
+                "CMAKE_CXX_COMPILER": "/software/gcc-12.3.0/bin/g++",
+                "CMAKE_C_COMPILER": "/software/gcc-12.3.0/bin/gcc",
                 "USE_CUDA": "ON",
                 "CMAKE_CXX_EXTENSIONS": "OFF"
             }

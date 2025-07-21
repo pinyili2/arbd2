@@ -1,17 +1,17 @@
 #pragma once
+#include "ARBDException.h"
+#include "ARBDLogger.h"
+#include "Backend/Buffer.h"
+#include "Backend/Resource.h"
 #include <algorithm>
 #include <cassert>
 #include <climits>
 #include <cstdio>
 #include <cstdlib>
 #include <initializer_list>
+#include <map>
 #include <memory>
 #include <string>
-#include <map>
-#include "ARBDException.h"
-#include "ARBDLogger.h"
-#include "Backend/Resource.h"
-#include "Backend/Buffer.h"
 
 namespace ARBD {
 class BitmaskBase {
@@ -38,24 +38,22 @@ protected:
 
 // Backend-agnostic atomic operations
 namespace detail {
-  template<typename T>
-  HOST DEVICE inline void atomic_or(T* addr, T val) {
+template <typename T> HOST DEVICE inline void atomic_or(T *addr, T val) {
 #ifdef __CUDA_ARCH__
-    atomicOr(addr, val);
+  atomicOr(addr, val);
 #else
-    *addr |= val;
+  *addr |= val;
 #endif
-  }
-  
-  template<typename T>
-  HOST DEVICE inline void atomic_and(T* addr, T val) {
-#ifdef __CUDA_ARCH__
-    atomicAnd(addr, val);
-#else
-    *addr &= val;
-#endif
-  }
 }
+
+template <typename T> HOST DEVICE inline void atomic_and(T *addr, T val) {
+#ifdef __CUDA_ARCH__
+  atomicAnd(addr, val);
+#else
+  *addr &= val;
+#endif
+}
+} // namespace detail
 
 // Don't use base because virtual member functions require device malloc
 class Bitmask {
@@ -70,22 +68,22 @@ public:
     for (int i = 0; i < tmp; ++i)
       mask[i] = data_t(0);
   }
-  
+
   // Copy constructor
-  Bitmask(const Bitmask& other) : len(other.len) {
+  Bitmask(const Bitmask &other) : len(other.len) {
     idx_t tmp = get_array_size();
     mask = (tmp > 0) ? new data_t[tmp] : nullptr;
     for (int i = 0; i < tmp; ++i)
       mask[i] = other.mask[i];
   }
-  
+
   // Assignment operator
-  Bitmask& operator=(const Bitmask& other) {
+  Bitmask &operator=(const Bitmask &other) {
     if (this != &other) {
       // Clean up existing resources
       if (mask != nullptr)
         delete[] mask;
-      
+
       // Copy from other
       len = other.len;
       idx_t tmp = get_array_size();
@@ -95,31 +93,31 @@ public:
     }
     return *this;
   }
-  
+
   // Move constructor
-  Bitmask(Bitmask&& other) noexcept : len(other.len), mask(other.mask) {
+  Bitmask(Bitmask &&other) noexcept : len(other.len), mask(other.mask) {
     other.mask = nullptr;
     other.len = 0;
   }
-  
+
   // Move assignment operator
-  Bitmask& operator=(Bitmask&& other) noexcept {
+  Bitmask &operator=(Bitmask &&other) noexcept {
     if (this != &other) {
       // Clean up existing resources
       if (mask != nullptr)
         delete[] mask;
-      
+
       // Move from other
       len = other.len;
       mask = other.mask;
-      
+
       // Clear other
       other.mask = nullptr;
       other.len = 0;
     }
     return *this;
   }
-  
+
   ~Bitmask() {
     if (mask != nullptr)
       delete[] mask;
@@ -131,7 +129,7 @@ public:
     assert(i < len);
     idx_t ci = i / data_stride;
     data_t change_bit = (data_t(1) << (i - ci * data_stride));
-    
+
     if (value) {
       detail::atomic_or(&mask[ci], change_bit);
     } else {
@@ -156,75 +154,80 @@ public:
   }
 
   // Backend-agnostic memory operations using Buffer system
-  // These replace the old CUDA-specific copy_to_cuda, copy_from_cuda, remove_from_cuda methods
-  
-  HOST Bitmask* send_to_backend(const Resource& resource, Bitmask* device_obj = nullptr) const {
+  // These replace the old CUDA-specific copy_to_cuda, copy_from_cuda,
+  // remove_from_cuda methods
+
+  HOST Bitmask *send_to_backend(const Resource &resource,
+                                Bitmask *device_obj = nullptr) const {
     Bitmask obj_tmp(0);
-    data_t* mask_d = nullptr;
+    data_t *mask_d = nullptr;
     size_t sz = sizeof(data_t) * get_array_size();
-    
+
     // Allocate device memory for the Bitmask object itself
     if (device_obj == nullptr) {
-      device_obj = static_cast<Bitmask*>(MemoryOps::allocate(sizeof(Bitmask), resource));
+      device_obj = static_cast<Bitmask *>(
+          MemoryOps::allocate(sizeof(Bitmask), resource));
     }
-    
+
     // Allocate and copy mask data if needed
     if (sz > 0) {
-      mask_d = static_cast<data_t*>(MemoryOps::allocate(sz, resource));
+      mask_d = static_cast<data_t *>(MemoryOps::allocate(sz, resource));
       MemoryOps::copy_from_host(mask_d, mask, sz, resource);
     }
-    
+
     // Set up temporary object with device pointers
     obj_tmp.len = len;
     obj_tmp.mask = mask_d;
-    
+
     // Copy the Bitmask object to device
     MemoryOps::copy_from_host(device_obj, &obj_tmp, sizeof(Bitmask), resource);
-    
+
     // Clear the temporary object's mask pointer to avoid double-free
     obj_tmp.mask = nullptr;
-    
+
     return device_obj;
   }
 
-  HOST static Bitmask receive_from_backend(Bitmask* device_obj, const Resource& resource) {
+  HOST static Bitmask receive_from_backend(Bitmask *device_obj,
+                                           const Resource &resource) {
     Bitmask obj_tmp(0);
-    
+
     // Copy the Bitmask object from device to host
     MemoryOps::copy_to_host(&obj_tmp, device_obj, sizeof(Bitmask), resource);
-    
+
     if (obj_tmp.len > 0) {
       size_t array_size = obj_tmp.get_array_size();
       size_t sz = sizeof(data_t) * array_size;
-      data_t* device_mask_addr = obj_tmp.mask;
-      
+      data_t *device_mask_addr = obj_tmp.mask;
+
       // Allocate host memory for the mask data
       obj_tmp.mask = new data_t[array_size];
-      
+
       // Copy mask data from device to host
       MemoryOps::copy_to_host(obj_tmp.mask, device_mask_addr, sz, resource);
     } else {
       obj_tmp.mask = nullptr;
     }
-    
+
     return obj_tmp;
   }
 
-  HOST static void remove_from_backend(Bitmask* device_obj, const Resource& resource) {
+  HOST static void remove_from_backend(Bitmask *device_obj,
+                                       const Resource &resource) {
     Bitmask obj_tmp(0);
-    
+
     // Copy the Bitmask object from device to get mask pointer
     MemoryOps::copy_to_host(&obj_tmp, device_obj, sizeof(Bitmask), resource);
-    
+
     // Free the device mask data if it exists
     if (obj_tmp.len > 0 && obj_tmp.mask != nullptr) {
       MemoryOps::deallocate(obj_tmp.mask, resource);
     }
-    
+
     // Clear the mask pointer on device (set to nullptr)
     obj_tmp.mask = nullptr;
     MemoryOps::copy_from_host(device_obj, &obj_tmp, sizeof(Bitmask), resource);
-    
+
     // Free the device Bitmask object itself
     MemoryOps::deallocate(device_obj, resource);
   }
@@ -257,20 +260,21 @@ private:
 };
 
 // SparseBitmask implementation for large sparse bit arrays
-template<size_t chunk_size = 64>
-class SparseBitmask : public BitmaskBase {
+template <size_t chunk_size = 64> class SparseBitmask : public BitmaskBase {
 public:
-  SparseBitmask(const size_t len) : BitmaskBase(len), meta_len((len - 1) / chunk_size + 1), meta_mask(meta_len) {
+  SparseBitmask(const size_t len)
+      : BitmaskBase(len), meta_len((len - 1) / chunk_size + 1),
+        meta_mask(meta_len) {
     static_assert(chunk_size > 0, "Chunk size must be positive");
   }
-  
+
   ~SparseBitmask() = default; // std::map handles cleanup automatically
 
-  HOST void set_mask(size_t i, bool value) override {
+  HOST DEVICE void set_mask(size_t i, bool value) override {
     assert(i < len);
     size_t chunk_idx = i / chunk_size;
     size_t bit_in_chunk = i % chunk_size;
-    
+
     // Check if chunk exists
     auto it = chunks.find(chunk_idx);
     if (it == chunks.end()) {
@@ -286,36 +290,32 @@ public:
         return;
       }
     }
-    
+
     // Set the bit in the appropriate chunk
     it->second.set_mask(bit_in_chunk, value);
-    
+
     // If we're clearing the last bit in a chunk, we could potentially remove it
     // For simplicity, we'll keep allocated chunks (optimization opportunity)
   }
 
-  HOST bool get_mask(size_t i) const override {
+  HOST DEVICE bool get_mask(size_t i) const override {
     assert(i < len);
     size_t chunk_idx = i / chunk_size;
     size_t bit_in_chunk = i % chunk_size;
-    
+
     // Get the bit from the appropriate chunk
     auto it = chunks.find(chunk_idx);
     if (it != chunks.end()) {
       return it->second.get_mask(bit_in_chunk);
     }
-    
+
     return false; // Chunk doesn't exist, so bit is false
   }
-  
-  size_t get_allocated_chunks() const {
-    return chunks.size();
-  }
-  
-  size_t get_meta_len() const {
-    return meta_len;
-  }
-  
+
+  size_t get_allocated_chunks() const { return chunks.size(); }
+
+  size_t get_meta_len() const { return meta_len; }
+
   // Convert meta index to actual bit index
   size_t meta_idx_to_bit_idx(size_t meta_idx) const {
     return meta_idx * chunk_size;
@@ -323,134 +323,135 @@ public:
 
 private:
   size_t meta_len;
-  Bitmask meta_mask; // Tracks which chunks are allocated
+  Bitmask meta_mask;                // Tracks which chunks are allocated
   std::map<size_t, Bitmask> chunks; // Actual bit chunks (sparse storage)
 };
 
 // Test functions
 namespace BitmaskTests {
-  inline HOST bool test_basic_bitmask() {
-    LOGINFO("Testing basic Bitmask functionality...");
-    
-    for (int len : {8, 9, 20, 64, 65}) {
-      Bitmask b(len);
-      
-      // Test setting and getting bits
-      for (int j : {0, 3, 10, 19}) {
-        if (j < len) {
-          b.set_mask(j, true);
-        }
+inline HOST bool test_basic_bitmask() {
+  LOGINFO("Testing basic Bitmask functionality...");
+
+  for (int len : {8, 9, 20, 64, 65}) {
+    Bitmask b(len);
+
+    // Test setting and getting bits
+    for (int j : {0, 3, 10, 19}) {
+      if (j < len) {
+        b.set_mask(j, true);
       }
-      
-      LOGINFO("Testing Bitmask({})", len);
+    }
+
+    LOGINFO("Testing Bitmask({})", len);
+    b.print();
+
+    // Test specific operations
+    if (len > 3) {
+      b.set_mask(3, true);
       b.print();
-      
-      // Test specific operations
-      if (len > 3) {
-        b.set_mask(3, true);
+      b.set_mask(3, true); // Should be idempotent
+      b.print();
+      b.set_mask(3, false);
+      b.print();
+      if (len > 2) {
+        b.set_mask(2, false);
         b.print();
-        b.set_mask(3, true); // Should be idempotent
-        b.print();
-        b.set_mask(3, false);
-        b.print();
-        if (len > 2) {
-          b.set_mask(2, false);
-          b.print();
-        }
-      }
-      
-      // Test string representation
-      std::string str = b.to_string();
-      LOGINFO("Bitmask as string: {}", str);
-      
-      // Verify length
-      if (str.length() != len) {
-        LOGERROR("String length mismatch: expected {}, got {}", len, str.length());
-        return false;
       }
     }
-    
-    return true;
+
+    // Test string representation
+    std::string str = b.to_string();
+    LOGINFO("Bitmask as string: {}", str);
+
+    // Verify length
+    if (str.length() != len) {
+      LOGERROR("String length mismatch: expected {}, got {}", len,
+               str.length());
+      return false;
+    }
   }
-  
-  inline HOST bool test_sparse_bitmask() {
-    LOGINFO("Testing SparseBitmask functionality...");
-    
-    SparseBitmask<64> sparse(1000);
-    
-    // Set some sparse bits
-    sparse.set_mask(0, true);
-    sparse.set_mask(100, true);
-    sparse.set_mask(500, true);
-    sparse.set_mask(999, true);
-    
-    // Verify the bits are set
-    if (!sparse.get_mask(0) || !sparse.get_mask(100) || 
-        !sparse.get_mask(500) || !sparse.get_mask(999)) {
-      LOGERROR("SparseBitmask failed to set bits correctly");
-      return false;
-    }
-    
-    // Verify unset bits are false
-    if (sparse.get_mask(1) || sparse.get_mask(50) || sparse.get_mask(200)) {
-      LOGERROR("SparseBitmask has false positives");
-      return false;
-    }
-    
-    LOGINFO("SparseBitmask allocated {} chunks for 1000 bits", 
-            sparse.get_allocated_chunks());
-    
-    return true;
-  }
-  
-  inline HOST bool test_bitmask_equality() {
-    LOGINFO("Testing Bitmask equality...");
-    
-    Bitmask b1(10);
-    Bitmask b2(10);
-    
-    // Initially should be equal
-    if (!(b1 == b2)) {
-      LOGERROR("Empty bitmasks should be equal");
-      return false;
-    }
-    
-    // Set same bits
-    b1.set_mask(3, true);
-    b2.set_mask(3, true);
-    
-    if (!(b1 == b2)) {
-      LOGERROR("Bitmasks with same bits should be equal");
-      return false;
-    }
-    
-    // Set different bits
-    b1.set_mask(5, true);
-    
-    if (b1 == b2) {
-      LOGERROR("Bitmasks with different bits should not be equal");
-      return false;
-    }
-    
-    return true;
-  }
-  
-  inline HOST bool run_all_tests() {
-    LOGINFO("Running all Bitmask tests...");
-    
-    bool success = true;
-    success &= test_basic_bitmask();
-    success &= test_sparse_bitmask();
-    success &= test_bitmask_equality();
-    
-    if (success) {
-      LOGINFO("All Bitmask tests passed!");
-    } else {
-      LOGERROR("Some Bitmask tests failed!");
-    }
-    
-    return success;
-  }
+
+  return true;
 }
+
+inline HOST bool test_sparse_bitmask() {
+  LOGINFO("Testing SparseBitmask functionality...");
+
+  SparseBitmask<64> sparse(1000);
+
+  // Set some sparse bits
+  sparse.set_mask(0, true);
+  sparse.set_mask(100, true);
+  sparse.set_mask(500, true);
+  sparse.set_mask(999, true);
+
+  // Verify the bits are set
+  if (!sparse.get_mask(0) || !sparse.get_mask(100) || !sparse.get_mask(500) ||
+      !sparse.get_mask(999)) {
+    LOGERROR("SparseBitmask failed to set bits correctly");
+    return false;
+  }
+
+  // Verify unset bits are false
+  if (sparse.get_mask(1) || sparse.get_mask(50) || sparse.get_mask(200)) {
+    LOGERROR("SparseBitmask has false positives");
+    return false;
+  }
+
+  LOGINFO("SparseBitmask allocated {} chunks for 1000 bits",
+          sparse.get_allocated_chunks());
+
+  return true;
+}
+
+inline HOST bool test_bitmask_equality() {
+  LOGINFO("Testing Bitmask equality...");
+
+  Bitmask b1(10);
+  Bitmask b2(10);
+
+  // Initially should be equal
+  if (!(b1 == b2)) {
+    LOGERROR("Empty bitmasks should be equal");
+    return false;
+  }
+
+  // Set same bits
+  b1.set_mask(3, true);
+  b2.set_mask(3, true);
+
+  if (!(b1 == b2)) {
+    LOGERROR("Bitmasks with same bits should be equal");
+    return false;
+  }
+
+  // Set different bits
+  b1.set_mask(5, true);
+
+  if (b1 == b2) {
+    LOGERROR("Bitmasks with different bits should not be equal");
+    return false;
+  }
+
+  return true;
+}
+
+inline HOST bool run_all_tests() {
+  LOGINFO("Running all Bitmask tests...");
+
+  bool success = true;
+  success &= test_basic_bitmask();
+  success &= test_sparse_bitmask();
+  success &= test_bitmask_equality();
+
+  if (success) {
+    LOGINFO("All Bitmask tests passed!");
+  } else {
+    LOGERROR("Some Bitmask tests failed!");
+  }
+
+  return success;
+}
+} // namespace BitmaskTests
 
 } // namespace ARBD

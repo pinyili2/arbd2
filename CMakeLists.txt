@@ -53,7 +53,11 @@ if(USE_CUDA)
     # Include common architectures: 7.0 (V100), 7.5 (T4), 8.0 (A100), 8.6 (A40), 8.9 (RTX 4090)
     set(CMAKE_CUDA_ARCHITECTURES "70;75;80;86;89")
 
+    # Add CUDA compiler flags for compatibility and force older GCC
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --allow-unsupported-compiler")
+
     message(STATUS "CUDA architectures set to: ${CMAKE_CUDA_ARCHITECTURES}")
+    message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")
 endif()
 
 # Set a default build type if none was specified
@@ -79,50 +83,50 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     # GCC
     set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
-    
+
     # Add additional GCC-specific optimizations
     if(OPT_LEVEL GREATER_EQUAL 3)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native")
         set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -march=native -mtune=native")
     endif()
-    
+
     if(USE_CUDA AND CMAKE_CUDA_FLAGS_RELEASE)
         set(CMAKE_CUDA_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
         set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
     endif()
-    
+
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     # Clang/AppleClang
     set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
-    
+
     # Add additional Clang-specific optimizations
     if(OPT_LEVEL GREATER_EQUAL 3)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native -mtune=native")
         set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -march=native -mtune=native")
     endif()
-    
+
     if(USE_CUDA AND CMAKE_CUDA_FLAGS_RELEASE)
         set(CMAKE_CUDA_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
         set(CMAKE_CUDA_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
     endif()
-    
+
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM" OR CMAKE_CXX_COMPILER_ID MATCHES "Intel")
     # Intel compilers (icpx, icc)
     set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
-    
+
     # Add Intel-specific optimizations
     if(OPT_LEVEL GREATER_EQUAL 3)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -xHost")
         set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -xHost")
     endif()
-    
+
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     # Microsoft Visual C++
     set(CMAKE_CXX_FLAGS_RELEASE "/O${OPT_LEVEL} /DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "/O${OPT_LEVEL} /Zi /DNDEBUG")
-    
+
 else()
     # Generic fallback
     set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
@@ -135,7 +139,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "SYCL detected: Ensuring optimization flags are properly set")
     set(CMAKE_CXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
-    
+
     # For ACPP specifically, ensure optimization flags are added to general flags too
     if(USE_SYCL_ACPP)
         # Add optimization flags to general CXX flags to ensure they're always present
@@ -148,7 +152,7 @@ endif()
 if(USE_METAL AND APPLE)
     set(CMAKE_OBJCXX_FLAGS_RELEASE "-O${OPT_LEVEL} -DNDEBUG")
     set(CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO "-O${OPT_LEVEL} -g -DNDEBUG")
-    
+
     if(OPT_LEVEL GREATER_EQUAL 3)
         set(CMAKE_OBJCXX_FLAGS_RELEASE "${CMAKE_OBJCXX_FLAGS_RELEASE} -march=native -mtune=native")
         set(CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO "${CMAKE_OBJCXX_FLAGS_RELWITHDEBINFO} -march=native -mtune=native")
