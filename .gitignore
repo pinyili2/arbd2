@@ -13,3 +13,4 @@ build
 doxy
 .cache
 .vscode
+*.clangd
