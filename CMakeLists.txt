@@ -274,7 +274,7 @@ if(USE_METAL)
 
     message(STATUS "Metal support is enabled for Apple platforms.")
     add_definitions(-DUSE_METAL)
-
+    add_subdirectory(extern/metal-cpp-cmake/metal-cmake)
     # Find Metal framework
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
@@ -367,6 +367,7 @@ endif()
 if(USE_METAL)
     target_link_libraries("${PROJECT_NAME}"
         PRIVATE
+        METAL_CPP
         ${METAL_FRAMEWORK}
         ${FOUNDATION_FRAMEWORK}
     )
