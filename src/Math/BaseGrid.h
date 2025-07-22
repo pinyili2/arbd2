@@ -1,7 +1,8 @@
-// BaseGrid.h - Modern C++20 SYCL implementation for arbd2
-// Ported from legacy CUDA version to support multiple backends
-// Author: Ported for arbd2/cpp20 branch
-
+/*********************************************************************
+ * @file  BaseGrid.h
+ *
+ * @brief Declaration of templated BaseGrid class.
+ *********************************************************************/
 #pragma once
 
 #include <cmath>
