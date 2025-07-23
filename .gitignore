@@ -13,4 +13,6 @@ build
 doxy
 .cache
 .vscode
-*.clangd
+.clangd
+.cursorignore
+.cursor
