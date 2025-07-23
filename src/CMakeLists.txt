@@ -135,20 +135,29 @@ endif()
 
 # --- Metal specific linking and configuration for the library ---
 if(USE_METAL)
-    # Link Metal and Foundation frameworks to the library
+    # Link Metal, Foundation, and QuartzCore frameworks to the library
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
 
-    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
+    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK AND QUARTZCORE_FRAMEWORK)
         target_link_libraries("lib${PROJECT_NAME}"
             PUBLIC
             ${METAL_FRAMEWORK}
             ${FOUNDATION_FRAMEWORK}
+            ${QUARTZCORE_FRAMEWORK}
         )
-        message(STATUS "src: Linked Metal and Foundation frameworks to lib${PROJECT_NAME}")
+        message(STATUS "src: Linked Metal frameworks to lib${PROJECT_NAME}")
     else()
-        message(FATAL_ERROR "Metal or Foundation framework not found for lib${PROJECT_NAME}")
+        message(FATAL_ERROR "Required frameworks not found for lib${PROJECT_NAME}")
     endif()
+
+    # Add metal-cpp include directories
+    target_include_directories("lib${PROJECT_NAME}"
+        PUBLIC
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp-extensions
+    )
 
     # Add Metal-specific compile definitions
     target_compile_definitions("lib${PROJECT_NAME}" PUBLIC USE_METAL)

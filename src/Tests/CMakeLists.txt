@@ -16,11 +16,29 @@ endif()
 
 # Metal Tests
 if(USE_METAL AND APPLE)
+    # Common Metal test settings
+    set(METAL_TEST_INCLUDES
+        ${CMAKE_CURRENT_SOURCE_DIR}/../
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp-extensions
+    )
+    set(METAL_TEST_LIBS
+        "lib${PROJECT_NAME}"
+        ${METAL_FRAMEWORK}
+        ${FOUNDATION_FRAMEWORK}
+        ${QUARTZCORE_FRAMEWORK}
+    )
+
+    # Metal backend tests
     add_executable(arbd_test_metal
-        Backends/metal_backend.mm #Still not working
+        Backends/metal_backend.cpp
+        Backends/metal_test.cpp
+        Kernels/metal_unifiedbuffer.cpp 
+        Kernels/metal_events.cpp
+        #All of the above work
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
-    target_include_directories(arbd_test_metal PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
-    target_link_libraries(arbd_test_metal PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    target_include_directories(arbd_test_metal PRIVATE ${METAL_TEST_INCLUDES})
+    target_link_libraries(arbd_test_metal PRIVATE ${METAL_TEST_LIBS})
 
     add_test(NAME Metal_Tests COMMAND arbd_test_metal)
     set_tests_properties(Metal_Tests PROPERTIES
@@ -28,14 +46,13 @@ if(USE_METAL AND APPLE)
     )
 
     install(TARGETS arbd_test_metal)
-
+    # Metal math tests
     add_executable(arbd_test_metal_math
-        Math/metal_bitmask.mm
-        Kernels/metal_events.mm
-        Kernels/metal_test.mm
+        Math/metal_bitmask.cpp
+        #All of the above works
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
-    target_include_directories(arbd_test_metal_math PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../)
-    target_link_libraries(arbd_test_metal_math PRIVATE "lib${PROJECT_NAME}" ${METAL_FRAMEWORK} ${FOUNDATION_FRAMEWORK})
+    target_include_directories(arbd_test_metal_math PRIVATE ${METAL_TEST_INCLUDES})
+    target_link_libraries(arbd_test_metal_math PRIVATE ${METAL_TEST_LIBS})
 
     add_test(NAME Metal_Math_Tests COMMAND arbd_test_metal_math)
     set_tests_properties(Metal_Math_Tests PROPERTIES

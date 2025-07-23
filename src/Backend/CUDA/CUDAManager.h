@@ -571,6 +571,20 @@ private:
   static int current_device_;
 };
 
+/**
+ * @brief Queue alias for Stream to maintain consistency with industry standard terminology
+ * 
+ * This alias allows CUDA code to use the same Queue naming convention as SYCL/Metal/OpenCL
+ * while maintaining the native CUDA Stream class functionality.
+ * 
+ * @example Usage:
+ * ```cpp
+ * ARBD::CUDA::Queue queue;        // Industry standard naming
+ * ARBD::CUDA::Stream stream;      // Native CUDA naming
+ * ```
+ */
+using Queue = Stream;
+
 // ============================================================================
 // Low-Level CUDA Device Utilities
 // ============================================================================

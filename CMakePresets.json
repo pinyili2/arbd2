@@ -81,6 +81,7 @@
             "binaryDir": "${sourceDir}/build/macos-metal-debug",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
+                "ARBD_METAL_FRAMEWORK_PATH": "/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks",
                 "USE_METAL": "ON",
                 "CMAKE_CXX_EXTENSIONS": "OFF"
             }
@@ -93,6 +94,7 @@
             "binaryDir": "${sourceDir}/build/macos-metal-release",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
+                "ARBD_METAL_FRAMEWORK_PATH": "/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks",
                 "USE_METAL": "ON",
                 "CMAKE_CXX_EXTENSIONS": "OFF"
             }

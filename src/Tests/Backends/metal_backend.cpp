@@ -3,9 +3,8 @@
 #ifdef USE_METAL
 using Catch::Approx;
 #include "Backend/Buffer.h"
-#include "Backend/Events.h"
 #include "Backend/Resource.h"
-
+#include "Backend/METAL/METALManager.h"
 #include <vector>
 #include <numeric>
 #include <string>
@@ -13,7 +12,7 @@ using Catch::Approx;
 //Only one GPU unit for METAL. 
 using namespace ARBD;
 
-TEST_CASE("Metal Resource Creation and Properties", "[metal][resource]") {
+TEST_CASE("Metal Resource Creation and Properties", "[resource]") {
     Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Resource type is correct") {
@@ -40,7 +39,31 @@ TEST_CASE("Metal Resource Creation and Properties", "[metal][resource]") {
     }
 }
 
-TEST_CASE("Metal DeviceBuffer Basic Operations", "[metal][buffer]") {
+TEST_CASE("Metal Device Discovery", "[device]") {
+    ARBD::METAL::METALManager::init();
+    
+    INFO("Number of available Metal devices: " << ARBD::METAL::METALManager::all_device_size());
+    
+    for (const auto& device : ARBD::METAL::METALManager::all_devices()) {
+        INFO("Device " << device.id() << ": " << device.name() 
+             << " (Low Power: " << device.is_low_power() 
+             << ", Unified Memory: " << device.has_unified_memory() << ")");
+    }
+    
+    // Select all available devices
+    std::vector<unsigned int> device_ids;
+    for (const auto& device : ARBD::METAL::METALManager::all_devices()) {
+        device_ids.push_back(device.id());
+    }
+    
+    REQUIRE_NOTHROW(ARBD::METAL::METALManager::select_devices(device_ids));
+    
+    CHECK(ARBD::METAL::METALManager::devices().size() > 0);
+}
+
+TEST_CASE("Metal DeviceBuffer Basic Operations", "[buffer]") {
+    // Initialize Metal manager and select devices
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Empty buffer creation") {
@@ -68,26 +91,33 @@ TEST_CASE("Metal DeviceBuffer Basic Operations", "[metal][buffer]") {
         
         CHECK(buffer2.size() == count);
         CHECK(buffer2.data() == original_ptr);
-        CHECK(buffer1.size() == 0);
+        CHECK(buffer1.size() == 0);  // Moved-from buffer should be empty
         CHECK(buffer1.data() == nullptr);
     }
     
     SECTION("Different data types") {
-        // Test various primitive types
         const size_t count = 100;
         
         DeviceBuffer<int> int_buffer(count, metal_resource);
-        CHECK(int_buffer.size() == count);
-        
         DeviceBuffer<float> float_buffer(count, metal_resource);
-        CHECK(float_buffer.size() == count);
+        DeviceBuffer<double> double_buffer(count, metal_resource);
         
-        DeviceBuffer<uint32_t> uint_buffer(count, metal_resource);
-        CHECK(uint_buffer.size() == count);
+        CHECK(int_buffer.size() == count);
+        CHECK(float_buffer.size() == count);
+        CHECK(double_buffer.size() == count);
+        
+        CHECK(int_buffer.data() != nullptr);
+        CHECK(float_buffer.data() != nullptr);
+        CHECK(double_buffer.data() != nullptr);
     }
+    
+    // Cleanup
+    ARBD::METAL::METALManager::finalize();
 }
 
-TEST_CASE("Metal DeviceBuffer Data Transfer", "[metal][buffer][transfer]") {
+TEST_CASE("Metal DeviceBuffer Data Transfer", "[buffer][transfer]") {
+    // Initialize Metal manager and select devices
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 100;
     
@@ -145,9 +175,14 @@ TEST_CASE("Metal DeviceBuffer Data Transfer", "[metal][buffer][transfer]") {
             CHECK(readback[i] == Approx(host_data[i]));
         }
     }
+    
+    // Cleanup
+    ARBD::METAL::METALManager::finalize();
 }
 
-TEST_CASE("Metal UnifiedBuffer Operations", "[metal][unified_buffer]") {
+TEST_CASE("Metal UnifiedBuffer Operations", "[unified_buffer]") {
+    // Initialize Metal manager and select devices
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 200;
     
@@ -205,54 +240,14 @@ TEST_CASE("Metal UnifiedBuffer Operations", "[metal][unified_buffer]") {
             CHECK(synced_data[i] == Approx(3.14f));
         }
     }
+    
+    // Cleanup
+    ARBD::METAL::METALManager::finalize();
 }
 
-TEST_CASE("Metal Event Management", "[metal][events]") {
-    Resource metal_resource(ResourceType::METAL, 0);
-    
-    SECTION("Empty event is complete") {
-        Event empty_event;
-        CHECK(empty_event.is_complete());
-        CHECK_FALSE(empty_event.is_valid());
-    }
-    
-    SECTION("EventList operations") {
-        EventList event_list;
-        CHECK(event_list.empty());
-        CHECK(event_list.all_complete());
-        
-        Event event1;
-        Event event2;
-        
-        event_list.add(event1);
-        event_list.add(event2);
-        
-        CHECK_FALSE(event_list.empty());
-        CHECK_NOTHROW(event_list.wait_all());
-    }
-    
-    SECTION("Event dependency tracking") {
-        DeviceBuffer<int> buffer(100, metal_resource);
-        EventList deps;
-        
-        // This should not throw and should wait for dependencies
-        CHECK_NOTHROW(buffer.get_write_access(deps));
-        CHECK_NOTHROW(buffer.get_read_access(deps));
-    }
-    
-    SECTION("Event completion state") {
-        DeviceBuffer<float> buffer(50, metal_resource);
-        Event last_event = buffer.get_last_event();
-        
-        // For default constructed events  
-        if (last_event.is_valid()) {
-            CHECK_NOTHROW(last_event.wait());
-            CHECK(last_event.is_complete());
-        }
-    }
-}
-
-TEST_CASE("Metal Memory Operations", "[metal][memory]") {
+TEST_CASE("Metal Memory Operations", "[memory]") {
+    // Initialize Metal manager and select devices
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Memory allocation and deallocation") {
@@ -298,9 +293,14 @@ TEST_CASE("Metal Memory Operations", "[metal][memory]") {
         
         MemoryOps::deallocate(large_ptr, metal_resource);
     }
+    
+    // Cleanup
+    ARBD::METAL::METALManager::finalize();
 }
 
-TEST_CASE("Metal GenericAllocator", "[metal][allocator]") {
+TEST_CASE("Metal GenericAllocator", "[allocator]") {
+    // Initialize Metal manager and select devices
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     
     SECTION("Basic allocation") {
@@ -350,10 +350,10 @@ TEST_CASE("Metal GenericAllocator", "[metal][allocator]") {
     }
 }
 
-TEST_CASE("Metal MultiRef Operations", "[metal][multiref]") {
+TEST_CASE("Metal MultiRef Operations", "[multiref]") {
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 75;
-    
     SECTION("MultiRef with multiple buffers") {
         DeviceBuffer<int> buffer1(count, metal_resource);
         DeviceBuffer<int> buffer2(count, metal_resource);
@@ -383,7 +383,8 @@ TEST_CASE("Metal MultiRef Operations", "[metal][multiref]") {
     }
 }
 
-TEST_CASE("Metal Utility Functions", "[metal][utilities]") {
+TEST_CASE("Metal Utility Functions", "[utilities]") {
+    ARBD::METAL::METALManager::load_info();
     Resource metal_resource(ResourceType::METAL, 0);
     const size_t count = 80;
     
@@ -420,11 +421,14 @@ TEST_CASE("Metal Utility Functions", "[metal][utilities]") {
             CHECK(val == Approx(fill_value));
         }
     }
+    
+    // Cleanup
+    ARBD::METAL::METALManager::finalize();
 }
 
 #else
 
-TEST_CASE("Metal Support Not Enabled", "[metal]") {
+TEST_CASE("Metal Support Not Enabled", "") {
     // Always pass when Metal is not available
     CHECK(true);
 }

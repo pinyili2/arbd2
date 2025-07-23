@@ -47,7 +47,7 @@ inline size_t get_device_id() {
 #ifdef USE_METAL
   try {
     return static_cast<size_t>(
-        ARBD::METAL::METALManager::get_current_device().get_id());
+        ARBD::METAL::METALManager::get_current_device().id());
   } catch (...) {
     return 0;
   }
@@ -272,12 +272,12 @@ struct Resource {
 #endif
 #ifdef USE_METAL
     if (type == ResourceType::METAL) {
-      try {
-        auto &current_device = ARBD::METAL::METALManager::get_current_device();
-        ret = (current_device.get_id() == id);
-      } catch (...) {
-        ret = false;
-      }
+          try {
+      auto &current_device = ARBD::METAL::METALManager::get_current_device();
+      ret = (current_device.id() == id);
+    } catch (...) {
+      ret = false;
+    }
     }
 #endif
     return ret;
@@ -302,7 +302,7 @@ struct Resource {
     try {
       auto &current_device = ARBD::METAL::METALManager::get_current_device();
       return Resource{ResourceType::METAL,
-                      static_cast<size_t>(current_device.get_id())};
+                      static_cast<size_t>(current_device.id())};
     } catch (...) {
     }
 #endif

@@ -274,17 +274,53 @@ if(USE_METAL)
 
     message(STATUS "Metal support is enabled for Apple platforms.")
     add_definitions(-DUSE_METAL)
-    add_subdirectory(extern/metal-cpp-cmake/metal-cmake)
+    
+    # Add metal-cmake subdirectory
+    add_subdirectory(${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake EXCLUDE_FROM_ALL)
+    
+    # Set up include paths for metal-cpp headers
+    include_directories(
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp-extensions
+    )
+    
     # Find Metal framework
     find_library(METAL_FRAMEWORK Metal REQUIRED)
     find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
 
-    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK)
+    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK AND QUARTZCORE_FRAMEWORK)
         message(STATUS "Found Metal framework: ${METAL_FRAMEWORK}")
         message(STATUS "Found Foundation framework: ${FOUNDATION_FRAMEWORK}")
+        message(STATUS "Found QuartzCore framework: ${QUARTZCORE_FRAMEWORK}")
     else()
-        message(FATAL_ERROR "Metal or Foundation framework not found")
+        message(FATAL_ERROR "Required frameworks not found")
     endif()
+    set(ARBD_METAL_FRAMEWORK_PATH "" CACHE PATH "Path to the macOS SDK Frameworks directory (e.g., /Applications/Xcode.app/...)")
+
+    # If the user hasn't provided a path, set a default to the standard location.
+    if(NOT ARBD_METAL_FRAMEWORK_PATH)
+        set(ARBD_METAL_FRAMEWORK_PATH "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks")
+    endif()
+
+    # Verify that the specified path is valid. If not, stop the build with a helpful error.
+    if(NOT EXISTS "${ARBD_METAL_FRAMEWORK_PATH}")
+        message(FATAL_ERROR "========================================================================\n"
+                            "macOS SDK Frameworks not found at the specified path:\n"
+                            "  ${ARBD_METAL_FRAMEWORK_PATH}\n\n"
+                            "If you are using a non-standard Xcode installation (e.g., Xcode-beta.app), "
+                            "please specify the correct path by setting the ARBD_METAL_FRAMEWORK_PATH CMake variable.\n\n"
+                            "Example:\n"
+                            "  cmake -DARBD_METAL_FRAMEWORK_PATH=/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks ...\n"
+                            "========================================================================")
+    endif()
+
+    # Add the framework path to the compiler flags for all targets.
+    add_compile_options("-F${ARBD_METAL_FRAMEWORK_PATH}")
+    
+    # Add framework path for Metal.framework
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -F${ARBD_METAL_FRAMEWORK_PATH}")
+    set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -F${ARBD_METAL_FRAMEWORK_PATH}")
 endif()
 # --- End Metal Configuration ---
 
@@ -367,9 +403,17 @@ endif()
 if(USE_METAL)
     target_link_libraries("${PROJECT_NAME}"
         PRIVATE
-        METAL_CPP
         ${METAL_FRAMEWORK}
         ${FOUNDATION_FRAMEWORK}
+        ${QUARTZCORE_FRAMEWORK}
     )
-    message(STATUS "Linked Metal and Foundation frameworks")
+    
+    # Add include directories for metal-cpp
+    target_include_directories("${PROJECT_NAME}"
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp
+        ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp-extensions
+    )
+    
+    message(STATUS "Linked Metal frameworks and headers")
 endif()

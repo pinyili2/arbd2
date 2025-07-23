@@ -1,5 +1,5 @@
 #ifdef USE_METAL
-#include "catch_boiler.h"
+#include "../catch_boiler.h"
 #include "Backend/Buffer.h"
 #include "Backend/Resource.h"
 #include "Backend/METAL/METALManager.h"
