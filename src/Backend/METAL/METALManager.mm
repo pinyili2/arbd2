@@ -4,7 +4,7 @@
 #define NS_PRIVATE_IMPLEMENTATION
 #define CA_PRIVATE_IMPLEMENTATION
 #define MTL_PRIVATE_IMPLEMENTATION
-#include <Metal/Metal.hpp> 
+#include <Metal/Metal.hpp>
 #include <chrono>
 
 namespace ARBD {
@@ -22,96 +22,105 @@ std::mutex METALManager::cache_mutex_;
 bool METALManager::prefer_low_power_{false};
 std::mutex metal_buffer_map_mutex;
 void MTLLibraryDeleter::operator()(MTL::Library* lib) const noexcept {
-    if (lib) lib->release();
+	if (lib)
+		lib->release();
 }
 
 void MTLFunctionDeleter::operator()(MTL::Function* func) const noexcept {
-    if (func) func->release();
+	if (func)
+		func->release();
 }
 
 void MTLPipelineStateDeleter::operator()(MTL::ComputePipelineState* pipeline) const noexcept {
-    if (pipeline) pipeline->release();
+	if (pipeline)
+		pipeline->release();
 }
-
 
 // Static buffer map to track MTLBuffer objects for raw pointer deallocation
 static std::unordered_map<void*, MTL::Buffer*> metal_buffer_map;
 
 template<typename T>
 DeviceMemory<T>::DeviceMemory(void* device, size_t count) : device_(device), size_(count) {
-    if (count > 0 && device) {
-        MTL::Device* pDevice = static_cast<MTL::Device*>(device);
-        // Use MTLResourceStorageModeShared for unified memory architectures
-        buffer_ = pDevice->newBuffer(count * sizeof(T), MTL::ResourceStorageModeShared);
-        if (!buffer_) {
-            ARBD_Exception(ExceptionType::MetalRuntimeError,
-                "Failed to allocate {} elements of type {}", count, typeid(T).name());
-        }
-    }
+	if (count > 0 && device) {
+		MTL::Device* pDevice = static_cast<MTL::Device*>(device);
+		// Use MTLResourceStorageModeShared for unified memory architectures
+		buffer_ = pDevice->newBuffer(count * sizeof(T), MTL::ResourceStorageModeShared);
+		if (!buffer_) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "Failed to allocate {} elements of type {}",
+						   count,
+						   typeid(T).name());
+		}
+	}
 }
 
 template<typename T>
 DeviceMemory<T>::~DeviceMemory() {
-    if (buffer_) {
-        static_cast<MTL::Buffer*>(buffer_)->release();
-    }
+	if (buffer_) {
+		static_cast<MTL::Buffer*>(buffer_)->release();
+	}
 }
 
 template<typename T>
 DeviceMemory<T>::DeviceMemory(DeviceMemory&& other) noexcept
-    : buffer_(std::exchange(other.buffer_, nullptr)),
-      size_(std::exchange(other.size_, 0)),
-      device_(std::exchange(other.device_, nullptr)) {}
+	: buffer_(std::exchange(other.buffer_, nullptr)), size_(std::exchange(other.size_, 0)),
+	  device_(std::exchange(other.device_, nullptr)) {}
 
 template<typename T>
 DeviceMemory<T>& DeviceMemory<T>::operator=(DeviceMemory&& other) noexcept {
-    if (this != &other) {
-        if (buffer_) {
-            static_cast<MTL::Buffer*>(buffer_)->release();
-        }
-        buffer_ = std::exchange(other.buffer_, nullptr);
-        size_ = std::exchange(other.size_, 0);
-        device_ = std::exchange(other.device_, nullptr);
-    }
-    return *this;
+	if (this != &other) {
+		if (buffer_) {
+			static_cast<MTL::Buffer*>(buffer_)->release();
+		}
+		buffer_ = std::exchange(other.buffer_, nullptr);
+		size_ = std::exchange(other.size_, 0);
+		device_ = std::exchange(other.device_, nullptr);
+	}
+	return *this;
 }
 
 template<typename T>
 void DeviceMemory<T>::copyFromHost(std::span<const T> host_data) {
-    if (host_data.size() > size_) {
-        ARBD_Exception(ExceptionType::ValueError,
-            "Tried to copy {} elements but only {} allocated",
-            host_data.size(), size_);
-    }
-    if (!buffer_ || host_data.empty()) return;
+	if (host_data.size() > size_) {
+		ARBD_Exception(ExceptionType::ValueError,
+					   "Tried to copy {} elements but only {} allocated",
+					   host_data.size(),
+					   size_);
+	}
+	if (!buffer_ || host_data.empty())
+		return;
 
-    void* buffer_contents = static_cast<MTL::Buffer*>(buffer_)->contents();
-    std::memcpy(buffer_contents, host_data.data(), host_data.size_bytes());
+	void* buffer_contents = static_cast<MTL::Buffer*>(buffer_)->contents();
+	std::memcpy(buffer_contents, host_data.data(), host_data.size_bytes());
 }
 
 template<typename T>
 void DeviceMemory<T>::copyToHost(std::span<T> host_data) const {
-    if (host_data.size() > size_) {
-        ARBD_Exception(ExceptionType::ValueError,
-            "Tried to copy to {} elements but only {} allocated",
-            host_data.size(), size_);
-    }
-    if (!buffer_ || host_data.empty()) return;
+	if (host_data.size() > size_) {
+		ARBD_Exception(ExceptionType::ValueError,
+					   "Tried to copy to {} elements but only {} allocated",
+					   host_data.size(),
+					   size_);
+	}
+	if (!buffer_ || host_data.empty())
+		return;
 
-    const void* buffer_contents = static_cast<MTL::Buffer*>(buffer_)->contents();
-    std::memcpy(host_data.data(), buffer_contents, host_data.size_bytes());
+	const void* buffer_contents = static_cast<MTL::Buffer*>(buffer_)->contents();
+	std::memcpy(host_data.data(), buffer_contents, host_data.size_bytes());
 }
 
 template<typename T>
 T* DeviceMemory<T>::get() noexcept {
-    if (!buffer_) return nullptr;
-    return static_cast<T*>(static_cast<MTL::Buffer*>(buffer_)->contents());
+	if (!buffer_)
+		return nullptr;
+	return static_cast<T*>(static_cast<MTL::Buffer*>(buffer_)->contents());
 }
 
 template<typename T>
 const T* DeviceMemory<T>::get() const noexcept {
-    if (!buffer_) return nullptr;
-    return static_cast<const T*>(static_cast<MTL::Buffer*>(buffer_)->contents());
+	if (!buffer_)
+		return nullptr;
+	return static_cast<const T*>(static_cast<MTL::Buffer*>(buffer_)->contents());
 }
 
 // Explicitly instantiate DeviceMemory for common types so the linker can find them.
@@ -334,57 +343,59 @@ void METALManager::Device::query_device_properties() {
 // ===================================================================
 
 void METALManager::init() {
-    LOGINFO("Initializing Metal Manager...");
-    
-    // Initialize caches if not already initialized
-    if (!function_cache_) {
-        function_cache_ = new std::unordered_map<std::string, MTL::Function*>();
-    }
-    if (!pipeline_state_cache_) {
-        pipeline_state_cache_ = new std::unordered_map<std::string, MTL::ComputePipelineState*>();
-    }
-    
-    function_cache_->clear();
-    pipeline_state_cache_->clear();
-    
-    discover_devices();
-    
-    if (all_devices_.empty()) {
-        ARBD_Exception(ExceptionType::ValueError, "No Metal devices found");
-    }
+	LOGINFO("Initializing Metal Manager...");
 
-    MTL::Device* pDefaultDevice = all_devices_[0].metal_device();
-    NS::Error* pError = nullptr;
-    
-    // Try default library first
-    if (auto* default_lib = pDefaultDevice->newDefaultLibrary()) {
-        library_ = default_lib;
-    } else {
-        // Try loading from file
-        NS::String* path = NS::String::string("default.metallib", NS::UTF8StringEncoding);
-        if (auto* file_lib = pDefaultDevice->newLibrary(path, &pError)) {
-            library_ = file_lib;
-        }
-    }
-    
-    if (!library_) {
-        LOGINFO("No Metal compute library found. Memory management and basic operations are available. "
-                "Compile .metal shaders to enable compute kernels. ({})",
-                pError ? pError->localizedDescription()->utf8String() : "No library found");
-    } else {
-        preload_all_functions();
-    }
-    
-    LOGINFO("Found {} Metal device(s). Metal Manager initialized.", all_devices_.size());
+	// Initialize caches if not already initialized
+	if (!function_cache_) {
+		function_cache_ = new std::unordered_map<std::string, MTL::Function*>();
+	}
+	if (!pipeline_state_cache_) {
+		pipeline_state_cache_ = new std::unordered_map<std::string, MTL::ComputePipelineState*>();
+	}
+
+	function_cache_->clear();
+	pipeline_state_cache_->clear();
+
+	discover_devices();
+
+	if (all_devices_.empty()) {
+		ARBD_Exception(ExceptionType::ValueError, "No Metal devices found");
+	}
+
+	MTL::Device* pDefaultDevice = all_devices_[0].metal_device();
+	NS::Error* pError = nullptr;
+
+	// Try default library first
+	if (auto* default_lib = pDefaultDevice->newDefaultLibrary()) {
+		library_ = default_lib;
+	} else {
+		// Try loading from file
+		NS::String* path = NS::String::string("default.metallib", NS::UTF8StringEncoding);
+		if (auto* file_lib = pDefaultDevice->newLibrary(path, &pError)) {
+			library_ = file_lib;
+		}
+	}
+
+	if (!library_) {
+		LOGINFO(
+			"No Metal compute library found. Memory management and basic operations are available. "
+			"Compile .metal shaders to enable compute kernels. ({})",
+			pError ? pError->localizedDescription()->utf8String() : "No library found");
+	} else {
+		preload_all_functions();
+	}
+
+	LOGINFO("Found {} Metal device(s). Metal Manager initialized.", all_devices_.size());
 }
-
 
 METALManager::Device& METALManager::get_current_device() {
 	if (devices_.empty()) {
 		ARBD_Exception(ExceptionType::ValueError, "No Metal device is active.");
 	}
 	if (current_device_ < 0 || current_device_ >= static_cast<int>(devices_.size())) {
-		ARBD_Exception(ExceptionType::ValueError, "Invalid current device index: {}", current_device_);
+		ARBD_Exception(ExceptionType::ValueError,
+					   "Invalid current device index: {}",
+					   current_device_);
 	}
 	return devices_[current_device_];
 }
@@ -480,7 +491,8 @@ MTL::CommandQueue* METALManager::get_current_queue() {
 
 MTL::Library* METALManager::get_library() {
 	if (!library_) {
-		LOGDEBUG("Metal compute library not available. Call load_info() and compile .metal shaders first.");
+		LOGDEBUG("Metal compute library not available. Call load_info() and compile .metal shaders "
+				 "first.");
 		return nullptr;
 	}
 	return library_;
@@ -496,8 +508,9 @@ MTL::ComputePipelineState* METALManager::get_compute_pipeline_state(const std::s
 
 	MTL::Library* library = get_library();
 	if (!library) {
-		ARBD_Exception(ExceptionType::MetalRuntimeError, 
-			"Cannot create compute pipeline state '{}': Metal library is not loaded", kernelName);
+		ARBD_Exception(ExceptionType::MetalRuntimeError,
+					   "Cannot create compute pipeline state '{}': Metal library is not loaded",
+					   kernelName);
 	}
 
 	NS::Error* pError = nullptr;
@@ -545,11 +558,12 @@ int METALManager::current() {
 
 void METALManager::select_devices(std::span<const unsigned int> device_ids) {
 	if (all_devices_.empty()) {
-		ARBD_Exception(ExceptionType::ValueError, "No Metal devices discovered. Call init() first.");
+		ARBD_Exception(ExceptionType::ValueError,
+					   "No Metal devices discovered. Call init() first.");
 	}
-	
+
 	devices_.clear();
-	
+
 	if (device_ids.empty()) {
 		// If no specific devices requested, use all available devices
 		devices_ = all_devices_;
@@ -563,14 +577,14 @@ void METALManager::select_devices(std::span<const unsigned int> device_ids) {
 			devices_.push_back(all_devices_[id]);
 		}
 	}
-	
+
 	if (devices_.empty()) {
 		LOGWARN("No valid devices selected. Using default device.");
 		if (!all_devices_.empty()) {
 			devices_.push_back(all_devices_[0]);
 		}
 	}
-	
+
 	current_device_ = 0;
 	init_devices();
 	LOGINFO("Selected {} Metal device(s)", devices_.size());
@@ -578,15 +592,17 @@ void METALManager::select_devices(std::span<const unsigned int> device_ids) {
 
 void METALManager::use(int device_id) {
 	if (devices_.empty()) {
-		ARBD_Exception(ExceptionType::ValueError, "No Metal devices are active. Call select_devices() first.");
+		ARBD_Exception(ExceptionType::ValueError,
+					   "No Metal devices are active. Call select_devices() first.");
 	}
-	
+
 	if (device_id < 0 || device_id >= static_cast<int>(devices_.size())) {
-		ARBD_Exception(ExceptionType::ValueError, 
-			"Device ID {} is out of range. Available devices: 0-{}", 
-			device_id, devices_.size() - 1);
+		ARBD_Exception(ExceptionType::ValueError,
+					   "Device ID {} is out of range. Available devices: 0-{}",
+					   device_id,
+					   devices_.size() - 1);
 	}
-	
+
 	current_device_ = device_id;
 	LOGINFO("Switched to Metal device {}: {}", device_id, devices_[device_id].name());
 }
@@ -595,13 +611,14 @@ void METALManager::sync(int device_id) {
 	if (devices_.empty()) {
 		ARBD_Exception(ExceptionType::ValueError, "No Metal devices are active.");
 	}
-	
+
 	if (device_id < 0 || device_id >= static_cast<int>(devices_.size())) {
-		ARBD_Exception(ExceptionType::ValueError, 
-			"Device ID {} is out of range. Available devices: 0-{}", 
-			device_id, devices_.size() - 1);
+		ARBD_Exception(ExceptionType::ValueError,
+					   "Device ID {} is out of range. Available devices: 0-{}",
+					   device_id,
+					   devices_.size() - 1);
 	}
-	
+
 	devices_[device_id].synchronize_all_queues();
 }
 
@@ -713,7 +730,7 @@ void METALManager::preload_all_functions() {
 	}
 
 	LOGINFO("Preloading Metal compute functions...");
-	
+
 	// Get all function names from the library
 	NS::Array* function_names = library_->functionNames();
 	if (!function_names) {
@@ -722,7 +739,7 @@ void METALManager::preload_all_functions() {
 	}
 
 	std::lock_guard<std::mutex> lock(cache_mutex_);
-	
+
 	for (NS::UInteger i = 0; i < function_names->count(); ++i) {
 		NS::String* name = static_cast<NS::String*>(function_names->object(i));
 		if (name) {
@@ -733,18 +750,18 @@ void METALManager::preload_all_functions() {
 			}
 		}
 	}
-	
+
 	LOGINFO("Preloaded {} Metal functions", function_cache_->size());
 }
 
 MTL::Function* METALManager::get_function(const std::string& function_name) {
 	if (!function_cache_) {
-		ARBD_Exception(ExceptionType::MetalRuntimeError, 
-			"Function cache not initialized. Call init() first.");
+		ARBD_Exception(ExceptionType::MetalRuntimeError,
+					   "Function cache not initialized. Call init() first.");
 	}
 
 	std::lock_guard<std::mutex> lock(cache_mutex_);
-	
+
 	auto it = function_cache_->find(function_name);
 	if (it != function_cache_->end()) {
 		return it->second;
@@ -752,16 +769,18 @@ MTL::Function* METALManager::get_function(const std::string& function_name) {
 
 	// If not in cache, try to load it from library
 	if (!library_) {
-		ARBD_Exception(ExceptionType::MetalRuntimeError, 
-			"Cannot load function '{}': Metal library not available", function_name);
+		ARBD_Exception(ExceptionType::MetalRuntimeError,
+					   "Cannot load function '{}': Metal library not available",
+					   function_name);
 	}
 
-	MTL::Function* function = library_->newFunction(
-		NS::String::string(function_name.c_str(), NS::UTF8StringEncoding));
-	
+	MTL::Function* function =
+		library_->newFunction(NS::String::string(function_name.c_str(), NS::UTF8StringEncoding));
+
 	if (!function) {
-		ARBD_Exception(ExceptionType::MetalRuntimeError, 
-			"Function '{}' not found in Metal library", function_name);
+		ARBD_Exception(ExceptionType::MetalRuntimeError,
+					   "Function '{}' not found in Metal library",
+					   function_name);
 	}
 
 	(*function_cache_)[function_name] = function;
