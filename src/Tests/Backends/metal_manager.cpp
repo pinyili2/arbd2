@@ -6,22 +6,25 @@
 #include <string>
 #include <numeric>
 #include "Backend/METAL/METALManager.h"
+#include "Backend/Resource.h"
+
+using namespace ARBD;
 
 // This test case is a placeholder for when Metal is not supported.
 // We need at least one test case in the file.
-TEST_CASE("Metal Support Check", "[metal]") {
+TEST_CASE("Metal Support Check", "[init]") {
 
     // Use the METALManager to check for available devices. This is a more
     // thorough check that ensures the manager can initialize and find devices.
-    REQUIRE_NOTHROW(ARBD::METAL::METALManager::init());
-    REQUIRE(ARBD::METAL::METALManager::all_device_size() > 0);
-    REQUIRE_NOTHROW(ARBD::METAL::METALManager::finalize());
+    REQUIRE_NOTHROW(METAL::METALManager::init());
+    REQUIRE(METAL::METALManager::all_device_size() > 0);
+    REQUIRE_NOTHROW(METAL::METALManager::finalize());
 }
 
-TEST_CASE("Metal Manager Initialization", "[metal][manager]") {
+TEST_CASE("Metal Manager Initialization", "[init][manager]") {
     SECTION("Device Discovery and Properties") {
-        ARBD::METAL::METALManager::init();
-        auto& devices = ARBD::METAL::METALManager::all_devices();
+        METAL::METALManager::init();
+        auto& devices = METAL::METALManager::all_devices();
         REQUIRE_FALSE(devices.empty());
 
         for (size_t i = 0; i < devices.size(); ++i) {
@@ -30,13 +33,13 @@ TEST_CASE("Metal Manager Initialization", "[metal][manager]") {
             // So we just check that the name is not empty
             REQUIRE_FALSE(device.name().empty());
         }
-        ARBD::METAL::METALManager::finalize();
+        METAL::METALManager::finalize();
     }
 }
 
 TEST_CASE("Metal Manager Device Properties", "[metal][manager][properties]") {
-    ARBD::METAL::METALManager::load_info();
-    auto& devices = ARBD::METAL::METALManager::devices();
+    METAL::METALManager::load_info();
+    auto& devices = METAL::METALManager::devices();
     REQUIRE_FALSE(devices.empty());
 
     for (const auto& device : devices) {
@@ -46,43 +49,43 @@ TEST_CASE("Metal Manager Device Properties", "[metal][manager][properties]") {
             REQUIRE(device.max_threads_per_group() > 0);
         }
     }
-    ARBD::METAL::METALManager::finalize();
+    METAL::METALManager::finalize();
 }
 
 TEST_CASE("Metal Manager Device Selection", "[metal][manager]") {
-    ARBD::METAL::METALManager::init();
+    METAL::METALManager::init();
     SECTION("Select first device") {
-        const auto& all_devices = ARBD::METAL::METALManager::all_devices();
+        const auto& all_devices = METAL::METALManager::all_devices();
         if (all_devices.empty()) {
             WARN("No Metal devices found, skipping test.");
-            ARBD::METAL::METALManager::finalize();
+            METAL::METALManager::finalize();
             return;
         }
         
         unsigned int first_device_id = all_devices[0].id();
         std::vector<unsigned int> dev_ids = {first_device_id};
-        REQUIRE_NOTHROW(ARBD::METAL::METALManager::select_devices(dev_ids));
+        REQUIRE_NOTHROW(METAL::METALManager::select_devices(dev_ids));
         
-        auto& selected_devices = ARBD::METAL::METALManager::devices();
+        auto& selected_devices = METAL::METALManager::devices();
         REQUIRE(selected_devices.size() == 1);
         REQUIRE(selected_devices[0].id() == first_device_id);
     }
-    ARBD::METAL::METALManager::finalize();
+    METAL::METALManager::finalize();
 }
 
 TEST_CASE("Metal Queue Operations", "[metal][queue]") {
     // Setup: Initialize the manager
-    ARBD::METAL::METALManager::load_info();
+    METAL::METALManager::load_info();
 
     // Iterate by index to get non-const device objects, which is safer
     // than using const_cast.
-    for (size_t i = 0; i < ARBD::METAL::METALManager::devices().size(); ++i) {
-        auto& device = ARBD::METAL::METALManager::devices()[i];
+    for (size_t i = 0; i < METAL::METALManager::devices().size(); ++i) {
+        auto& device = METAL::METALManager::devices()[i];
 
         SECTION("Queue Operations on device " + std::to_string(device.id())) {
 
             // Get a queue from the device
-            auto& queue = const_cast<ARBD::METAL::METALManager::Device&>(device).get_next_queue();
+            auto& queue = const_cast<METAL::METALManager::Device&>(device).get_next_queue();
             REQUIRE(queue.is_available());
 
             // Create a command buffer using the queue
@@ -93,7 +96,7 @@ TEST_CASE("Metal Queue Operations", "[metal][queue]") {
             // The modern C++ way: Wrap the raw command buffer pointer in an Event object.
             // The Event's destructor will automatically call release() on the command buffer,
             // preventing memory leaks. This is the core of RAII.
-            ARBD::METAL::Event event(cmd_buffer_ptr);
+            METAL::Event event(cmd_buffer_ptr);
 
             // Commit the command buffer via the Event object
             REQUIRE_NOTHROW(event.commit());
@@ -107,46 +110,46 @@ TEST_CASE("Metal Queue Operations", "[metal][queue]") {
     }
 
     // Teardown: Finalize the manager
-    ARBD::METAL::METALManager::finalize();
+    METAL::METALManager::finalize();
 }
 
 TEST_CASE("Metal Synchronization", "[metal][sync]") {
-    ARBD::METAL::METALManager::load_info();
-    const auto& devices = ARBD::METAL::METALManager::devices();
+    METAL::METALManager::load_info();
+    const auto& devices = METAL::METALManager::devices();
     if (devices.empty()) {
         WARN("No Metal devices found. Skipping test.");
-        ARBD::METAL::METALManager::finalize();
+        METAL::METALManager::finalize();
         return;
     }
 
-    for (const auto& device : ARBD::METAL::METALManager::devices()) {
+    for (const auto& device : METAL::METALManager::devices()) {
         SECTION("Synchronization for device " + std::to_string(device.id())) {
             INFO("Device ID: " << device.id());
             REQUIRE_NOTHROW(device.synchronize_all_queues());
         }
     }
-    ARBD::METAL::METALManager::finalize();
+    METAL::METALManager::finalize();
 }
 
 TEST_CASE("Metal Memory Allocation and Transfer", "[metal][memory]") {
-    ARBD::METAL::METALManager::load_info();
-    if (ARBD::METAL::METALManager::devices().empty()) {
+    METAL::METALManager::load_info();
+    if (METAL::METALManager::devices().empty()) {
         WARN("No Metal devices found. Skipping test.");
-        ARBD::METAL::METALManager::finalize();
+        METAL::METALManager::finalize();
         return;
     }
-    auto& device = ARBD::METAL::METALManager::get_current_device();
+    auto& device = METAL::METALManager::get_current_device();
     
     SECTION("DeviceMemory construction and destruction") {
-        ARBD::METAL::DeviceMemory<float> device_mem(device.metal_device(), 10);
+        METAL::DeviceMemory<float> device_mem(device.metal_device(), 10);
         REQUIRE(device_mem.size() == 10);
     }
 
     SECTION("DeviceMemory move semantics") {
-        ARBD::METAL::DeviceMemory<int> mem1(device.metal_device(), 100);
+        METAL::DeviceMemory<int> mem1(device.metal_device(), 100);
         REQUIRE(mem1.size() == 100);
         
-        ARBD::METAL::DeviceMemory<int> mem2 = std::move(mem1);
+        METAL::DeviceMemory<int> mem2 = std::move(mem1);
         REQUIRE(mem1.size() == 0);
         REQUIRE(mem1.get() == nullptr);
         REQUIRE(mem2.size() == 100);
@@ -157,7 +160,7 @@ TEST_CASE("Metal Memory Allocation and Transfer", "[metal][memory]") {
         std::vector<float> host_data(256);
         std::iota(host_data.begin(), host_data.end(), 0.0f);
 
-        ARBD::METAL::DeviceMemory<float> device_mem(device.metal_device(), host_data.size());
+        METAL::DeviceMemory<float> device_mem(device.metal_device(), host_data.size());
         REQUIRE_NOTHROW(device_mem.copyFromHost(host_data));
 
         std::vector<float> host_result(host_data.size(), 0.0f);
@@ -165,7 +168,56 @@ TEST_CASE("Metal Memory Allocation and Transfer", "[metal][memory]") {
 
         REQUIRE(host_data == host_result);
     }
-    ARBD::METAL::METALManager::finalize();
+    METAL::METALManager::finalize();
+}
+
+TEST_CASE("Metal Resource Creation and Properties", "[resource]") {
+	Resource metal_resource(ResourceType::METAL, 0);
+
+	SECTION("Resource type is correct") {
+		CHECK(metal_resource.type == ResourceType::METAL);
+		CHECK(metal_resource.id == 0);
+	}
+
+	SECTION("Resource type string") {
+		CHECK(std::string(metal_resource.getTypeString()) == "METAL");
+	}
+
+	SECTION("Resource is device") {
+		CHECK(metal_resource.is_device());
+		CHECK_FALSE(metal_resource.is_host());
+	}
+
+	SECTION("Memory space is device") {
+		CHECK(std::string(metal_resource.getMemorySpace()) == "device");
+	}
+
+	SECTION("Resource toString") {
+		std::string expected = "METAL[0]";
+		CHECK(metal_resource.toString() == expected);
+	}
+}
+
+TEST_CASE("Metal Device Discovery", "[device]") {
+	METAL::METALManager::init();
+
+	INFO("Number of available Metal devices: " << METAL::METALManager::all_device_size());
+
+	for (const auto& device : METAL::METALManager::all_devices()) {
+		INFO("Device " << device.id() << ": " << device.name()
+					   << " (Low Power: " << device.is_low_power()
+					   << ", Unified Memory: " << device.has_unified_memory() << ")");
+	}
+
+	// Select all available devices
+	std::vector<unsigned int> device_ids;
+	for (const auto& device : METAL::METALManager::all_devices()) {
+		device_ids.push_back(device.id());
+	}
+
+	REQUIRE_NOTHROW(METAL::METALManager::select_devices(device_ids));
+
+	CHECK(METAL::METALManager::devices().size() > 0);
 }
 
 #endif // USE_METAL 

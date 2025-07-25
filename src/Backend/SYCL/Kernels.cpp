@@ -1,11 +1,12 @@
 #ifdef USE_SYCL
-
+#include "Backend/Buffer.h"
 #include "Backend/Resource.h"
 #include <sycl/sycl.hpp>
 #include <mutex>
 #include <atomic>
 #include "SYCLManager.h"
 #include "Backend/Events.h"
+#include "Backend/Kernels.h"
 
 namespace ARBD {
 namespace Backend {
@@ -72,7 +73,27 @@ private:
     struct QueueInfo {
         size_t device_id;
         size_t queue_id;
-        std::atomic<size_t> pending_work{0};
+        std::atomic<size_t> pending_work;
+        
+        QueueInfo(size_t dev_id, size_t q_id) 
+            : device_id(dev_id), queue_id(q_id), pending_work(0) {}
+        
+        // Move constructor
+        QueueInfo(QueueInfo&& other) noexcept
+            : device_id(other.device_id), queue_id(other.queue_id), 
+              pending_work(other.pending_work.load()) {}
+        
+        // Move assignment operator
+        QueueInfo& operator=(QueueInfo&& other) noexcept {
+            device_id = other.device_id;
+            queue_id = other.queue_id;
+            pending_work.store(other.pending_work.load());
+            return *this;
+        }
+        
+        // Delete copy operations for atomic member
+        QueueInfo(const QueueInfo&) = delete;
+        QueueInfo& operator=(const QueueInfo&) = delete;
     };
     
     std::vector<QueueInfo> queues_;
@@ -93,7 +114,7 @@ public:
         const size_t queues_per_device = 4;
         for (size_t dev_id = 0; dev_id < SYCL::SYCLManager::devices().size(); ++dev_id) {
             for (size_t q_id = 0; q_id < queues_per_device; ++q_id) {
-                queues_.push_back({dev_id, q_id, 0});
+                queues_.emplace_back(dev_id, q_id);
             }
         }
     }
@@ -140,8 +161,8 @@ std::vector<sycl::event> convert_to_sycl_events(const EventList& deps) {
     std::vector<sycl::event> sycl_deps;
     
     for (const auto& event : deps.get_events()) {
-        if (event.get_resource().type == Resource::SYCL && event.is_valid()) {
-            auto sycl_event_ptr = static_cast<sycl::event*>(event.event_impl_.get());
+        if (event.get_resource().is_device() && event.is_valid()) {
+            auto sycl_event_ptr = static_cast<sycl::event*>(event.get_event_impl());
             if (sycl_event_ptr) {
                 sycl_deps.push_back(*sycl_event_ptr);
             }
@@ -156,7 +177,7 @@ template<typename KernelFunc, typename... Args>
 Event launch_sycl_kernel(const Resource& resource,
                         size_t n,
                         KernelFunc&& kernel,
-                        const LaunchConfig& config,
+                        const Kernels::KernelConfig& config,
                         const EventList& deps,
                         Args*... args) {
     auto& device = SYCL::SYCLManager::get_device(resource.id);
@@ -415,7 +436,7 @@ Event scan_async_sycl(const DeviceBuffer<T>& input,
 // ============================================================================
 
 template<typename T>
-void TypedAllocator<T>::zero_sycl_memory(void* ptr, size_t bytes, const Resource& resource) {
+void zero_sycl_memory(void* ptr, size_t bytes, const Resource& resource) {
     sycl_zero_memory(ptr, bytes, resource);
 }
 
@@ -437,5 +458,4 @@ INSTANTIATE_SYCL_KERNELS(unsigned int)
 } // namespace Backend
 } // namespace ARBD
 
-#endif // USE_SYCL
 #endif // USE_SYCL

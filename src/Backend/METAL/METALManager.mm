@@ -4,7 +4,7 @@
 #define NS_PRIVATE_IMPLEMENTATION
 #define CA_PRIVATE_IMPLEMENTATION
 #define MTL_PRIVATE_IMPLEMENTATION
-#include <Metal/Metal.hpp> // Include the metal-cpp header
+#include <Metal/Metal.hpp> 
 #include <chrono>
 
 namespace ARBD {
@@ -17,9 +17,22 @@ int METALManager::current_device_{0};
 MTL::Library* METALManager::library_{nullptr};
 std::unordered_map<std::string, MTL::ComputePipelineState*>* METALManager::pipeline_state_cache_{
 	nullptr};
+std::unordered_map<std::string, MTL::Function*>* METALManager::function_cache_{nullptr};
 std::mutex METALManager::cache_mutex_;
 bool METALManager::prefer_low_power_{false};
 std::mutex metal_buffer_map_mutex;
+void MTLLibraryDeleter::operator()(MTL::Library* lib) const noexcept {
+    if (lib) lib->release();
+}
+
+void MTLFunctionDeleter::operator()(MTL::Function* func) const noexcept {
+    if (func) func->release();
+}
+
+void MTLPipelineStateDeleter::operator()(MTL::ComputePipelineState* pipeline) const noexcept {
+    if (pipeline) pipeline->release();
+}
+
 
 // Static buffer map to track MTLBuffer objects for raw pointer deallocation
 static std::unordered_map<void*, MTL::Buffer*> metal_buffer_map;
@@ -179,14 +192,10 @@ bool Queue::is_available() const {
 // Event Implementation
 // ===================================================================
 
-Event::Event(void* command_buffer) : command_buffer_(command_buffer) {
-	// Constructor now just takes ownership of the command buffer pointer.
-	// It does NOT release it. The destructor does.
-}
+Event::Event(void* command_buffer) : command_buffer_(command_buffer) {}
 
 Event::~Event() {
 	if (command_buffer_) {
-		// The Event that owns the command buffer is responsible for releasing it.
 		static_cast<MTL::CommandBuffer*>(command_buffer_)->release();
 	}
 }
@@ -325,35 +334,50 @@ void METALManager::Device::query_device_properties() {
 // ===================================================================
 
 void METALManager::init() {
-	LOGINFO("Initializing Metal Manager...");
-	all_devices_.clear();
-	devices_.clear();
-	current_device_ = 0;
+    LOGINFO("Initializing Metal Manager...");
+    
+    // Initialize caches if not already initialized
+    if (!function_cache_) {
+        function_cache_ = new std::unordered_map<std::string, MTL::Function*>();
+    }
+    if (!pipeline_state_cache_) {
+        pipeline_state_cache_ = new std::unordered_map<std::string, MTL::ComputePipelineState*>();
+    }
+    
+    function_cache_->clear();
+    pipeline_state_cache_->clear();
+    
+    discover_devices();
+    
+    if (all_devices_.empty()) {
+        ARBD_Exception(ExceptionType::ValueError, "No Metal devices found");
+    }
 
-	discover_devices();
-
-	if (all_devices_.empty()) {
-		ARBD_Exception(ExceptionType::ValueError, "No Metal devices found");
-	}
-
-	MTL::Device* pDefaultDevice = all_devices_[0].metal_device();
-	NS::Error* pError = nullptr;
-	library_ = pDefaultDevice->newDefaultLibrary();
-	if (!library_) {
-		NS::String* path = NS::String::string("default.metallib", NS::UTF8StringEncoding);
-		library_ = pDefaultDevice->newLibrary(path, &pError);
-	}
-	if (!library_) {
-		LOGINFO("No Metal compute library found. Memory management and basic operations are available. "
-				"Compile .metal shaders to enable compute kernels. ({})",
-				pError ? pError->localizedDescription()->utf8String() : "No default library found");
-		// Don't throw an exception - we can still use Metal for memory management without compute kernels
-		library_ = nullptr;
-	}
-
-	pipeline_state_cache_ = new std::unordered_map<std::string, MTL::ComputePipelineState*>();
-	LOGINFO("Found {} Metal device(s). Metal Manager initialized.", all_devices_.size());
+    MTL::Device* pDefaultDevice = all_devices_[0].metal_device();
+    NS::Error* pError = nullptr;
+    
+    // Try default library first
+    if (auto* default_lib = pDefaultDevice->newDefaultLibrary()) {
+        library_ = default_lib;
+    } else {
+        // Try loading from file
+        NS::String* path = NS::String::string("default.metallib", NS::UTF8StringEncoding);
+        if (auto* file_lib = pDefaultDevice->newLibrary(path, &pError)) {
+            library_ = file_lib;
+        }
+    }
+    
+    if (!library_) {
+        LOGINFO("No Metal compute library found. Memory management and basic operations are available. "
+                "Compile .metal shaders to enable compute kernels. ({})",
+                pError ? pError->localizedDescription()->utf8String() : "No library found");
+    } else {
+        preload_all_functions();
+    }
+    
+    LOGINFO("Found {} Metal device(s). Metal Manager initialized.", all_devices_.size());
 }
+
 
 METALManager::Device& METALManager::get_current_device() {
 	if (devices_.empty()) {
@@ -366,7 +390,6 @@ METALManager::Device& METALManager::get_current_device() {
 }
 
 void METALManager::discover_devices() {
-	// CORRECTED: The pointer is not const because we must call release() on it.
 	NS::Array* mtl_devices = MTL::CopyAllDevices();
 
 	if (mtl_devices == nullptr || mtl_devices->count() == 0) {
@@ -435,6 +458,13 @@ void METALManager::finalize() {
 		}
 		delete pipeline_state_cache_;
 		pipeline_state_cache_ = nullptr;
+	}
+	if (function_cache_) {
+		for (auto const& [key, val] : *function_cache_) {
+			val->release();
+		}
+		delete function_cache_;
+		function_cache_ = nullptr;
 	}
 	devices_.clear();
 	all_devices_.clear();
@@ -630,6 +660,12 @@ std::vector<unsigned int> METALManager::get_low_power_device_ids() {
 	return low_power_ids;
 }
 
+void* METALManager::get_metal_buffer_from_ptr(void* ptr) {
+	std::lock_guard<std::mutex> lock(metal_buffer_map_mutex);
+	auto it = metal_buffer_map.find(ptr);
+	return it != metal_buffer_map.end() ? it->second : nullptr;
+}
+
 void* METALManager::allocate_raw(size_t size) {
 	if (devices_.empty()) {
 		ARBD_Exception(ExceptionType::ValueError, "No Metal devices available for allocation");
@@ -668,6 +704,68 @@ void METALManager::deallocate_raw(void* ptr) {
 			"Attempted to deallocate a raw Metal pointer that was not tracked by the manager: {}",
 			ptr);
 	}
+}
+
+void METALManager::preload_all_functions() {
+	if (!library_) {
+		LOGWARN("Cannot preload functions: Metal library not available");
+		return;
+	}
+
+	LOGINFO("Preloading Metal compute functions...");
+	
+	// Get all function names from the library
+	NS::Array* function_names = library_->functionNames();
+	if (!function_names) {
+		LOGWARN("No functions found in Metal library");
+		return;
+	}
+
+	std::lock_guard<std::mutex> lock(cache_mutex_);
+	
+	for (NS::UInteger i = 0; i < function_names->count(); ++i) {
+		NS::String* name = static_cast<NS::String*>(function_names->object(i));
+		if (name) {
+			std::string func_name = name->utf8String();
+			MTL::Function* function = library_->newFunction(name);
+			if (function) {
+				(*function_cache_)[func_name] = function;
+			}
+		}
+	}
+	
+	LOGINFO("Preloaded {} Metal functions", function_cache_->size());
+}
+
+MTL::Function* METALManager::get_function(const std::string& function_name) {
+	if (!function_cache_) {
+		ARBD_Exception(ExceptionType::MetalRuntimeError, 
+			"Function cache not initialized. Call init() first.");
+	}
+
+	std::lock_guard<std::mutex> lock(cache_mutex_);
+	
+	auto it = function_cache_->find(function_name);
+	if (it != function_cache_->end()) {
+		return it->second;
+	}
+
+	// If not in cache, try to load it from library
+	if (!library_) {
+		ARBD_Exception(ExceptionType::MetalRuntimeError, 
+			"Cannot load function '{}': Metal library not available", function_name);
+	}
+
+	MTL::Function* function = library_->newFunction(
+		NS::String::string(function_name.c_str(), NS::UTF8StringEncoding));
+	
+	if (!function) {
+		ARBD_Exception(ExceptionType::MetalRuntimeError, 
+			"Function '{}' not found in Metal library", function_name);
+	}
+
+	(*function_cache_)[function_name] = function;
+	return function;
 }
 
 } // namespace METAL

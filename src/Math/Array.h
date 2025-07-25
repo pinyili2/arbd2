@@ -17,15 +17,22 @@
 #include <type_traits>
 
 namespace ARBD {
-template <typename T> struct Array {
-  size_t num;
-  T *values;
+template<typename T>
+struct Array {
+	size_t num;
+	T* values;
 
-  // Minimal interface for legacy compatibility
-  Array(size_t count) : num(count), values(new T[count]) {}
-  ~Array() { delete[] values; }
-  T &operator[](size_t i) { return values[i]; }
-  size_t size() const { return num; }
+	// Minimal interface for legacy compatibility
+	Array(size_t count) : num(count), values(new T[count]) {}
+	~Array() {
+		delete[] values;
+	}
+	T& operator[](size_t i) {
+		return values[i];
+	}
+	size_t size() const {
+		return num;
+	}
 };
 
 } // namespace ARBD

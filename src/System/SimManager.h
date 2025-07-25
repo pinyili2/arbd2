@@ -1,9 +1,8 @@
 #pragma once
 #include <iostream>
-#include "Objects/Patch/ParticlePatch.h"
-#include "Objects/Patch/PatchOp.h"
-#include "SimSystem.h"
 
+
+#include "System/SimSystem.h"
 #include "ARBDLogger.h"
 #include "ARBDException.h"
 

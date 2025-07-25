@@ -16,6 +16,7 @@ namespace MTL {
 class Device;
 class CommandQueue;
 class Library;
+class Function;
 class ComputePipelineState;
 } // namespace MTL
 
@@ -261,6 +262,24 @@ class Event {
 	}
 };
 
+// Custom deleters for Metal objects
+struct MTLLibraryDeleter {
+    void operator()(MTL::Library* lib) const noexcept;
+};
+
+struct MTLFunctionDeleter {
+    void operator()(MTL::Function* func) const noexcept;
+};
+
+struct MTLPipelineStateDeleter {
+    void operator()(MTL::ComputePipelineState* pipeline) const noexcept;
+};
+
+// Smart pointer aliases
+using MTLLibraryPtr = std::unique_ptr<MTL::Library, MTLLibraryDeleter>;
+using MTLFunctionPtr = std::unique_ptr<MTL::Function, MTLFunctionDeleter>;
+using MTLPipelineStatePtr = std::unique_ptr<MTL::ComputePipelineState, MTLPipelineStateDeleter>;
+
 /**
  * @brief Main Metal manager class
  *
@@ -378,6 +397,7 @@ class METALManager {
 	static int current();
 	static void prefer_low_power(bool prefer);
 	static void finalize();
+	static void preload_all_functions();
 
 	[[nodiscard]] static Device& get_current_device();
 	[[nodiscard]] static MTL::CommandQueue* get_current_queue();
@@ -398,6 +418,8 @@ class METALManager {
 	// C-style allocation functions for compatibility with UnifiedBuffer
 	static void* allocate_raw(size_t size);
 	static void deallocate_raw(void* ptr);
+	[[nodiscard]] static void* get_metal_buffer_from_ptr(void* ptr);
+	static MTL::Function* get_function(const std::string& function_name);
 
   private:
 	[[nodiscard]] static std::vector<unsigned int> get_discrete_gpu_device_ids();
@@ -414,6 +436,7 @@ class METALManager {
 	static std::unordered_map<std::string, MTL::ComputePipelineState*>* pipeline_state_cache_;
 	static std::mutex cache_mutex_;
 	static bool prefer_low_power_;
+	static std::unordered_map<std::string, MTL::Function*>* function_cache_;
 };
 
 } // namespace METAL

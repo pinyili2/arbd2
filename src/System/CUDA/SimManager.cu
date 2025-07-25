@@ -1,8 +1,9 @@
 // SimManager.cu, from GrandBorwnTown.cu/cuh...etc
-#include "SimManager.h"
-#include "Random.h"
+#include "System/SimManager.h"
+#include "Random/Random.h"
 #include "ARBDLogger.h"
 #include "ARBDException.h"
+#include "Math/Types.h"
 #include <memory>
 
 namespace ARBD {

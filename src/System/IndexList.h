@@ -7,8 +7,7 @@
 #include "Backend/Resource.h"
 #include "ARBDException.h"
 
-namespace ARBD {
-namespace Simulation {
+namespace ARBD { 
 
 /**
  * @brief Modern replacement for the legacy IndexList class from Useful.h
@@ -130,5 +129,4 @@ using ParticleIndexList = IndexList<size_t>;
 using IntIndexList = IndexList<int>;
 using NeighborList = IndexList<size_t>;
 
-} // namespace Simulation
 } // namespace ARBD 

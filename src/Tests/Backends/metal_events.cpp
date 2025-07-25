@@ -7,7 +7,7 @@
 
 using namespace ARBD;
 
-TEST_CASE("Metal Event Basic Operations", "[metal][events]") {
+TEST_CASE("Metal Event Basic Operations", "[events]") {
     // Setup: Initialize Metal manager with device selection
     METAL::METALManager::load_info();
     auto& device = const_cast<METAL::METALManager::Device&>(METAL::METALManager::get_current_device());
@@ -63,7 +63,7 @@ TEST_CASE("Metal Event Basic Operations", "[metal][events]") {
     }
 }
 
-TEST_CASE("Metal EventList Operations", "[metal][events]") {
+TEST_CASE("Metal EventList Operations", "[events]") {
     // Setup
     METAL::METALManager::load_info();
     auto& device = const_cast<METAL::METALManager::Device&>(METAL::METALManager::get_current_device());
