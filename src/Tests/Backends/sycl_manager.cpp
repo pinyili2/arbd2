@@ -6,6 +6,7 @@
 #include "Backend/SYCL/SYCLManager.h"
 using namespace ARBD;
 using namespace ARBD::SYCL;
+//status: works on Mac M3
 
 TEST_CASE("SYCL Manager Initialization", "[sycl][manager]") {
 	SECTION("Basic initialization") {

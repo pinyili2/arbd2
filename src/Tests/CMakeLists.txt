@@ -79,6 +79,7 @@ if(USE_METAL AND APPLE)
     # Metal backend tests
     add_executable(arbd_test_metal
         Backends/metal_manager.cpp
+        Backends/metal_backend.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal PRIVATE ${METAL_TEST_INCLUDES})
     target_link_libraries(arbd_test_metal PRIVATE ${METAL_TEST_LIBS})
@@ -121,8 +122,8 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
 
     add_executable(arbd_test_sycl_backend
-        Backends/sycl_manager.cpp
         Backends/sycl_backend.cpp
+        Backends/sycl_manager.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
