@@ -33,7 +33,7 @@ CUDAManager::Device::Device(unsigned int id) : id_(id) {
 	may_timeout_ = properties_.kernelExecTimeoutEnabled;
 
 	// Enhanced logging to match old naming format
-	std::string timeout_str = may_timeout_ ? "(may timeout) " : "";
+	const char* timeout_str = may_timeout_ ? "(may timeout) " : "";
 	LOGINFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
 			id_,
 			properties_.name,
@@ -115,6 +115,33 @@ void CUDAManager::init() {
 	query_peer_access();
 }
 
+void CUDAManager::select_devices(const std::vector<unsigned int>& device_ids) {
+	devices_.clear();
+	devices_.reserve(device_ids.size());
+
+	for (const auto& id : device_ids) {
+		// Find the device with matching ID in all_devices_
+		bool found = false;
+		for (const auto& device : all_devices_) {
+			if (device.id() == id) {
+				found = true;
+				break;
+			}
+		}
+
+		if (!found) {
+			ARBD_Exception(ExceptionType::ValueError,
+						   "Invalid device ID: %u (not found in available devices)",
+						   id);
+		}
+
+		// Create a new device object with the same ID
+		devices_.emplace_back(id);
+	}
+
+	init_devices();
+}
+
 void CUDAManager::load_info() {
 	init();
 	devices_.clear();
@@ -152,7 +179,7 @@ void CUDAManager::init_devices() {
 		CUDA_CHECK(cudaDeviceSetCacheConfig(cudaFuncCachePreferL1));
 	}
 
-	LOGINFO("Initializing devices: {}", msg);
+	LOGINFO("Initializing devices: {}", msg.c_str());
 	use(0);
 	CUDA_CHECK(cudaDeviceSynchronize());
 }

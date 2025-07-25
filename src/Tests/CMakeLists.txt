@@ -32,18 +32,18 @@ if(USE_METAL AND APPLE)
     # Compile Metal shaders
     # set(METAL_SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Backends)
     # set(METAL_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
-    # 
+    #
     # # Find all .metal files
     # file(GLOB METAL_SOURCES ${METAL_SHADER_DIR}/*.metal)
-    # 
+    #
     # # Create a list to hold the compiled .air files
     # set(METAL_AIR_FILES)
-    # 
+    #
     # # Compile each .metal file to .air
     # foreach(METAL_SOURCE ${METAL_SOURCES})
     #     get_filename_component(METAL_NAME ${METAL_SOURCE} NAME_WE)
     #     set(AIR_FILE ${METAL_OUTPUT_DIR}/${METAL_NAME}.air)
-    #     
+    #
     #     add_custom_command(
     #         OUTPUT ${AIR_FILE}
     #         COMMAND xcrun -sdk macosx metal -c ${METAL_SOURCE} -o ${AIR_FILE}
@@ -51,10 +51,10 @@ if(USE_METAL AND APPLE)
     #         COMMENT "Compiling Metal shader: ${METAL_NAME}.metal"
     #         VERBATIM
     #     )
-    #     
+    #
     #     list(APPEND METAL_AIR_FILES ${AIR_FILE})
     # endforeach()
-    # 
+    #
     # # Create the Metal library
     # set(METAL_LIBRARY ${METAL_OUTPUT_DIR}/default.metallib)
     # add_custom_command(
@@ -64,10 +64,10 @@ if(USE_METAL AND APPLE)
     #     COMMENT "Creating Metal library: default.metallib"
     #     VERBATIM
     # )
-    # 
+    #
     # # Create a custom target for Metal shaders
     # add_custom_target(metal_shaders ALL DEPENDS ${METAL_LIBRARY})
-    # 
+    #
     # # Copy the Metal library to the test working directory
     # add_custom_command(
     #     TARGET metal_shaders POST_BUILD
@@ -84,7 +84,7 @@ if(USE_METAL AND APPLE)
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal PRIVATE ${METAL_TEST_INCLUDES})
     target_link_libraries(arbd_test_metal PRIVATE ${METAL_TEST_LIBS})
-    
+
     # # Make sure Metal shaders are built before the test executable
     # add_dependencies(arbd_test_metal metal_shaders)
 
@@ -181,6 +181,8 @@ endif()
 # CUDA Tests
 if(USE_CUDA)
     add_executable(arbd_test_cuda
+        Backends/cuda_backend.cpp
+        Backends/generic_Buffer.cpp
         #Math/vector3_precision.cu
         #Math/bitmask.cu
         #Math/array.cu
@@ -188,12 +190,18 @@ if(USE_CUDA)
     set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda --allow-unsupported-compiler")
     target_include_directories(arbd_test_cuda PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_cuda PRIVATE "lib${PROJECT_NAME}")
-    if(USE_CUDA)
-        target_link_libraries(arbd_test_cuda PRIVATE curand)
-    endif()
+
+    # Link CUDA runtime libraries
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries(arbd_test_cuda PRIVATE
+        CUDA::cudart
+        CUDA::cuda_driver
+        curand)
+
     if(USE_NCCL)
         target_link_libraries(arbd_test_cuda PRIVATE nccl)
     endif()
+
     catch_discover_tests(arbd_test_cuda)
     install(TARGETS arbd_test_cuda)
     message(STATUS "Added CUDA test executable: arbd_test_cuda")

@@ -3,9 +3,12 @@
 #ifdef USE_CUDA
 #include "Backend/CUDA/CUDAManager.h"
 #include "Backend/Resource.h"
+#include <algorithm>
 #include <numeric>
 #include <string>
 #include <vector>
+using Catch::Approx;
+using Catch::Matchers::Contains;
 
 TEST_CASE("CUDAManager Basic Initialization", "[CUDAManager][Backend]") {
 	SECTION("Initialize and discover devices") {
@@ -68,22 +71,25 @@ TEST_CASE("CUDAManager Device Selection and Usage", "[CUDAManager][Backend]") {
 	SECTION("Device selection") {
 		// Test using device 0
 		REQUIRE_NOTHROW(ARBD::CUDA::CUDAManager::use(0));
-		REQUIRE(ARBD::CUDA::CUDAManager::current() == 0);
+		int current_id = ARBD::CUDA::CUDAManager::current();
+		REQUIRE((current_id == devices[0].id()));
 
 		// Test current device access
 		REQUIRE_NOTHROW(ARBD::CUDA::CUDAManager::get_current_device());
 		const auto& current_device = ARBD::CUDA::CUDAManager::get_current_device();
-		REQUIRE(current_device.id() == devices[0].id());
+		REQUIRE((current_device.id() == devices[0].id()));
 
 		// Test cycling through devices if multiple available
 		if (devices.size() > 1) {
 			REQUIRE_NOTHROW(ARBD::CUDA::CUDAManager::use(1));
-			REQUIRE(ARBD::CUDA::CUDAManager::current() == 1);
+			current_id = ARBD::CUDA::CUDAManager::current();
+			REQUIRE((current_id == devices[1].id()));
 
 			// Test wraparound
 			int wrapped_id = static_cast<int>(devices.size());
 			REQUIRE_NOTHROW(ARBD::CUDA::CUDAManager::use(wrapped_id));
-			REQUIRE(ARBD::CUDA::CUDAManager::current() == 0); // Should wrap to 0
+			current_id = ARBD::CUDA::CUDAManager::current();
+			REQUIRE((current_id == devices[0].id())); // Should wrap to 0
 		}
 	}
 
@@ -118,11 +124,14 @@ TEST_CASE("CUDAManager Stream Management", "[CUDAManager][Backend]") {
 		}
 
 		// Test next stream cycling
-		std::set<cudaStream_t> seen_streams;
+		std::vector<cudaStream_t> seen_streams;
 		for (size_t i = 0; i < ARBD::CUDA::CUDAManager::NUM_STREAMS * 2; ++i) {
 			cudaStream_t stream = device.get_next_stream();
 			REQUIRE(stream != nullptr);
-			seen_streams.insert(stream);
+			// Only add unique streams
+			if (std::find(seen_streams.begin(), seen_streams.end(), stream) == seen_streams.end()) {
+				seen_streams.push_back(stream);
+			}
 		}
 		// Should have seen all unique streams
 		REQUIRE(seen_streams.size() == ARBD::CUDA::CUDAManager::NUM_STREAMS);
@@ -160,7 +169,8 @@ TEST_CASE("CUDAManager Synchronization", "[CUDAManager][Backend]") {
 
 		// use() doesn't throw - it wraps around using modulo
 		REQUIRE_NOTHROW(ARBD::CUDA::CUDAManager::use(invalid_id));
-		REQUIRE(ARBD::CUDA::CUDAManager::current() == 0); // Should wrap to 0
+		int current_id = ARBD::CUDA::CUDAManager::current();
+		REQUIRE((current_id == devices[0].id())); // Should wrap to 0
 	}
 }
 
@@ -228,7 +238,7 @@ TEST_CASE("CUDAManager Peer Access", "[CUDAManager][Backend]") {
 				for (size_t j = 0; j < devices.size(); ++j) {
 					row_str += peer_matrix[i][j] ? "1 " : "0 ";
 				}
-				LOGINFO("  [{}] {}", i, row_str);
+				LOGINFO("  [{}] {}", i, row_str.c_str());
 			}
 		} else {
 			LOGINFO("Only one device available, skipping peer access tests");
@@ -247,7 +257,7 @@ TEST_CASE("CUDAManager Resource Management", "[CUDAManager][Backend]") {
 
 		// Test allocation
 		REQUIRE_NOTHROW(cudaMalloc(&ptr, test_size));
-		REQUIRE(ptr != nullptr);
+		REQUIRE_FALSE(ptr == nullptr);
 
 		// Test deallocation
 		REQUIRE_NOTHROW(cudaFree(ptr));
