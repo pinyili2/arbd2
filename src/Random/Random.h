@@ -32,7 +32,7 @@ public:
         ARBD::KernelConfig config;
         UniformFunctor<T> func{min_val, max_val};
 
-        return launch_kernel<Backend>(
+        return launch_kernel(
             resource_,
             output.size(),
             std::tie(),
@@ -48,10 +48,8 @@ public:
     Event generate_gaussian(DeviceBuffer<T>& output, T mean, T stddev) {
         ARBD::KernelConfig config;
         GaussianFunctor<T> func{mean, stddev};
-        
-        // Launch the kernel, note we only need half as many threads
-        // since each thread generates two numbers.
-        return launch_kernel<Backend>(
+            
+        return launch_kernel(
             resource_,
             output.size() / 2,
             std::tie(),

@@ -58,40 +58,133 @@ struct KernelConfig {
 template<typename... Args>
 using KernelFunction = std::function<void(size_t, Args...)>;
 
+/**
+ * @brief Dispatches a functor-based kernel to the appropriate backend at runtime.
+ *
+ * This overload is selected when the kernel is a callable object (like a lambda or functor).
+ * It checks the resource type and calls the corresponding backend-specific launch function.
+ *
+ * @tparam Functor The type of the callable kernel object.
+ * @tparam Args The types of the arguments to the kernel.
+ * @param resource The computational resource (CPU, CUDA, SYCL) to execute on.
+ * @param thread_count The total number of threads to launch.
+ * @param config The configuration for the kernel launch.
+ * @param kernel_func The callable kernel object.
+ * @param args The arguments to be passed to the kernel.
+ * @return An Event object that can be used to track the kernel's completion.
+ */
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
-Event launch_kernel(const Resource& resource,
-					size_t thread_count,
-					InputTuple& inputs,
-					OutputTuple& outputs,
-					const KernelConfig& config,
-					Functor&& kernel_func,
-					Args&&... args) {
-	return launch_kernel<BackendPolicy>(resource,
-										thread_count,
-										inputs,
-										outputs,
-										config,
-										std::forward<Functor>(kernel_func),
-										std::forward<Args>(args)...);
+auto launch_kernel(const Resource& resource,
+				   size_t thread_count,
+				   const KernelConfig& config,
+				   InputTuple& inputs,
+				   OutputTuple& outputs,
+				   Functor&& kernel_func,
+				   Args&&... args)
+	-> std::enable_if_t<std::is_invocable_v<Functor, size_t, Args...>, Event> {
+	switch (resource.type) {
+#ifdef USE_CUDA
+	case ResourceType::CUDA:
+		return launch_cuda_kernel(resource,
+								  thread_count,
+								  inputs,
+								  outputs,
+								  config,
+								  std::forward<Functor>(kernel_func),
+								  std::forward<Args>(args)...);
+#endif
+#ifdef USE_SYCL
+	case ResourceType::SYCL:
+		return launch_sycl_kernel(resource,
+								  thread_count,
+								  inputs,
+								  outputs,
+								  config,
+								  std::forward<Functor>(kernel_func),
+								  std::forward<Args>(args)...);
+#endif
+	case ResourceType::CPU:
+		return launch_cpu_kernel(resource,
+								 thread_count,
+								 inputs,
+								 outputs,
+								 config,
+								 std::forward<Functor>(kernel_func),
+								 std::forward<Args>(args)...);
+
+	case ResourceType::METAL:
+		throw_value_error("METAL backend requires a kernel name (string), not a functor. "
+						  "Please use the named-kernel overload of launch_kernel.");
+	default:
+		throw_not_implemented("Unsupported resource type for functor-based kernel launch.");
+	}
 }
 
-// Overload for Name-based backends (Metal)
-template<typename Backend, typename... Args>
+/**
+ * @brief Dispatches a name-based kernel to the appropriate backend at runtime.
+ *
+ * This overload is selected when the kernel is identified by a std::string.
+ * It is primarily intended for backends like Metal.
+ *
+ * @tparam Args The types of the arguments to the kernel.
+ * @param resource The computational resource (METAL) to execute on.
+ * @param thread_count The total number of threads to launch.
+ * @param config The configuration for the kernel launch.
+ * @param kernel_name The name of the kernel to execute.
+ * @param args The arguments to be passed to the kernel.
+ * @return An Event object that can be used to track the kernel's completion.
+ */
+template<typename... Args>
 Event launch_kernel(const Resource& resource,
 					size_t thread_count,
 					const KernelConfig& config,
-					const std::string& kernel_name, // Takes a kernel name
+					const std::string& kernel_name,
 					Args&&... args) {
-	if constexpr (std::is_same_v<Backend, METALBackend>) {
+	switch (resource.type) {
+#ifdef USE_METAL
+	case ResourceType::METAL:
 		return launch_metal_kernel(resource,
 								   thread_count,
 								   config,
 								   kernel_name,
 								   std::forward<Args>(args)...);
-	} else {
-		static_assert(std::is_same_v<Backend, METALBackend>,
-					  "This launch_kernel overload is only for name-based backends like Metal.");
+#endif
+	case ResourceType::CUDA:
+	case ResourceType::SYCL:
+	case ResourceType::CPU:
+		throw_value_error("CUDA, SYCL, and CPU backends require a functor, not a kernel name. "
+						  "Please use the functor-based overload of launch_kernel.");
+	default:
+		throw_not_implemented("Unsupported resource type for named kernel launch.");
 	}
+}
+
+/**
+ * @brief Simplified kernel launch function that works with Buffer.h types
+ */
+template<typename KernelFunc, typename... Buffers>
+Event simple_kernel(const Resource& resource,
+					size_t num_elements,
+					KernelFunc&& kernel,
+					const KernelConfig& config,
+					const std::string& kernel_name,
+					Buffers&... buffers) {
+
+	// For Metal, use the named kernel overload
+	if (resource.type == ResourceType::METAL) {
+		return launch_kernel(resource, num_elements, config, kernel_name, buffers.data()...);
+	}
+
+	// For other backends, use the functor overload with buffer tuples
+	auto inputs = std::tie();			 // empty input tuple
+	auto outputs = std::tie(buffers...); // all buffers as outputs
+
+	return launch_kernel(resource,
+						 num_elements,
+						 config,
+						 inputs,
+						 outputs,
+						 std::forward<KernelFunc>(kernel));
 }
 
 #ifdef USE_CUDA
@@ -106,36 +199,53 @@ __global__ void cuda_kernel_wrapper(size_t n, Functor kernel, Args... args) {
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event launch_cuda_kernel(const Resource& resource,
 						 size_t thread_count,
-						 InputTuple& inputs,
-						 OutputTuple& outputs,
+						 const InputTuple& inputs,
+						 const OutputTuple& outputs,
+						 const KernelConfig& config,
 						 Functor&& kernel_func,
-						 const KernelConfig& config = {},
-						 Args... args) {
+						 Args&&... args) {
 
 	KernelConfig local_config = config;
 	local_config.auto_configure(thread_count);
 
-	kerneldim3 grid(local_config.grid_size);
-	kerneldim3 block(local_config.block_size);
+	// Use the CUDA dim3 type for launch configuration
+	kerneldim3 grid(local_config.grid_size.x, local_config.grid_size.y, local_config.grid_size.z);
+	kerneldim3 block(local_config.block_size.x,
+					 local_config.block_size.y,
+					 local_config.block_size.z);
 
-	// Wait for dependencies
-	config.dependencies.wait_all();
+	// 1. Get a specific CUDA stream from your manager
+	auto& stream = CUDA::CUDAManager::get_device(resource.id).get_next_stream();
+
+	// 2. Asynchronously wait for dependencies on the GPU stream, instead of blocking the host
+	for (const auto& dep_event : config.dependencies.get_cuda_events()) {
+		CUDA_CHECK(cudaStreamWaitEvent(stream.get(), dep_event, 0));
+	}
 
 	cudaEvent_t event;
-	cudaEventCreate(&event);
+	CUDA_CHECK(cudaEventCreate(&event));
 
-	// Get pointers from buffer objects and launch kernel
-	EventList deps;
-	auto input_ptr = inputs.get_read_access(deps);
-	auto output_ptr = outputs.get_write_access(deps);
+	// 3. Get tuples of raw pointers from the buffer tuples
+	auto input_pointers = get_buffer_pointers(inputs);
+	auto output_pointers = get_buffer_pointers(outputs);
 
-	cuda_kernel_wrapper<<<grid, block, local_config.shared_memory>>>(thread_count,
-																	 kernel_func,
-																	 input_ptr,
-																	 output_ptr,
-																	 args...);
+	// 4. Combine all arguments (input pointers, output pointers, extra args) into one tuple
+	auto kernel_args = std::tuple_cat(input_pointers,
+									  output_pointers,
+									  std::make_tuple(std::forward<Args>(args)...));
 
-	cudaEventRecord(event);
+	// 5. Use std::apply to unpack the tuple into individual arguments for the kernel
+	std::apply(
+		[&](auto&&... unpacked_args) {
+			cuda_kernel_wrapper<<<grid, block, local_config.shared_memory, stream.get()>>>(
+				thread_count,
+				kernel_func,
+				unpacked_args...);
+		},
+		kernel_args);
+
+	// 6. Record the event on the same stream to ensure it captures the kernel's completion
+	CUDA_CHECK(cudaEventRecord(event, stream.get()));
 
 	if (!config.async) {
 		cudaEventSynchronize(event);
@@ -149,46 +259,56 @@ Event launch_cuda_kernel(const Resource& resource,
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event launch_sycl_kernel(const Resource& resource,
 						 size_t thread_count,
+						 const InputTuple& inputs,
+						 const OutputTuple& outputs,
+						 const KernelConfig& config,
 						 Functor&& kernel_func,
-						 const KernelConfig& config = {},
-						 Args... args) {
+						 Args&&... args) {
 
 	KernelConfig local_config = config;
 	local_config.auto_configure(thread_count);
 
+	// 1. Define the execution range using your KernelConfig settings.
 	sycl::range<1> global_range(local_config.grid_size.x * local_config.block_size.x);
 	sycl::range<1> local_range(local_config.block_size.x);
 	sycl::nd_range<1> execution_range(global_range, local_range);
 
-	auto& queue =
-		resource.get_sycl_queue(); // Assuming you can get the queue from your resource object
+	// 2. Get the correct SYCL queue from your manager.
+	auto& queue = SYCL::SYCLManager::get_device(resource.id).get_next_queue();
 
-	auto sycl_event = queue.submit([&](sycl::handler& h) {
-		// 2. Pass dependencies to the handler instead of waiting on the host
-		for (const auto& dep : config.dependencies) {
-			h.depends_on(
-				dep.get_sycl_event()); // Assumes your Event class can expose the sycl event
-		}
+	// 3. Submit the command group to the queue.
+	auto sycl_event = queue.get().submit([&](sycl::handler& h) {
+		// 4. Use your EventList to manage dependencies.
+		// This correctly extracts the underlying sycl::event objects.
+		h.depends_on(config.dependencies.get_sycl_events());
 
-		// 3. Create accessors inside the handler for automatic dependency management
-		auto input_accessor =
-			inputs.get_sycl_accessor(h); // Your buffer class would need this method
-		auto output_accessor = outputs.get_sycl_accessor(
-			h); // e.g., return sycl::accessor(my_buffer, h, sycl::read_only);
+		// 5. Get raw USM pointers from the input/output buffer tuples.
+		// This is the SYCL equivalent of getting raw pointers in CUDA.
+		auto input_pointers = get_buffer_pointers(inputs);
+		auto output_pointers = get_buffer_pointers(outputs);
 
-		// 4. Launch with nd_range and pass accessors to the kernel
+		// Combine all pointers and arguments for the kernel lambda.
+		auto kernel_args = std::tuple_cat(input_pointers,
+										  output_pointers,
+										  std::make_tuple(std::forward<Args>(args)...));
+
+		// 6. Launch the parallel_for kernel.
 		h.parallel_for(execution_range, [=](sycl::nd_item<1> item) {
 			size_t i = item.get_global_id(0);
 			if (i < thread_count) {
-				kernel_func(i, input_accessor, output_accessor, args...);
+				// 7. Unpack the pointers and arguments and call the user's kernel functor.
+				std::apply([&](auto&&... unpacked_args) { kernel_func(i, unpacked_args...); },
+						   kernel_args);
 			}
 		});
 	});
 
+	// 8. Handle synchronous execution if requested.
 	if (!config.async) {
 		sycl_event.wait();
 	}
 
+	// 9. Return your backend-agnostic Event wrapper.
 	return Event(sycl_event, resource);
 }
 
@@ -276,8 +396,8 @@ Event launch_cpu_kernel(const Resource& resource,
 						size_t thread_count,
 						InputTuple& inputs,
 						OutputTuple& outputs,
+						const KernelConfig& config,
 						Functor&& kernel_func,
-						const KernelConfig& config = {},
 						Args... args) {
 
 	// Wait for dependencies before starting
@@ -319,39 +439,6 @@ Event launch_cpu_kernel(const Resource& resource,
 	// For a CPU launch, the event is immediately considered complete
 	return Event(nullptr, resource);
 }
-
-/**
- * @brief Simplified kernel launch function that works with Buffer.h types (works)
- */
-template<typename KernelFunc, typename... Buffers>
-Event simple_kernel(const Resource& resource,
-					size_t num_elements,
-					KernelFunc&& kernel,
-					const KernelConfig& config,
-					const std::string& kernel_name,
-					Buffers&... buffers) {
-
-	EventList deps;
-	auto buffer_ptrs = std::make_tuple(buffers.get_write_access(deps)...);
-
-	// Merge dependencies from buffers with config dependencies
-	KernelConfig merged_config = config;
-	for (const auto& event : deps.get_events()) {
-		merged_config.dependencies.add(event);
-	}
-
-	return std::apply(
-		[&](auto*... ptrs) {
-			return launch_kernel_impl(resource,
-									  num_elements,
-									  kernel,
-									  merged_config,
-									  kernel_name,
-									  ptrs...);
-		},
-		buffer_ptrs);
-}
-
 // Make KernelChain a template on the Backend type
 template<typename Backend>
 class KernelChain {

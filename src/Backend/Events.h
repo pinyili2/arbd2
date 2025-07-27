@@ -162,6 +162,24 @@ class EventList {
 	void clear() {
 		events_.clear();
 	}
+	#ifdef USE_CUDA
+    /**
+     * @brief Extracts the raw cudaEvent_t handles from the list.
+     * * @return A vector of cudaEvent_t, which can be used with cudaStreamWaitEvent.
+     */
+    std::vector<cudaEvent_t> get_cuda_events() const {
+        std::vector<cudaEvent_t> cuda_events;
+        cuda_events.reserve(events_.size());
+        for (const auto& event : events_) {
+            if (event.is_valid() && event.get_resource().is_device()) {
+                if (auto* impl = static_cast<cudaEvent_t*>(event.get_event_impl())) {
+                    cuda_events.push_back(*impl);
+                }
+            }
+        }
+        return cuda_events;
+    }
+#endif
 
 #ifdef USE_SYCL
 	std::vector<sycl::event> get_sycl_events() const {
