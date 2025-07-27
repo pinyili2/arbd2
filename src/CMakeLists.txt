@@ -88,7 +88,10 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         find_library(ACPP_COMMON_LIB NAMES "acpp-common" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
 
         if(ACPP_RT_LIB AND ACPP_COMMON_LIB)
-            target_link_libraries("lib${PROJECT_NAME}" PRIVATE
+            # Add the ACPP library directory to linker search paths
+            target_link_directories("lib${PROJECT_NAME}" PUBLIC "${ACPP_LIB_DIR}")
+
+            target_link_libraries("lib${PROJECT_NAME}" PUBLIC
                 ${ACPP_RT_LIB}
                 ${ACPP_COMMON_LIB}
             )
@@ -104,8 +107,26 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         # Optional LLVM/Clang libraries - try to find them but don't fail if missing
         find_library(ACPP_CLANG_LIB NAMES "acpp-clang" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
         if(ACPP_CLANG_LIB)
-            target_link_libraries("lib${PROJECT_NAME}" PRIVATE ${ACPP_CLANG_LIB})
+            target_link_libraries("lib${PROJECT_NAME}" PUBLIC ${ACPP_CLANG_LIB})
             message(STATUS "  - ACPP Clang: ${ACPP_CLANG_LIB}")
+
+            # Link LLVM libraries required by libacpp-clang.so
+            find_library(LLVM_LIB NAMES "LLVM-17" "LLVM" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
+            find_library(CLANG_CPP_LIB NAMES "clang-cpp" PATHS "${ACPP_LIB_DIR}" NO_DEFAULT_PATH)
+
+            if(LLVM_LIB)
+                target_link_libraries("lib${PROJECT_NAME}" PUBLIC ${LLVM_LIB})
+                message(STATUS "  - LLVM: ${LLVM_LIB}")
+            else()
+                message(WARNING "Could not find LLVM library in ${ACPP_LIB_DIR}")
+            endif()
+
+            if(CLANG_CPP_LIB)
+                target_link_libraries("lib${PROJECT_NAME}" PUBLIC ${CLANG_CPP_LIB})
+                message(STATUS "  - Clang C++: ${CLANG_CPP_LIB}")
+            else()
+                message(WARNING "Could not find Clang C++ library in ${ACPP_LIB_DIR}")
+            endif()
         endif()
 
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
