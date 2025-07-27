@@ -66,7 +66,7 @@ Event test_vector_add_scale_kernel(const DeviceBuffer<T>& a,
                                  DeviceBuffer<T>& c,
                                  T scale,
                                  const Resource& resource,
-                                 const Kernels::KernelConfig& config = {}) {
+                                 const KernelConfig& config = {}) {
     size_t n = a.size();
     if (b.size() != n || c.size() != n) {
         throw std::runtime_error("Buffer size mismatch in vector add scale");
@@ -81,9 +81,7 @@ Event test_vector_add_scale_kernel(const DeviceBuffer<T>& a,
     auto kernel_func = [scale](size_t i, const T* a_data, const T* b_data, T* c_data) {
         c_data[i] = scale * (a_data[i] + b_data[i]);
     };
-    
-    // Use launch_kernel_impl with configuration
-    return Kernels::launch_kernel_impl(resource, n, kernel_func, config, "", a_ptr, b_ptr, c_ptr);
+    return launch_kernel(resource, n, kernel_func, config, a_ptr, b_ptr, c_ptr);
 }
 
 /**
@@ -96,7 +94,7 @@ Event test_matrix_transpose_kernel(const DeviceBuffer<T>& input,
                                  size_t rows,
                                  size_t cols,
                                  const Resource& resource,
-                                 const Kernels::KernelConfig& config = {}) {
+                                 const KernelConfig& config = {}) {
     size_t total_elements = rows * cols;
     if (input.size() != total_elements || output.size() != total_elements) {
         throw std::runtime_error("Buffer size mismatch in matrix transpose");
@@ -121,7 +119,7 @@ Event test_matrix_transpose_kernel(const DeviceBuffer<T>& input,
     };
     
     // Use launch_kernel_impl with configuration
-    return Kernels::launch_kernel_impl(resource, total_elements, kernel_func, config, "", input_ptr, output_ptr);
+    return launch_kernel(resource, total_elements, kernel_func, config, "", input_ptr, output_ptr);
 }
 
 // ============================================================================
@@ -157,7 +155,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Vector Add Scale Kernel", "[sycl][
         b_buf.copy_from_host(b_host.data(), n);
         
         // Launch kernel with default config
-        Kernels::KernelConfig config;  // Default configuration
+        KernelConfig config;  // Default configuration
         auto event = test_vector_add_scale_kernel(a_buf, b_buf, c_buf, scale, sycl_resource, config);
         event.wait();
         
@@ -197,7 +195,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Vector Add Scale Kernel", "[sycl][
         b_buf.copy_from_host(b_host.data(), n);
         
         // Launch kernel with custom block size
-        Kernels::KernelConfig config;
+        KernelConfig config;
         config.block_size = 128;  // Custom block size
         config.async = false;     // Synchronous execution
         
@@ -234,7 +232,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Vector Add Scale Kernel", "[sycl][
         b_buf.copy_from_host(b_host.data(), n);
         
         // Launch kernel with async config
-        Kernels::KernelConfig config;
+        KernelConfig config;
         config.block_size = 512;  // Large block size
         config.async = true;      // Async execution
         config.shared_memory = 0; // No shared memory needed
@@ -276,14 +274,14 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Matrix Transpose Kernel", "[sycl][
         }
         
         // Create device buffers
-        DeviceBuffer<float> input_buf(total, sycl_resource);
-        DeviceBuffer<float> output_buf(total, sycl_resource);
+        DeviceBuffer<float> input_buf(total);
+        DeviceBuffer<float> output_buf(total);
         
         // Copy data to device
         input_buf.copy_from_host(input_host.data(), total);
         
         // Launch kernel with default config
-        Kernels::KernelConfig config;  // Default configuration
+        KernelConfig config;  // Default configuration
         auto event = test_matrix_transpose_kernel(input_buf, output_buf, rows, cols, sycl_resource, config);
         event.wait();
         
@@ -321,14 +319,14 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Matrix Transpose Kernel", "[sycl][
         }
         
         // Create device buffers
-        DeviceBuffer<double> input_buf(total, sycl_resource);
-        DeviceBuffer<double> output_buf(total, sycl_resource);
+        DeviceBuffer<double> input_buf(total);
+        DeviceBuffer<double> output_buf(total);
         
         // Copy data to device
         input_buf.copy_from_host(input_host.data(), total);
         
         // Launch kernel with optimized config
-        Kernels::KernelConfig config;
+        KernelConfig config;
         config.block_size = 64;   // Smaller block size for better cache usage
         config.async = true;      // Async execution
         config.grid_size = 0;     // Auto-calculate grid size
@@ -361,13 +359,13 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Matrix Transpose Kernel", "[sycl][
             }
         }
         
-        DeviceBuffer<int> input_buf(total, sycl_resource);
-        DeviceBuffer<int> output_buf(total, sycl_resource);
+        DeviceBuffer<int> input_buf(total);
+        DeviceBuffer<int> output_buf(total);
         
         input_buf.copy_from_host(input_host.data(), total);
         
         // Performance-oriented configuration
-        Kernels::KernelConfig config;
+        KernelConfig config;
         config.block_size = 256;      // Large block size for high throughput
         config.async = true;          // Async for potential overlap
         config.shared_memory = 1024;  // Request shared memory (if supported)
@@ -391,13 +389,13 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Matrix Transpose Kernel", "[sycl][
         std::vector<int> input_host = {42};
         std::vector<int> expected = {42};
         
-        DeviceBuffer<int> input_buf(total, sycl_resource);
-        DeviceBuffer<int> output_buf(total, sycl_resource);
+        DeviceBuffer<int> input_buf(total);
+        DeviceBuffer<int> output_buf(total);
         
         input_buf.copy_from_host(input_host.data(), total);
         
         // Minimal configuration for single element
-        Kernels::KernelConfig config;
+        KernelConfig config;
         config.block_size = 1;    // Minimal block size
         config.async = false;     // Synchronous for simple case
         
@@ -435,17 +433,17 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Kernel Configuration and Chaining"
         }
         
         // Create device buffers
-        DeviceBuffer<float> a_buf(n, sycl_resource);
-        DeviceBuffer<float> b_buf(n, sycl_resource);
-        DeviceBuffer<float> intermediate_buf(n, sycl_resource);
-        DeviceBuffer<float> final_buf(n, sycl_resource);
+        DeviceBuffer<float> a_buf(n);
+        DeviceBuffer<float> b_buf(n);
+        DeviceBuffer<float> intermediate_buf(n);
+        DeviceBuffer<float> final_buf(n);
         
         // Copy initial data to device
         a_buf.copy_from_host(a_host.data(), n);
         b_buf.copy_from_host(b_host.data(), n);
         
         // Use KernelChain for sequential execution with automatic dependency management
-        Kernels::KernelChain chain(sycl_resource);
+        KernelChain chain(sycl_resource);
         
         // First kernel: intermediate = scale1 * (a + b)
         chain.then(n, [scale1](size_t i, float* a, float* b, float* intermediate) {
@@ -481,13 +479,13 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Kernel Configuration and Chaining"
         const size_t n = 64;
         std::vector<float> data_host(n, 1.0f);
         
-        DeviceBuffer<float> data_buf(n, sycl_resource);
-        DeviceBuffer<float> result_buf(n, sycl_resource);
+        DeviceBuffer<float> data_buf(n);
+        DeviceBuffer<float> result_buf(n);
         
         data_buf.copy_from_host(data_host.data(), n);
         
         // Test with minimal configuration
-        Kernels::KernelConfig minimal_config;
+        KernelConfig minimal_config;
         minimal_config.block_size = 1;
         minimal_config.grid_size = n;  // Explicitly set grid size
         minimal_config.async = false;
@@ -497,10 +495,9 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Kernel Configuration and Chaining"
         const float* input_ptr = data_buf.get_read_access(deps1);
         float* output_ptr = result_buf.get_write_access(deps1);
         
-        auto event = Kernels::launch_kernel_impl(sycl_resource, n, 
-            [](size_t i, const float* input_data, float* output_data) {
-                output_data[i] = input_data[i] * 2.0f;
-            }, minimal_config, "", input_ptr, output_ptr);
+        auto event = launch_kernel(sycl_resource, n, minimal_config, "", input_ptr, output_ptr, [](size_t i, const float* input_data, float* output_data) {
+            output_data[i] = input_data[i] * 2.0f;
+        });
         
         event.wait();
         
@@ -513,7 +510,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Kernel Configuration and Chaining"
         }
         
         // Test with maximum reasonable configuration
-        Kernels::KernelConfig max_config;
+        KernelConfig max_config;
         max_config.block_size = 512;
         max_config.grid_size = 0;     // Auto-calculate
         max_config.async = true;
@@ -527,7 +524,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Kernel Configuration and Chaining"
         const float* input_ptr2 = data_buf.get_read_access(deps2);
         float* output_ptr2 = result_buf.get_write_access(deps2);
         
-        auto event2 = Kernels::launch_kernel_impl(sycl_resource, n, 
+        auto event2 = launch_kernel_impl(sycl_resource, n, 
             [](size_t i, const float* input_data, float* output_data) {
                 output_data[i] = input_data[i] * 3.0f;  // Triple the values
             }, max_config, "", input_ptr2, output_ptr2);
@@ -559,7 +556,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Utility Functions from Kernels.h",
         source_buf.copy_from_host(data_host.data(), n);
         
         // Test copy_async function
-        auto event = Kernels::copy_async(source_buf, dest_buf, sycl_resource);
+        auto event = copy_async(source_buf, dest_buf, sycl_resource);
         event.wait();
         
         // Verify copy
@@ -578,7 +575,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Utility Functions from Kernels.h",
         DeviceBuffer<double> buffer(n, sycl_resource);
         
         // Test fill_async function
-        auto event = Kernels::fill_async(buffer, fill_value, sycl_resource);
+        auto event = fill_async(buffer, fill_value, sycl_resource);
         event.wait();
         
         // Verify fill
@@ -592,11 +589,11 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Utility Functions from Kernels.h",
 
     SECTION("get_grid_size utility function") {
         // Test grid size calculation
-        REQUIRE(Kernels::get_grid_size(100, 32) == 4);    // 100/32 = 3.125 -> 4
-        REQUIRE(Kernels::get_grid_size(256, 256) == 1);   // 256/256 = 1
-        REQUIRE(Kernels::get_grid_size(1000, 128) == 8);  // 1000/128 = 7.8125 -> 8
-        REQUIRE(Kernels::get_grid_size(1, 256) == 1);     // 1/256 = 0.004 -> 1
-        REQUIRE(Kernels::get_grid_size(0, 256) == 0);     // 0/256 = 0
+        REQUIRE(get_grid_size(100, 32) == 4);    // 100/32 = 3.125 -> 4
+        REQUIRE(get_grid_size(256, 256) == 1);   // 256/256 = 1
+        REQUIRE(get_grid_size(1000, 128) == 8);  // 1000/128 = 7.8125 -> 8
+        REQUIRE(get_grid_size(1, 256) == 1);     // 1/256 = 0.004 -> 1
+        REQUIRE(get_grid_size(0, 256) == 0);     // 0/256 = 0
     }
 }
 
@@ -618,17 +615,17 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL KernelResult Wrapper", "[sycl][ker
         input_buf.copy_from_host(data_host.data(), n);
         
         // Create a KernelResult for async operation
-        Kernels::KernelConfig config;
+        KernelConfig config;
         config.async = true;
         
-        auto kernel_event = Kernels::launch_kernel_impl(sycl_resource, n, 
+        auto kernel_event = launch_kernel_impl(sycl_resource, n, 
             [scale](size_t i, const float* input, float* output) {
                 output[i] = input[i] * scale;
             }, config, "", input_buf.data(), output_buf.data());
         
         // Wrap in KernelResult
         std::vector<float> result_data(n);
-        Kernels::KernelResult<std::vector<float>> result(std::move(result_data), std::move(kernel_event));
+        KernelResult<std::vector<float>> result(std::move(result_data), std::move(kernel_event));
         
         // Test that we can check readiness
         bool ready_immediately = result.is_ready();
@@ -650,28 +647,28 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL ExecutionPolicy Configuration", "[
     }
 
     SECTION("ExecutionPolicy struct validation") {
-        Kernels::ExecutionPolicy default_policy;
-        REQUIRE(default_policy.type == Kernels::ExecutionPolicy::Type::PARALLEL);
+        ExecutionPolicy default_policy;
+        REQUIRE(default_policy.type == ExecutionPolicy::Type::PARALLEL);
         REQUIRE(default_policy.preferred_block_size == 256);
         REQUIRE(default_policy.use_shared_memory == false);
         REQUIRE(default_policy.shared_memory_size == 0);
         
         // Test custom policy
-        Kernels::ExecutionPolicy custom_policy;
-        custom_policy.type = Kernels::ExecutionPolicy::Type::ASYNC;
+        ExecutionPolicy custom_policy;
+        custom_policy.type = ExecutionPolicy::Type::ASYNC;
         custom_policy.preferred_block_size = 128;
         custom_policy.use_shared_memory = true;
         custom_policy.shared_memory_size = 1024;
         
-        REQUIRE(custom_policy.type == Kernels::ExecutionPolicy::Type::ASYNC);
+        REQUIRE(custom_policy.type == ExecutionPolicy::Type::ASYNC);
         REQUIRE(custom_policy.preferred_block_size == 128);
         REQUIRE(custom_policy.use_shared_memory == true);
         REQUIRE(custom_policy.shared_memory_size == 1024);
         
         // Test sequential policy
-        Kernels::ExecutionPolicy seq_policy;
-        seq_policy.type = Kernels::ExecutionPolicy::Type::SEQUENTIAL;
-        REQUIRE(seq_policy.type == Kernels::ExecutionPolicy::Type::SEQUENTIAL);
+        ExecutionPolicy seq_policy;
+        seq_policy.type = ExecutionPolicy::Type::SEQUENTIAL;
+        REQUIRE(seq_policy.type == ExecutionPolicy::Type::SEQUENTIAL);
     }
 }
 
@@ -686,7 +683,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Error Handling and Edge Cases", "[
         
         // Test that copy_async detects size mismatch
         REQUIRE_THROWS_AS(
-            Kernels::copy_async(small_buf, large_buf, sycl_resource),
+            copy_async(small_buf, large_buf, sycl_resource),
             std::runtime_error
         );
     }
@@ -696,11 +693,11 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Error Handling and Edge Cases", "[
         DeviceBuffer<int> normal_buf(10, sycl_resource);
         
         // Zero-sized operations should handle gracefully
-        REQUIRE_NOTHROW(Kernels::fill_async(empty_buf, 42, sycl_resource));
+        REQUIRE_NOTHROW(fill_async(empty_buf, 42, sycl_resource));
         
         // But mismatched sizes should still throw
         REQUIRE_THROWS_AS(
-            Kernels::copy_async(empty_buf, normal_buf, sycl_resource),
+            copy_async(empty_buf, normal_buf, sycl_resource),
             std::runtime_error
         );
     }
@@ -710,7 +707,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Error Handling and Edge Cases", "[
         DeviceBuffer<float> buffer(n, sycl_resource);
         
         // Test with very large block size
-        Kernels::KernelConfig large_config;
+        KernelConfig large_config;
         large_config.block_size = 65536;  // Very large block size
         large_config.shared_memory = 1024 * 1024;  // Very large shared memory
         
@@ -720,7 +717,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Error Handling and Edge Cases", "[
         
         // This should not crash, but may adjust configuration internally
         REQUIRE_NOTHROW(
-            Kernels::launch_kernel_impl(sycl_resource, n, 
+            launch_kernel_impl(sycl_resource, n, 
                 [](size_t i, const float* input, float* output) {
                     output[i] = input[i] + 1.0f;
                 }, large_config, "", input_ptr, output_ptr)
@@ -744,7 +741,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Resource Type Testing", "[sycl][ke
         DeviceBuffer<float> device_buf(n, device_resource);
         
         // Fill buffer using device resource
-        auto device_event = Kernels::fill_async(device_buf, 1.5f, device_resource);
+        auto device_event = fill_async(device_buf, 1.5f, device_resource);
         device_event.wait();
         
         // Verify result
@@ -781,7 +778,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Performance and Timing", "[sycl][k
         input_buf.copy_from_host(data_host.data(), n);
         
         // Synchronous execution
-        Kernels::KernelConfig sync_config;
+        KernelConfig sync_config;
         sync_config.async = false;
         sync_config.block_size = 256;
         
@@ -791,7 +788,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Performance and Timing", "[sycl][k
         auto sync_end = std::chrono::high_resolution_clock::now();
         
         // Asynchronous execution
-        Kernels::KernelConfig async_config;
+        KernelConfig async_config;
         async_config.async = true;
         async_config.block_size = 256;
         
@@ -833,7 +830,7 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Performance and Timing", "[sycl][k
         for (size_t block_size : block_sizes) {
             DeviceBuffer<int> output_buf(n, sycl_resource);
             
-            Kernels::KernelConfig config;
+            KernelConfig config;
             config.block_size = block_size;
             config.async = false;
             

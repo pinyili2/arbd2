@@ -6,6 +6,7 @@
 #include <memory>
 #include <tuple>
 #include <vector>
+#include <thread>
 #ifdef USE_CUDA
 #include "CUDA/CUDAManager.h"
 #include <cuda_runtime.h>

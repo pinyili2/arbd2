@@ -2,6 +2,7 @@
 #include <functional>
 #include <future>
 #include <memory>
+#include <thread>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -159,34 +160,6 @@ Event launch_kernel(const Resource& resource,
 	}
 }
 
-/**
- * @brief Simplified kernel launch function that works with Buffer.h types
- */
-template<typename KernelFunc, typename... Buffers>
-Event simple_kernel(const Resource& resource,
-					size_t num_elements,
-					KernelFunc&& kernel,
-					const KernelConfig& config,
-					const std::string& kernel_name,
-					Buffers&... buffers) {
-
-	// For Metal, use the named kernel overload
-	if (resource.type == ResourceType::METAL) {
-		return launch_kernel(resource, num_elements, config, kernel_name, buffers.data()...);
-	}
-
-	// For other backends, use the functor overload with buffer tuples
-	auto inputs = std::tie();			 // empty input tuple
-	auto outputs = std::tie(buffers...); // all buffers as outputs
-
-	return launch_kernel(resource,
-						 num_elements,
-						 config,
-						 inputs,
-						 outputs,
-						 std::forward<KernelFunc>(kernel));
-}
-
 #ifdef USE_CUDA
 template<typename Functor, typename... Args>
 __global__ void cuda_kernel_wrapper(size_t n, Functor kernel, Args... args) {
@@ -209,17 +182,16 @@ Event launch_cuda_kernel(const Resource& resource,
 	local_config.auto_configure(thread_count);
 
 	// Use the CUDA dim3 type for launch configuration
-	kerneldim3 grid(local_config.grid_size.x, local_config.grid_size.y, local_config.grid_size.z);
-	kerneldim3 block(local_config.block_size.x,
-					 local_config.block_size.y,
-					 local_config.block_size.z);
+	dim3 grid(local_config.grid_size.x, local_config.grid_size.y, local_config.grid_size.z);
+	dim3 block(local_config.block_size.x, local_config.block_size.y, local_config.block_size.z);
 
 	// 1. Get a specific CUDA stream from your manager
-	auto& stream = CUDA::CUDAManager::get_device(resource.id).get_next_stream();
+	auto& device = CUDA::CUDAManager::devices()[resource.id];
+	auto stream = device.get_next_stream();
 
 	// 2. Asynchronously wait for dependencies on the GPU stream, instead of blocking the host
 	for (const auto& dep_event : config.dependencies.get_cuda_events()) {
-		CUDA_CHECK(cudaStreamWaitEvent(stream.get(), dep_event, 0));
+		CUDA_CHECK(cudaStreamWaitEvent(stream, dep_event, 0));
 	}
 
 	cudaEvent_t event;
@@ -237,7 +209,7 @@ Event launch_cuda_kernel(const Resource& resource,
 	// 5. Use std::apply to unpack the tuple into individual arguments for the kernel
 	std::apply(
 		[&](auto&&... unpacked_args) {
-			cuda_kernel_wrapper<<<grid, block, local_config.shared_memory, stream.get()>>>(
+			cuda_kernel_wrapper<<<grid, block, local_config.shared_memory, stream>>>(
 				thread_count,
 				kernel_func,
 				unpacked_args...);
@@ -245,7 +217,7 @@ Event launch_cuda_kernel(const Resource& resource,
 		kernel_args);
 
 	// 6. Record the event on the same stream to ensure it captures the kernel's completion
-	CUDA_CHECK(cudaEventRecord(event, stream.get()));
+	CUDA_CHECK(cudaEventRecord(event, stream));
 
 	if (!config.async) {
 		cudaEventSynchronize(event);
@@ -318,11 +290,11 @@ Event launch_sycl_kernel(const Resource& resource,
 template<typename InputTuple, typename OutputTuple, typename... Args>
 Event launch_metal_kernel(const Resource& resource,
 						  size_t thread_count,
-						  InputTuple& inputs,
-						  OutputTuple& outputs,
+						  const InputTuple& inputs,
+						  const OutputTuple& outputs,
+						  const KernelConfig& config,
 						  const std::string& kernel_name,
-						  const KernelConfig& config = {},
-						  Args... args) {
+						  Args&&... args) {
 
 	// Wait for dependencies
 	config.dependencies.wait_all();

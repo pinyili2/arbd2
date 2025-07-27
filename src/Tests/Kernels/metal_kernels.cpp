@@ -27,7 +27,7 @@ TEST_CASE("Metal Vector Addition", "[metal][kernels]") {
 		// Test CPU kernel dispatch (this should work)
 		ARBD::KernelConfig config;
 
-		ARBD::Event event = ARBD::launch_kernel<ARBD::METALBackend>(
+		ARBD::Event event = ARBD::launch_kernel(
 			cpu_res,
 			n,
 			config,
