@@ -130,7 +130,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
 
     add_executable(arbd_test_sycl_math
-        #Math/sycl_bitmask.cpp
+        Math/sycl_bitmask.cpp
         #Math/sycl_random.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)

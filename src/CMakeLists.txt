@@ -49,7 +49,7 @@ add_library("lib${PROJECT_NAME}" ${LIB_SOURCES})
 
 # --- Include Directories ---
 # CMAKE_CURRENT_SOURCE_DIR in this file refers to the "src" directory.
-# This allows includes like #include "Backend/GPUManager.h" from within any source
+# This allows includes like #include "Backend/xx.h" from within any source
 # file of this library, and also allows targets linking to this library to
 # include public headers from "src/" (e.g., #include "ARBDException.h").
 target_include_directories("lib${PROJECT_NAME}"
@@ -63,8 +63,6 @@ target_include_directories("lib${PROJECT_NAME}"
 )
 
 # --- SYCL specific linking or include directories for the library ---
-# This is where you might link to SYCL runtime if not handled by the compiler,
-# or add SYCL specific include dirs for this target if necessary.
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # For Intel DPC++ (icpx), linking is usually handled by -fsycl.
     message(STATUS "src: SYCL is enabled for lib${PROJECT_NAME}.")

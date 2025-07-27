@@ -16,8 +16,8 @@ TEST_CASE("Metal Vector Addition", "[metal][kernels]") {
 		ARBD::Resource cpu_res(ARBD::ResourceType::CPU, 0);
 		const size_t n = 100; // Smaller test size
 
-		auto buffer_a = ARBD::DeviceBuffer<float>(n, cpu_res);
-		auto buffer_result = ARBD::DeviceBuffer<float>(n, cpu_res);
+		auto buffer_a = ARBD::DeviceBuffer<float>(n);
+		auto buffer_result = ARBD::DeviceBuffer<float>(n);
 
 		// Initialize data
 		std::vector<float> host_a(n, 1.0f);
@@ -25,17 +25,16 @@ TEST_CASE("Metal Vector Addition", "[metal][kernels]") {
 		buffer_a.copy_from_host(host_a.data(), n);
 
 		// Test CPU kernel dispatch (this should work)
-		ARBD::Kernels::KernelConfig config;
+		ARBD::KernelConfig config;
 
-		ARBD::Event event = ARBD::Kernels::dispatch_kernel(
+		ARBD::Event event = ARBD::launch_kernel<ARBD::METALBackend>(
 			cpu_res,
 			n,
-			buffer_a,	   // input
-			buffer_result, // output
-			[](size_t i, const float* input, float* output) {
-				output[i] = input[i] + 2.0f; // Add 2.0 to each element
-			},
-			config);
+			config,
+			"vector_add",
+			buffer_a,
+			buffer_result
+		);
 
 		// Wait for completion
 		event.wait();

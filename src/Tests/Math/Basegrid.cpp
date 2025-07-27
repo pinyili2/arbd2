@@ -1,6 +1,77 @@
-// ============================================================================
-// BaseGrid Buffer Tests
-// ============================================================================
+#include "Tests/catch_boiler.h"
+#include "Backend/Buffer.h"
+#include "Backend/Resource.h"
+#include "Backend/Events.h"
+#include "Math/Vector3.h"
+#include "Math/BaseGrid.h"
+#include "Math/Types.h"
+
+#include <vector>
+#include <memory>
+#include <chrono>
+#include <cmath>
+
+using namespace ARBD;
+
+// Include the Catch2 test runner
+DEF_RUN_TRIAL
+
+// Test constants
+constexpr size_t VECTOR_BUFFER_SIZE = 1024;
+constexpr size_t GRID_SIZE_X = 16;
+constexpr size_t GRID_SIZE_Y = 16; 
+constexpr size_t GRID_SIZE_Z = 16;
+
+struct BackendInitFixture {
+    BackendInitFixture() {
+        try {
+#ifdef USE_CUDA
+            CUDA::CUDAManager::init();
+            CUDA::CUDAManager::load_info();
+            if (!CUDA::CUDAManager::devices().empty()) {
+                CUDA::CUDAManager::use(0);
+                std::cout << "Initialized CUDA with " << CUDA::CUDAManager::devices().size() << " device(s)" << std::endl;
+            }
+#endif
+
+#ifdef USE_SYCL
+            SYCL::SYCLManager::init();
+            SYCL::SYCLManager::load_info();
+            if (!SYCL::SYCLManager::devices().empty()) {
+                SYCL::SYCLManager::use(0);
+                std::cout << "Initialized SYCL with " << SYCL::SYCLManager::devices().size() << " device(s)" << std::endl;
+            }
+#endif
+
+#ifdef USE_METAL
+            METAL::METALManager::init();
+            METAL::METALManager::load_info();
+            if (!METAL::METALManager::devices().empty()) {
+                METAL::METALManager::use(0);
+                std::cout << "Initialized Metal with " << METAL::METALManager::devices().size() << " device(s)" << std::endl;
+            }
+#endif
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Backend initialization failed: " << e.what() << std::endl;
+        }
+    }
+    
+    ~BackendInitFixture() {
+        try {
+#ifdef USE_CUDA
+            CUDA::CUDAManager::finalize();
+#endif
+#ifdef USE_SYCL  
+            SYCL::SYCLManager::finalize();
+#endif
+#ifdef USE_METAL
+            METAL::METALManager::finalize();
+#endif
+        } catch (const std::exception& e) {
+            std::cerr << "Warning: Backend finalization failed: " << e.what() << std::endl;
+        }
+    }
+};
 
 TEST_CASE_METHOD(BackendInitFixture, "BaseGrid Creation with Different Backends", "[buffer][basegrid][creation]") {
     
