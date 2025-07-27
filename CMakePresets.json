@@ -168,7 +168,8 @@
                 "CMAKE_CXX_COMPILER": "/data/server10/pinyili2/local/bin/acpp",
                 "USE_SYCL_ACPP": "ON",
                 "CMAKE_CXX_EXTENSIONS": "OFF",
-                "CMAKE_CXX_FLAGS": "-stdlib=libc++ -nostdinc++ -I/data/server10/pinyili2/local/include/c++/v1 -I/data/server10/pinyili2/local/include/x86_64-unknown-linux-gnu/c++/v1 -L/data/server10/pinyili2/local/lib/x86_64-unknown-linux-gnu"
+                "CMAKE_BUILD_WITH_INSTALL_RPATH": "YES",
+                "CMAKE_CXX_FLAGS": "-stdlib=libc++ -nostdinc++ -I/data/server10/pinyili2/local/include/c++/v1 -I/data/server10/pinyili2/local/include/x86_64-unknown-linux-gnu/c++/v1"
             }
         },
         {

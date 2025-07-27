@@ -85,7 +85,7 @@ Event launch_cuda_kernel(const Resource& resource,
 	EventList deps;
 	auto input_ptr = inputs.get_read_access(deps);
 	auto output_ptr = outputs.get_write_access(deps);
-	
+
 	cuda_kernel_wrapper<<<grid, block, local_config.shared_memory>>>(thread_count,
 																	 kernel_func,
 																	 input_ptr,
@@ -122,7 +122,7 @@ Event launch_sycl_kernel(const Resource& resource,
 	EventList deps;
 	auto input_ptr = inputs.get_read_access(deps);
 	auto output_ptr = outputs.get_write_access(deps);
-	
+
 	auto event = queue.get().parallel_for(sycl::range<1>(thread_count), [=](sycl::id<1> idx) {
 		kernel_func(idx[0], input_ptr, output_ptr, args...);
 	});
@@ -166,11 +166,12 @@ Event launch_metal_kernel(const Resource& resource,
 	EventList deps;
 	auto input_ptr = inputs.get_read_access(deps);
 	auto output_ptr = outputs.get_write_access(deps);
-	
+
 	int buffer_index = 0;
-	void* input_buffer_ptr = METAL::METALManager::get_metal_buffer_from_ptr(const_cast<void*>(static_cast<const void*>(input_ptr)));
+	void* input_buffer_ptr = METAL::METALManager::get_metal_buffer_from_ptr(
+		const_cast<void*>(static_cast<const void*>(input_ptr)));
 	void* output_buffer_ptr = METAL::METALManager::get_metal_buffer_from_ptr(output_ptr);
-	
+
 	encoder->setBuffer(static_cast<const MTL::Buffer*>(input_buffer_ptr), 0, buffer_index++);
 	encoder->setBuffer(static_cast<const MTL::Buffer*>(output_buffer_ptr), 0, buffer_index++);
 
@@ -180,8 +181,8 @@ Event launch_metal_kernel(const Resource& resource,
 
 	// Dispatch
 	MTL::Size grid_size = MTL::Size::Make(thread_count, 1, 1);
-	NS::UInteger threadgroup_size = std::min(static_cast<NS::UInteger>(local_config.block_size), 
-										   pipeline->maxTotalThreadsPerThreadgroup());
+	NS::UInteger threadgroup_size = std::min(static_cast<NS::UInteger>(local_config.block_size),
+											 pipeline->maxTotalThreadsPerThreadgroup());
 	MTL::Size threadgroup = MTL::Size::Make(threadgroup_size, 1, 1);
 
 	encoder->dispatchThreads(grid_size, threadgroup);
@@ -215,7 +216,7 @@ Event launch_cpu_kernel(const Resource& resource,
 	EventList deps;
 	auto input_ptr = inputs.get_read_access(deps);
 	auto output_ptr = outputs.get_write_access(deps);
-	
+
 	// Check if kernel_func is valid (not nullptr)
 	if constexpr (!std::is_same_v<std::decay_t<Functor>, std::nullptr_t>) {
 		for (size_t i = 0; i < thread_count; ++i) {
@@ -223,28 +224,30 @@ Event launch_cpu_kernel(const Resource& resource,
 		}
 	} else {
 		// Skip CPU execution when kernel_func is nullptr (Metal usage)
-		ARBD_Exception(ExceptionType::UnspecifiedError, "CPU fallback requires a valid kernel function");
+		ARBD_Exception(ExceptionType::UnspecifiedError,
+					   "CPU fallback requires a valid kernel function");
 	}
 
 	return Event(nullptr, resource);
 }
 /**
  * @brief Generic kernel dispatcher - UNIFIED INTERFACE FOR ALL BACKENDS
- * 
- * This function provides a unified interface for launching kernels across CUDA, SYCL, Metal, and CPU.
- * 
+ *
+ * This function provides a unified interface for launching kernels across CUDA, SYCL, Metal, and
+ * CPU.
+ *
  * Backend Usage:
  * - CUDA/SYCL: Use 'kernel_func' parameter (functor/lambda), 'kernel_name' is ignored
- * - Metal: Use 'kernel_name' parameter (string), 'kernel_func' can be placeholder/nullptr  
+ * - Metal: Use 'kernel_name' parameter (string), 'kernel_func' can be placeholder/nullptr
  * - CPU: Use 'kernel_func' parameter for host execution
- * 
+ *
  * Examples:
  *   // CUDA/SYCL usage
  *   dispatch_kernel(resource, count, inputs, outputs, [](size_t i, auto*... ptrs) { ... });
- *   
- *   // Metal usage  
+ *
+ *   // Metal usage
  *   dispatch_kernel(resource, count, inputs, outputs, nullptr, {}, "my_kernel_name");
- *   
+ *
  *   // Both can specify config
  *   dispatch_kernel(resource, count, inputs, outputs, kernel_func, {.block_size=512, .async=true});
  */
@@ -279,12 +282,12 @@ Event dispatch_kernel(const Resource& resource,
 #elif defined(USE_METAL)
 		// Metal uses kernel_name instead of functor
 		return launch_metal_kernel(resource,
-								  thread_count,
-								  inputs,
-								  outputs,
-								  kernel_name,
-								  config,
-								  std::forward<Args>(args)...);
+								   thread_count,
+								   inputs,
+								   outputs,
+								   kernel_name,
+								   config,
+								   std::forward<Args>(args)...);
 #else
 		// CPU fallback for device resource when no device backend available
 		ARBD_Exception(ExceptionType::UnspecifiedError, "No device backend available");
@@ -325,7 +328,12 @@ Event simple_kernel(const Resource& resource,
 
 	return std::apply(
 		[&](auto*... ptrs) {
-			return launch_kernel_impl(resource, num_elements, kernel, merged_config, kernel_name, ptrs...);
+			return launch_kernel_impl(resource,
+									  num_elements,
+									  kernel,
+									  merged_config,
+									  kernel_name,
+									  ptrs...);
 		},
 		buffer_ptrs);
 }
@@ -352,7 +360,9 @@ Event kernel_call(const Resource& resource,
 	auto all_ptrs = std::tuple_cat(input_ptrs, output_ptrs);
 
 	return std::apply(
-		[&](auto*... ptrs) { return launch_kernel_impl(resource, n, kernel, config, kernel_name, ptrs...); },
+		[&](auto*... ptrs) {
+			return launch_kernel_impl(resource, n, kernel, config, kernel_name, ptrs...);
+		},
 		all_ptrs);
 }
 
@@ -394,12 +404,12 @@ void kernel_call_generic(const Resource& resource,
 	output_refs.complete_event_state(completion_event);
 }
 
-// Backend-specific kernel launch implementations - UNIFIED INTERFACE 
+// Backend-specific kernel launch implementations - UNIFIED INTERFACE
 // ============================================================================
 
 /**
  * @brief Backend-specific kernel implementation with unified interface
- * 
+ *
  * Similar to dispatch_kernel but with pointer arguments instead of tuples.
  * Supports all backends (CUDA, SYCL, Metal, CPU) through the same interface.
  */
@@ -448,7 +458,7 @@ Event launch_kernel_impl(const Resource& resource,
 #elif defined(USE_METAL)
 		// Metal uses kernel_name instead of kernel functor
 		// Create input/output tuples from args
-		auto inputs = std::make_tuple(); // Empty for now - this might need refinement 
+		auto inputs = std::make_tuple(); // Empty for now - this might need refinement
 		auto outputs = std::make_tuple(args...);
 		return launch_metal_kernel(resource, n, inputs, outputs, kernel_name, local_config);
 #else
@@ -480,8 +490,8 @@ class KernelChain {
 	explicit KernelChain(const Resource& resource) : resource_(resource) {}
 
 	template<typename KernelFunc, typename... Buffers>
-	KernelChain& then(size_t num_elements, 
-					  KernelFunc&& kernel, 
+	KernelChain& then(size_t num_elements,
+					  KernelFunc&& kernel,
 					  const std::string& kernel_name,
 					  Buffers&... buffers) {
 		KernelConfig config;
@@ -537,13 +547,13 @@ Event copy_async(const DeviceBuffer<T>& source,
 // Fill buffer with value
 template<typename T>
 Event fill_async(DeviceBuffer<T>& buffer,
-				  const T& value,
-				  const Resource& resource,
-				  const KernelConfig& config = {.async = true},
-				  const std::string& kernel_name = "") {
+				 const T& value,
+				 const Resource& resource,
+				 const KernelConfig& config = {.async = true},
+				 const std::string& kernel_name = "") {
 	return kernel_call(
 		resource,
-		MultiRef<>{},
+		ARBD::EventList<>{},
 		make_multi_ref(buffer),
 		buffer.size(),
 		[value](size_t i, T* output) { output[i] = value; },

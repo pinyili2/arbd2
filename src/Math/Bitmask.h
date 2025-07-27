@@ -367,7 +367,7 @@ inline HOST bool test_basic_bitmask() {
 
 		// Test string representation
 		std::string str = b.to_string();
-		LOGINFO("Bitmask as string: {}", str);
+		LOGINFO("Bitmask as string: {}", str.c_str());
 
 		// Verify length
 		if (str.length() != len) {

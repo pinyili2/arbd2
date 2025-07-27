@@ -139,9 +139,46 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     if(USE_SYCL_ACPP)
         target_link_libraries(arbd_test_sycl PRIVATE stdc++)
         target_link_libraries(arbd_test_sycl_backend PRIVATE stdc++)
+        target_link_libraries(arbd_test_sycl_math PRIVATE stdc++)
         # Also link Boost libraries for AdaptiveCpp
         target_link_directories(arbd_test_sycl PRIVATE "${BOOST_LIB_DIR}")
         target_link_directories(arbd_test_sycl_backend PRIVATE "${BOOST_LIB_DIR}")
+    endif()
+
+    # Intel DPC++ specific linking for test executables
+    if(USE_SYCL_ICPX AND CMAKE_CXX_COMPILER MATCHES "icpx")
+        # Find Intel OneAPI SYCL installation directory
+        get_filename_component(ICPX_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        get_filename_component(ICPX_INSTALL_DIR "${ICPX_BIN_DIR}" DIRECTORY)
+        set(ICPX_LIB_DIR "${ICPX_INSTALL_DIR}/lib")
+
+        # Find and link the essential Intel DPC++ SYCL runtime libraries for tests
+        find_library(SYCL_LIB NAMES "sycl" PATHS "${ICPX_LIB_DIR}" NO_DEFAULT_PATH)
+
+        if(SYCL_LIB)
+            # Add the Intel DPC++ library directory to linker search paths for tests
+            target_link_directories(arbd_test_sycl PUBLIC "${ICPX_LIB_DIR}")
+            target_link_directories(arbd_test_sycl_backend PUBLIC "${ICPX_LIB_DIR}")
+            target_link_directories(arbd_test_sycl_math PUBLIC "${ICPX_LIB_DIR}")
+
+            # Link SYCL runtime library to all SYCL test executables
+            target_link_libraries(arbd_test_sycl PRIVATE ${SYCL_LIB})
+            target_link_libraries(arbd_test_sycl_backend PRIVATE ${SYCL_LIB})
+            target_link_libraries(arbd_test_sycl_math PRIVATE ${SYCL_LIB})
+
+            message(STATUS "Linked Intel DPC++ SYCL runtime to test executables")
+        else()
+            message(WARNING "Could not find Intel DPC++ SYCL runtime library for tests in ${ICPX_LIB_DIR}")
+        endif()
+
+        # Link OpenCL for Intel GPU support in tests
+        find_library(OPENCL_LIB NAMES "OpenCL" PATHS "${ICPX_LIB_DIR}" "/usr/lib64" "/usr/lib" NO_DEFAULT_PATH)
+        if(OPENCL_LIB)
+            target_link_libraries(arbd_test_sycl PRIVATE ${OPENCL_LIB})
+            target_link_libraries(arbd_test_sycl_backend PRIVATE ${OPENCL_LIB})
+            target_link_libraries(arbd_test_sycl_math PRIVATE ${OPENCL_LIB})
+            message(STATUS "Linked OpenCL to SYCL test executables")
+        endif()
     endif()
 
     # Instead of catch_discover_tests which causes bus errors on ACPP,

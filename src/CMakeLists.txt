@@ -9,7 +9,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "src: Adding SYCL specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/SYCL/SYCLManager.cpp
-        Random/Random_SYCL.cpp
+        #Random/Random_SYCL.cpp
         # Add any other SYCL-specific .cpp files here
     )
     # If your SYCL implementation uses a different file extension for device code
@@ -130,6 +130,40 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         endif()
 
         message(STATUS "Configured lib${PROJECT_NAME} to avoid C++ standard flag conflicts with AdaptiveCpp")
+    endif()
+
+    # Explicit linking for Intel DPC++ runtime libraries
+    if(USE_SYCL_ICPX AND CMAKE_CXX_COMPILER MATCHES "icpx")
+        # Find Intel OneAPI SYCL installation directory
+        get_filename_component(ICPX_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        get_filename_component(ICPX_INSTALL_DIR "${ICPX_BIN_DIR}" DIRECTORY)
+        set(ICPX_LIB_DIR "${ICPX_INSTALL_DIR}/lib")
+
+        # Find and link the essential Intel DPC++ SYCL runtime libraries
+        find_library(SYCL_LIB NAMES "sycl" PATHS "${ICPX_LIB_DIR}" NO_DEFAULT_PATH)
+
+        if(SYCL_LIB)
+            # Add the Intel DPC++ library directory to linker search paths
+            target_link_directories("lib${PROJECT_NAME}" PUBLIC "${ICPX_LIB_DIR}")
+
+            target_link_libraries("lib${PROJECT_NAME}" PUBLIC ${SYCL_LIB})
+            message(STATUS "src: Successfully linked Intel DPC++ SYCL runtime library:")
+            message(STATUS "  - SYCL Runtime: ${SYCL_LIB}")
+        else()
+            message(WARNING "Could not find required Intel DPC++ SYCL runtime library in ${ICPX_LIB_DIR}")
+            message(WARNING "  - SYCL_LIB: ${SYCL_LIB}")
+        endif()
+
+        # Link OpenCL for Intel GPU support
+        find_library(OPENCL_LIB NAMES "OpenCL" PATHS "${ICPX_LIB_DIR}" "/usr/lib64" "/usr/lib" NO_DEFAULT_PATH)
+        if(OPENCL_LIB)
+            target_link_libraries("lib${PROJECT_NAME}" PUBLIC ${OPENCL_LIB})
+            message(STATUS "  - OpenCL: ${OPENCL_LIB}")
+        else()
+            message(WARNING "Could not find OpenCL library for Intel DPC++")
+        endif()
+
+        message(STATUS "Configured lib${PROJECT_NAME} with Intel DPC++ SYCL runtime linking")
     endif()
 
     # Link OpenMP for AdaptiveCpp
