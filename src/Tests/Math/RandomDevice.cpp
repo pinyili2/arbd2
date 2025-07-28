@@ -277,15 +277,33 @@ TEST_CASE_METHOD(RandomTestFixture,
 			uniform_buffer.copy_to_host(uniform_full);
 			gaussian_buffer.copy_to_host(gaussian_full);
 
-			LOGINFO("{} debug - uniform[0-9]: [{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}]",
+			LOGINFO("{} debug - uniform[0-9]: [{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, "
+					"{:.3f}, {:.3f}, {:.3f}, {:.3f}]",
 					backend_name,
-					uniform_full[0], uniform_full[1], uniform_full[2], uniform_full[3], uniform_full[4],
-					uniform_full[5], uniform_full[6], uniform_full[7], uniform_full[8], uniform_full[9]);
+					uniform_full[0],
+					uniform_full[1],
+					uniform_full[2],
+					uniform_full[3],
+					uniform_full[4],
+					uniform_full[5],
+					uniform_full[6],
+					uniform_full[7],
+					uniform_full[8],
+					uniform_full[9]);
 
-			LOGINFO("{} debug - gaussian[0-9]: [{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}]",
+			LOGINFO("{} debug - gaussian[0-9]: [{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, "
+					"{:.3f}, {:.3f}, {:.3f}, {:.3f}]",
 					backend_name,
-					gaussian_full[0], gaussian_full[1], gaussian_full[2], gaussian_full[3], gaussian_full[4],
-					gaussian_full[5], gaussian_full[6], gaussian_full[7], gaussian_full[8], gaussian_full[9]);
+					gaussian_full[0],
+					gaussian_full[1],
+					gaussian_full[2],
+					gaussian_full[3],
+					gaussian_full[4],
+					gaussian_full[5],
+					gaussian_full[6],
+					gaussian_full[7],
+					gaussian_full[8],
+					gaussian_full[9]);
 
 			// Combine using kernel
 			KernelConfig config{.async = false};
@@ -310,14 +328,18 @@ TEST_CASE_METHOD(RandomTestFixture,
 
 			// Basic sanity check - mean should be around 0.7 * 0.5 + 0.3 * 0.0 = 0.35
 			double mean = TestUtils::calculate_mean(combined);
-			
+
 			// Get means of individual distributions for debugging
 			double uniform_mean = TestUtils::calculate_mean(uniform_full);
 			double gaussian_mean = TestUtils::calculate_mean(gaussian_full);
-			
-			LOGINFO("{} distribution means - uniform: {:.3f}, gaussian: {:.3f}, combined: {:.3f}, expected: 0.35",
-					backend_name, uniform_mean, gaussian_mean, mean);
-			
+
+			LOGINFO("{} distribution means - uniform: {:.3f}, gaussian: {:.3f}, combined: {:.3f}, "
+					"expected: 0.35",
+					backend_name,
+					uniform_mean,
+					gaussian_mean,
+					mean);
+
 			// Be more lenient for now to see if basic functionality works
 			REQUIRE(mean == Approx(0.35).epsilon(0.5)); // Very lenient to debug
 
@@ -413,17 +435,26 @@ TEST_CASE_METHOD(RandomTestFixture,
 			device_buffer.copy_to_host(host_results);
 
 			// Debug output - check first few values
-			LOGINFO("{} first 10 uniform values: [{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}]",
+			LOGINFO("{} first 10 uniform values: [{:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, {:.3f}, "
+					"{:.3f}, {:.3f}, {:.3f}, {:.3f}]",
 					backend_name,
-					host_results[0], host_results[1], host_results[2], host_results[3], host_results[4],
-					host_results[5], host_results[6], host_results[7], host_results[8], host_results[9]);
+					host_results[0],
+					host_results[1],
+					host_results[2],
+					host_results[3],
+					host_results[4],
+					host_results[5],
+					host_results[6],
+					host_results[7],
+					host_results[8],
+					host_results[9]);
 
 			// Statistical tests
 			double mean = TestUtils::calculate_mean(host_results);
 			double stddev = TestUtils::calculate_stddev(host_results);
 
 			// More lenient tolerances for debugging
-			REQUIRE(mean == Approx(0.5).epsilon(0.3)); // Was TOLERANCE = 0.1
+			REQUIRE(mean == Approx(0.5).epsilon(0.3));	   // Was TOLERANCE = 0.1
 			REQUIRE(stddev == Approx(0.289).epsilon(0.3)); // ~1/sqrt(12) for uniform [0,1]
 
 			// Test range
@@ -666,10 +697,11 @@ TEST_CASE_METHOD(RandomTestFixture,
 TEST_CASE_METHOD(RandomTestFixture, "Random Error Handling", "[random][error][edge_cases]"){
 
 	SECTION("Invalid resource handling"){
-		Resource invalid_resource(ResourceType::CPU, 0); // CPU resource should be invalid for device computation
+		Resource invalid_resource(ResourceType::CPU,
+								  0); // CPU resource should be invalid for device computation
 
-		REQUIRE_THROWS_AS(Random<Resource>(invalid_resource, 128), std::exception);
-	}
+REQUIRE_THROWS_AS(Random<Resource>(invalid_resource, 128), std::exception);
+}
 
 SECTION("Empty buffer generation") {
 	if (cuda_available) {
