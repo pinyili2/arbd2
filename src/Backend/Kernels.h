@@ -362,6 +362,17 @@ Event launch_metal_kernel(const Resource& resource,
 }
 #endif
 
+// Helper to extract raw pointers from buffer tuples
+template<typename Tuple, std::size_t... I>
+auto extract_buffer_pointers_impl(Tuple& tuple, std::index_sequence<I...>) {
+    return std::make_tuple(std::get<I>(tuple).data()...);
+}
+
+template<typename Tuple>
+auto extract_buffer_pointers(Tuple& tuple) {
+    return extract_buffer_pointers_impl(tuple, std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+}
+
 // CPU fallback implementation (always available)
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event launch_cpu_kernel(const Resource& resource,
@@ -375,10 +386,9 @@ Event launch_cpu_kernel(const Resource& resource,
 	// Wait for dependencies before starting
 	config.dependencies.wait_all();
 
-	// Get raw pointers from your buffer abstractions
-	EventList deps;
-	auto input_ptr = inputs.get_read_access(deps);
-	auto output_ptr = outputs.get_write_access(deps);
+	// Extract raw pointers from buffer tuples
+	auto input_ptrs = extract_buffer_pointers(inputs);
+	auto output_ptrs = extract_buffer_pointers(outputs);
 
 	// Determine the number of concurrent threads to use
 	unsigned int num_threads = std::thread::hardware_concurrency();
@@ -395,8 +405,12 @@ Event launch_cpu_kernel(const Resource& resource,
 			size_t start = t * chunk_size;
 			size_t end = std::min(start + chunk_size, thread_count);
 			for (size_t i = start; i < end; ++i) {
-				// Each thread executes the user's functor on its assigned chunk
-				kernel_func(i, input_ptr, output_ptr, args...);
+				// Create combined tuple of all pointer arguments for the kernel
+				auto all_args = std::tuple_cat(input_ptrs, output_ptrs);
+				// Use std::apply to unpack the tuple and call the kernel
+				std::apply([&](auto&&... unpacked_args) { 
+					kernel_func(i, unpacked_args...); 
+				}, all_args);
 			}
 		});
 	}

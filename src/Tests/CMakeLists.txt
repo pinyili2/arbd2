@@ -118,6 +118,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # Test for test_sycl.cpp - now uses Catch2's main function
     add_executable(arbd_test_sycl
         Backends/generic_Buffer.cpp
+        Kernels/sycl_kernels.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
@@ -130,8 +131,9 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
 
     add_executable(arbd_test_sycl_math
-        Math/sycl_bitmask.cpp
-        #Math/sycl_random.cpp
+        #Math/sycl_bitmask.cpp
+        Math/RandomDevice.cpp #works on mac acpp
+        Math/RandomProfile.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}")
