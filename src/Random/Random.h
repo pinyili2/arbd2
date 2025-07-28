@@ -55,10 +55,10 @@ public:
     Event generate_gaussian(DeviceBuffer<T>& output, T mean, T stddev) {
         ARBD::KernelConfig config;
         GaussianFunctor<T> func{mean, stddev, output.size(), seed_, base_ctr_, global_seed_};
-        
+
         auto inputs = std::make_tuple(); // Empty tuple for no inputs
         auto outputs = std::make_tuple(std::ref(output));
-            
+
         return launch_kernel(
             resource_,
             output.size(),
@@ -74,10 +74,10 @@ public:
     Event generate_gaussian(DeviceBuffer<Vector3_t<T>>& output, Vector3_t<T> mean, Vector3_t<T> stddev) {
         ARBD::KernelConfig config;
         GaussianFunctor<Vector3_t<T>> func{mean, stddev, output.size(), seed_, base_ctr_, global_seed_};
-        
+
         auto inputs = std::make_tuple(); // Empty tuple for no inputs
         auto outputs = std::make_tuple(std::ref(output));
-            
+
         return launch_kernel(
             resource_,
             output.size(),
@@ -90,3 +90,12 @@ public:
 };
 
 }
+#ifdef USE_SYCL
+#include <sycl/sycl.hpp>
+namespace sycl {
+template<typename T>
+struct is_device_copyable<ARBD::GaussianFunctor<T>> : std::true_type {};
+template<typename T>
+struct is_device_copyable<ARBD::UniformFunctor<T>> : std::true_type {};
+}
+#endif

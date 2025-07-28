@@ -70,7 +70,7 @@
  * @note Host code uses iostreams with timestamps for compatibility
  */
 
-#include "ARBDException.h" 
+#include "ARBDException.h"
 #include <chrono>
 #include <cstdio>
 #include <iomanip>
@@ -244,29 +244,70 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define DebugMessage(level, message) static_cast<void>(0)
 #endif /* DEBUGMSG */
 
+#if defined(__CUDACC__) || (defined(USE_SYCL) && defined(__SYCL_DEVICE_ONLY__))
 // Device-specific logging for CUDA and SYCL
-#ifdef __CUDACC__ //(USE_CUDA)
-  // CUDA device code - use printf
+#ifdef __CUDACC__
+#define DEVICE __device__
+#else
+#define DEVICE
+#endif
+
+namespace ARBD {
+namespace detail {
+
+// Overloaded helper functions to print a single value using the correct
+// printf format specifier. You can add more overloads for types like
+// 'long', 'unsigned int', 'const void*', etc., as needed.
+DEVICE inline void print_log_value(const char* val) { printf("%s", val); }
+DEVICE inline void print_log_value(char* val) { printf("%s", val); }
+DEVICE inline void print_log_value(int val) { printf("%d", val); }
+DEVICE inline void print_log_value(long val) { printf("%ld", val); }
+DEVICE inline void print_log_value(long long val) { printf("%lld", val); }
+DEVICE inline void print_log_value(unsigned val) { printf("%u", val); }
+DEVICE inline void print_log_value(unsigned long val) { printf("%lu", val); }
+DEVICE inline void print_log_value(unsigned long long val) { printf("%llu", val); }
+DEVICE inline void print_log_value(float val) { printf("%f", val); }
+DEVICE inline void print_log_value(double val) { printf("%lf", val); }
+DEVICE inline void print_log_value(void* val) { printf("%p", val); }
+DEVICE inline void print_log_value(std::string_view val) {
+  // Use the "%.*s" printf format specifier to print a string of a given length.
+  // This is safe for string_view which may not be null-terminated.
+  printf("%.*s", static_cast<int>(val.length()), val.data());
+}
+
+DEVICE inline void print_log_args() {}
+
+template <typename T, typename... Rest>
+DEVICE inline void print_log_args(const T& first, const Rest&... rest) {
+print_log_value(first);
+// Add a space only if there are more arguments to print
+if constexpr (sizeof...(rest) > 0) {
+  printf(" ");
+}
+print_log_args(rest...);
+}
+
+
+
+} // namespace detail
+} // namespace ARBD
+
+// Define file/line location macros for device code
 #define DEVICE_LOCATION_STRINGIFY(line) #line
 #define DEVICE_LOCATION_TO_STRING(line) DEVICE_LOCATION_STRINGIFY(line)
-#define DEVICE_CODE_LOCATION                                                   \
-  __FILE__ "(" DEVICE_LOCATION_TO_STRING(__LINE__) ")"
-#define LOGHELPER(TYPE, FMT, ...)                                              \
-  printf("[%s] [%s]: " FMT "\n", TYPE, DEVICE_CODE_LOCATION, ##__VA_ARGS__)
-#define LOGTRACE(...) LOGHELPER("TRACE", __VA_ARGS__)
-#define LOGDEBUG(...) LOGHELPER("DEBUG", __VA_ARGS__)
-#define LOGINFO(...) LOGHELPER("INFO", __VA_ARGS__)
-#define LOGWARN(...) LOGHELPER("WARN", __VA_ARGS__)
-#define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
-#define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
-#elif defined(USE_SYCL) && defined(__SYCL_DEVICE_ONLY__)
-  // SYCL device code - use printf (similar to CUDA)
-#define DEVICE_LOCATION_STRINGIFY(line) #line
-#define DEVICE_LOCATION_TO_STRING(line) DEVICE_LOCATION_STRINGIFY(line)
-#define DEVICE_CODE_LOCATION                                                   \
-  __FILE__ "(" DEVICE_LOCATION_TO_STRING(__LINE__) ")"
-#define LOGHELPER(TYPE, FMT, ...)                                              \
-  printf("[%s] [%s]: " FMT "\n", TYPE, DEVICE_CODE_LOCATION, ##__VA_ARGS__)
+#define DEVICE_CODE_LOCATION __FILE__ "(" DEVICE_LOCATION_TO_STRING(__LINE__) ")"
+
+// The core device-side LOGHELPER.
+// It prints the log metadata, then unpacks and prints all arguments using the helpers.
+// The original format string is ignored for argument parsing but can be printed for context.
+#define LOGHELPER(TYPE, FMT, ...)                                     \
+  do {                                                                \
+    printf("[%s] [%s]: ", TYPE, DEVICE_CODE_LOCATION);                \
+    ARBD::detail::print_log_args(__VA_ARGS__);                        \
+    printf("\n");                                                     \
+  } while (0)
+
+// Define the user-facing macros for device code
 #define LOGTRACE(...) LOGHELPER("TRACE", __VA_ARGS__)
 #define LOGDEBUG(...) LOGHELPER("DEBUG", __VA_ARGS__)
 #define LOGINFO(...) LOGHELPER("INFO", __VA_ARGS__)

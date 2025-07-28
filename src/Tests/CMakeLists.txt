@@ -121,14 +121,14 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         Kernels/sycl_kernels.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}")
+    target_link_libraries(arbd_test_sycl PRIVATE "lib${PROJECT_NAME}" Threads::Threads)
 
     add_executable(arbd_test_sycl_backend
         Backends/sycl_backend.cpp
         Backends/sycl_manager.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_backend PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}")
+    target_link_libraries(arbd_test_sycl_backend PRIVATE "lib${PROJECT_NAME}" Threads::Threads)
 
     add_executable(arbd_test_sycl_math
         #Math/sycl_bitmask.cpp
@@ -136,7 +136,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         Math/RandomProfile.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl_math PRIVATE ${CMAKE_SOURCE_DIR}/src)
-    target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}")
+    target_link_libraries(arbd_test_sycl_math PRIVATE "lib${PROJECT_NAME}" Threads::Threads)
 
     if(USE_SYCL_ACPP)
         target_link_libraries(arbd_test_sycl PRIVATE stdc++)
@@ -145,6 +145,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
         # Also link Boost libraries for AdaptiveCpp
         target_link_directories(arbd_test_sycl PRIVATE "${BOOST_LIB_DIR}")
         target_link_directories(arbd_test_sycl_backend PRIVATE "${BOOST_LIB_DIR}")
+        target_link_directories(arbd_test_sycl_math PRIVATE "${BOOST_LIB_DIR}")
     endif()
 
     # Intel DPC++ specific linking for test executables
