@@ -32,7 +32,6 @@ struct kerneldim3 {
 	size_t x = 1, y = 1, z = 1;
 };
 
-// The configuration "policy" for launching any kernel
 struct KernelConfig {
 	kerneldim3 grid_size = {0,
 							0,
@@ -42,8 +41,12 @@ struct KernelConfig {
 	bool async = false;					 // If false, the host will wait for completion.
 	EventList dependencies;				 // Events this kernel must wait for.
 
-	// Auto-configure grid size for a 1D problem if not specified
-	void auto_configure(size_t thread_count) {
+	// Auto-configure grid size and validate block size for the target resource
+	void auto_configure(size_t thread_count, const Resource& resource = {}) {
+		// Validate and clamp block size based on resource type
+		validate_block_size(resource);
+
+		// Auto-configure grid size for a 1D problem if not specified
 		if (grid_size.x == 0 && grid_size.y == 0 && grid_size.z == 0) {
 			if (block_size.x > 0) {
 				grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
@@ -51,7 +54,101 @@ struct KernelConfig {
 			grid_size.y = 1;
 			grid_size.z = 1;
 		}
-		// NOTE: You could add logic here for 2D/3D auto-configuration if needed
+	}
+
+  private:
+	void validate_block_size(const Resource& resource) {
+#ifdef USE_SYCL
+		if (resource.type == ResourceType::SYCL) {
+			try {
+				auto& device = SYCL::SYCLManager::get_device(resource.id);
+				size_t max_work_group_size =
+					device.get_device().get_info<sycl::info::device::max_work_group_size>();
+
+				// Get max work-item sizes for each dimension
+				auto max_work_item_sizes =
+					device.get_device().get_info<sycl::info::device::max_work_item_sizes<3>>();
+
+				// Clamp each dimension to device limits
+				block_size.x = std::min(block_size.x, static_cast<size_t>(max_work_item_sizes[0]));
+				block_size.y = std::min(block_size.y, static_cast<size_t>(max_work_item_sizes[1]));
+				block_size.z = std::min(block_size.z, static_cast<size_t>(max_work_item_sizes[2]));
+
+				// Ensure total work-group size doesn't exceed device limit
+				size_t total_work_items = block_size.x * block_size.y * block_size.z;
+				if (total_work_items > max_work_group_size) {
+					// Scale down proportionally
+					double scale_factor =
+						std::sqrt(static_cast<double>(max_work_group_size) / total_work_items);
+					block_size.x = std::max(1UL, static_cast<size_t>(block_size.x * scale_factor));
+					block_size.y = std::max(1UL, static_cast<size_t>(block_size.y * scale_factor));
+					block_size.z = std::max(1UL, static_cast<size_t>(block_size.z * scale_factor));
+				}
+
+				LOGDEBUG("SYCL block size clamped to ({}, {}, {}) for device with max work-group "
+						 "size {}",
+						 block_size.x,
+						 block_size.y,
+						 block_size.z,
+						 max_work_group_size);
+
+			} catch (const sycl::exception& e) {
+				LOGWARN("Failed to query SYCL device limits, using default block size: {}",
+						e.what());
+				// Fall back to safe defaults
+				block_size = {256, 1, 1};
+			}
+		}
+#endif
+
+#ifdef USE_CUDA
+		if (resource.type == ResourceType::CUDA) {
+			try {
+				auto& device = CUDA::CUDAManager::devices()[resource.id];
+				cudaDeviceProp prop;
+				CUDA_CHECK(cudaGetDeviceProperties(&prop, device.id()));
+
+				// Clamp each dimension to CUDA limits
+				block_size.x = std::min(block_size.x, static_cast<size_t>(prop.maxThreadsDim[0]));
+				block_size.y = std::min(block_size.y, static_cast<size_t>(prop.maxThreadsDim[1]));
+				block_size.z = std::min(block_size.z, static_cast<size_t>(prop.maxThreadsDim[2]));
+
+				// Ensure total threads per block doesn't exceed limit
+				size_t total_threads = block_size.x * block_size.y * block_size.z;
+				if (total_threads > static_cast<size_t>(prop.maxThreadsPerBlock)) {
+					double scale_factor =
+						std::sqrt(static_cast<double>(prop.maxThreadsPerBlock) / total_threads);
+					block_size.x = std::max(1UL, static_cast<size_t>(block_size.x * scale_factor));
+					block_size.y = std::max(1UL, static_cast<size_t>(block_size.y * scale_factor));
+					block_size.z = std::max(1UL, static_cast<size_t>(block_size.z * scale_factor));
+				}
+
+				LOGDEBUG("CUDA block size clamped to ({}, {}, {}) for device with max threads per "
+						 "block {}",
+						 block_size.x,
+						 block_size.y,
+						 block_size.z,
+						 prop.maxThreadsPerBlock);
+
+			} catch (...) {
+				LOGWARN("Failed to query CUDA device limits, using default block size");
+				block_size = {256, 1, 1};
+			}
+		}
+#endif
+
+		// For CPU, any block size is technically fine since we use std::thread
+		if (resource.type == ResourceType::CPU) {
+			// CPU execution doesn't have the same constraints, but we should be reasonable
+			// Limit to something sensible to avoid creating too many threads
+			const size_t max_cpu_threads = std::thread::hardware_concurrency() * 4;
+			size_t total_threads = block_size.x * block_size.y * block_size.z;
+			if (total_threads > max_cpu_threads) {
+				block_size.x = std::min(block_size.x, max_cpu_threads);
+				block_size.y = 1;
+				block_size.z = 1;
+			}
+		}
 	}
 };
 
@@ -238,9 +335,10 @@ Event launch_sycl_kernel(const Resource& resource,
 						 Args&&... args) {
 
 	KernelConfig local_config = config;
-	local_config.auto_configure(thread_count);
+	// Pass the resource to auto_configure so it can validate device limits
+	local_config.auto_configure(thread_count, resource);
 
-	// 1. Define the execution range using your KernelConfig settings.
+	// 1. Define the execution range using your validated KernelConfig settings.
 	sycl::range<1> global_range(local_config.grid_size.x * local_config.block_size.x);
 	sycl::range<1> local_range(local_config.block_size.x);
 	sycl::nd_range<1> execution_range(global_range, local_range);
@@ -251,11 +349,9 @@ Event launch_sycl_kernel(const Resource& resource,
 	// 3. Submit the command group to the queue.
 	auto sycl_event = queue.get().submit([&](sycl::handler& h) {
 		// 4. Use your EventList to manage dependencies.
-		// This correctly extracts the underlying sycl::event objects.
 		h.depends_on(config.dependencies.get_sycl_events());
 
 		// 5. Get raw USM pointers from the input/output buffer tuples.
-		// This is the SYCL equivalent of getting raw pointers in CUDA.
 		auto input_pointers = get_buffer_pointers(inputs);
 		auto output_pointers = get_buffer_pointers(outputs);
 
@@ -264,7 +360,7 @@ Event launch_sycl_kernel(const Resource& resource,
 										  output_pointers,
 										  std::make_tuple(std::forward<Args>(args)...));
 
-		// 6. Launch the parallel_for kernel.
+		// 6. Launch the parallel_for kernel with validated configuration.
 		h.parallel_for(execution_range, [=](sycl::nd_item<1> item) {
 			size_t i = item.get_global_id(0);
 			if (i < thread_count) {
@@ -283,7 +379,6 @@ Event launch_sycl_kernel(const Resource& resource,
 	// 9. Return your backend-agnostic Event wrapper.
 	return Event(sycl_event, resource);
 }
-
 #endif
 
 #ifdef USE_METAL
@@ -365,12 +460,13 @@ Event launch_metal_kernel(const Resource& resource,
 // Helper to extract raw pointers from buffer tuples
 template<typename Tuple, std::size_t... I>
 auto extract_buffer_pointers_impl(Tuple& tuple, std::index_sequence<I...>) {
-    return std::make_tuple(std::get<I>(tuple).data()...);
+	return std::make_tuple(std::get<I>(tuple).data()...);
 }
 
 template<typename Tuple>
 auto extract_buffer_pointers(Tuple& tuple) {
-    return extract_buffer_pointers_impl(tuple, std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+	return extract_buffer_pointers_impl(tuple,
+										std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 }
 
 // CPU fallback implementation (always available)
@@ -408,9 +504,8 @@ Event launch_cpu_kernel(const Resource& resource,
 				// Create combined tuple of all pointer arguments for the kernel
 				auto all_args = std::tuple_cat(input_ptrs, output_ptrs);
 				// Use std::apply to unpack the tuple and call the kernel
-				std::apply([&](auto&&... unpacked_args) { 
-					kernel_func(i, unpacked_args...); 
-				}, all_args);
+				std::apply([&](auto&&... unpacked_args) { kernel_func(i, unpacked_args...); },
+						   all_args);
 			}
 		});
 	}

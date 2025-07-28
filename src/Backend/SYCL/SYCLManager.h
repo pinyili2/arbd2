@@ -503,7 +503,7 @@ class SYCLManager {
 		void set_id(unsigned int new_id) noexcept {
 			id_ = new_id;
 		} // Add setter for ID
-		[[nodiscard]] const sycl::device& sycl_device() const noexcept {
+		[[nodiscard]] const sycl::device& get_device() const noexcept {
 			return device_;
 		}
 		[[nodiscard]] const std::string& name() const noexcept {

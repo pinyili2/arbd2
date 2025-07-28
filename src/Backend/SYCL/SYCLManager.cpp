@@ -293,7 +293,7 @@ void SYCLManager::load_info() {
 		devices_.clear();
 		devices_.reserve(all_devices_.size());
 		for (size_t i = 0; i < all_devices_.size(); ++i) {
-			devices_.emplace_back(all_devices_[i].sycl_device(), static_cast<unsigned int>(i));
+			devices_.emplace_back(all_devices_[i].get_device(), static_cast<unsigned int>(i));
 		}
 		init_devices();
 	}
@@ -331,7 +331,7 @@ void SYCLManager::select_devices(std::span<const unsigned int> device_ids) {
 			ARBD_Exception(ExceptionType::ValueError, "Invalid device ID: {}", id);
 		}
 		// Create a new Device by copying the sycl::device and id
-		devices_.emplace_back(all_devices_[id].sycl_device(), id);
+		devices_.emplace_back(all_devices_[id].get_device(), id);
 	}
 	init_devices();
 }
@@ -402,8 +402,8 @@ void SYCLManager::prefer_device_type(sycl::info::device_type type) {
 		std::sort(all_devices_.begin(),
 				  all_devices_.end(),
 				  [type](const Device& a, const Device& b) {
-					  auto a_type = a.sycl_device().get_info<sycl::info::device::device_type>();
-					  auto b_type = b.sycl_device().get_info<sycl::info::device::device_type>();
+					  auto a_type = a.get_device().get_info<sycl::info::device::device_type>();
+					  auto b_type = b.get_device().get_info<sycl::info::device::device_type>();
 
 					  if ((a_type == type) != (b_type == type)) {
 						  return a_type == type;

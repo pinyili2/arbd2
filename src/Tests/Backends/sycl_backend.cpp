@@ -59,7 +59,7 @@ TEST_CASE("SYCLManager Basic Initialization", "[SYCLManager][Backend]") {
 			REQUIRE(valid_type);
 
 			// SYCL device should be accessible
-			REQUIRE_NOTHROW(device.sycl_device());
+			REQUIRE_NOTHROW(device.get_device());
 		}
 	}
 }
@@ -397,7 +397,7 @@ TEST_CASE("SYCLManager Device Discovery Details", "[SYCLManager][Backend]") {
 
 			// Test device-specific capabilities
 			try {
-				const auto& sycl_device = device.sycl_device();
+				const auto& sycl_device = device.get_device();
 				bool supports_fp64 = sycl_device.has(sycl::aspect::fp64);
 				bool supports_atomic64 = sycl_device.has(sycl::aspect::atomic64);
 				bool supports_usm_device = sycl_device.has(sycl::aspect::usm_device_allocations);
