@@ -212,18 +212,6 @@ class Buffer {
 	// --- Data Transfer Methods ---
 
 	/**
-	 * @brief Copies data from a host-side pointer to this device buffer.
-	 * @param host_src Pointer to the source data on the host.
-	 * @param num_elements The number of elements to copy.
-	 */
-	void copy_from_host(const T* host_src, size_t num_elements) {
-		if (num_elements > count_) {
-			throw std::runtime_error("Copy size exceeds buffer capacity.");
-		}
-		Policy::copy_from_host(device_ptr_, host_src, num_elements * sizeof(T));
-	}
-
-	/**
 	 * @brief Copies all data from a host-side std::vector to this device buffer.
 	 * @param host_vec The source vector on the host.
 	 */
@@ -232,19 +220,7 @@ class Buffer {
 	}
 
 	/**
-	 * @brief Copies data from this device buffer to a host-side pointer.
-	 * @param host_dst Pointer to the destination on the host.
-	 * @param num_elements The number of elements to copy.
-	 */
-	void copy_to_host(T* host_dst, size_t num_elements) const {
-		if (num_elements > count_) {
-			throw std::runtime_error("Copy size exceeds buffer size.");
-		}
-		Policy::copy_to_host(host_dst, device_ptr_, num_elements * sizeof(T));
-	}
-
-	/**
-	 * @brief Copies all data from this device buffer to a host-side std::vector.
+	 * @brief Copies all data from this device buffer to a host-side std::vector.cd
 	 * @param host_vec The destination vector on the host. It will be resized if needed.
 	 */
 	void copy_to_host(std::vector<T>& host_vec) const {
@@ -289,6 +265,56 @@ class Buffer {
 	 */
 	bool empty() const {
 		return count_ == 0;
+	}
+	void allocate(size_t count) {
+		count_ = count;
+		if (count_ > 0) {
+			device_ptr_ = Policy::allocate(count_ * sizeof(T));
+#ifndef __CUDA_ARCH__ // Host-only logging
+			LOGTRACE("Allocated {} bytes", count_ * sizeof(T));
+#endif
+		}
+	}
+
+	void deallocate() {
+		if (device_ptr_) {
+			Policy::deallocate(device_ptr_);
+			device_ptr_ = nullptr;
+#ifndef __CUDA_ARCH__ // Host-only logging
+			LOGTRACE("Deallocated buffer");
+#endif
+		}
+		count_ = 0;
+	}
+
+	void copy_to_host(T* host_dst, size_t num_elements) const {
+		if (num_elements > count_) {
+			throw std::runtime_error("Copy size exceeds buffer size.");
+		}
+		Policy::copy_to_host(host_dst, device_ptr_, num_elements * sizeof(T));
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("Copied {} bytes to host", num_elements * sizeof(T));
+#endif
+	}
+
+	void copy_from_host(const T* host_src, size_t num_elements) {
+		if (num_elements > count_) {
+			throw std::runtime_error("Copy size exceeds buffer size.");
+		}
+		Policy::copy_from_host(device_ptr_, host_src, num_elements * sizeof(T));
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("Copied {} bytes from host", num_elements * sizeof(T));
+#endif
+	}
+
+	void copy_device_to_device(const Buffer& src, size_t num_elements) {
+		if (num_elements > count_ || num_elements > src.count_) {
+			throw std::runtime_error("Copy size exceeds buffer size.");
+		}
+		Policy::copy_device_to_device(device_ptr_, src.device_ptr_, num_elements * sizeof(T));
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("Copied {} bytes device-to-device", num_elements * sizeof(T));
+#endif
 	}
 
   private:

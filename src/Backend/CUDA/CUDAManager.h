@@ -494,11 +494,23 @@ class CUDAManager {
 			return *this;
 		}
 
-		[[nodiscard]] cudaStream_t get_stream(size_t stream_id) const {
-			return streams_[stream_id % NUM_STREAMS].get();
+		/**
+		 * @brief Get a specific stream by index
+		 * @param stream_id Stream index (0 to NUM_STREAMS-1)
+		 * @return CUDA stream handle
+		 */
+		[[nodiscard]] cudaStream_t get_stream(size_t stream_id) const { // Make const
+			if (stream_id >= NUM_STREAMS) {
+				throw std::out_of_range("Stream ID out of range");
+			}
+			return streams_[stream_id].get();
 		}
 
-		[[nodiscard]] cudaStream_t get_next_stream() {
+		/**
+		 * @brief Get the next stream in round-robin fashion
+		 * @return CUDA stream handle
+		 */
+		[[nodiscard]] cudaStream_t get_next_stream() const {
 			last_stream_ = (last_stream_ + 1) % NUM_STREAMS;
 			return streams_[last_stream_].get();
 		}
@@ -545,7 +557,7 @@ class CUDAManager {
 		unsigned int id_;
 		bool may_timeout_;
 		std::array<Stream, NUM_STREAMS> streams_;
-		int last_stream_{-1};
+		mutable int last_stream_{-1};
 		bool streams_created_{false};
 		cudaDeviceProp properties_;
 	};

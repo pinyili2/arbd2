@@ -259,8 +259,17 @@ Event launch_kernel(const Resource& resource,
 }
 
 #ifdef USE_CUDA
+// Forward declaration - actual implementation in KernelHelper.cu
 template<typename Functor, typename... Args>
 __global__ void cuda_kernel_wrapper(size_t n, Functor kernel, Args... args);
+template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
+Event launch_cuda_kernel_impl(const Resource& resource,
+							  size_t thread_count,
+							  const InputTuple& inputs,
+							  const OutputTuple& outputs,
+							  const KernelConfig& config,
+							  Functor&& kernel_func,
+							  Args&&... args);
 
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event launch_cuda_kernel(const Resource& resource,
@@ -270,55 +279,34 @@ Event launch_cuda_kernel(const Resource& resource,
 						 const KernelConfig& config,
 						 Functor&& kernel_func,
 						 Args&&... args) {
-
-	KernelConfig local_config = config;
-	local_config.auto_configure(thread_count);
-
-	// Use the CUDA dim3 type for launch configuration
-	dim3 grid(local_config.grid_size.x, local_config.grid_size.y, local_config.grid_size.z);
-	dim3 block(local_config.block_size.x, local_config.block_size.y, local_config.block_size.z);
-
-	// 1. Get a specific CUDA stream from your manager
-	auto& device = CUDA::CUDAManager::devices()[resource.id];
-	auto stream = device.get_next_stream();
-
-	// 2. Asynchronously wait for dependencies on the GPU stream, instead of blocking the host
-	for (const auto& dep_event : config.dependencies.get_cuda_events()) {
-		CUDA_CHECK(cudaStreamWaitEvent(stream, dep_event, 0));
-	}
-
-	cudaEvent_t event;
-	CUDA_CHECK(cudaEventCreate(&event));
-
-	// 3. Get tuples of raw pointers from the buffer tuples
-	auto input_pointers = get_buffer_pointers(inputs);
-	auto output_pointers = get_buffer_pointers(outputs);
-
-	// 4. Combine all arguments (input pointers, output pointers, extra args) into one tuple
-	auto kernel_args = std::tuple_cat(input_pointers,
-									  output_pointers,
-									  std::make_tuple(std::forward<Args>(args)...));
-
-	// 5. Use std::apply to unpack the tuple into individual arguments for the kernel
-	std::apply(
-		[&](auto&&... unpacked_args) {
-			cuda_kernel_wrapper<<<grid, block, local_config.shared_memory, stream>>>(
-				thread_count,
-				kernel_func,
-				unpacked_args...);
-		},
-		kernel_args);
-
-	// 6. Record the event on the same stream to ensure it captures the kernel's completion
-	CUDA_CHECK(cudaEventRecord(event, stream));
-
-	if (!config.async) {
-		cudaEventSynchronize(event);
-	}
-
-	return Event(event, resource);
+	// Implementation moved to KernelHelper.cu
+	return launch_cuda_kernel_impl(resource,
+								   thread_count,
+								   inputs,
+								   outputs,
+								   config,
+								   std::forward<Functor>(kernel_func),
+								   std::forward<Args>(args)...);
 }
 #endif
+
+// Validation function that works on both host and device
+template<typename T>
+void validate_block_size(const T& block_size, const cudaDeviceProp& prop) {
+	size_t total_threads = block_size.x * block_size.y * block_size.z;
+	if (total_threads > static_cast<size_t>(prop.maxThreadsPerBlock)) {
+// Use host-side logging only
+#ifndef __CUDA_ARCH__
+		LOGDEBUG("Block size ({}, {}, {}) exceeds max threads per block ({})",
+				 block_size.x,
+				 block_size.y,
+				 block_size.z,
+				 prop.maxThreadsPerBlock);
+		LOGWARN("Invalid block size configuration");
+#endif
+		throw std::runtime_error("Block size exceeds device limits");
+	}
+}
 
 #ifdef USE_SYCL
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
