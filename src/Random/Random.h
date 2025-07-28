@@ -1,4 +1,3 @@
-// In a new header, e.g., "Random.h"
 #pragma once
 #include "Backend/Buffer.h"
 #include "Backend/Events.h"

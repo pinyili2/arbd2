@@ -1,3 +1,4 @@
+
 set(LIB_SOURCES
     ARBDException.cpp
     SignalManager.cpp
@@ -9,8 +10,6 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "src: Adding SYCL specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/SYCL/SYCLManager.cpp
-        #Random/Random_SYCL.cpp
-        # Add any other SYCL-specific .cpp files here
     )
     # If your SYCL implementation uses a different file extension for device code
     # (though typically it's .cpp for SYCL), list them here too.
@@ -18,13 +17,10 @@ endif()
 
 # Conditionally add CUDA specific source files (.cpp or .cu) to the library
 if(USE_CUDA)
-
     message(STATUS "src: Adding CUDA specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
-        Backend/CUDA/CUDAManager.cpp         # Can be a .cpp file managing CUDA operations
-        #Random/Random.cu
-        #Simulation/Integrator/IntegratorCUDA.cu # Note .cu extension
-        #Simulation/Interactions/ExampleForceCUDA.cu # Note .cu extension
+        Backend/CUDA/CUDAManager.cpp
+        Backend/CUDA/KernelHelper.cu
     )
     # Ensure the CUDA language is enabled in your top-level project() call
     # when USE_CUDA is ON, so CMake knows how to compile .cu files.
@@ -52,15 +48,7 @@ add_library("lib${PROJECT_NAME}" ${LIB_SOURCES})
 # This allows includes like #include "Backend/xx.h" from within any source
 # file of this library, and also allows targets linking to this library to
 # include public headers from "src/" (e.g., #include "ARBDException.h").
-target_include_directories("lib${PROJECT_NAME}"
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}  # Adds the "src/" directory itself
-        # If you have other specific subdirectories that should be directly on the include path
-        # for this library or its users, you can add them here.
-        # For example, if you wanted to do #include "GPUManager.h" instead of #include "Backend/GPUManager.h",
-        # you could add ${CMAKE_CURRENT_SOURCE_DIR}/Backend, but generally keeping some
-        # prefix like "Backend/" is good for organization.
-)
+target_include_directories("lib${PROJECT_NAME}" PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 # --- SYCL specific linking or include directories for the library ---
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
@@ -173,17 +161,37 @@ endif()
 
 # --- CUDA specific linking for the library ---
 if(USE_CUDA)
-    # Explicitly link the C++ standard library for CUDA targets
-    # This ensures that CUDA code can access std library symbols from the host compiler
+    # Set CUDA properties for .cu files
+    set_source_files_properties(
+        Backend/CUDA/KernelHelper.cu
+        PROPERTIES
+        LANGUAGE CUDA
+        CUDA_SEPARABLE_COMPILATION ON
+    )
+
+    # Find and link CUDA toolkit
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries("lib${PROJECT_NAME}"
+        PUBLIC
+        CUDA::cudart
+        CUDA::cuda_driver
+    )
+
+    # Set CUDA architectures (adjust for your target GPUs)
+    set_target_properties("lib${PROJECT_NAME}" PROPERTIES
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_ARCHITECTURES "60;70;75;80;86"
+    )
+
+    # Explicitly link C++ standard library for CUDA targets
     if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_link_libraries("lib${PROJECT_NAME}" PRIVATE stdc++ gcc_s gcc m pthread dl)
-        # Set additional linker flags for proper symbol resolution
         target_link_options("lib${PROJECT_NAME}" PRIVATE -Wl,--no-as-needed)
     else()
         target_link_libraries("lib${PROJECT_NAME}" PRIVATE stdc++)
     endif()
 
-    message(STATUS "src: CUDA is enabled for lib${PROJECT_NAME}. Added explicit C++ standard library linking.")
+    message(STATUS "src: CUDA configured with separable compilation and toolkit linking")
 endif()
 
 # --- Metal specific linking and configuration for the library ---

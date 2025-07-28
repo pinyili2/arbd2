@@ -223,6 +223,7 @@ if(USE_CUDA)
     add_executable(arbd_test_cuda
         Backends/cuda_backend.cpp
         Backends/generic_Buffer.cpp
+        Kernels/cuda_kernels.cpp
         #Math/vector3_precision.cu
         #Math/bitmask.cu
         #Math/array.cu

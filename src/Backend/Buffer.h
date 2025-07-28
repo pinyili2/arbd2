@@ -166,9 +166,12 @@ class Buffer {
 	 * @brief Constructs an empty buffer.
 	 */
 	Buffer() = default;
-	T* get_read_access(EventList& deps) { return data(); }
-	T* get_write_access(EventList& deps) { return data(); }
-
+	T* get_read_access(EventList& deps) {
+		return data();
+	}
+	T* get_write_access(EventList& deps) {
+		return data();
+	}
 
 	/**
 	 * @brief Allocates a buffer on the device for a given number of elements.
@@ -319,13 +322,14 @@ using BackendPolicy = METALPolicy;
 template<typename T>
 using DeviceBuffer = Buffer<T, BackendPolicy>;
 
-template <typename... Buffers, std::size_t... Is>
-auto get_buffer_pointers_impl(const std::tuple<Buffers...>& buffer_tuple, std::index_sequence<Is...>) {
-    return std::make_tuple(std::get<Is>(buffer_tuple).data()...);
+template<typename... Buffers, std::size_t... Is>
+auto get_buffer_pointers_impl(const std::tuple<Buffers...>& buffer_tuple,
+							  std::index_sequence<Is...>) {
+	return std::make_tuple(std::get<Is>(buffer_tuple).data()...);
 }
 
-template <typename... Buffers>
+template<typename... Buffers>
 auto get_buffer_pointers(const std::tuple<Buffers...>& buffer_tuple) {
-    return get_buffer_pointers_impl(buffer_tuple, std::make_index_sequence<sizeof...(Buffers)>{});
+	return get_buffer_pointers_impl(buffer_tuple, std::make_index_sequence<sizeof...(Buffers)>{});
 }
 } // namespace ARBD

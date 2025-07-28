@@ -9,6 +9,7 @@
 #ifdef USE_CUDA
 #include "CUDA/CUDAManager.h"
 #include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
 #endif
 
 #ifdef USE_SYCL
@@ -259,12 +260,7 @@ Event launch_kernel(const Resource& resource,
 
 #ifdef USE_CUDA
 template<typename Functor, typename... Args>
-__global__ void cuda_kernel_wrapper(size_t n, Functor kernel, Args... args) {
-	size_t i = blockIdx.x * blockDim.x + threadIdx.x;
-	if (i < n) {
-		kernel(i, args...);
-	}
-}
+__global__ void cuda_kernel_wrapper(size_t n, Functor kernel, Args... args);
 
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event launch_cuda_kernel(const Resource& resource,
