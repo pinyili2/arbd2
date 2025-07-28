@@ -42,6 +42,9 @@ add_compile_definitions(_GLIBCXX23_CONSTEXPR=)
 # Generate compile_commands.json for clangd and other tools
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Find threading library for use across the project
+find_package(Threads REQUIRED)
+
 include_directories(${CMAKE_SOURCE_DIR}/extern/OpenRAND/include)
 
 if(USE_CUDA)
