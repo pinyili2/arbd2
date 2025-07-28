@@ -389,12 +389,31 @@ TEST_CASE_METHOD(SYCLKernelTestFixture, "SYCL Error Handling", "[sycl][kernels][
         auto outputs = std::tie(buffer);  // In-place operation
 
         // Test with very large block size (should be handled internally)
-        KernelConfig config;
-        config.block_size = {65536, 1, 1};
-        config.shared_memory = 1024 * 1024;
-        config.auto_configure(n);
-        // Should not crash
-        REQUIRE_NOTHROW(launch_sycl_kernel(sycl_resource, n, inputs, outputs, config, simple_kernel));
+        std::vector<kerneldim3> oversized_blocks = {
+            {65536, 1, 1},    // Way too large in X
+            {1024, 1024, 64}, // At the theoretical limit
+            {2048, 1, 1},     // Moderately too large
+            {1, 1, 1024}      // Too large in Z dimension
+        };
+
+        for (const auto& block_config : oversized_blocks) {
+            KernelConfig config;
+            config.block_size = block_config;
+
+            // None of these should crash
+            REQUIRE_NOTHROW(launch_sycl_kernel(sycl_resource, n, inputs, outputs, config, simple_kernel));
+
+            // Verify computation correctness
+            std::vector<float> result(n);
+            buffer.copy_to_host(result);
+
+            for (size_t i = 0; i < n; ++i) {
+                REQUIRE(std::abs(result[i] - 2.0f) < 1e-6f);
+            }
+
+            // Reset buffer for next iteration
+            buffer.copy_from_host(data);
+        }
     }
 }
 
