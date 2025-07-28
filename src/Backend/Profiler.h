@@ -57,7 +57,7 @@ struct ProfileEvent {
     size_t memory_used = 0;
     size_t device_id = 0;
     std::unordered_map<std::string, std::string> metadata;
-    
+
     double duration_ms() const {
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
         return static_cast<double>(duration.count()) / 1000.0;
@@ -76,29 +76,29 @@ public:
         cudaEvent_t end_event;
         std::string name;
         bool is_active = false;
-        
+
         CUDAEvent(const std::string& event_name) : name(event_name) {
             cudaEventCreate(&start_event);
             cudaEventCreate(&end_event);
         }
-        
+
         ~CUDAEvent() {
             if (start_event) cudaEventDestroy(start_event);
             if (end_event) cudaEventDestroy(end_event);
         }
-        
+
         void start() {
             cudaEventRecord(start_event);
             is_active = true;
         }
-        
+
         void end() {
             if (is_active) {
                 cudaEventRecord(end_event);
                 is_active = false;
             }
         }
-        
+
         float elapsed_time_ms() const {
             if (is_active) return 0.0f;
             float time_ms;
@@ -106,20 +106,20 @@ public:
             return time_ms;
         }
     };
-    
+
     static void init() {
         LOGINFO("Initializing CUDA profiler");
         #ifdef USE_NVTX
         nvtxInitialize(nullptr);
         #endif
     }
-    
+
     static void finalize() {
         LOGINFO("Finalizing CUDA profiler");
         // Cleanup any remaining events
         active_events_.clear();
     }
-    
+
     static void start_range(const std::string& name, uint32_t color = 0xFF00FF00) {
         #ifdef USE_NVTX
         nvtxEventAttributes_t eventAttrib = {0};
@@ -132,38 +132,38 @@ public:
         nvtxRangePushEx(&eventAttrib);
         #endif
     }
-    
+
     static void end_range() {
         #ifdef USE_NVTX
         nvtxRangePop();
         #endif
     }
-    
+
     static void mark(const std::string& message) {
         #ifdef USE_NVTX
         nvtxMarkA(message.c_str());
         #endif
     }
-    
+
     static std::shared_ptr<CUDAEvent> create_event(const std::string& name) {
         auto event = std::make_shared<CUDAEvent>(name);
         active_events_[name] = event;
         return event;
     }
-    
+
     static void remove_event(const std::string& name) {
         active_events_.erase(name);
     }
-    
+
     static void profile_memory_usage() {
         size_t free_bytes, total_bytes;
         cudaMemGetInfo(&free_bytes, &total_bytes);
         size_t used_bytes = total_bytes - free_bytes;
-        
-        LOGINFO("CUDA Memory: {} MB used / {} MB total", 
+
+        LOGINFO("CUDA Memory: {} MB used / {} MB total",
                 used_bytes / (1024 * 1024), total_bytes / (1024 * 1024));
     }
-    
+
     // RAII wrapper for CUDA profiling ranges
     class ScopedRange {
     public:
@@ -174,7 +174,7 @@ public:
             end_range();
         }
     };
-    
+
 private:
     static inline std::unordered_map<std::string, std::shared_ptr<CUDAEvent>> active_events_;
 };
@@ -217,32 +217,32 @@ public:
         std::chrono::high_resolution_clock::time_point host_start;
         std::chrono::high_resolution_clock::time_point host_end;
         bool host_timing_valid = false;
-        
+
         SYCLEvent(const std::string& event_name) : name(event_name) {}
-        
+
         void start_host_timing() {
             host_start = std::chrono::high_resolution_clock::now();
         }
-        
+
         void end_host_timing() {
             host_end = std::chrono::high_resolution_clock::now();
             host_timing_valid = true;
         }
-        
+
         double elapsed_time_ms() const {
             if (host_timing_valid) {
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(host_end - host_start);
                 return static_cast<double>(duration.count()) / 1000.0;
             }
-            
+
             // Try to get device timing if available
             try {
-                if (event.get_info<sycl::info::event::command_execution_status>() == 
+                if (event.get_info<sycl::info::event::command_execution_status>() ==
                     sycl::info::event_command_status::complete) {
-                    
+
                     auto start_time = event.get_profiling_info<sycl::info::event_profiling::command_start>();
                     auto end_time = event.get_profiling_info<sycl::info::event_profiling::command_end>();
-                    
+
                     return static_cast<double>(end_time - start_time) / 1000000.0; // ns to ms
                 }
             } catch (const sycl::exception& e) {
@@ -251,58 +251,58 @@ public:
             return 0.0;
         }
     };
-    
+
     static void init() {
         LOGINFO("Initializing SYCL profiler");
         // Enable profiling on queues
         profiling_enabled_ = true;
     }
-    
+
     static void finalize() {
         LOGINFO("Finalizing SYCL profiler");
         active_events_.clear();
         profiling_enabled_ = false;
     }
-    
+
     static void start_range(const std::string& name) {
         if (!profiling_enabled_) return;
-        
+
         auto event_obj = std::make_shared<SYCLEvent>(name);
         event_obj->start_host_timing();
         active_events_[name] = event_obj;
-        
+
         LOGTRACE("SYCL: Started profiling range '{}'", name);
     }
-    
+
     static void end_range(const std::string& name) {
         if (!profiling_enabled_) return;
-        
+
         auto it = active_events_.find(name);
         if (it != active_events_.end()) {
             it->second->end_host_timing();
             double elapsed = it->second->elapsed_time_ms();
-            
+
             LOGINFO("SYCL Range '{}': {:.3f} ms", name, elapsed);
             active_events_.erase(it);
         }
     }
-    
+
     static void mark(const std::string& message) {
         if (profiling_enabled_) {
             LOGINFO("SYCL Mark: {}", message);
         }
     }
-    
+
     static std::shared_ptr<SYCLEvent> create_event(const std::string& name) {
         auto event = std::make_shared<SYCLEvent>(name);
         active_events_[name] = event;
         return event;
     }
-    
+
     static void profile_memory_usage(sycl::queue& queue) {
         try {
             auto device = queue.get_device();
-            
+
             if (device.has(sycl::aspect::usm_device_allocations)) {
                 // Get device memory info if available
                 auto global_mem = device.get_info<sycl::info::device::global_mem_size>();
@@ -312,7 +312,7 @@ public:
             LOGWARN("Failed to get SYCL memory info: {}", e.what());
         }
     }
-    
+
     // RAII wrapper for SYCL profiling ranges
     class ScopedRange {
     private:
@@ -325,7 +325,7 @@ public:
             end_range(name_);
         }
     };
-    
+
 private:
     static inline std::unordered_map<std::string, std::shared_ptr<SYCLEvent>> active_events_;
     static inline bool profiling_enabled_ = false;
@@ -367,43 +367,43 @@ public:
         std::chrono::high_resolution_clock::time_point host_end;
         bool host_timing_valid = false;
         void* command_buffer = nullptr; // MTL::CommandBuffer*
-        
+
         METALEvent(const std::string& event_name) : name(event_name) {}
-        
+
         void start_host_timing() {
             host_start = std::chrono::high_resolution_clock::now();
         }
-        
+
         void end_host_timing() {
             host_end = std::chrono::high_resolution_clock::now();
             host_timing_valid = true;
         }
-        
+
         double elapsed_time_ms() const {
             if (host_timing_valid) {
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(host_end - host_start);
                 return static_cast<double>(duration.count()) / 1000.0;
             }
-            
+
             // Try to get GPU timing if available
             if (command_buffer) {
                 MTL::CommandBuffer* cmd_buf = static_cast<MTL::CommandBuffer*>(command_buffer);
-                
+
                 if (cmd_buf->status() == MTL::CommandBufferStatusCompleted) {
                     double gpu_start = cmd_buf->GPUStartTime();
                     double gpu_end = cmd_buf->GPUEndTime();
                     return (gpu_end - gpu_start) * 1000.0; // Convert to ms
                 }
             }
-            
+
             return 0.0;
         }
     };
-    
+
     static void init() {
         LOGINFO("Initializing Metal profiler");
         profiling_enabled_ = true;
-        
+
         // Enable GPU timeline capture if available
         #if TARGET_OS_MAC
         if (@available(macOS 10.15, *)) {
@@ -411,62 +411,62 @@ public:
         }
         #endif
     }
-    
+
     static void finalize() {
         LOGINFO("Finalizing Metal profiler");
         active_events_.clear();
         profiling_enabled_ = false;
     }
-    
+
     static void start_range(const std::string& name) {
         if (!profiling_enabled_) return;
-        
+
         auto event_obj = std::make_shared<METALEvent>(name);
         event_obj->start_host_timing();
         active_events_[name] = event_obj;
-        
+
         LOGTRACE("Metal: Started profiling range '{}'", name);
     }
-    
+
     static void end_range(const std::string& name) {
         if (!profiling_enabled_) return;
-        
+
         auto it = active_events_.find(name);
         if (it != active_events_.end()) {
             it->second->end_host_timing();
             double elapsed = it->second->elapsed_time_ms();
-            
+
             LOGINFO("Metal Range '{}': {:.3f} ms", name, elapsed);
             active_events_.erase(it);
         }
     }
-    
+
     static void mark(const std::string& message) {
         if (profiling_enabled_) {
             LOGINFO("Metal Mark: {}", message);
         }
     }
-    
+
     static std::shared_ptr<METALEvent> create_event(const std::string& name, void* cmd_buffer = nullptr) {
         auto event = std::make_shared<METALEvent>(name);
         event->command_buffer = cmd_buffer;
         active_events_[name] = event;
         return event;
     }
-    
+
     static void profile_memory_usage(void* device_ptr) {
         if (!device_ptr) return;
-        
+
         MTL::Device* device = static_cast<MTL::Device*>(device_ptr);
-        
+
         // Get device memory information
         uint64_t recommended_working_set = device->recommendedMaxWorkingSetSize();
         bool has_unified_memory = device->hasUnifiedMemory();
-        
-        LOGINFO("Metal Device Memory: Recommended working set {} MB, Unified Memory: {}", 
+
+        LOGINFO("Metal Device Memory: Recommended working set {} MB, Unified Memory: {}",
                 recommended_working_set / (1024 * 1024), has_unified_memory);
     }
-    
+
     // RAII wrapper for Metal profiling ranges
     class ScopedRange {
     private:
@@ -479,7 +479,7 @@ public:
             end_range(name_);
         }
     };
-    
+
 private:
     static inline std::unordered_map<std::string, std::shared_ptr<METALEvent>> active_events_;
     static inline bool profiling_enabled_ = false;
@@ -537,60 +537,60 @@ class ProfileManager {
 public:
     static void init(const ProfilingConfig& config = {}) {
         config_ = config;
-        
+
         if (!config_.enable_backend_markers) return;
-        
+
         LOGINFO("Initializing profiling for all available backends");
-        
+
         #ifdef USE_CUDA
         CUDAProfiler::init();
         #endif
-        
+
         #ifdef USE_SYCL
         SYCLProfiler::init();
         #endif
-        
+
         #ifdef USE_METAL
         METALProfiler::init();
         #endif
-        
+
         initialized_ = true;
     }
-    
+
     static void finalize() {
         if (!initialized_) return;
-        
+
         LOGINFO("Finalizing profiling for all backends");
-        
+
         #ifdef USE_CUDA
         CUDAProfiler::finalize();
         #endif
-        
+
         #ifdef USE_SYCL
         SYCLProfiler::finalize();
         #endif
-        
+
         #ifdef USE_METAL
         METALProfiler::finalize();
         #endif
-        
+
         // Save profile data if requested
         if (!config_.output_file.empty()) {
             save_profile_data();
         }
-        
+
         events_.clear();
         initialized_ = false;
     }
-    
+
     static void start_range(const std::string& name, ResourceType backend) {
         if (!initialized_ || !config_.enable_backend_markers) return;
-        
+
         auto event = std::make_shared<ProfileEvent>();
         event->name = name;
         event->backend = backend;
         event->start_time = std::chrono::high_resolution_clock::now();
-        
+
         // Backend-specific profiling
         switch (backend) {
             case ResourceType::CUDA:
@@ -611,27 +611,27 @@ public:
             default:
                 break;
         }
-        
+
         active_ranges_[name] = event;
     }
-    
+
     static void end_range(const std::string& name, ResourceType backend) {
         if (!initialized_ || !config_.enable_backend_markers) return;
-        
+
         auto it = active_ranges_.find(name);
         if (it != active_ranges_.end()) {
             it->second->end_time = std::chrono::high_resolution_clock::now();
-            
+
             // Add to completed events
             events_.push_back(it->second);
             active_ranges_.erase(it);
-            
+
             // Limit event storage
             if (events_.size() > config_.max_events) {
                 events_.erase(events_.begin(), events_.begin() + (events_.size() - config_.max_events));
             }
         }
-        
+
         // Backend-specific profiling
         switch (backend) {
             case ResourceType::CUDA:
@@ -653,10 +653,10 @@ public:
                 break;
         }
     }
-    
+
     static void mark(const std::string& message, ResourceType backend) {
         if (!initialized_ || !config_.enable_backend_markers) return;
-        
+
         switch (backend) {
             case ResourceType::CUDA:
                 #ifdef USE_CUDA
@@ -678,10 +678,10 @@ public:
                 break;
         }
     }
-    
+
     static void profile_memory_usage(ResourceType backend, void* backend_specific_ptr = nullptr) {
         if (!initialized_ || !config_.enable_memory_tracking) return;
-        
+
         switch (backend) {
             case ResourceType::CUDA:
                 #ifdef USE_CUDA
@@ -704,14 +704,14 @@ public:
                 break;
         }
     }
-    
+
     // RAII wrapper for unified profiling
     class ScopedRange {
     private:
         std::string name_;
         ResourceType backend_;
     public:
-        ScopedRange(const std::string& name, ResourceType backend) 
+        ScopedRange(const std::string& name, ResourceType backend)
             : name_(name), backend_(backend) {
             start_range(name_, backend_);
         }
@@ -719,36 +719,36 @@ public:
             end_range(name_, backend_);
         }
     };
-    
+
     static const std::vector<std::shared_ptr<ProfileEvent>>& get_events() {
         return events_;
     }
-    
+
     static void print_summary() {
         if (events_.empty()) {
             LOGINFO("No profiling events recorded");
             return;
         }
-        
+
         LOGINFO("=== Profiling Summary ===");
         LOGINFO("Total events: {}", events_.size());
-        
+
         // Group by backend
         std::unordered_map<ResourceType, std::vector<double>> backend_times;
-        
+
         for (const auto& event : events_) {
             backend_times[event->backend].push_back(event->duration_ms());
         }
-        
+
         for (const auto& [backend, times] : backend_times) {
             double total_time = 0.0;
             double min_time = *std::min_element(times.begin(), times.end());
             double max_time = *std::max_element(times.begin(), times.end());
-            
+
             for (double time : times) {
                 total_time += time;
             }
-            
+
             std::string backend_name;
             switch (backend) {
                 case ResourceType::CUDA: backend_name = "CUDA"; break;
@@ -756,19 +756,19 @@ public:
                 case ResourceType::METAL: backend_name = "Metal"; break;
                 default: backend_name = "CPU"; break;
             }
-            
+
             LOGINFO("{}: {} events, {:.3f} ms total, {:.3f} ms avg, {:.3f}/{:.3f} ms min/max",
                     backend_name, times.size(), total_time, total_time / times.size(), min_time, max_time);
         }
     }
-    
+
 private:
     static void save_profile_data() {
         // Save profiling data to JSON file (simplified implementation)
         LOGINFO("Saving profile data to {}", config_.output_file);
         // Implementation would write JSON format profile data
     }
-    
+
     static inline ProfilingConfig config_;
     static inline bool initialized_ = false;
     static inline std::vector<std::shared_ptr<ProfileEvent>> events_;
