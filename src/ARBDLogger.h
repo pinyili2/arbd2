@@ -104,91 +104,9 @@ inline LogLevel Logger::current_level = LogLevel::INFO;
 #define DebugMessage(level, message) static_cast<void>(0)
 #endif
 
-// Device/Host separation
-#if defined(__CUDACC__) || (defined(USE_SYCL) && defined(__SYCL_DEVICE_ONLY__))
-// Device-specific logging
-#ifdef __CUDACC__
-#define DEVICE __device__
-#define HOST_DEVICE __host__ __device__
-#else
-#define DEVICE
-#define HOST_DEVICE
-#endif
-
-namespace ARBD {
-namespace detail {
-
-// Device-only print functions
-DEVICE inline void print_log_value(const char* val) {
-	printf("%s", val);
-}
-DEVICE inline void print_log_value(char* val) {
-	printf("%s", val);
-}
-DEVICE inline void print_log_value(int val) {
-	printf("%d", val);
-}
-DEVICE inline void print_log_value(long val) {
-	printf("%ld", val);
-}
-DEVICE inline void print_log_value(long long val) {
-	printf("%lld", val);
-}
-DEVICE inline void print_log_value(unsigned val) {
-	printf("%u", val);
-}
-DEVICE inline void print_log_value(unsigned long val) {
-	printf("%lu", val);
-}
-DEVICE inline void print_log_value(unsigned long long val) {
-	printf("%llu", val);
-}
-DEVICE inline void print_log_value(float val) {
-	printf("%f", val);
-}
-DEVICE inline void print_log_value(double val) {
-	printf("%lf", val);
-}
-DEVICE inline void print_log_value(void* val) {
-	printf("%p", val);
-}
-
-DEVICE inline void print_log_args() {}
-
-template<typename T, typename... Rest>
-DEVICE inline void print_log_args(const T& first, const Rest&... rest) {
-	print_log_value(first);
-	if constexpr (sizeof...(rest) > 0) {
-		printf(" ");
-	}
-	print_log_args(rest...);
-}
-
-} // namespace detail
-} // namespace ARBD
-
-#define DEVICE_LOCATION_STRINGIFY(line) #line
-#define DEVICE_LOCATION_TO_STRING(line) DEVICE_LOCATION_STRINGIFY(line)
-#define DEVICE_CODE_LOCATION __FILE__ "(" DEVICE_LOCATION_TO_STRING(__LINE__) ")"
-
-// Device-side logging macros
-#define LOGHELPER(TYPE, FMT, ...)                          \
-	do {                                                   \
-		printf("[%s] [%s]: ", TYPE, DEVICE_CODE_LOCATION); \
-		ARBD::detail::print_log_args(__VA_ARGS__);         \
-		printf("\n");                                      \
-	} while (0)
-
-#define LOGTRACE(...) LOGHELPER("TRACE", __VA_ARGS__)
-#define LOGDEBUG(...) LOGHELPER("DEBUG", __VA_ARGS__)
-#define LOGINFO(...) LOGHELPER("INFO", __VA_ARGS__)
-#define LOGWARN(...) LOGHELPER("WARN", __VA_ARGS__)
-#define LOGERROR(...) LOGHELPER("ERROR", __VA_ARGS__)
-#define LOGCRITICAL(...) LOGHELPER("CRITICAL", __VA_ARGS__)
-
-#else
-// Host-side logging macros - only active when NOT compiling device code
-#ifndef __CUDA_ARCH__
+// ============================================================================
+// HOST-ONLY LOGGING MACROS (for .cpp files and host-side code)
+// ============================================================================
 #define LOGTRACE(...) ARBD::Logger::log(ARBD::LogLevel::TRACE, ARBD::SourceLocation(), __VA_ARGS__)
 #define LOGDEBUG(...) ARBD::Logger::log(ARBD::LogLevel::DEBUG, ARBD::SourceLocation(), __VA_ARGS__)
 #define LOGINFO(...) ARBD::Logger::log(ARBD::LogLevel::INFO, ARBD::SourceLocation(), __VA_ARGS__)
@@ -196,26 +114,15 @@ DEVICE inline void print_log_args(const T& first, const Rest&... rest) {
 #define LOGERROR(...) ARBD::Logger::log(ARBD::LogLevel::ERROR, ARBD::SourceLocation(), __VA_ARGS__)
 #define LOGCRITICAL(...) \
 	ARBD::Logger::log(ARBD::LogLevel::CRITICAL, ARBD::SourceLocation(), __VA_ARGS__)
-#else
-// Device-side: use simplified printf-based logging
-#define LOGTRACE(...)                \
-	printf("[TRACE]: " __VA_ARGS__); \
-	printf("\n")
-#define LOGDEBUG(...)                \
-	printf("[DEBUG]: " __VA_ARGS__); \
-	printf("\n")
-#define LOGINFO(...)                \
-	printf("[INFO]: " __VA_ARGS__); \
-	printf("\n")
-#define LOGWARN(...)                \
-	printf("[WARN]: " __VA_ARGS__); \
-	printf("\n")
-#define LOGERROR(...)                \
-	printf("[ERROR]: " __VA_ARGS__); \
-	printf("\n")
-#define LOGCRITICAL(...)                \
-	printf("[CRITICAL]: " __VA_ARGS__); \
-	printf("\n")
-#endif
 
-#endif
+// ============================================================================
+// DEVICE-ONLY LOGGING MACROS (for .cu files and device kernels)
+// ============================================================================
+// Simple printf-based logging for CUDA devices
+// Note: Use printf-style format strings (%d, %s, %f, etc.) in device code
+#define DEVICETRACE(fmt, ...) printf("[CUDA-TRACE]: " fmt "\n", ##__VA_ARGS__)
+#define DEVICEDEBUG(fmt, ...) printf("[CUDA-DEBUG]: " fmt "\n", ##__VA_ARGS__)
+#define DEVICEINFO(fmt, ...) printf("[CUDA-INFO]: " fmt "\n", ##__VA_ARGS__)
+#define DEVICEWARN(fmt, ...) printf("[CUDA-WARN]: " fmt "\n", ##__VA_ARGS__)
+#define DEVICEERROR(fmt, ...) printf("[CUDA-ERROR]: " fmt "\n", ##__VA_ARGS__)
+#define DEVICECRITICAL(fmt, ...) printf("[CUDA-CRITICAL]: " fmt "\n", ##__VA_ARGS__)

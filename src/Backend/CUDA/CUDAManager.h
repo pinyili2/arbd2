@@ -693,7 +693,7 @@ __device__ inline int warp_broadcast(int value, int leader) noexcept {
 	return warp_broadcast_shared[warp_id];
 }
 #elif __CUDA_ARCH__ < 700
-// Pre-Volta: use legacy __shfl
+// Pre-Volta: use legacy __shfl (deprecated but still supported)
 __device__ constexpr int warp_broadcast(int value, int leader) noexcept {
 	return __shfl(value, leader);
 }

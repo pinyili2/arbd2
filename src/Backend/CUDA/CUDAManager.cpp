@@ -40,7 +40,7 @@ CUDAManager::Device::Device(unsigned int id) : id_(id) {
 			timeout_str,
 			properties_.major,
 			properties_.minor,
-			static_cast<float>(properties_.clockRate) * 1e-6,
+			static_cast<float>(properties_.clockRate) * 1e-6f,
 			static_cast<float>(properties_.totalGlobalMem) / (1024.0f * 1024.0f * 1024.0f));
 
 	create_streams();
@@ -71,7 +71,7 @@ void CUDAManager::Device::create_streams() {
 
 void CUDAManager::Device::destroy_streams() {
 	int curr;
-	LOGTRACE("Destroying streams for device {}", id_);
+	LOGTRACE("Destroying streams for device %d", id_);
 
 	if (cudaGetDevice(&curr) == cudaSuccess) { // Avoid errors during shutdown
 		CUDA_CHECK(cudaSetDevice(id_));

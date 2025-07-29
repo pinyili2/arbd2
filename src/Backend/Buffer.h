@@ -25,10 +25,6 @@ namespace ARBD {
 // ============================================================================
 // Backend Policies
 // ============================================================================
-// These structs define a static interface for memory operations.
-// The correct policy is chosen at compile time by wrapping the definitions
-// in the appropriate preprocessor blocks.
-// ============================================================================
 
 #ifdef USE_CUDA
 /**
@@ -38,29 +34,39 @@ struct CUDAPolicy {
 	static void* allocate(size_t bytes) {
 		void* ptr = nullptr;
 		CUDA_CHECK(cudaMalloc(&ptr, bytes));
+#ifndef __CUDA_ARCH__ // Host-only logging
 		LOGTRACE("CUDAPolicy: Allocated {} bytes.", bytes);
+#endif
 		return ptr;
 	}
 
 	static void deallocate(void* ptr) {
 		if (ptr) {
+#ifndef __CUDA_ARCH__ // Host-only logging
 			LOGTRACE("CUDAPolicy: Deallocating pointer.");
+#endif
 			CUDA_CHECK(cudaFree(ptr));
 		}
 	}
 
 	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
+#ifndef __CUDA_ARCH__ // Host-only logging
 		LOGTRACE("CUDAPolicy: Copying {} bytes from device to host.", bytes);
+#endif
 		CUDA_CHECK(cudaMemcpy(host_dst, device_src, bytes, cudaMemcpyDeviceToHost));
 	}
 
 	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
+#ifndef __CUDA_ARCH__ // Host-only logging
 		LOGTRACE("CUDAPolicy: Copying {} bytes from host to device.", bytes);
+#endif
 		CUDA_CHECK(cudaMemcpy(device_dst, host_src, bytes, cudaMemcpyHostToDevice));
 	}
 
 	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
+#ifndef __CUDA_ARCH__ // Host-only logging
 		LOGTRACE("CUDAPolicy: Copying {} bytes from device to device.", bytes);
+#endif
 		CUDA_CHECK(cudaMemcpy(device_dst, device_src, bytes, cudaMemcpyDeviceToDevice));
 	}
 };
@@ -108,129 +114,129 @@ struct SYCLPolicy {
 
 #ifdef USE_METAL
 /**
- * @brief Policy for METAL memory operations.
+ * @brief Policy for Metal memory operations.
  */
 struct METALPolicy {
 	static void* allocate(size_t bytes) {
+		auto buffer = METAL::METALManager::get_current_device().makeBuffer(bytes);
 		LOGTRACE("METALPolicy: Allocated {} bytes.", bytes);
-		return METAL::METALManager::allocate_raw(bytes);
+		return buffer.contents();
 	}
 
 	static void deallocate(void* ptr) {
 		if (ptr) {
 			LOGTRACE("METALPolicy: Deallocating pointer.");
-			METAL::METALManager::deallocate_raw(ptr);
+			// Metal uses RAII, so explicit deallocation might not be needed
 		}
 	}
 
 	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
-		LOGTRACE("METALPolicy: Copying {} bytes from device to host (unified memory).", bytes);
+		LOGTRACE("METALPolicy: Copying {} bytes from device to host.", bytes);
 		std::memcpy(host_dst, device_src, bytes);
 	}
 
 	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
-		LOGTRACE("METALPolicy: Copying {} bytes from host to device (unified memory).", bytes);
+		LOGTRACE("METALPolicy: Copying {} bytes from host to device.", bytes);
 		std::memcpy(device_dst, host_src, bytes);
 	}
 
 	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
-		// METAL's unified memory model simplifies this. A direct memcpy is sufficient.
-		LOGTRACE("METALPolicy: Copying {} bytes from device to device (unified memory).", bytes);
+		LOGTRACE("METALPolicy: Copying {} bytes from device to device.", bytes);
 		std::memcpy(device_dst, device_src, bytes);
 	}
 };
 #endif // USE_METAL
 
 // ============================================================================
-// The Refactored Buffer Class
+// Generic Buffer Class
 // ============================================================================
 
 /**
- * @brief A policy-based, backend-agnostic buffer for device memory.
+ * @brief A generic buffer class that manages device memory using the specified policy.
  *
- * This class provides a clean, RAII-compliant wrapper for device-side memory.
- * It is templated on a Policy struct that defines the actual memory operations
- * for a specific backend (e.g., CUDAPolicy, SYCLPolicy).
- *
- * @tparam T The type of data to store in the buffer.
- * @tparam Policy A policy struct defining memory operations.
+ * @tparam T The element type.
+ * @tparam Policy The memory management policy (e.g., CUDAPolicy, SYCLPolicy).
  */
 template<typename T, typename Policy>
 class Buffer {
   public:
-	using value_type = T;
-
-	// --- Constructors and Destructor ---
-
 	/**
-	 * @brief Constructs an empty buffer.
+	 * @brief Default constructor creates an empty buffer.
 	 */
 	Buffer() = default;
-	T* get_read_access(EventList& deps) {
-		return data();
-	}
-	T* get_write_access(EventList& deps) {
-		return data();
+
+	/**
+	 * @brief Constructor that allocates a buffer for count elements.
+	 *
+	 * @param count The number of elements to allocate.
+	 */
+	explicit Buffer(size_t count) : count_(count) {
+		allocate(count);
 	}
 
 	/**
-	 * @brief Allocates a buffer on the device for a given number of elements.
-	 * @param count The number of elements of type T to allocate.
+	 * @brief Copy constructor.
 	 */
-	explicit Buffer(size_t count) : count_(count), device_ptr_(nullptr) {
+	Buffer(const Buffer& other) : count_(other.count_) {
 		if (count_ > 0) {
-			device_ptr_ = static_cast<T*>(Policy::allocate(bytes()));
+			allocate(count_);
+			copy_device_to_device(other, count_);
 		}
 	}
 
 	/**
-	 * @brief Destructor that automatically deallocates device memory.
+	 * @brief Move constructor.
 	 */
-	~Buffer() {
-		Policy::deallocate(device_ptr_);
+	Buffer(Buffer&& other) noexcept : count_(other.count_), device_ptr_(other.device_ptr_) {
+		other.count_ = 0;
+		other.device_ptr_ = nullptr;
 	}
 
-	// --- Rule of Five: Movable, Not Copyable ---
-
-	Buffer(const Buffer&) = delete;
-	Buffer& operator=(const Buffer&) = delete;
-
-	Buffer(Buffer&& other) noexcept
-		: count_(std::exchange(other.count_, 0)),
-		  device_ptr_(std::exchange(other.device_ptr_, nullptr)) {}
-
-	Buffer& operator=(Buffer&& other) noexcept {
+	/**
+	 * @brief Copy assignment operator.
+	 */
+	Buffer& operator=(const Buffer& other) {
 		if (this != &other) {
-			// Deallocate existing memory before taking ownership of the new memory
-			Policy::deallocate(device_ptr_);
-			count_ = std::exchange(other.count_, 0);
-			device_ptr_ = std::exchange(other.device_ptr_, nullptr);
+			deallocate();
+			count_ = other.count_;
+			if (count_ > 0) {
+				allocate(count_);
+				copy_device_to_device(other, count_);
+			}
 		}
 		return *this;
 	}
 
-	// --- Data Transfer Methods ---
-
 	/**
-	 * @brief Copies all data from a host-side std::vector to this device buffer.
-	 * @param host_vec The source vector on the host.
+	 * @brief Move assignment operator.
 	 */
-	void copy_from_host(const std::vector<T>& host_vec) {
-		copy_from_host(host_vec.data(), host_vec.size());
-	}
-
-	/**
-	 * @brief Copies all data from this device buffer to a host-side std::vector.cd
-	 * @param host_vec The destination vector on the host. It will be resized if needed.
-	 */
-	void copy_to_host(std::vector<T>& host_vec) const {
-		if (host_vec.size() != count_) {
-			host_vec.resize(count_);
+	Buffer& operator=(Buffer&& other) noexcept {
+		if (this != &other) {
+			deallocate();
+			count_ = other.count_;
+			device_ptr_ = other.device_ptr_;
+			other.count_ = 0;
+			other.device_ptr_ = nullptr;
 		}
-		copy_to_host(host_vec.data(), count_);
+		return *this;
 	}
 
-	// --- Accessors ---
+	/**
+	 * @brief Destructor deallocates the buffer.
+	 */
+	~Buffer() {
+		deallocate();
+	}
+
+	/**
+	 * @brief Resizes the buffer to hold count elements.
+	 */
+	void resize(size_t count) {
+		if (count != count_) {
+			deallocate();
+			allocate(count);
+		}
+	}
 
 	/**
 	 * @brief Returns the raw device pointer.
@@ -240,9 +246,9 @@ class Buffer {
 	}
 
 	/**
-	 * @brief Returns the const raw device pointer.
+	 * @brief Returns the device pointer for kernel access.
 	 */
-	const T* data() const {
+	T* data() const {
 		return device_ptr_;
 	}
 
@@ -266,25 +272,13 @@ class Buffer {
 	bool empty() const {
 		return count_ == 0;
 	}
-	void allocate(size_t count) {
-		count_ = count;
-		if (count_ > 0) {
-			device_ptr_ = Policy::allocate(count_ * sizeof(T));
-#ifndef __CUDA_ARCH__ // Host-only logging
-			LOGTRACE("Allocated {} bytes", count_ * sizeof(T));
-#endif
-		}
-	}
 
-	void deallocate() {
-		if (device_ptr_) {
-			Policy::deallocate(device_ptr_);
-			device_ptr_ = nullptr;
-#ifndef __CUDA_ARCH__ // Host-only logging
-			LOGTRACE("Deallocated buffer");
-#endif
-		}
-		count_ = 0;
+	/**
+	 * @brief Copy data to host.
+	 */
+	void copy_to_host(std::vector<T>& host_dst) const {
+		host_dst.resize(count_);
+		copy_to_host(host_dst.data(), count_);
 	}
 
 	void copy_to_host(T* host_dst, size_t num_elements) const {
@@ -295,6 +289,16 @@ class Buffer {
 #ifndef __CUDA_ARCH__ // Host-only logging
 		LOGTRACE("Copied {} bytes to host", num_elements * sizeof(T));
 #endif
+	}
+
+	/**
+	 * @brief Copy data from host.
+	 */
+	void copy_from_host(const std::vector<T>& host_src) {
+		if (host_src.size() != count_) {
+			resize(host_src.size());
+		}
+		copy_from_host(host_src.data(), host_src.size());
 	}
 
 	void copy_from_host(const T* host_src, size_t num_elements) {
@@ -318,6 +322,27 @@ class Buffer {
 	}
 
   private:
+	void allocate(size_t count) {
+		count_ = count;
+		if (count_ > 0) {
+			device_ptr_ = static_cast<T*>(Policy::allocate(count_ * sizeof(T)));
+#ifndef __CUDA_ARCH__ // Host-only logging
+			LOGTRACE("Allocated {} bytes", count_ * sizeof(T));
+#endif
+		}
+	}
+
+	void deallocate() {
+		if (device_ptr_) {
+			Policy::deallocate(device_ptr_);
+			device_ptr_ = nullptr;
+#ifndef __CUDA_ARCH__ // Host-only logging
+			LOGTRACE("Deallocated buffer");
+#endif
+		}
+		count_ = 0;
+	}
+
 	size_t count_{0};
 	T* device_ptr_{nullptr};
 };
@@ -326,7 +351,6 @@ class Buffer {
 // Compile-Time Backend Selection
 // ============================================================================
 
-// Select the active policy based on compilation flags.
 #if defined(USE_CUDA)
 using BackendPolicy = CUDAPolicy;
 #elif defined(USE_SYCL)
@@ -334,19 +358,18 @@ using BackendPolicy = SYCLPolicy;
 #elif defined(USE_METAL)
 using BackendPolicy = METALPolicy;
 #else
-// Default or error case. Could define a 'HostPolicy' for CPU-only builds.
-// For now, let's cause a compile error if no backend is chosen.
 #error "No backend selected. Please define USE_CUDA, USE_SYCL, or USE_METAL."
 #endif
 
 /**
  * @brief A convenient alias for the Buffer class using the active backend policy.
- *
- * Instead of writing `Buffer<float, ActivePolicy>`, you can simply write
- * `DeviceBuffer<float>`.
  */
 template<typename T>
 using DeviceBuffer = Buffer<T, BackendPolicy>;
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
 
 template<typename... Buffers, std::size_t... Is>
 auto get_buffer_pointers_impl(const std::tuple<Buffers...>& buffer_tuple,
@@ -358,4 +381,5 @@ template<typename... Buffers>
 auto get_buffer_pointers(const std::tuple<Buffers...>& buffer_tuple) {
 	return get_buffer_pointers_impl(buffer_tuple, std::make_index_sequence<sizeof...(Buffers)>{});
 }
+
 } // namespace ARBD

@@ -221,14 +221,17 @@ endif()
 # CUDA Tests
 if(USE_CUDA)
     add_executable(arbd_test_cuda
-        Backends/cuda_backend.cpp
+        #Backends/cuda_backend.cpp
         Backends/generic_Buffer.cpp
+        Kernels/cuda_kernels.cu
         Kernels/cuda_kernels.cpp
+        Math/Kernel_for_test.h
+        Math/RandomTest.cu
+        Math/RandomDevice.cpp
         #Math/vector3_precision.cu
         #Math/bitmask.cu
-        #Math/array.cu
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
-    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda --allow-unsupported-compiler")
+    set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --extended-lambda --allow-unsupported-compiler -Xcompiler=-Wno-deprecated-declarations")
     target_include_directories(arbd_test_cuda PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_link_libraries(arbd_test_cuda PRIVATE "lib${PROJECT_NAME}")
 
@@ -238,7 +241,13 @@ if(USE_CUDA)
         CUDA::cudart
         CUDA::cuda_driver
         curand)
-
+    set_source_files_properties(
+            Math/RandomTest.cu
+            Math/Kernel_for_test.h
+            PROPERTIES
+            LANGUAGE CUDA
+            CUDA_SEPARABLE_COMPILATION ON
+        )
     if(USE_NCCL)
         target_link_libraries(arbd_test_cuda PRIVATE nccl)
     endif()

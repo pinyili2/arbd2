@@ -234,10 +234,10 @@ class alignas(4 * sizeof(T)) Vector3_t {
 
 	// String and printing
 	HOST DEVICE void print() const noexcept {
-		LOGINFO("%0.3f %0.3f %0.3f",
-				static_cast<double>(x),
-				static_cast<double>(y),
-				static_cast<double>(z));
+		DEVICEINFO("%0.3f %0.3f %0.3f",
+				   static_cast<double>(x),
+				   static_cast<double>(y),
+				   static_cast<double>(z));
 	}
 
 	auto to_string() const {

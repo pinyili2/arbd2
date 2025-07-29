@@ -173,17 +173,16 @@ using KernelFunction = std::function<void(size_t, Args...)>;
  * @return An Event object that can be used to track the kernel's completion.
  */
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
-auto launch_kernel(const Resource& resource,
-				   size_t thread_count,
-				   const KernelConfig& config,
-				   InputTuple& inputs,
-				   OutputTuple& outputs,
-				   Functor&& kernel_func,
-				   Args&&... args)
-	-> std::enable_if_t<std::is_invocable_v<Functor, size_t, Args...>, Event> {
-	switch (resource.type) {
+Event launch_kernel(const Resource& resource,
+					size_t thread_count,
+					const KernelConfig& config,
+					InputTuple& inputs,
+					OutputTuple& outputs,
+					Functor&& kernel_func,
+					Args&&... args) {
+	try {
 #ifdef USE_CUDA
-	case ResourceType::CUDA:
+
 		return launch_cuda_kernel(resource,
 								  thread_count,
 								  inputs,
@@ -191,9 +190,9 @@ auto launch_kernel(const Resource& resource,
 								  config,
 								  std::forward<Functor>(kernel_func),
 								  std::forward<Args>(args)...);
-#endif
-#ifdef USE_SYCL
-	case ResourceType::SYCL:
+
+#elif defined(USE_SYCL)
+
 		return launch_sycl_kernel(resource,
 								  thread_count,
 								  inputs,
@@ -201,8 +200,11 @@ auto launch_kernel(const Resource& resource,
 								  config,
 								  std::forward<Functor>(kernel_func),
 								  std::forward<Args>(args)...);
-#endif
-	case ResourceType::CPU:
+
+#elif defined(USE_METAL)
+		throw_value_error("METAL backend requires a kernel name (string), not a functor. "
+						  "Please use the named-kernel overload of launch_kernel.");
+#else
 		return launch_cpu_kernel(resource,
 								 thread_count,
 								 inputs,
@@ -210,12 +212,10 @@ auto launch_kernel(const Resource& resource,
 								 config,
 								 std::forward<Functor>(kernel_func),
 								 std::forward<Args>(args)...);
-
-	case ResourceType::METAL:
-		throw_value_error("METAL backend requires a kernel name (string), not a functor. "
-						  "Please use the named-kernel overload of launch_kernel.");
-	default:
-		throw_not_implemented("Unsupported resource type for functor-based kernel launch.");
+#endif
+	} catch (const std::exception& e) {
+		LOGERROR("Error in launch_kernel: {}", e.what());
+		throw;
 	}
 }
 
@@ -233,30 +233,30 @@ auto launch_kernel(const Resource& resource,
  * @param args The arguments to be passed to the kernel.
  * @return An Event object that can be used to track the kernel's completion.
  */
-template<typename... Args>
-Event launch_kernel(const Resource& resource,
-					size_t thread_count,
-					const KernelConfig& config,
-					const std::string& kernel_name,
-					Args&&... args) {
-	switch (resource.type) {
-#ifdef USE_METAL
-	case ResourceType::METAL:
-		return launch_metal_kernel(resource,
-								   thread_count,
-								   config,
-								   kernel_name,
-								   std::forward<Args>(args)...);
-#endif
-	case ResourceType::CUDA:
-	case ResourceType::SYCL:
-	case ResourceType::CPU:
-		throw_value_error("CUDA, SYCL, and CPU backends require a functor, not a kernel name. "
-						  "Please use the functor-based overload of launch_kernel.");
-	default:
-		throw_not_implemented("Unsupported resource type for named kernel launch.");
-	}
-}
+// template<typename... Args>
+// Event launch_kernel(const Resource& resource,
+// 					size_t thread_count,
+// 					const KernelConfig& config,
+// 					const std::string& kernel_name,
+// 					Args&&... args) {
+// 	switch (resource.type) {
+// #ifdef USE_METAL
+// 	case ResourceType::METAL:
+// 		return launch_metal_kernel(resource,
+// 								   thread_count,
+// 								   config,
+// 								   kernel_name,
+// 								   std::forward<Args>(args)...);
+// #endif
+// 	case ResourceType::CUDA:
+// 	case ResourceType::SYCL:
+// 	case ResourceType::CPU:
+// 		throw_value_error("CUDA, SYCL, and CPU backends require a functor, not a kernel name. "
+// 						  "Please use the functor-based overload of launch_kernel.");
+// 	default:
+// 		throw_not_implemented("Unsupported resource type for named kernel launch.");
+// 	}
+// }
 
 #ifdef USE_CUDA
 // Forward declaration - actual implementation in KernelHelper.cu
@@ -279,7 +279,6 @@ Event launch_cuda_kernel(const Resource& resource,
 						 const KernelConfig& config,
 						 Functor&& kernel_func,
 						 Args&&... args) {
-	// Implementation moved to KernelHelper.cu
 	return launch_cuda_kernel_impl(resource,
 								   thread_count,
 								   inputs,

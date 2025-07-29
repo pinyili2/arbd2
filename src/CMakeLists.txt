@@ -20,7 +20,7 @@ if(USE_CUDA)
     message(STATUS "src: Adding CUDA specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
         Backend/CUDA/CUDAManager.cpp
-        Backend/CUDA/KernelHelper.cu
+        Random/Random.cu
     )
     # Ensure the CUDA language is enabled in your top-level project() call
     # when USE_CUDA is ON, so CMake knows how to compile .cu files.
@@ -163,7 +163,7 @@ endif()
 if(USE_CUDA)
     # Set CUDA properties for .cu files
     set_source_files_properties(
-        Backend/CUDA/KernelHelper.cu
+        Random/Random.cu
         PROPERTIES
         LANGUAGE CUDA
         CUDA_SEPARABLE_COMPILATION ON
