@@ -128,9 +128,9 @@ template <> struct BackendTraits<SYCLBackend> {
   static constexpr bool requires_explicit_sync = false;
 
 #ifdef USE_SYCL
-  using context_type = void *; // sycl::queue*
-  using event_type = void *;   // sycl::event*
-  using stream_type = void *;  // sycl::queue*
+  using context_type = sycl::queue*; // void*
+  using event_type = sycl::event*;   // void*
+  using stream_type = sycl::queue*;  // void*
 #else
   using context_type = void;
   using event_type = void;
