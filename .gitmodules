@@ -17,6 +17,6 @@
 [submodule "extern/metal-cpp-cmake"]
 	path = extern/metal-cpp-cmake
 	url = https://github.com/pinyili2/metal-cpp-cmake.git
-[submodule "extern/extern/spdlog"]
+[submodule "extern/spdlog"]
 	path = extern/spdlog
 	url = https://github.com/gabime/spdlog.git
