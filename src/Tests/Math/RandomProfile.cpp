@@ -462,12 +462,9 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 			}
 
 			// Check which points are inside unit circle using custom kernel
-			// (Random.h already handles its own kernels, but we need a custom one for this logic)
 			{
 				PROFILE_RANGE("Kernel::CircleTest", backend_type);
 
-				// Use a simple CPU-side computation for this test
-				// or implement as a separate kernel in your Kernels.h if needed
 				std::vector<float> x_host(NUM_SAMPLES), y_host(NUM_SAMPLES);
 				std::vector<int> inside_host(NUM_SAMPLES);
 
@@ -838,33 +835,33 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 // Print the actual resource type value
 // Check which backends are compiled in
 #ifdef USE_SYCL
-		LOGINFO("USE_SYCL is defined");
+		LOGDEBUG("USE_SYCL is defined");
 #else
-		LOGINFO("USE_SYCL is NOT defined");
+		LOGDEBUG("USE_SYCL is NOT defined");
 #endif
 
 #ifdef USE_CUDA
-		LOGINFO("USE_CUDA is defined");
+		LOGDEBUG("USE_CUDA is defined");
 #else
-		LOGINFO("USE_CUDA is NOT defined");
+		LOGDEBUG("USE_CUDA is NOT defined");
 #endif
 
 #ifdef USE_METAL
-		LOGINFO("USE_METAL is defined");
+		LOGDEBUG("USE_METAL is defined");
 #else
-		LOGINFO("USE_METAL is NOT defined");
+		LOGDEBUG("USE_METAL is NOT defined");
 #endif
 
 		// Check ResourceType enum values
-		LOGINFO("ResourceType::SYCL = {}", static_cast<int>(ResourceType::SYCL));
-		LOGINFO("ResourceType::CUDA = {}", static_cast<int>(ResourceType::CUDA));
-		LOGINFO("ResourceType::CPU = {}", static_cast<int>(ResourceType::CPU));
-		LOGINFO("ResourceType::METAL = {}", static_cast<int>(ResourceType::METAL));
+		LOGDEBUG("ResourceType::SYCL = {}", static_cast<int>(ResourceType::SYCL));
+		LOGDEBUG("ResourceType::CUDA = {}", static_cast<int>(ResourceType::CUDA));
+		LOGDEBUG("ResourceType::CPU = {}", static_cast<int>(ResourceType::CPU));
+		LOGDEBUG("ResourceType::METAL = {}", static_cast<int>(ResourceType::METAL));
 
 		// Try to create the resource explicitly and test
 		try {
 			Resource sycl_resource(ResourceType::SYCL, 0);
-			LOGINFO("Created SYCL resource successfully: type={}, id={}",
+			LOGDEBUG("Created SYCL resource successfully: type={}, id={}",
 					static_cast<int>(sycl_resource.type),
 					sycl_resource.id);
 
@@ -1349,7 +1346,7 @@ TEST_CASE("Multi-device parallel random generation with cross-device analysis",
 
 	// === SUMMARY ===
 	LOGINFO("=== MULTI-DEVICE TEST SUMMARY ===");
-	LOGINFO("✓ {} A100 GPUs generated {:.0f}M numbers in {:.3f}ms",
+	LOGINFO("✓ {} SYCL device(s) generated {:.0f}M numbers in {:.3f}ms",
 			num_devices,
 			total_numbers / 1000000.0,
 			total_time_ms);

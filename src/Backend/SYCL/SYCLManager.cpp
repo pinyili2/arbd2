@@ -22,8 +22,8 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
 	// Query device properties after construction
 	query_device_properties();
 
-	LOGINFO("Device {} initialized: {} ({})", id_, name_.c_str(), vendor_.c_str());
-	LOGINFO("  Compute units: {}, Global memory: {:.1f}GB, Max work group: {}",
+	LOGDEBUG("Device {} initialized: {} ({})", id_, name_.c_str(), vendor_.c_str());
+	LOGDEBUG("  Compute units: {}, Global memory: {:.1f}GB, Max work group: {}",
 			max_compute_units_,
 			static_cast<float>(global_mem_size_) / (1024.0f * 1024.0f * 1024.0f),
 			max_work_group_size_);
@@ -161,7 +161,7 @@ void SYCLManager::Device::synchronize_all_queues() {
 
 // SYCLManager static methods implementation
 void SYCLManager::init() {
-	LOGINFO("Initializing SYCL Manager...");
+	LOGDEBUG("Initializing SYCL Manager...");
 
 	all_devices_.clear();
 	devices_.clear();

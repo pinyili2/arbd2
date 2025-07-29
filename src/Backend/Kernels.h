@@ -290,6 +290,7 @@ Event launch_cuda_kernel(const Resource& resource,
 }
 #endif
 
+#ifdef USE_CUDA
 // Validation function that works on both host and device
 template<typename T>
 void validate_block_size(const T& block_size, const cudaDeviceProp& prop) {
@@ -307,7 +308,7 @@ void validate_block_size(const T& block_size, const cudaDeviceProp& prop) {
 		throw std::runtime_error("Block size exceeds device limits");
 	}
 }
-
+#endif
 #ifdef USE_SYCL
 template<typename InputTuple, typename OutputTuple, typename Functor, typename... Args>
 Event launch_sycl_kernel(const Resource& resource,

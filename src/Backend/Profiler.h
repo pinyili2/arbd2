@@ -560,7 +560,7 @@ public:
     static void finalize() {
         if (!initialized_) return;
 
-        LOGINFO("Finalizing profiling for all backends");
+        LOGDEBUG("Finalizing profiling for all backends");
 
         #ifdef USE_CUDA
         CUDAProfiler::finalize();
