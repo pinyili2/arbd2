@@ -226,8 +226,9 @@ if(USE_CUDA)
         Kernels/cuda_kernels.cu
         Kernels/cuda_kernels.cpp
         Math/Kernel_for_test.h
-        Math/RandomTest.cu
+        Math/RandomTestKernels.cu
         Math/RandomDevice.cpp
+        Math/RandomProfile.cpp
         #Math/vector3_precision.cu
         #Math/bitmask.cu
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
@@ -242,7 +243,7 @@ if(USE_CUDA)
         CUDA::cuda_driver
         curand)
     set_source_files_properties(
-            Math/RandomTest.cu
+            Math/RandomTestKernels.cu
             Math/Kernel_for_test.h
             PROPERTIES
             LANGUAGE CUDA

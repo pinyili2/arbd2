@@ -14,11 +14,6 @@
 
 #ifdef __CUDA_ARCH__
 #include <cuda/std/limits>
-template<typename T>
-using numeric_limits = ::cuda::std::numeric_limits<T>;
-#else
-template<typename T>
-using numeric_limits = ::std::numeric_limits<T>;
 #endif
 
 namespace ARBD {
@@ -225,11 +220,19 @@ class alignas(4 * sizeof(T)) Vector3_t {
 
 	// Numeric limits
 	HOST DEVICE static constexpr T highest() noexcept {
-		return numeric_limits<T>::max();
+#ifdef __CUDA_ARCH__
+		return ::cuda::std::numeric_limits<T>::max();
+#else
+		return ::std::numeric_limits<T>::max();
+#endif
 	}
 
 	HOST DEVICE static constexpr T lowest() noexcept {
-		return numeric_limits<T>::lowest();
+#ifdef __CUDA_ARCH__
+		return ::cuda::std::numeric_limits<T>::lowest();
+#else
+		return ::std::numeric_limits<T>::lowest();
+#endif
 	}
 
 	// String and printing

@@ -21,6 +21,7 @@ if(USE_CUDA)
     list(APPEND LIB_SOURCES
         Backend/CUDA/CUDAManager.cpp
         Random/Random.cu
+
     )
     # Ensure the CUDA language is enabled in your top-level project() call
     # when USE_CUDA is ON, so CMake knows how to compile .cu files.

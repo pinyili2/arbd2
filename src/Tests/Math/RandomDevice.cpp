@@ -309,7 +309,7 @@ TEST_CASE_METHOD(RandomTestFixture,
 					mean);
 
 			// Be more lenient for now to see if basic functionality works
-			REQUIRE(mean == Approx(0.35).epsilon(0.5)); // Very lenient to debug
+			REQUIRE(mean == Approx(0.35).epsilon(0.1)); // Very lenient to debug
 
 			LOGINFO("{} parallel random distribution combination successful", backend_name);
 		}

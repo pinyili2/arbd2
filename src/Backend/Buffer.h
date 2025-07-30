@@ -8,6 +8,7 @@
 // Required Manager Headers for Policies
 #ifdef USE_CUDA
 #include "CUDA/CUDAManager.h"
+#include <thrust/tuple.h>
 #endif
 #ifdef USE_SYCL
 #include "SYCL/SYCLManager.h"
@@ -366,11 +367,6 @@ using BackendPolicy = METALPolicy;
  */
 template<typename T>
 using DeviceBuffer = Buffer<T, BackendPolicy>;
-
-// ============================================================================
-// Utility Functions
-// ============================================================================
-
 template<typename... Buffers, std::size_t... Is>
 auto get_buffer_pointers_impl(const std::tuple<Buffers...>& buffer_tuple,
 							  std::index_sequence<Is...>) {
@@ -381,5 +377,4 @@ template<typename... Buffers>
 auto get_buffer_pointers(const std::tuple<Buffers...>& buffer_tuple) {
 	return get_buffer_pointers_impl(buffer_tuple, std::make_index_sequence<sizeof...(Buffers)>{});
 }
-
 } // namespace ARBD

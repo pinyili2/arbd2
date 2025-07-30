@@ -3,6 +3,7 @@
 #include "Backend/Kernels.h"
 #include "Backend/Profiler.h"
 #include "Backend/Resource.h"
+#include "Kernel_for_test.h"
 #include "Math/Types.h"
 #include "Random/Random.h"
 #include <algorithm>
@@ -15,168 +16,6 @@ using namespace ARBD;
 using namespace ARBD::Profiling;
 using Catch::Approx;
 using Catch::Matchers::WithinAbs;
-
-// ============================================================================
-// Kernel Functors for Profiling Tests
-// ============================================================================
-
-struct InitializeWalkersKernel {
-	template<typename... Args>
-	void operator()(size_t i, Args... args) const {
-		auto tuple_args = std::make_tuple(args...);
-		auto* positions = std::get<0>(tuple_args);
-		positions[i] = Vector3{0.0f, 0.0f, 0.0f};
-	}
-};
-
-struct RandomWalkKernel {
-	size_t NUM_STEPS;
-	size_t NUM_WALKERS;
-
-	template<typename... Args>
-	void operator()(size_t walker_id, Args... args) const {
-		auto tuple_args = std::make_tuple(args...);
-		auto* steps = std::get<0>(tuple_args);
-		auto* positions = std::get<1>(tuple_args);
-
-		Vector3 pos = positions[walker_id];
-
-		// Take NUM_STEPS/NUM_WALKERS steps per walker
-		size_t steps_per_walker = NUM_STEPS / NUM_WALKERS;
-		size_t start_step = walker_id * steps_per_walker;
-
-		for (size_t step = 0; step < steps_per_walker && (start_step + step) < NUM_STEPS; ++step) {
-			size_t step_idx = start_step + step;
-			Vector3 step_vec = steps[step_idx];
-
-			// Normalize step to unit length
-			float length = std::sqrt(step_vec.x * step_vec.x + step_vec.y * step_vec.y +
-									 step_vec.z * step_vec.z);
-			if (length > 0.0f) {
-				step_vec.x /= length;
-				step_vec.y /= length;
-				step_vec.z /= length;
-			}
-
-			// Take the step
-			pos.x += step_vec.x;
-			pos.y += step_vec.y;
-			pos.z += step_vec.z;
-		}
-
-		positions[walker_id] = pos;
-	}
-};
-
-struct CalculateDistancesKernel {
-	template<typename... Args>
-	void operator()(size_t i, Args... args) const {
-		auto tuple_args = std::make_tuple(args...);
-		auto* positions = std::get<0>(tuple_args);
-		auto* distances = std::get<1>(tuple_args);
-
-		Vector3 pos = positions[i];
-		distances[i] = std::sqrt(pos.x * pos.x + pos.y * pos.y + pos.z * pos.z);
-	}
-};
-double calculate_correlation(const std::vector<float>& x, const std::vector<float>& y) {
-	if (x.size() != y.size() || x.empty())
-		return 0.0;
-
-	double sum_x = std::accumulate(x.begin(), x.end(), 0.0);
-	double sum_y = std::accumulate(y.begin(), y.end(), 0.0);
-	double mean_x = sum_x / x.size();
-	double mean_y = sum_y / y.size();
-
-	double numerator = 0.0;
-	double sum_sq_x = 0.0;
-	double sum_sq_y = 0.0;
-
-	for (size_t i = 0; i < x.size(); ++i) {
-		double dx = x[i] - mean_x;
-		double dy = y[i] - mean_y;
-		numerator += dx * dy;
-		sum_sq_x += dx * dx;
-		sum_sq_y += dy * dy;
-	}
-
-	double denominator = std::sqrt(sum_sq_x * sum_sq_y);
-	return (denominator > 1e-10) ? (numerator / denominator) : 0.0;
-}
-struct SimpleKernel {
-	template<typename... Args>
-	HOST DEVICE void operator()(size_t i, Args... args) const {
-		// Unpack args like UniformFunctor does
-		auto tuple_args = std::make_tuple(args...);
-		auto* output = std::get<0>(tuple_args);
-		output[i] = static_cast<float>(i);
-	}
-};
-struct SmoothingFilterKernel {
-	size_t GRID_SIZE;
-
-	template<typename... Args>
-	void operator()(size_t i, Args... args) const {
-		auto tuple_args = std::make_tuple(args...);
-		auto* input = std::get<0>(tuple_args);
-		auto* output = std::get<1>(tuple_args);
-
-		size_t x = i % GRID_SIZE;
-		size_t y = i / GRID_SIZE;
-
-		// Simple 3x3 averaging filter
-		float sum = 0.0f;
-		int count = 0;
-
-		for (int dy = -1; dy <= 1; ++dy) {
-			for (int dx = -1; dx <= 1; ++dx) {
-				int nx = static_cast<int>(x) + dx;
-				int ny = static_cast<int>(y) + dy;
-
-				if (nx >= 0 && nx < static_cast<int>(GRID_SIZE) && ny >= 0 &&
-					ny < static_cast<int>(GRID_SIZE)) {
-
-					size_t idx = ny * GRID_SIZE + nx;
-					sum += input[idx];
-					count++;
-				}
-			}
-		}
-
-		output[i] = (count > 0) ? sum / count : input[i];
-	}
-};
-
-struct GradientCalculationKernel {
-	size_t GRID_SIZE;
-
-	template<typename... Args>
-	void operator()(size_t i, Args... args) const {
-		auto tuple_args = std::make_tuple(args...);
-		auto* input = std::get<0>(tuple_args);
-		auto* output = std::get<1>(tuple_args);
-
-		size_t x = i % GRID_SIZE;
-		size_t y = i / GRID_SIZE;
-
-		float grad_x = 0.0f, grad_y = 0.0f;
-
-		// Calculate finite difference gradients
-		if (x > 0 && x < GRID_SIZE - 1) {
-			size_t left_idx = y * GRID_SIZE + (x - 1);
-			size_t right_idx = y * GRID_SIZE + (x + 1);
-			grad_x = (input[right_idx] - input[left_idx]) * 0.5f;
-		}
-
-		if (y > 0 && y < GRID_SIZE - 1) {
-			size_t top_idx = (y - 1) * GRID_SIZE + x;
-			size_t bottom_idx = (y + 1) * GRID_SIZE + x;
-			grad_y = (input[bottom_idx] - input[top_idx]) * 0.5f;
-		}
-
-		output[i] = std::sqrt(grad_x * grad_x + grad_y * grad_y);
-	}
-};
 
 // ============================================================================
 // Profiled Random Test Fixture
@@ -320,7 +159,7 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 			{
 				PROFILE_RANGE("Statistical::Validation", backend_type);
 				std::vector<float> host_results(50000);
-				device_buffer.copy_to_host(host_results);
+				device_buffer.copy_to_host(host_results.data(), host_results.size());
 
 				// Quick statistical validation
 				double mean = std::accumulate(host_results.begin(), host_results.end(), 0.0) /
@@ -345,9 +184,9 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 			Random<Resource> rng(resource, 128);
 			rng.init(9876, 0);
 
-			DeviceBuffer<Vector3> device_buffer(25000);
-			Vector3 mean(0.0f, 0.0f, 0.0f);
-			Vector3 dev(1.0f, 1.0f, 1.0f);
+			DeviceBuffer<ARBD::Vector3_t<float>> device_buffer(25000);
+			ARBD::Vector3_t<float> mean(0.0f, 0.0f, 0.0f);
+			ARBD::Vector3_t<float> dev(1.0f, 1.0f, 1.0f);
 
 			{
 				PROFILE_RANGE("Random::GenerateVector3", backend_type);
@@ -357,14 +196,16 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 
 			{
 				PROFILE_RANGE("Vector3::Validation", backend_type);
-				std::vector<Vector3> host_results(25000);
+				std::vector<ARBD::Vector3_t<float>> host_results(25000);
 				device_buffer.copy_to_host(host_results);
 
 				// Validate that we have proper Vector3 data
-				bool all_finite =
-					std::all_of(host_results.begin(), host_results.end(), [](const Vector3& v) {
-						return std::isfinite(v.x) && std::isfinite(v.y) && std::isfinite(v.z);
-					});
+				bool all_finite = std::all_of(host_results.begin(),
+											  host_results.end(),
+											  [](const ARBD::Vector3_t<float>& v) {
+												  return std::isfinite(v.x) && std::isfinite(v.y) &&
+														 std::isfinite(v.z);
+											  });
 
 				REQUIRE(all_finite);
 			}
@@ -391,7 +232,7 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 // ============================================================================
 
 TEST_CASE_METHOD(ProfiledRandomTestFixture,
-	    		 "Profiled Random-Kernel Integration",
+				 "Profiled Random-Kernel Integration",
 				 "[random][kernels][profiling][integration]") {
 	auto test_profiled_integration = [this](const Resource& resource,
 											const std::string& backend_name,
@@ -414,7 +255,7 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 			test_event.wait();
 
 			std::vector<float> test_values(100);
-			test_buffer.copy_to_host(test_values);
+			test_buffer.copy_to_host(test_values.data(), test_values.size());
 
 			auto [test_min, test_max] = std::minmax_element(test_values.begin(), test_values.end());
 			double test_mean =
@@ -862,8 +703,8 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 		try {
 			Resource sycl_resource(ResourceType::SYCL, 0);
 			LOGDEBUG("Created SYCL resource successfully: type={}, id={}",
-					static_cast<int>(sycl_resource.type),
-					sycl_resource.id);
+					 static_cast<int>(sycl_resource.type),
+					 sycl_resource.id);
 
 			// Try a simple kernel launch to see exactly where it fails
 			const size_t test_size = 100;
@@ -983,7 +824,7 @@ TEST_CASE_METHOD(ProfiledRandomTestFixture,
 		}
 	}
 }
-TEST_CASE("Multi-device parallel random generation with cross-device analysis",
+TEST_CASE("SYCL Multi-device parallel random generation with cross-device analysis",
 		  "[random][profiling][multi-device][sycl]") {
 #ifdef USE_SYCL
 	// Manually manage SYCL lifetime for this specific multi-device test
@@ -1381,5 +1222,406 @@ TEST_CASE("Multi-device parallel random generation with cross-device analysis",
 	}
 #else
 	SKIP("Multi-device test requires SYCL backend to be enabled.");
+#endif
+}
+
+TEST_CASE("CUDA Multi-device parallel random generation with cross-device analysis",
+		  "[random][profiling][multi-device][cuda]") {
+#ifdef USE_CUDA
+	// Manually manage SYCL lifetime for this specific multi-device test
+	try {
+		CUDA::CUDAManager::init();
+		CUDA::CUDAManager::load_info();
+	} catch (const std::exception& e) {
+		SKIP("SYCL backend initialization failed: " << e.what());
+	}
+
+	constexpr size_t NUMBERS_PER_DEVICE = 10000000; // 10M per device
+	constexpr size_t SAMPLE_SIZE = 10000;			// Sample for analysis
+
+	const auto& cuda_devices = CUDA::CUDAManager::devices();
+	const size_t num_devices = cuda_devices.size();
+
+	if (num_devices == 0) {
+		SKIP("No CUDA devices available for multi-device test.");
+	}
+
+	LOGINFO("=== Multi-Device Parallel Random Generation Test ===");
+	LOGINFO("Testing {} CUDA devices with {} numbers per device", num_devices, NUMBERS_PER_DEVICE);
+
+	// This struct encapsulates all per-device data, preventing dangling references.
+	struct DeviceData {
+		Resource resource;
+		std::unique_ptr<Random<Resource>> rng;
+		DeviceBuffer<float> buffer;
+		Event generation_event;
+		std::chrono::high_resolution_clock::time_point start_time;
+		double timing_ms = 0.0;
+		std::vector<float> sample;
+
+		// Statistical data
+		float mean = 0.0f;
+		float variance = 0.0f;
+		float min_val = 0.0f;
+		float max_val = 0.0f;
+
+		DeviceData(size_t device_id, size_t buffer_size)
+			: resource(ResourceType::CUDA, device_id), sample(SAMPLE_SIZE) {
+			// Set this device as current before allocating any memory
+			CUDA::CUDAManager::use(static_cast<int>(device_id));
+
+			// Now allocate the buffer on the correct device
+			buffer = DeviceBuffer<float>(buffer_size);
+
+			// Initialize the RNG for this device
+			rng = std::make_unique<Random<Resource>>(resource, 256);
+			rng->init(123456 + device_id * 1000, device_id);
+		}
+
+		// Destructor that ensures cleanup happens on the correct device
+		~DeviceData() {
+			try {
+				// Synchronize any pending operations on this device first
+				if (generation_event.is_valid()) {
+					generation_event.wait();
+				}
+
+				// Set this device as current before deallocating
+				CUDA::CUDAManager::use(static_cast<int>(resource.id));
+
+				// Reset RNG first to free any device resources
+				rng.reset();
+
+				// Buffer will be automatically cleaned up by RAII
+			} catch (const std::exception& e) {
+				// Log but don't throw from destructor
+				LOGWARN("Warning: Failed to cleanup device {} properly: {}", resource.id, e.what());
+			}
+		}
+	};
+
+	std::vector<std::unique_ptr<DeviceData>> devices;
+	devices.reserve(num_devices); // Reserve to avoid reallocations
+
+	for (size_t i = 0; i < num_devices; ++i) {
+		LOGINFO("Initializing device {} with {} elements...", i, NUMBERS_PER_DEVICE);
+		devices.push_back(std::make_unique<DeviceData>(i, NUMBERS_PER_DEVICE));
+		LOGINFO("Successfully initialized device {} with seed {}", i, 323456 + i * 1000);
+	}
+
+	// Launch generation on all devices simultaneously
+	PROFILE_RANGE("MultiDevice::ParallelGeneration", ResourceType::CUDA);
+
+	auto global_start = std::chrono::high_resolution_clock::now();
+
+	// Method 1: True async launches (recommended)
+	std::vector<std::future<void>> launch_futures;
+	launch_futures.reserve(num_devices);
+
+	for (auto& device : devices) {
+		// Launch each device's work in a separate thread
+		auto future = std::async(std::launch::async, [&device, &global_start]() {
+			// Set device context in this thread
+			CUDA::CUDAManager::use(static_cast<int>(device->resource.id));
+
+			// Record start time
+			device->start_time = std::chrono::high_resolution_clock::now();
+
+			// Launch the kernel
+			device->generation_event = device->rng->generate_uniform(device->buffer, 0.0f, 1.0f);
+		});
+
+		launch_futures.push_back(std::move(future));
+	}
+
+	// Wait for all launches to complete
+	LOGINFO("Waiting for all {} async launches to complete...", num_devices);
+	for (auto& future : launch_futures) {
+		future.wait();
+	}
+
+	LOGINFO("Launched generation on all {} devices simultaneously", num_devices);
+
+	// Wait for all devices to complete and measure individual timings
+	for (auto& device : devices) {
+		device->generation_event.wait();
+		auto end_time = std::chrono::high_resolution_clock::now();
+		auto duration =
+			std::chrono::duration_cast<std::chrono::microseconds>(end_time - device->start_time);
+		device->timing_ms = static_cast<double>(duration.count()) / 1000.0;
+	}
+
+	auto global_end = std::chrono::high_resolution_clock::now();
+	double total_time_ms =
+		std::chrono::duration<double, std::milli>(global_end - global_start).count();
+
+	// === PERFORMANCE ANALYSIS ===
+	std::vector<double> timings;
+	for (const auto& device : devices) {
+		timings.push_back(device->timing_ms);
+	}
+
+	std::vector<double> individual_throughputs;
+
+	for (const auto& device : devices) {
+		timings.push_back(device->timing_ms);
+		double device_throughput = (NUMBERS_PER_DEVICE / 1000000.0) / (device->timing_ms / 1000.0);
+		individual_throughputs.push_back(device_throughput);
+	}
+
+	double min_time = *std::min_element(timings.begin(), timings.end());
+	double max_time = *std::max_element(timings.begin(), timings.end());
+	double avg_time = std::accumulate(timings.begin(), timings.end(), 0.0) / num_devices;
+
+	size_t total_numbers = NUMBERS_PER_DEVICE * num_devices;
+	double actual_aggregate_throughput = (total_numbers / 1000000.0) / (total_time_ms / 1000.0);
+
+	// 2. Sum of individual device throughputs (if they ran independently)
+	double sum_individual_throughputs =
+		std::accumulate(individual_throughputs.begin(), individual_throughputs.end(), 0.0);
+
+	// 3. Theoretical perfect parallel throughput (if all devices matched the fastest)
+	double perfect_parallel_throughput =
+		(NUMBERS_PER_DEVICE / 1000000.0) / (min_time / 1000.0) * num_devices;
+
+	// === MULTIPLE EFFICIENCY METRICS ===
+
+	// Efficiency 1: How well we utilized the combined theoretical capacity of our devices
+	double capacity_efficiency = (actual_aggregate_throughput / sum_individual_throughputs) * 100.0;
+
+	// Efficiency 2: How close we got to perfect parallel execution (all devices = fastest)
+	double parallel_efficiency =
+		(actual_aggregate_throughput / perfect_parallel_throughput) * 100.0;
+
+	// Efficiency 3: How much speedup we got vs single device (based on average performance)
+	double speedup_factor =
+		actual_aggregate_throughput / (individual_throughputs[0]); // vs device 0
+	double ideal_speedup = num_devices;
+	double speedup_efficiency = (speedup_factor / ideal_speedup) * 100.0;
+
+	// === TIMING ANALYSIS ===
+	double timing_variance = 0.0;
+	for (double timing : timings) {
+		double diff = timing - avg_time;
+		timing_variance += diff * diff;
+	}
+	timing_variance /= num_devices;
+	double timing_stddev = std::sqrt(timing_variance);
+	double timing_coefficient_of_variation = (timing_stddev / avg_time) * 100.0;
+	LOGINFO("=== CORRECTED PERFORMANCE RESULTS ===");
+	LOGINFO("Total numbers generated: {} ({} per device)", total_numbers, NUMBERS_PER_DEVICE);
+	LOGINFO("Wall-clock time: {:.3f} ms", total_time_ms);
+	LOGINFO("Device timings - min: {:.3f}ms, max: {:.3f}ms, avg: {:.3f}ms, stddev: {:.3f}ms",
+			min_time,
+			max_time,
+			avg_time,
+			timing_stddev);
+	LOGINFO("Timing variation coefficient: {:.1f}% (lower is better)",
+			timing_coefficient_of_variation);
+
+	LOGINFO("=== THROUGHPUT ANALYSIS ===");
+	LOGINFO("Actual aggregate throughput: {:.1f} M numbers/sec", actual_aggregate_throughput);
+	LOGINFO("Sum of individual throughputs: {:.1f} M numbers/sec", sum_individual_throughputs);
+	LOGINFO("Perfect parallel throughput: {:.1f} M numbers/sec", perfect_parallel_throughput);
+
+	LOGINFO("=== EFFICIENCY METRICS ===");
+	LOGINFO("Capacity efficiency: {:.1f}% (actual vs sum of individual capacities)",
+			capacity_efficiency);
+	LOGINFO("Parallel efficiency: {:.1f}% (actual vs perfect parallel)", parallel_efficiency);
+	LOGINFO("Speedup: {:.1f}x vs single device ({:.1f}% of ideal {}x)",
+			speedup_factor,
+			speedup_efficiency,
+			ideal_speedup);
+
+	// === BOTTLENECK ANALYSIS ===
+	LOGINFO("=== BOTTLENECK ANALYSIS ===");
+	if (timing_coefficient_of_variation > 20.0) {
+		LOGINFO("⚠️  High timing variation ({:.1f}%) suggests load imbalance or resource contention",
+				timing_coefficient_of_variation);
+	}
+
+	if (capacity_efficiency < 80.0) {
+		LOGINFO("⚠️  Low capacity efficiency ({:.1f}%) suggests launch overhead or synchronization "
+				"issues",
+				capacity_efficiency);
+	}
+
+	// Per-device breakdown
+	for (size_t i = 0; i < devices.size(); ++i) {
+		double device_throughput =
+			(NUMBERS_PER_DEVICE / 1000000.0) / (devices[i]->timing_ms / 1000.0);
+		LOGINFO("Device {}: {:.3f}ms ({:.1f} M numbers/sec)",
+				i,
+				devices[i]->timing_ms,
+				device_throughput);
+	}
+
+	// === CROSS-DEVICE STATISTICAL ANALYSIS ===
+	LOGINFO("=== STATISTICAL ANALYSIS ===");
+	LOGINFO("Sampling {} values from each device for analysis...", SAMPLE_SIZE);
+
+	// Extract samples from each device and calculate statistics
+	for (auto& device : devices) {
+		// Ensure we're using the correct device for memory operations
+		CUDA::CUDAManager::use(static_cast<int>(device->resource.id));
+
+		device->buffer.copy_to_host(device->sample.data(), SAMPLE_SIZE);
+
+		// Calculate statistics
+		auto [min_it, max_it] = std::minmax_element(device->sample.begin(), device->sample.end());
+		device->min_val = *min_it;
+		device->max_val = *max_it;
+
+		double sum = std::accumulate(device->sample.begin(), device->sample.end(), 0.0);
+		device->mean = static_cast<float>(sum / SAMPLE_SIZE);
+
+		double variance_sum = 0.0;
+		for (float val : device->sample) {
+			double diff = val - device->mean;
+			variance_sum += diff * diff;
+		}
+		device->variance = static_cast<float>(variance_sum / SAMPLE_SIZE);
+	}
+
+	// Cross-device comparisons
+	std::vector<float> all_mins, all_maxes, all_means, all_variances;
+	for (const auto& device : devices) {
+		all_mins.push_back(device->min_val);
+		all_maxes.push_back(device->max_val);
+		all_means.push_back(device->mean);
+		all_variances.push_back(device->variance);
+	}
+
+	float global_min = *std::min_element(all_mins.begin(), all_mins.end());
+	float global_max = *std::max_element(all_maxes.begin(), all_maxes.end());
+	float mean_of_means = std::accumulate(all_means.begin(), all_means.end(), 0.0f) / num_devices;
+	float mean_of_variances =
+		std::accumulate(all_variances.begin(), all_variances.end(), 0.0f) / num_devices;
+
+	LOGINFO("Global range across all devices: [{:.6f}, {:.6f}]", global_min, global_max);
+	LOGINFO("Mean of device means: {:.6f} (target: ~0.500)", mean_of_means);
+	LOGINFO("Mean of device variances: {:.6f} (target: ~0.083 for uniform[0,1])",
+			mean_of_variances);
+
+	// Device-by-device breakdown
+	for (size_t i = 0; i < devices.size(); ++i) {
+		LOGINFO("Device {}: mean={:.6f}, var={:.6f}, range=[{:.6f}, {:.6f}]",
+				i,
+				devices[i]->mean,
+				devices[i]->variance,
+				devices[i]->min_val,
+				devices[i]->max_val);
+	}
+
+	// === CROSS-DEVICE QUALITY METRICS ===
+	float max_mean_deviation = 0.0f;
+	for (float mean : all_means) {
+		max_mean_deviation = std::max(max_mean_deviation, std::abs(mean - 0.5f));
+	}
+
+	float min_variance = *std::min_element(all_variances.begin(), all_variances.end());
+	float max_variance = *std::max_element(all_variances.begin(), all_variances.end());
+	float variance_ratio = (min_variance > 0.0f) ? (max_variance / min_variance) : 1.0f;
+
+	LOGINFO("=== QUALITY METRICS ===");
+	LOGINFO("Max mean deviation from 0.5: {:.6f} (should be < 0.01)", max_mean_deviation);
+	LOGINFO("Variance ratio (max/min): {:.3f} (should be < 1.5)", variance_ratio);
+
+	// === CROSS-DEVICE CORRELATION TEST ===
+	double max_correlation = 0.0;
+	if (num_devices >= 2) {
+		PROFILE_RANGE("CrossDevice::CorrelationTest", ResourceType::CUDA);
+
+		LOGINFO("=== CROSS-DEVICE CORRELATION ANALYSIS ===");
+
+		auto calculate_correlation = [](const std::vector<float>& x,
+										const std::vector<float>& y) -> double {
+			if (x.size() != y.size() || x.empty())
+				return 0.0;
+
+			double sum_x = std::accumulate(x.begin(), x.end(), 0.0);
+			double sum_y = std::accumulate(y.begin(), y.end(), 0.0);
+			double mean_x = sum_x / x.size();
+			double mean_y = sum_y / y.size();
+
+			double numerator = 0.0, sum_sq_x = 0.0, sum_sq_y = 0.0;
+
+			for (size_t i = 0; i < x.size(); ++i) {
+				double dx = x[i] - mean_x;
+				double dy = y[i] - mean_y;
+				numerator += dx * dy;
+				sum_sq_x += dx * dx;
+				sum_sq_y += dy * dy;
+			}
+
+			double denominator = std::sqrt(sum_sq_x * sum_sq_y);
+			return (denominator > 1e-10) ? (numerator / denominator) : 0.0;
+		};
+
+		std::vector<double> correlations;
+
+		for (size_t i = 0; i < num_devices - 1; ++i) {
+			for (size_t j = i + 1; j < num_devices; ++j) {
+				double corr = calculate_correlation(devices[i]->sample, devices[j]->sample);
+				double abs_corr = std::abs(corr);
+				correlations.push_back(abs_corr);
+				max_correlation = std::max(max_correlation, abs_corr);
+
+				LOGINFO("Correlation between device {} and {}: {:.6f}", i, j, corr);
+			}
+		}
+
+		LOGINFO("Maximum absolute correlation: {:.6f} (should be < 0.05)", max_correlation);
+	}
+
+	// === FINAL QUALITY ASSERTIONS ===
+	REQUIRE(global_min >= 0.0f);
+	REQUIRE(global_max <= 1.0f);
+	REQUIRE(max_mean_deviation < 0.01f);
+	REQUIRE(variance_ratio < 1.5f);
+	REQUIRE(mean_of_means > 0.45f);
+	REQUIRE(mean_of_means < 0.55f);
+	// REQUIRE(parallel_efficiency > 80.0); // Should be at least 80% efficient
+	if (num_devices >= 2) {
+		REQUIRE(max_correlation < 0.05); // Devices should be uncorrelated
+	}
+
+	// === SUMMARY ===
+	LOGINFO("=== MULTI-DEVICE TEST SUMMARY ===");
+	LOGINFO("✓ {} CUDA device(s) generated {:.0f}M numbers in {:.3f}ms",
+			num_devices,
+			total_numbers / 1000000.0,
+			total_time_ms);
+	LOGINFO("✓ Aggregate throughput: {:.1f} M numbers/sec", actual_aggregate_throughput);
+	LOGINFO("✓ Parallel efficiency: {:.1f}%", parallel_efficiency);
+	LOGINFO("✓ All statistical quality metrics passed");
+	if (num_devices >= 2) {
+		LOGINFO("✓ Cross-device correlation < {:.3f}", max_correlation);
+	}
+
+	PROFILE_MARK("MultiDevice test completed successfully", ResourceType::CUDA);
+
+	// Ensure all devices are synchronized before cleanup
+	LOGINFO("Synchronizing all devices before cleanup...");
+	for (size_t i = 0; i < devices.size(); ++i) {
+		try {
+			CUDA::CUDAManager::sync(static_cast<int>(i));
+		} catch (const std::exception& e) {
+			LOGWARN("Warning: Failed to sync device {}: {}", i, e.what());
+		}
+	}
+
+	// Clear devices explicitly in reverse order to avoid dependency issues
+	LOGINFO("Cleaning up device data...");
+	devices.clear();
+
+	// Manually finalize SYCL at the end of the test
+	try {
+		CUDA::CUDAManager::finalize();
+	} catch (const std::exception& e) {
+		FAIL("SYCL finalization failed: " << e.what());
+	}
+#else
+	SKIP("Multi-device test requires CUDA backend to be enabled.");
 #endif
 }

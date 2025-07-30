@@ -34,14 +34,14 @@ CUDAManager::Device::Device(unsigned int id) : id_(id) {
 
 	// Enhanced logging to match old naming format
 	const char* timeout_str = may_timeout_ ? "(may timeout) " : "";
-	LOGINFO("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
-			id_,
-			properties_.name,
-			timeout_str,
-			properties_.major,
-			properties_.minor,
-			static_cast<float>(properties_.clockRate) * 1e-6f,
-			static_cast<float>(properties_.totalGlobalMem) / (1024.0f * 1024.0f * 1024.0f));
+	LOGDEBUG("[{}] {} {}| SM {}.{} {:.2f}GHz, {:.1f}GB RAM",
+			 id_,
+			 properties_.name,
+			 timeout_str,
+			 properties_.major,
+			 properties_.minor,
+			 static_cast<float>(properties_.clockRate) * 1e-6f,
+			 static_cast<float>(properties_.totalGlobalMem) / (1024.0f * 1024.0f * 1024.0f));
 
 	create_streams();
 }

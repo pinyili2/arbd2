@@ -9,6 +9,8 @@
 // Only include CUDA headers when compiling with nvcc
 #include "CUDAManager.h"
 #include <cuda_runtime.h>
+#include <thrust/tuple.h>
+using namespace cuda::std;
 #endif
 
 namespace ARBD {
@@ -56,7 +58,7 @@ Event launch_cuda_kernel_impl(const Resource& resource,
 
 #ifdef __CUDACC__
 	KernelConfig local_config = config;
-	local_config.auto_configure(thread_count);
+	local_config.auto_configure(thread_count, resource);
 
 	dim3 grid(local_config.grid_size.x, local_config.grid_size.y, local_config.grid_size.z);
 	dim3 block(local_config.block_size.x, local_config.block_size.y, local_config.block_size.z);
@@ -113,7 +115,7 @@ Event launch_cuda_kernel_impl(const Resource& resource,
 	return Event(event.get(), resource);
 #else
 	// Fallback for non-CUDA compilation - should not be reached
-	static_assert(false, "launch_cuda_kernel_impl can only be used in CUDA compilation units");
+	throw_not_implemented("launch_cuda_kernel_impl can only be used in CUDA compilation units");
 #endif
 }
 
