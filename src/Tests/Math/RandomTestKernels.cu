@@ -30,70 +30,68 @@ template Event launch_cuda_kernel_impl<std::tuple<BufferFloat&, BufferFloat&>,
 
 // For UniformFunctor<int>
 using BufferInt = DeviceBuffer<int>;
+using BufferVector3 = DeviceBuffer<Vector3_t<float>>;
+using BufferFloat = DeviceBuffer<float>;
 
 // InitializeWalkersKernel instantiation
-template Event launch_cuda_kernel_impl<std::tuple<>,
-									   std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>,
-									   InitializeWalkersKernel>(
+template Event
+launch_cuda_kernel_impl<std::tuple<>, std::tuple<BufferVector3&>, InitializeWalkersKernel>(
 	const Resource& resource,
 	size_t thread_count,
 	const std::tuple<>& inputs,
-	const std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>& outputs,
+	const std::tuple<BufferVector3&>& outputs,
 	const KernelConfig& config,
 	InitializeWalkersKernel&& kernel_func);
 
 // RandomWalkKernel instantiation
-template Event launch_cuda_kernel_impl<std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>,
-									   std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>,
-									   RandomWalkKernel>(
+template Event
+launch_cuda_kernel_impl<std::tuple<BufferVector3&>, std::tuple<BufferVector3&>, RandomWalkKernel>(
 	const Resource& resource,
 	size_t thread_count,
-	const std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>& inputs,
-	const std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>& outputs,
+	const std::tuple<BufferVector3&>& inputs,
+	const std::tuple<BufferVector3&>& outputs,
 	const KernelConfig& config,
 	RandomWalkKernel&& kernel_func);
 
 // CalculateDistancesKernel instantiation
-template Event launch_cuda_kernel_impl<std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>,
-									   std::tuple<Buffer<float, CUDAPolicy>&>,
-									   CalculateDistancesKernel>(
-	const Resource& resource,
-	size_t thread_count,
-	const std::tuple<Buffer<Vector3_t<float>, CUDAPolicy>&>& inputs,
-	const std::tuple<Buffer<float, CUDAPolicy>&>& outputs,
-	const KernelConfig& config,
-	CalculateDistancesKernel&& kernel_func);
+template Event
+launch_cuda_kernel_impl<std::tuple<BufferVector3&>,
+						std::tuple<BufferFloat&>,
+						CalculateDistancesKernel>(const Resource& resource,
+												  size_t thread_count,
+												  const std::tuple<BufferVector3&>& inputs,
+												  const std::tuple<BufferFloat&>& outputs,
+												  const KernelConfig& config,
+												  CalculateDistancesKernel&& kernel_func);
 
 // SimpleKernel instantiation
 template Event
-launch_cuda_kernel_impl<std::tuple<Buffer<float, CUDAPolicy>&>,
-						std::tuple<Buffer<float, CUDAPolicy>&>,
-						SimpleKernel>(const Resource& resource,
-									  size_t thread_count,
-									  const std::tuple<Buffer<float, CUDAPolicy>&>& inputs,
-									  const std::tuple<Buffer<float, CUDAPolicy>&>& outputs,
-									  const KernelConfig& config,
-									  SimpleKernel&& kernel_func);
-
-// SmoothingFilterKernel instantiation
-template Event launch_cuda_kernel_impl<std::tuple<Buffer<float, CUDAPolicy>&>,
-									   std::tuple<Buffer<float, CUDAPolicy>&>,
-									   SmoothingFilterKernel>(
+launch_cuda_kernel_impl<std::tuple<BufferFloat&>, std::tuple<BufferFloat&>, SimpleKernel>(
 	const Resource& resource,
 	size_t thread_count,
-	const std::tuple<Buffer<float, CUDAPolicy>&>& inputs,
-	const std::tuple<Buffer<float, CUDAPolicy>&>& outputs,
+	const std::tuple<BufferFloat&>& inputs,
+	const std::tuple<BufferFloat&>& outputs,
+	const KernelConfig& config,
+	SimpleKernel&& kernel_func);
+
+// SmoothingFilterKernel instantiation
+template Event
+launch_cuda_kernel_impl<std::tuple<BufferFloat&>, std::tuple<BufferFloat&>, SmoothingFilterKernel>(
+	const Resource& resource,
+	size_t thread_count,
+	const std::tuple<BufferFloat&>& inputs,
+	const std::tuple<BufferFloat&>& outputs,
 	const KernelConfig& config,
 	SmoothingFilterKernel&& kernel_func);
 
 // GradientCalculationKernel instantiation
-template Event launch_cuda_kernel_impl<std::tuple<Buffer<float, CUDAPolicy>&>,
-									   std::tuple<Buffer<float, CUDAPolicy>&>,
-									   GradientCalculationKernel>(
-	const Resource& resource,
-	size_t thread_count,
-	const std::tuple<Buffer<float, CUDAPolicy>&>& inputs,
-	const std::tuple<Buffer<float, CUDAPolicy>&>& outputs,
-	const KernelConfig& config,
-	GradientCalculationKernel&& kernel_func);
+template Event
+launch_cuda_kernel_impl<std::tuple<BufferFloat&>,
+						std::tuple<BufferFloat&>,
+						GradientCalculationKernel>(const Resource& resource,
+												   size_t thread_count,
+												   const std::tuple<BufferFloat&>& inputs,
+												   const std::tuple<BufferFloat&>& outputs,
+												   const KernelConfig& config,
+												   GradientCalculationKernel&& kernel_func);
 } // namespace ARBD
