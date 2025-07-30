@@ -24,6 +24,7 @@ if(USE_METAL AND APPLE)
     )
     set(METAL_TEST_LIBS
         "lib${PROJECT_NAME}"
+        METAL_CPP
         ${METAL_FRAMEWORK}
         ${FOUNDATION_FRAMEWORK}
         ${QUARTZCORE_FRAMEWORK}

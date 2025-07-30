@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Metal/Metal.hpp>
 #ifdef USE_METAL
 #include "ARBDException.h"
 #include <array>
@@ -79,9 +80,9 @@ inline void check_metal_error(void* object, std::string_view file, int line) {
 template<typename T>
 class DeviceMemory {
   private:
-	void* buffer_{nullptr}; // id<MTLBuffer>
+	MTL::Buffer* buffer_{nullptr};
 	size_t size_{0};
-	void* device_{nullptr}; // id<MTLDevice>
+	MTL::Device* device_{nullptr};
 
   public:
 	DeviceMemory() = default;
@@ -420,6 +421,14 @@ class METALManager {
 	static void deallocate_raw(void* ptr);
 	[[nodiscard]] static void* get_metal_buffer_from_ptr(void* ptr);
 	static MTL::Function* get_function(const std::string& function_name);
+
+	// Additional utility methods for completeness
+	[[nodiscard]] static Device& get_device(unsigned int device_id);
+	[[nodiscard]] static size_t get_device_count() noexcept;
+	[[nodiscard]] static bool has_device(unsigned int device_id);
+	static void reset_device_selection();
+	static void enable_profiling(bool enable = true);
+	[[nodiscard]] static bool is_profiling_enabled() noexcept;
 
   private:
 	[[nodiscard]] static std::vector<unsigned int> get_discrete_gpu_device_ids();

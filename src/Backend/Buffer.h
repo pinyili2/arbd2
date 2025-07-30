@@ -119,15 +119,17 @@ struct SYCLPolicy {
  */
 struct METALPolicy {
 	static void* allocate(size_t bytes) {
-		auto buffer = METAL::METALManager::get_current_device().makeBuffer(bytes);
+		auto& device = METAL::METALManager::get_current_device();
+		auto& queue = device.get_queue(0);
+		auto buffer = METAL::METALManager::allocate_raw(bytes);
 		LOGTRACE("METALPolicy: Allocated {} bytes.", bytes);
-		return buffer.contents();
+		return buffer;
 	}
 
 	static void deallocate(void* ptr) {
 		if (ptr) {
 			LOGTRACE("METALPolicy: Deallocating pointer.");
-			// Metal uses RAII, so explicit deallocation might not be needed
+			METAL::METALManager::deallocate_raw(ptr);
 		}
 	}
 

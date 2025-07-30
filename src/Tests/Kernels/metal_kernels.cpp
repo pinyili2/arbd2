@@ -24,17 +24,16 @@ TEST_CASE("Metal Vector Addition", "[metal][kernels]") {
 		std::vector<float> host_b(n, 2.0f);
 		buffer_a.copy_from_host(host_a.data(), n);
 
-		// Test CPU kernel dispatch (this should work)
 		ARBD::KernelConfig config;
 
 		ARBD::Event event = ARBD::launch_kernel(
 			cpu_res,
 			n,
 			config,
-			"vector_add",
 			buffer_a,
-			buffer_result
-		);
+			buffer_result,
+			"vector_add"
+		);	
 
 		// Wait for completion
 		event.wait();

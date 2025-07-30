@@ -32,7 +32,7 @@ endif()
 if(USE_METAL)
     message(STATUS "src: Adding Metal specific sources to lib${PROJECT_NAME}")
     list(APPEND LIB_SOURCES
-        Backend/METAL/METALManager.mm         # Objective-C++ implementation file
+        Backend/METAL/METALManager.cpp        # Objective-C++ implementation file
         #Simulation/Integrator/IntegratorMetal.mm # Future Metal integrator
         #Simulation/Interactions/ExampleForceMetal.mm # Future Metal force calculations
     )
