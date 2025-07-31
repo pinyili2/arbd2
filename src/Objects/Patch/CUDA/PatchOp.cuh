@@ -1,5 +1,5 @@
 #pragma once
-#include "PatchOp.h"
+#include "../PatchOp.h"
 
 struct ParticleType {
     float diffusion = 1;

@@ -568,13 +568,13 @@ MTL::ComputePipelineState* METALManager::get_compute_pipeline_state(const std::s
 
 	MTL::ComputePipelineDescriptor* pDesc = MTL::ComputePipelineDescriptor::alloc()->init();
 	pDesc->setComputeFunction(pFunction);
-	pDesc->release();
 
 	MTL::ComputePipelineState* pPipelineState =
 		get_current_device().metal_device()->newComputePipelineState(pDesc,
 																	 MTL::PipelineOptionNone,
 																	 nullptr,
 																	 &pError);
+	pDesc->release();
 	if (!pPipelineState || pError) {
 		ARBD_Exception(ExceptionType::MetalRuntimeError,
 					   "Failed to create compute pipeline state for %s. Error: %s",

@@ -467,9 +467,7 @@ Event launch_metal_kernel(const Resource& resource,
 	auto bind_arg = [&](auto&& arg) {
 		using ArgType = std::decay_t<decltype(arg)>;
 		if constexpr (is_device_buffer_v<ArgType>) {
-			EventList deps;
-			auto ptr = arg.get_write_access(deps);
-			void* metal_buffer = METAL::METALManager::get_metal_buffer_from_ptr(ptr);
+			void* metal_buffer = METAL::METALManager::get_metal_buffer_from_ptr(arg.data());
 			encoder->setBuffer(static_cast<const MTL::Buffer*>(metal_buffer), 0, buffer_index++);
 		} else if constexpr (std::is_arithmetic_v<ArgType>) {
 			// Handle scalar arguments as needed
@@ -479,7 +477,7 @@ Event launch_metal_kernel(const Resource& resource,
 	(bind_arg(std::forward<Args>(args)), ...);
 
 	KernelConfig local_config = config;
-	local_config.auto_configure(thread_count);
+	local_config.auto_configure(thread_count, resource);
 
 	MTL::Size grid_size = MTL::Size::Make(local_config.grid_size.x,
 										  local_config.grid_size.y,

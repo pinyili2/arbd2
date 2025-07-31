@@ -8,18 +8,11 @@ endif()
 
 # Single project() call
 if(USE_CUDA)
-    if(USE_METAL)
-        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA OBJCXX)
-    else()
-        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX CUDA)
-    endif()
+    project("${PROJECT_NAME}" VERSION 2.0 LANGUAGES CXX CUDA)
 else()
-    if(USE_METAL)
-        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX OBJCXX)
-    else()
-        project("${PROJECT_NAME}" VERSION 1.2 LANGUAGES CXX)
-    endif()
+    project("${PROJECT_NAME}" VERSION 2.0 LANGUAGES CXX)
 endif()
+
 
 # --- Project Options ---
 option(USE_CUDA "Use CUDA" OFF)
@@ -73,8 +66,6 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
 endif()
 
-# --- Optimization Flags Configuration ---
-# Set optimization level (can be overridden with -DOPT_LEVEL=2 or -DOPT_LEVEL=3)
 if(NOT DEFINED OPT_LEVEL)
     set(OPT_LEVEL 3)
 endif()
@@ -360,7 +351,7 @@ if(USE_METAL)
 
     # Add framework path for Metal.framework
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -F${ARBD_METAL_FRAMEWORK_PATH}")
-    set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -F${ARBD_METAL_FRAMEWORK_PATH}")
+    #set(CMAKE_OBJCXX_FLAGS "${CMAKE_OBJCXX_FLAGS} -F${ARBD_METAL_FRAMEWORK_PATH}")
 endif()
 # --- End Metal Configuration ---
 
@@ -396,7 +387,7 @@ if(USE_CUDA)
 endif()
 
 add_subdirectory(src)
-add_subdirectory(src/Tests)
+add_subdirectory(UnitTest)
 
 add_executable("${PROJECT_NAME}" src/arbd.cpp)
 
@@ -443,6 +434,7 @@ endif()
 if(USE_METAL)
     target_link_libraries("${PROJECT_NAME}"
         PRIVATE
+        METAL_CPP
         ${METAL_FRAMEWORK}
         ${FOUNDATION_FRAMEWORK}
         ${QUARTZCORE_FRAMEWORK}
@@ -455,5 +447,5 @@ if(USE_METAL)
         ${CMAKE_SOURCE_DIR}/extern/metal-cpp-cmake/metal-cmake/metal-cpp-extensions
     )
 
-    message(STATUS "Linked Metal frameworks and headers")
+    message(STATUS "Linked Metal frameworks, Metal-cpp library, and headers")
 endif()
