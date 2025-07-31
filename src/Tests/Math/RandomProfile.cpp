@@ -956,10 +956,6 @@ TEST_CASE("SYCL Multi-device parallel random generation with cross-device analys
 
 	// === PERFORMANCE ANALYSIS ===
 	std::vector<double> timings;
-	for (const auto& device : devices) {
-		timings.push_back(device->timing_ms);
-	}
-
 	std::vector<double> individual_throughputs;
 
 	for (const auto& device : devices) {
@@ -1357,9 +1353,6 @@ TEST_CASE("CUDA Multi-device parallel random generation with cross-device analys
 
 	// === PERFORMANCE ANALYSIS ===
 	std::vector<double> timings;
-	for (const auto& device : devices) {
-		timings.push_back(device->timing_ms);
-	}
 
 	std::vector<double> individual_throughputs;
 
