@@ -21,7 +21,7 @@ void BaseGrid::init() {
 	val_buffer_ = std::make_unique<DeviceBuffer<float>>(size_, resource_);
 }
 BaseGrid::BaseGrid() {
-	BaseGrid tmp(Matrix3_t<float,true,true>(),Vector3_t<float,true,true>(),1,1,1);
+	BaseGrid tmp(Matrix3_t<float>(),Vector3_t<float>(),1,1,1);
 	val = new float[1];
 	*this = tmp;									// TODO: verify that this is OK
 	

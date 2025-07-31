@@ -279,6 +279,21 @@ HOST DEVICE constexpr auto operator*(const float& s, const Vector3_t<T>& v) noex
 	return v * s;
 }
 
+// Helpful routines, not sure if needed
+HOST DEVICE inline Vector3_t<size_t> index_to_ijk(size_t idx, size_t nx, size_t ny, size_t nz) {
+	Vector3_t<size_t> res;
+	res.z = idx % nz;
+	res.y = (idx / nz) % ny;
+	res.x = (idx / (ny * nz)) % nx;
+	return res;
+}
+HOST DEVICE inline Vector3_t<size_t> index_to_ijk(size_t idx, const size_t n[]) {
+	return index_to_ijk(idx, n[0], n[1], n[2]);
+}
+HOST DEVICE inline Vector3_t<size_t> index_to_ijk(size_t idx, const Vector3_t<size_t> n) {
+	return index_to_ijk(idx, n.x, n.y, n.z);
+}
+
 } // namespace ARBD
 
 #ifdef USE_SYCL
