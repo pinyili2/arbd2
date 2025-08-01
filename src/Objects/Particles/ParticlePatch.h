@@ -1,34 +1,11 @@
 #pragma once
 
-#ifdef __CUDACC__
-#define HOST __host__
-#define DEVICE __device__
-#else
-#define HOST
-#define DEVICE
-#endif
-
 #include <functional>
 #include <memory> // std::make_unique
 #include <vector> // std::vector
 
-#ifdef USE_CUDA
-#include <cuda.h>
-#include <cuda_runtime.h>
-#include <curand_kernel.h>
-#endif
-
-#ifdef USE_METAL
-#include <Metal/Metal.h>
-#endif
-
-#ifdef USE_SYCL
-#include <sycl/sycl.hpp>
-#endif
-
 #include "Math/Types.h"
-
-#include "../Patch/Patch.h"
+#include "System/SimSystem.h"
 
 template<typename Pos, typename Force>
 class Patch {
@@ -76,19 +53,21 @@ class Patch : public BasePatch {
 	struct Data {
 		Data(const size_t capacity = 0) {
 			if (capacity == 0) {
-				pos_force = momentum = nullptr;
-				particle_types = particle_order = nullptr;
+				pos_force = nullptr;
+				momentum = nullptr;
+				particle_types = nullptr;
+				particle_order = nullptr;
 			} else {
-				pos_force = new VecArray(capacity);
-				momentum = new VecArray(capacity);
-				particle_types = new Array<size_t>(capacity);
-				particle_order = new Array<size_t>(capacity);
+				pos_force = std::make_unique<VecArray>(capacity);
+				momentum = std::make_unique<VecArray>(capacity);
+				particle_types = std::make_unique<std::vector<size_t>>(capacity);
+				particle_order = std::make_unique<std::vector<size_t>>(capacity);
 			}
 		}
-		VecArray* pos_force;
-		VecArray* momentum;
-		Array<size_t>* particle_types;
-		Array<size_t>* particle_order;
+		std::unique_ptr<VecArray> pos_force;
+		std::unique_ptr<VecArray> momentum;
+		std::unique_ptr<std::vector<size_t>> particle_types;
+		std::unique_ptr<std::vector<size_t>> particle_order;
 
 		HOST DEVICE inline Vector3& get_pos(size_t i) {
 			return (*pos_force)[i * 2];
@@ -151,9 +130,9 @@ class Patch : public BasePatch {
 	Patch send_children(Resource location) const;
 
 	// TODO deprecate copy_to_cuda
-	Patch* copy_to_cuda(Patch* dev_ptr = nullptr) const;
-	static Patch copy_from_cuda(Patch* dev_ptr, Patch* dest = nullptr);
-	static void remove_from_cuda(Patch* dev_ptr);
+	Patch* copy_from_host(Patch* host_ptr = nullptr) const;
+	static Patch copy_to_host(Patch* host_ptr, Patch* dest = nullptr);
+	static void remove_from_host(Patch* host_ptr); // TODO: remove_from_host
 
 	// TODO? emplace_point_particles
 	void compute();

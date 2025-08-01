@@ -64,12 +64,15 @@ Event launch_cuda_kernel_impl(const Resource& resource,
 	dim3 block(local_config.block_size.x, local_config.block_size.y, local_config.block_size.z);
 
 	// Ensure grid dimensions are valid (CUDA requires all dimensions >= 1)
-	if (grid.x == 0)
+	if (grid.x == 0){
 		grid.x = 1;
-	if (grid.y == 0)
+	}
+	if (grid.y == 0){
 		grid.y = 1;
-	if (grid.z == 0)
+	}
+	if (grid.z == 0){
 		grid.z = 1;
+	}
 
 	// Get device and stream
 	auto& device =

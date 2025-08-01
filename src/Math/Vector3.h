@@ -8,9 +8,8 @@
 #include "ARBDLogger.h"
 #include "Backend/Resource.h"
 #include <limits>
-#include <memory>
-#include <sstream>
 #include <type_traits>
+#include <sstream>
 
 #ifdef __CUDA_ARCH__
 #include <cuda/std/limits>

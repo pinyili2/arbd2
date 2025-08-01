@@ -1,6 +1,4 @@
 #pragma once
-#include "ARBDLogger.h"
-#include <type_traits>
 
 // Define HOST and DEVICE macros
 #ifdef __CUDACC__

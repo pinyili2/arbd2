@@ -24,6 +24,7 @@ concept HasTypeid = requires {
 	typename T::value_type; // Example: for container types
 } || std::is_fundamental_v<T>;
 
+
 namespace detail {
 template<typename T>
 consteval const char* basic_type_name() noexcept {

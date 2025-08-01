@@ -1,5 +1,5 @@
 #pragma once
-
+#ifndef __METAL_VERSION__
 #include <cstring>
 #include <memory>
 #include <type_traits>
@@ -17,138 +17,20 @@
 #include "METAL/METALManager.h"
 #endif
 
+#else
+#error "No backend selected. Please define USE_CUDA, USE_SYCL, or USE_METAL."
+#endif
 #include "ARBDLogger.h"
 #include "Events.h"
 #include "Resource.h"
 
 namespace ARBD {
-
-// ============================================================================
-// Backend Policies
-// ============================================================================
-
-#ifdef USE_CUDA
-/**
- * @brief Policy for CUDA memory operations.
- */
-struct CUDAPolicy {
-	static void* allocate(size_t bytes) {
-		void* ptr = nullptr;
-		CUDA_CHECK(cudaMalloc(&ptr, bytes));
-#ifndef __CUDA_ARCH__ // Host-only logging
-		LOGTRACE("CUDAPolicy: Allocated {} bytes.", bytes);
-#endif
-		return ptr;
-	}
-
-	static void deallocate(void* ptr) {
-		if (ptr) {
-#ifndef __CUDA_ARCH__ // Host-only logging
-			LOGTRACE("CUDAPolicy: Deallocating pointer.");
-#endif
-			CUDA_CHECK(cudaFree(ptr));
-		}
-	}
-
-	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
-#ifndef __CUDA_ARCH__ // Host-only logging
-		LOGTRACE("CUDAPolicy: Copying {} bytes from device to host.", bytes);
-#endif
-		CUDA_CHECK(cudaMemcpy(host_dst, device_src, bytes, cudaMemcpyDeviceToHost));
-	}
-
-	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
-#ifndef __CUDA_ARCH__ // Host-only logging
-		LOGTRACE("CUDAPolicy: Copying {} bytes from host to device.", bytes);
-#endif
-		CUDA_CHECK(cudaMemcpy(device_dst, host_src, bytes, cudaMemcpyHostToDevice));
-	}
-
-	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
-#ifndef __CUDA_ARCH__ // Host-only logging
-		LOGTRACE("CUDAPolicy: Copying {} bytes from device to device.", bytes);
-#endif
-		CUDA_CHECK(cudaMemcpy(device_dst, device_src, bytes, cudaMemcpyDeviceToDevice));
-	}
-};
-#endif // USE_CUDA
-
-#ifdef USE_SYCL
-/**
- * @brief Policy for SYCL memory operations.
- */
-struct SYCLPolicy {
-	static void* allocate(size_t bytes) {
-		auto& queue = SYCL::SYCLManager::get_current_queue();
-		void* ptr = sycl::malloc_device(bytes, queue.get());
-		LOGTRACE("SYCLPolicy: Allocated {} bytes.", bytes);
-		return ptr;
-	}
-
-	static void deallocate(void* ptr) {
-		if (ptr) {
-			auto& queue = SYCL::SYCLManager::get_current_queue();
-			LOGTRACE("SYCLPolicy: Deallocating pointer.");
-			sycl::free(ptr, queue.get());
-		}
-	}
-
-	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
-		auto& queue = SYCL::SYCLManager::get_current_queue();
-		LOGTRACE("SYCLPolicy: Copying {} bytes from device to host.", bytes);
-		queue.get().memcpy(host_dst, device_src, bytes).wait();
-	}
-
-	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
-		auto& queue = SYCL::SYCLManager::get_current_queue();
-		LOGTRACE("SYCLPolicy: Copying {} bytes from host to device.", bytes);
-		queue.get().memcpy(device_dst, host_src, bytes).wait();
-	}
-
-	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
-		auto& queue = SYCL::SYCLManager::get_current_queue();
-		LOGTRACE("SYCLPolicy: Copying {} bytes from device to device.", bytes);
-		queue.get().memcpy(device_dst, device_src, bytes).wait();
-	}
-};
-#endif // USE_SYCL
-
-#ifdef USE_METAL
-/**
- * @brief Policy for Metal memory operations.
- */
-struct METALPolicy {
-	static void* allocate(size_t bytes) {
-		auto& device = METAL::METALManager::get_current_device();
-		auto& queue = device.get_queue(0);
-		auto buffer = METAL::METALManager::allocate_raw(bytes);
-		LOGTRACE("METALPolicy: Allocated {} bytes.", bytes);
-		return buffer;
-	}
-
-	static void deallocate(void* ptr) {
-		if (ptr) {
-			LOGTRACE("METALPolicy: Deallocating pointer.");
-			METAL::METALManager::deallocate_raw(ptr);
-		}
-	}
-
-	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
-		LOGTRACE("METALPolicy: Copying {} bytes from device to host.", bytes);
-		std::memcpy(host_dst, device_src, bytes);
-	}
-
-	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
-		LOGTRACE("METALPolicy: Copying {} bytes from host to device.", bytes);
-		std::memcpy(device_dst, host_src, bytes);
-	}
-
-	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
-		LOGTRACE("METALPolicy: Copying {} bytes from device to device.", bytes);
-		std::memcpy(device_dst, device_src, bytes);
-	}
-};
-#endif // USE_METAL
+#if defined(USE_CUDA)
+using BackendPolicy = CUDA::Policy;
+#elif defined(USE_SYCL)
+using BackendPolicy = SYCL::Policy;
+#elif defined(USE_METAL)
+using BackendPolicy = METAL::Policy;
 
 // ============================================================================
 // Generic Buffer Class
@@ -354,16 +236,6 @@ class Buffer {
 // Compile-Time Backend Selection
 // ============================================================================
 
-#if defined(USE_CUDA)
-using BackendPolicy = CUDAPolicy;
-#elif defined(USE_SYCL)
-using BackendPolicy = SYCLPolicy;
-#elif defined(USE_METAL)
-using BackendPolicy = METALPolicy;
-#else
-#error "No backend selected. Please define USE_CUDA, USE_SYCL, or USE_METAL."
-#endif
-
 /**
  * @brief A convenient alias for the Buffer class using the active backend policy.
  */
@@ -380,3 +252,4 @@ auto get_buffer_pointers(const std::tuple<Buffers...>& buffer_tuple) {
 	return get_buffer_pointers_impl(buffer_tuple, std::make_index_sequence<sizeof...(Buffers)>{});
 }
 } // namespace ARBD
+#endif // __METAL_VERSION__

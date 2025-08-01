@@ -10,13 +10,13 @@
 namespace ARBD {
 namespace SYCL {
 // Static member initialization
-std::vector<SYCLManager::Device> SYCLManager::all_devices_;
-std::vector<SYCLManager::Device> SYCLManager::devices_;
-int SYCLManager::current_device_{0};
-sycl::info::device_type SYCLManager::preferred_type_{sycl::info::device_type::cpu};
+std::vector<Manager::Device> Manager::all_devices_;
+std::vector<Manager::Device> Manager::devices_;
+int Manager::current_device_{0};
+sycl::info::device_type Manager::preferred_type_{sycl::info::device_type::cpu};
 
 // Device class implementation
-SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
+Manager::Device::Device(const sycl::device& dev, unsigned int id)
 	: id_(id), device_(dev), queues_(create_queues(dev, id)) {
 
 	// Query device properties after construction
@@ -30,8 +30,8 @@ SYCLManager::Device::Device(const sycl::device& dev, unsigned int id)
 }
 
 // Helper function to create all queues for a device with proper RAII
-std::array<ARBD::SYCL::Queue, SYCLManager::NUM_QUEUES>
-SYCLManager::Device::create_queues(const sycl::device& dev, unsigned int id) {
+std::array<ARBD::SYCL::Queue, Manager::NUM_QUEUES>
+Manager::Device::create_queues(const sycl::device& dev, unsigned int id) {
 	try {
 		// Test if device can create a basic queue first with explicit single-device context
 		sycl::queue test_queue(sycl::context({dev}), dev);
@@ -68,7 +68,7 @@ SYCLManager::Device::create_queues(const sycl::device& dev, unsigned int id) {
 	}
 }
 
-void SYCLManager::Device::query_device_properties() {
+void Manager::Device::query_device_properties() {
 	try {
 		// Set default values first
 		name_ = "Unknown Device";
@@ -144,7 +144,7 @@ void SYCLManager::Device::query_device_properties() {
 	}
 }
 
-void SYCLManager::Device::synchronize_all_queues() {
+void Manager::Device::synchronize_all_queues() {
 	for (auto& queue : queues_) {
 		try {
 			queue.synchronize();
@@ -159,8 +159,8 @@ void SYCLManager::Device::synchronize_all_queues() {
 	}
 }
 
-// SYCLManager static methods implementation
-void SYCLManager::init() {
+// Manager static methods implementation
+void Manager::init() {
 	LOGDEBUG("Initializing SYCL Manager...");
 
 	all_devices_.clear();
@@ -176,7 +176,7 @@ void SYCLManager::init() {
 	LOGINFO("Found {} SYCL device(s)", all_devices_.size());
 }
 
-void SYCLManager::discover_devices() {
+void Manager::discover_devices() {
 	try {
 		// Get all platforms
 		auto platforms = sycl::platform::get_platforms();
@@ -259,7 +259,7 @@ void SYCLManager::discover_devices() {
 						 selected_device_infos.end(),
 						 [](const DeviceInfo& a, const DeviceInfo& b) {
 							 if (a.type != b.type) {
-								 return a.type == SYCLManager::preferred_type_;
+								 return a.type == Manager::preferred_type_;
 							 }
 							 return a.id < b.id;
 						 });
@@ -278,7 +278,7 @@ void SYCLManager::discover_devices() {
 	}
 }
 
-void SYCLManager::load_info() {
+void Manager::load_info() {
 	init();
 
 	// For single device case (Mac), explicitly select only the first device
@@ -299,7 +299,7 @@ void SYCLManager::load_info() {
 	}
 }
 
-void SYCLManager::init_devices() {
+void Manager::init_devices() {
 	LOGINFO("Initializing SYCL devices...");
 	std::string msg;
 
@@ -322,7 +322,7 @@ void SYCLManager::init_devices() {
 	current_device_ = 0;
 }
 
-void SYCLManager::select_devices(std::span<const unsigned int> device_ids) {
+void Manager::select_devices(std::span<const unsigned int> device_ids) {
 	devices_.clear();
 	devices_.reserve(device_ids.size()); // Reserve space to avoid reallocations
 
@@ -336,21 +336,21 @@ void SYCLManager::select_devices(std::span<const unsigned int> device_ids) {
 	init_devices();
 }
 
-void SYCLManager::use(int device_id) {
+void Manager::use(int device_id) {
 	if (devices_.empty()) {
 		ARBD_Exception(ExceptionType::ValueError, "No devices selected");
 	}
 	current_device_ = device_id % static_cast<int>(devices_.size());
 }
 
-void SYCLManager::sync(int device_id) {
+void Manager::sync(int device_id) {
 	if (device_id >= static_cast<int>(devices_.size())) {
 		ARBD_Exception(ExceptionType::ValueError, "Invalid device ID: {}", device_id);
 	}
 	devices_[device_id].synchronize_all_queues();
 }
 
-void SYCLManager::sync() {
+void Manager::sync() {
 	for (auto& device : devices_) {
 		try {
 			device.synchronize_all_queues();
@@ -362,7 +362,7 @@ void SYCLManager::sync() {
 	}
 }
 
-void SYCLManager::finalize() {
+void Manager::finalize() {
 	try {
 		// First, synchronize all devices to ensure all operations complete
 		if (!devices_.empty()) {
@@ -391,11 +391,11 @@ void SYCLManager::finalize() {
 	}
 }
 
-int SYCLManager::current() {
+int Manager::current() {
 	return current_device_;
 }
 
-void SYCLManager::prefer_device_type(sycl::info::device_type type) {
+void Manager::prefer_device_type(sycl::info::device_type type) {
 	preferred_type_ = type;
 
 	if (!all_devices_.empty()) {
@@ -418,7 +418,7 @@ void SYCLManager::prefer_device_type(sycl::info::device_type type) {
 	}
 }
 
-std::vector<unsigned int> SYCLManager::get_gpu_device_ids() {
+std::vector<unsigned int> Manager::get_gpu_device_ids() {
 	std::vector<unsigned int> gpu_ids;
 	for (const auto& device : all_devices_) {
 		if (device.is_gpu()) {
@@ -428,7 +428,7 @@ std::vector<unsigned int> SYCLManager::get_gpu_device_ids() {
 	return gpu_ids;
 }
 
-std::vector<unsigned int> SYCLManager::get_cpu_device_ids() {
+std::vector<unsigned int> Manager::get_cpu_device_ids() {
 	std::vector<unsigned int> cpu_ids;
 	for (const auto& device : all_devices_) {
 		if (device.is_cpu()) {
@@ -438,7 +438,7 @@ std::vector<unsigned int> SYCLManager::get_cpu_device_ids() {
 	return cpu_ids;
 }
 
-std::vector<unsigned int> SYCLManager::get_accelerator_device_ids() {
+std::vector<unsigned int> Manager::get_accelerator_device_ids() {
 	std::vector<unsigned int> accel_ids;
 	for (const auto& device : all_devices_) {
 		if (device.is_accelerator()) {

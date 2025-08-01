@@ -1,55 +1,8 @@
-#include <metal_stdlib>
+using namespace ARBD;
 using namespace metal;
-
-struct PhiloxGenerator {
-    uint4 counter;
-    uint2 key;
-    
-    PhiloxGenerator(uint64_t seed, uint thread_id, uint64_t offset) {
-        key = uint2(seed & 0xFFFFFFFF, (seed >> 32) & 0xFFFFFFFF);
-        counter = uint4(thread_id + offset, 0, 0, 0);
-    }
-    
-    uint4 next() {
-        uint4 v = counter;
-        counter.x += 1;
-        if (counter.x == 0) counter.y += 1;
-        
-        // Simplified Philox round function
-        uint4 result;
-        result.x = v.x * 0xD2511F53;
-        result.y = v.y * 0xCD9E8D57;
-        result.z = v.z ^ key.x;
-        result.w = v.w ^ key.y;
-        
-        // Additional mixing
-        result.xy = result.yx;
-        result.x ^= result.z;
-        result.y ^= result.w;
-        
-        return result;
-    }
-    
-    float next_float() {
-        uint4 vals = next();
-        return vals.x * 0x1.0p-32f; // Convert to [0,1)
-    }
-    
-    float2 next_float2() {
-        uint4 vals = next();
-        return float2(vals.x * 0x1.0p-32f, vals.y * 0x1.0p-32f);
-    }
-    
-    double next_double() {
-        uint4 vals = next();
-        uint64_t combined = (uint64_t(vals.x) << 32) | vals.y;
-        return combined * 0x1.0p-64; // Convert to [0,1)
-    }
-    
-    uint next_uint() {
-        return next().x;
-    }
-};
+#include <metal_stdlib>
+#include "RandomKernels.h"
+#include "Math/Types.h"
 
 // Box-Muller transform for Gaussian distribution
 float2 box_muller(float u1, float u2) {
@@ -94,10 +47,6 @@ kernel void generate_gaussian_float(device float* output [[buffer(0)]],
     }
 }
 
-// Vector3 structure for Metal
-struct Vector3 {
-    float x, y, z;
-};
 
 // Gaussian Vector3 generation
 kernel void generate_gaussian_vector3(device Vector3* output [[buffer(0)]],
