@@ -562,7 +562,7 @@ struct Policy {
 			static_cast<MTL::CommandBuffer*>(queue.create_command_buffer());
 		MTL::BlitCommandEncoder* blit_encoder = cmd_buffer->blitCommandEncoder();
 
-		if (mtl_buffer->storageMode() == MTL::ResourceStorageModeShared) {
+		if (mtl_buffer->storageMode() == MTL::StorageModeShared) {
 			LOGTRACE("METALPolicy: Synchronizing shared buffer before host copy.");
 			// This command ensures that all prior GPU writes to the buffer are complete
 			// before any subsequent commands (and the CPU wait) proceed.
@@ -604,7 +604,7 @@ struct Policy {
 						   "copy_from_host: Invalid buffer pointer");
 		}
 
-		if (mtl_buffer->storageMode() == MTL::ResourceStorageModeShared) {
+		if (mtl_buffer->storageMode() == MTL::StorageModeShared) {
 			LOGTRACE("METALPolicy: Copying {} bytes from host to shared buffer.", bytes);
 			std::memcpy(mtl_buffer->contents(), host_src, bytes);
 		} else {

@@ -49,7 +49,8 @@ class Event {
 
 #ifdef USE_METAL
 	Event(ARBD::METAL::Event metal_event, const Resource& res)
-		: resource_(res), event_impl_(std::make_shared<ARBD::METAL::Event>(std::move(metal_event))) {}
+		: resource_(res),
+		  event_impl_(std::make_shared<ARBD::METAL::Event>(std::move(metal_event))) {}
 #endif
 
 	void wait() const {
@@ -59,7 +60,7 @@ class Event {
 		// Use resource type to determine which backend implementation to use
 		if (resource_.is_device()) {
 #ifdef USE_CUDA
-			//cudaDeviceSynchronize();
+			// cudaDeviceSynchronize();
 			if (auto* cuda_event_ptr = static_cast<cudaEvent_t*>(event_impl_.get())) {
 				cudaEventSynchronize(*cuda_event_ptr);
 				return;
@@ -215,7 +216,7 @@ class EventList {
 	}
 #endif
 };
-} // namespace BACKEND
+}; // namespace BACKEND
 
 // Make Event and EventList directly accessible from ARBD namespace
 using Event = BACKEND::Event;

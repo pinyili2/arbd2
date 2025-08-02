@@ -79,10 +79,11 @@ if(USE_METAL AND APPLE)
 
     # Metal backend tests
     add_executable(arbd_test_metal
-        Backends/metal_manager.cpp
+        #Backends/metal_manager.cpp
         Backends/metal_backend.cpp
         Backends/generic_Buffer.cpp
-        Kernels/metal_kernels.cpp
+        Backends/metal_buffer_test.cpp
+        #Kernels/metal_kernels.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_metal PRIVATE ${METAL_TEST_INCLUDES})
     target_link_libraries(arbd_test_metal PRIVATE ${METAL_TEST_LIBS})
@@ -120,6 +121,7 @@ if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     # Test for test_sycl.cpp - now uses Catch2's main function
     add_executable(arbd_test_sycl
         Backends/generic_Buffer.cpp
+        Backends/metal_buffer_test.cpp
         Kernels/sycl_kernels.cpp
         ${CMAKE_SOURCE_DIR}/extern/Catch2/extras/catch_amalgamated.cpp)
     target_include_directories(arbd_test_sycl PRIVATE ${CMAKE_SOURCE_DIR}/src)
