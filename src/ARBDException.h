@@ -79,7 +79,7 @@
  * }
  * ```
  */
-
+#ifndef __METAL_VERSION__
 #include <cstdio>
 #include <exception>
 #include <iostream>
@@ -230,3 +230,4 @@ template <typename... Args>
 } // namespace ARBD
 #define ARBD_Exception(type, ...)                                              \
   throw ARBD::Exception(type, ARBD::SourceLocation(), __VA_ARGS__)
+#endif // __METAL_VERSION__

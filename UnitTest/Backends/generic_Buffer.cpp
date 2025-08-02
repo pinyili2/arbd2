@@ -30,29 +30,29 @@ struct BackendInitFixture {
     BackendInitFixture() {
         try {
 #ifdef USE_CUDA
-            CUDA::CUDAManager::init();
-            CUDA::CUDAManager::load_info();
-            if (!CUDA::CUDAManager::devices().empty()) {
-                CUDA::CUDAManager::use(0);
-                std::cout << "Initialized CUDA with " << CUDA::CUDAManager::devices().size() << " device(s)" << std::endl;
+            CUDA::Manager::init();
+            CUDA::Manager::load_info();
+            if (!CUDA::Manager::devices().empty()) {
+                CUDA::Manager::use(0);
+                std::cout << "Initialized CUDA with " << CUDA::Manager::devices().size() << " device(s)" << std::endl;
             }
 #endif
 
 #ifdef USE_SYCL
-            SYCL::SYCLManager::init();
-            SYCL::SYCLManager::load_info();
-            if (!SYCL::SYCLManager::devices().empty()) {
-                SYCL::SYCLManager::use(0);
-                std::cout << "Initialized SYCL with " << SYCL::SYCLManager::devices().size() << " device(s)" << std::endl;
+            SYCL::Manager::init();
+            SYCL::Manager::load_info();
+            if (!SYCL::Manager::devices().empty()) {
+                SYCL::Manager::use(0);
+                std::cout << "Initialized SYCL with " << SYCL::Manager::devices().size() << " device(s)" << std::endl;
             }
 #endif
 
 #ifdef USE_METAL
-            METAL::METALManager::init();
-            METAL::METALManager::load_info();
-            if (!METAL::METALManager::devices().empty()) {
-                METAL::METALManager::use(0);
-                std::cout << "Initialized Metal with " << METAL::METALManager::devices().size() << " device(s)" << std::endl;
+            METAL::Manager::init();
+            METAL::Manager::load_info();
+            if (!METAL::Manager::devices().empty()) {
+                METAL::Manager::use(0);
+                std::cout << "Initialized Metal with " << METAL::Manager::devices().size() << " device(s)" << std::endl;
             }
 #endif
         } catch (const std::exception& e) {
@@ -63,13 +63,13 @@ struct BackendInitFixture {
     ~BackendInitFixture() {
         try {
 #ifdef USE_CUDA
-            CUDA::CUDAManager::finalize();
+            CUDA::Manager::finalize();
 #endif
 #ifdef USE_SYCL  
-            SYCL::SYCLManager::finalize();
+            SYCL::Manager::finalize();
 #endif
 #ifdef USE_METAL
-            METAL::METALManager::finalize();
+            METAL::Manager::finalize();
 #endif
         } catch (const std::exception& e) {
             std::cerr << "Warning: Backend finalization failed: " << e.what() << std::endl;

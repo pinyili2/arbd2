@@ -413,26 +413,26 @@ class Event {
  * @example Basic Usage:
  * ```cpp
  * // Initialize device system
- * ARBD::CUDA::CUDAManager::init();
+ * ARBD::CUDA::Manager::init();
  *
  * // Select specific devices
  * std::vector<unsigned int> device_ids = {0, 1};
- * ARBD::CUDA::CUDAManager::select_devices(device_ids);
+ * ARBD::CUDA::Manager::select_devices(device_ids);
  *
  * // Use a specific device
- * ARBD::CUDA::CUDAManager::use(0);
+ * ARBD::CUDA::Manager::use(0);
  *
  * // Get current device
- * auto& device = ARBD::CUDA::CUDAManager::get_current_device();
+ * auto& device = ARBD::CUDA::Manager::get_current_device();
  *
  * // Finalize when done
- * ARBD::CUDA::CUDAManager::finalize();
+ * ARBD::CUDA::Manager::finalize();
  * ```
  *
  * @note The class uses static methods for global device management.
  *       All operations are thread-safe and exception-safe.
  */
-class CUDAManager {
+class Manager {
   public:
 	static constexpr size_t NUM_STREAMS = 8;
 
@@ -451,7 +451,7 @@ class CUDAManager {
 	 * @example Basic Usage:
 	 * ```cpp
 	 * // Get device properties
-	 * const auto& device = ARBD::CUDA::CUDAManager::devices()[0];
+	 * const auto& device = ARBD::CUDA::Manager::devices()[0];
 	 * const auto& props = device.properties();
 	 *
 	 * // Get a stream
@@ -635,7 +635,49 @@ class CUDAManager {
 	static bool prefer_safe_;
 	static int current_device_;
 };
+/**
+ * @brief Policy for CUDA memory operations.
+ */
+ struct CUDAPolicy {
+	static void* allocate(size_t bytes) {
+		void* ptr = nullptr;
+		CUDA_CHECK(cudaMalloc(&ptr, bytes));
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("CUDAPolicy: Allocated {} bytes.", bytes);
+#endif
+		return ptr;
+	}
 
+	static void deallocate(void* ptr) {
+		if (ptr) {
+#ifndef __CUDA_ARCH__ // Host-only logging
+			LOGTRACE("CUDAPolicy: Deallocating pointer.");
+#endif
+			CUDA_CHECK(cudaFree(ptr));
+		}
+	}
+
+	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("CUDAPolicy: Copying {} bytes from device to host.", bytes);
+#endif
+		CUDA_CHECK(cudaMemcpy(host_dst, device_src, bytes, cudaMemcpyDeviceToHost));
+	}
+
+	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("CUDAPolicy: Copying {} bytes from host to device.", bytes);
+#endif
+		CUDA_CHECK(cudaMemcpy(device_dst, host_src, bytes, cudaMemcpyHostToDevice));
+	}
+
+	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("CUDAPolicy: Copying {} bytes from device to device.", bytes);
+#endif
+		CUDA_CHECK(cudaMemcpy(device_dst, device_src, bytes, cudaMemcpyDeviceToDevice));
+	}
+};
 /**
  * @brief Queue alias for Stream to maintain consistency with industry standard terminology
  *

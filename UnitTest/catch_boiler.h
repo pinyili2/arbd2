@@ -76,16 +76,16 @@ class TestBackendManager {
 #ifdef USE_CUDA
 		ARBD::SignalManager::manage_segfault();
 		// Initialize CUDA GPU Manager
-		ARBD::CUDA::CUDAManager::init();
-		ARBD::CUDA::CUDAManager::load_info();
+		ARBD::CUDA::Manager::init();
+		ARBD::CUDA::Manager::load_info();
 #endif
 #ifdef USE_SYCL
-		ARBD::SYCL::SYCLManager::init();
-		ARBD::SYCL::SYCLManager::load_info();
+		ARBD::SYCL::Manager::init();
+		ARBD::SYCL::Manager::load_info();
 #endif
 #ifdef USE_METAL
-		ARBD::METAL::METALManager::init();
-		ARBD::METAL::METALManager::load_info();
+		ARBD::METAL::Manager::init();
+		ARBD::METAL::Manager::load_info();
 #endif
 		initialized_ = true;
 	}
@@ -95,13 +95,13 @@ class TestBackendManager {
 			return;
 
 #ifdef USE_CUDA
-		ARBD::CUDA::CUDAManager::finalize();
+		ARBD::CUDA::Manager::finalize();
 #endif
 #ifdef USE_SYCL
-		ARBD::SYCL::SYCLManager::finalize();
+		ARBD::SYCL::Manager::finalize();
 #endif
 #ifdef USE_METAL
-		ARBD::METAL::METALManager::finalize();
+		ARBD::METAL::Manager::finalize();
 #endif
 		initialized_ = false;
 	}
@@ -111,10 +111,10 @@ class TestBackendManager {
 		cudaDeviceSynchronize();
 #endif
 #ifdef USE_SYCL
-		ARBD::SYCL::SYCLManager::sync();
+		ARBD::SYCL::Manager::sync();
 #endif
 #ifdef USE_METAL
-		ARBD::METAL::METALManager::sync();
+		ARBD::METAL::Manager::sync();
 #endif
 	}
 
@@ -127,10 +127,10 @@ class TestBackendManager {
 		ARBD::check_cuda_error(cudaMemset(ptr, 0, count * sizeof(R)), __FILE__, __LINE__);
 		return ptr;
 #elif defined(USE_SYCL)
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 		return sycl::malloc_device<R>(count, queue.get());
 #elif defined(USE_METAL)
-		auto& device = ARBD::METAL::METALManager::get_current_device();
+		auto& device = ARBD::METAL::Manager::get_current_device();
 		// Metal uses unified memory, so we can allocate using DeviceMemory
 		// For simplicity, we'll use the manager's allocate function
 		// Note: This is conceptual - actual Metal allocation would be different
@@ -149,7 +149,7 @@ class TestBackendManager {
 #ifdef USE_CUDA
 		cudaFree(ptr);
 #elif defined(USE_SYCL)
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 		sycl::free(ptr, queue.get());
 #elif defined(USE_METAL)
 		std::free(ptr);
@@ -167,7 +167,7 @@ class TestBackendManager {
 			__FILE__,
 			__LINE__);
 #elif defined(USE_SYCL)
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 		queue.get().memcpy(device_ptr, host_ptr, count * sizeof(R)).wait();
 #elif defined(USE_METAL)
 		std::memcpy(device_ptr, host_ptr, count * sizeof(R));
@@ -185,7 +185,7 @@ class TestBackendManager {
 			__FILE__,
 			__LINE__);
 #elif defined(USE_SYCL)
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 		queue.get().memcpy(host_ptr, device_ptr, count * sizeof(R)).wait();
 #elif defined(USE_METAL)
 		std::memcpy(host_ptr, device_ptr, count * sizeof(R));
@@ -207,7 +207,7 @@ class TestBackendManager {
 		*result_device = Op_t::op(args...);
 #endif
 #elif defined(USE_SYCL)
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 		queue
 			.submit([=](sycl::handler& h) {
 				h.single_task([=]() { *result_device = Op_t::op(args...); });

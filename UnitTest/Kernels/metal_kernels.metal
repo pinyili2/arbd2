@@ -76,8 +76,6 @@ kernel void fill_buffer(device float* output [[buffer(0)]],
     output[index] = value;
 } 
 
-#include <metal_stdlib>
-using namespace metal;
 
 kernel void zero_buffer(device float* buffer [[buffer(0)]],
                        uint index [[thread_position_in_grid]]) {
@@ -89,6 +87,13 @@ kernel void add_arrays(device const float* a [[buffer(0)]],
                       device float* result [[buffer(2)]],
                       uint index [[thread_position_in_grid]]) {
     result[index] = a[index] + b[index];
+}
+
+// Simple debug kernel that just writes a constant value
+kernel void debug_write_constant(device float* result [[buffer(0)]],
+                                uint index [[thread_position_in_grid]]) {
+    // Always write to index 0 regardless of thread position to test basic memory access
+    result[0] = 42.0f;  // Write a constant to test if kernel executes
 }
 
 // Packed version: input buffer contains [a_data..., b_data...]

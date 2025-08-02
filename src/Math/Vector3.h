@@ -6,11 +6,10 @@
 #pragma once
 #include "ARBDException.h"
 #include "ARBDLogger.h"
-#include "Backend/Resource.h"
+#include "Backend/Header.h"
 #include <limits>
-#include <memory>
-#include <sstream>
 #include <type_traits>
+#include <sstream>
 
 #ifdef __CUDA_ARCH__
 #include <cuda/std/limits>

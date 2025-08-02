@@ -2,7 +2,6 @@
 #include "ARBDException.h"
 #include "ARBDLogger.h"
 #include "Array.h"
-#include "Backend/Resource.h"
 #include "Bitmask.h"
 #include "Matrix3.h"
 #include "TypeName.h"
