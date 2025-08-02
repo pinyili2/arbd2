@@ -1,5 +1,7 @@
 #ifdef USE_METAL
 
+// @TODO: Confirm std::move is correct for metal event
+
 #include "../catch_boiler.h"
 #include "Backend/Events.h"
 #include "Backend/METAL/METALManager.h"
@@ -9,9 +11,8 @@ using namespace ARBD;
 
 TEST_CASE("Metal Event Basic Operations", "[events]") {
 	// Setup: Initialize Metal manager with device selection
-	METAL::METALManager::load_info();
-	auto& device =
-		const_cast<METAL::METALManager::Device&>(METAL::METALManager::get_current_device());
+	METAL::Manager::load_info();
+	auto& device = const_cast<METAL::Manager::Device&>(METAL::Manager::get_current_device());
 	auto& queue = device.get_next_queue();
 	Resource metal_resource(ResourceType::METAL, 0);
 
@@ -40,7 +41,7 @@ TEST_CASE("Metal Event Basic Operations", "[events]") {
 		metal_event.commit();
 
 		// Create backend Event with the Metal event
-		Event backend_event(metal_event, metal_resource);
+		Event backend_event(std::move(metal_event), metal_resource); //not sure if I should explicitly move the metal event
 
 		REQUIRE(backend_event.is_valid());
 		REQUIRE(backend_event.get_resource().type == ResourceType::METAL);
@@ -54,7 +55,7 @@ TEST_CASE("Metal Event Basic Operations", "[events]") {
 	SECTION("Event Implementation Access") {
 		void* cmd_buffer_ptr = queue.create_command_buffer();
 		METAL::Event metal_event(cmd_buffer_ptr);
-		Event backend_event(metal_event, metal_resource);
+		Event backend_event(std::move(metal_event), metal_resource);
 
 		// Verify we can access the implementation
 		REQUIRE(backend_event.is_valid());
@@ -66,9 +67,8 @@ TEST_CASE("Metal Event Basic Operations", "[events]") {
 
 TEST_CASE("Metal EventList Operations", "[events]") {
 	// Setup
-	METAL::METALManager::load_info();
-	auto& device =
-		const_cast<METAL::METALManager::Device&>(METAL::METALManager::get_current_device());
+	METAL::Manager::load_info();
+	auto& device = const_cast<METAL::Manager::Device&>(METAL::Manager::get_current_device());
 	auto& queue = device.get_next_queue();
 	Resource metal_resource(ResourceType::METAL, 0);
 
@@ -88,8 +88,7 @@ TEST_CASE("Metal EventList Operations", "[events]") {
 
 			// Commit each command buffer
 			metal_event.commit();
-
-			Event backend_event(metal_event, metal_resource);
+			Event backend_event(std::move(metal_event), metal_resource);
 			list.add(backend_event);
 		}
 
@@ -107,7 +106,7 @@ TEST_CASE("Metal EventList Operations", "[events]") {
 		// Add an event with valid command buffer (no commit needed for this test)
 		void* cmd_buffer_ptr = queue.create_command_buffer();
 		METAL::Event metal_event(cmd_buffer_ptr);
-		Event backend_event(metal_event, metal_resource);
+		Event backend_event(std::move(metal_event), metal_resource);
 		list.add(backend_event);
 
 		REQUIRE_FALSE(list.empty());
@@ -123,7 +122,7 @@ TEST_CASE("Metal EventList Operations", "[events]") {
 		// Add a Metal event with valid command buffer (no commit needed for this test)
 		void* cmd_buffer_ptr = queue.create_command_buffer();
 		METAL::Event metal_event(cmd_buffer_ptr);
-		Event backend_event(metal_event, metal_resource);
+		Event backend_event(std::move(metal_event), metal_resource);
 		list.add(backend_event);
 
 		// Extract Metal events
@@ -133,7 +132,7 @@ TEST_CASE("Metal EventList Operations", "[events]") {
 	}
 
 	// Cleanup
-	METAL::METALManager::finalize();
+	METAL::Manager::finalize();
 }
 
 #endif // USE_METAL

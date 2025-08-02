@@ -22,13 +22,13 @@ void test_sycl_cpu_initialization() {
     std::cout << "[TEST] SYCL CPU Initialization... ";
     try {
         // Set CPU preference before initialization for AdaptiveCpp
-        SYCLManager::prefer_device_type(sycl::info::device_type::cpu);
+        Manager::prefer_device_type(sycl::info::device_type::cpu);
         
         // Initialize the SYCL manager
-        SYCLManager::init();
+        Manager::init();
         
         // Verify we have at least one device
-        if (SYCLManager::all_device_size() == 0) {
+        if (Manager::all_device_size() == 0) {
             std::cout << "SKIP: No SYCL devices found\n";
             return;
         }
@@ -74,7 +74,7 @@ void test_sycl_cpu_initialization() {
         }
         
         // Display device information
-        const auto& devices = SYCLManager::all_devices();
+        const auto& devices = Manager::all_devices();
         bool found_cpu = false;
         for (const auto& device : devices) {
             if (device.is_cpu()) {
@@ -88,13 +88,13 @@ void test_sycl_cpu_initialization() {
         }
         
         if (!found_cpu) {
-            std::cout << "SKIP: No CPU device found in SYCLManager\n";
+            std::cout << "SKIP: No CPU device found in Manager\n";
             return;
         }
         
         // Load device info and verify initialization
-        SYCLManager::load_info();
-        assert(SYCLManager::devices().size() > 0);
+        Manager::load_info();
+        assert(Manager::devices().size() > 0);
         std::cout << "PASS\n";
         
     } catch (const std::exception& e) {
@@ -106,7 +106,7 @@ void test_sycl_cpu_initialization() {
 void test_sycl_basic_memory_operations() {
     std::cout << "[TEST] SYCL Basic Memory Operations... ";
     try {
-        auto& queue = SYCLManager::get_current_queue();
+        auto& queue = Manager::get_current_queue();
         
         // Test memory allocation and copy operations using USM
         constexpr size_t SIZE = 1000;
@@ -141,7 +141,7 @@ void test_sycl_basic_memory_operations() {
 void test_sycl_parallel_for() {
     std::cout << "[TEST] SYCL Parallel For... ";
     try {
-        auto& queue = SYCLManager::get_current_queue();
+        auto& queue = Manager::get_current_queue();
         
         // Vector addition test using USM and in-order queue
         constexpr size_t SIZE = 1000;
@@ -194,7 +194,7 @@ void test_sycl_parallel_for() {
 void test_sycl_reduction() {
     std::cout << "[TEST] SYCL Reduction... ";
     try {
-        auto& queue = SYCLManager::get_current_queue();
+        auto& queue = Manager::get_current_queue();
         
         // Parallel reduction test
         constexpr size_t SIZE = 1000;
@@ -253,7 +253,7 @@ int main() {
         
         // Explicit cleanup to prevent mutex issues
         try {
-            SYCLManager::finalize();
+            Manager::finalize();
         } catch (...) {
             // Ignore cleanup errors
         }
@@ -265,7 +265,7 @@ int main() {
         
         // Attempt cleanup even on failure
         try {
-            SYCLManager::finalize();
+            Manager::finalize();
         } catch (...) {
             // Ignore cleanup errors
         }

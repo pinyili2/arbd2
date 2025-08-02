@@ -13,17 +13,17 @@ using namespace ARBD;
 // We need at least one test case in the file.
 TEST_CASE("Metal Support Check", "[init]") {
 
-    // Use the METALManager to check for available devices. This is a more
+    // Use the Manager to check for available devices. This is a more
     // thorough check that ensures the manager can initialize and find devices.
-    REQUIRE_NOTHROW(METAL::METALManager::init());
-    REQUIRE(METAL::METALManager::all_device_size() > 0);
-    REQUIRE_NOTHROW(METAL::METALManager::finalize());
+    REQUIRE_NOTHROW(METAL::Manager::init());
+    REQUIRE(METAL::Manager::all_device_size() > 0);
+    REQUIRE_NOTHROW(METAL::Manager::finalize());
 }
 
 TEST_CASE("Metal Manager Initialization", "[init][manager]") {
     SECTION("Device Discovery and Properties") {
-        METAL::METALManager::init();
-        auto& devices = METAL::METALManager::all_devices();
+        METAL::Manager::init();
+        auto& devices = METAL::Manager::all_devices();
         REQUIRE_FALSE(devices.empty());
 
         for (size_t i = 0; i < devices.size(); ++i) {
@@ -32,13 +32,13 @@ TEST_CASE("Metal Manager Initialization", "[init][manager]") {
             // So we just check that the name is not empty
             REQUIRE_FALSE(device.name().empty());
         }
-        METAL::METALManager::finalize();
+        METAL::Manager::finalize();
     }
 }
 
 TEST_CASE("Metal Manager Device Properties", "[metal][manager][properties]") {
-    METAL::METALManager::load_info();
-    auto& devices = METAL::METALManager::devices();
+    METAL::Manager::load_info();
+    auto& devices = METAL::Manager::devices();
     REQUIRE_FALSE(devices.empty());
 
     for (const auto& device : devices) {
@@ -48,43 +48,43 @@ TEST_CASE("Metal Manager Device Properties", "[metal][manager][properties]") {
             REQUIRE(device.max_threads_per_group() > 0);
         }
     }
-    METAL::METALManager::finalize();
+    METAL::Manager::finalize();
 }
 
 TEST_CASE("Metal Manager Device Selection", "[metal][manager]") {
-    METAL::METALManager::init();
+    METAL::Manager::init();
     SECTION("Select first device") {
-        const auto& all_devices = METAL::METALManager::all_devices();
+        const auto& all_devices = METAL::Manager::all_devices();
         if (all_devices.empty()) {
             WARN("No Metal devices found, skipping test.");
-            METAL::METALManager::finalize();
+            METAL::Manager::finalize();
             return;
         }
         
         unsigned int first_device_id = all_devices[0].id();
         std::vector<unsigned int> dev_ids = {first_device_id};
-        REQUIRE_NOTHROW(METAL::METALManager::select_devices(dev_ids));
+        REQUIRE_NOTHROW(METAL::Manager::select_devices(dev_ids));
         
-        auto& selected_devices = METAL::METALManager::devices();
+        auto& selected_devices = METAL::Manager::devices();
         REQUIRE(selected_devices.size() == 1);
         REQUIRE(selected_devices[0].id() == first_device_id);
     }
-    METAL::METALManager::finalize();
+    METAL::Manager::finalize();
 }
 
 TEST_CASE("Metal Queue Operations", "[metal][queue]") {
     // Setup: Initialize the manager
-    METAL::METALManager::load_info();
+    METAL::Manager::load_info();
 
     // Iterate by index to get non-const device objects, which is safer
     // than using const_cast.
-    for (size_t i = 0; i < METAL::METALManager::devices().size(); ++i) {
-        auto& device = METAL::METALManager::devices()[i];
+    for (size_t i = 0; i < METAL::Manager::devices().size(); ++i) {
+        auto& device = METAL::Manager::devices()[i];
 
         SECTION("Queue Operations on device " + std::to_string(device.id())) {
 
             // Get a queue from the device
-            auto& queue = const_cast<METAL::METALManager::Device&>(device).get_next_queue();
+            auto& queue = const_cast<METAL::Manager::Device&>(device).get_next_queue();
             REQUIRE(queue.is_available());
 
             // Create a command buffer using the queue
@@ -109,35 +109,35 @@ TEST_CASE("Metal Queue Operations", "[metal][queue]") {
     }
 
     // Teardown: Finalize the manager
-    METAL::METALManager::finalize();
+    METAL::Manager::finalize();
 }
 
 TEST_CASE("Metal Synchronization", "[metal][sync]") {
-    METAL::METALManager::load_info();
-    const auto& devices = METAL::METALManager::devices();
+    METAL::Manager::load_info();
+    const auto& devices = METAL::Manager::devices();
     if (devices.empty()) {
         WARN("No Metal devices found. Skipping test.");
-        METAL::METALManager::finalize();
+        METAL::Manager::finalize();
         return;
     }
 
-    for (const auto& device : METAL::METALManager::devices()) {
+    for (const auto& device : METAL::Manager::devices()) {
         SECTION("Synchronization for device " + std::to_string(device.id())) {
             INFO("Device ID: " << device.id());
             REQUIRE_NOTHROW(device.synchronize_all_queues());
         }
     }
-    METAL::METALManager::finalize();
+    METAL::Manager::finalize();
 }
 
 TEST_CASE("Metal Memory Allocation and Transfer", "[metal][memory]") {
-    METAL::METALManager::load_info();
-    if (METAL::METALManager::devices().empty()) {
+    METAL::Manager::load_info();
+    if (METAL::Manager::devices().empty()) {
         WARN("No Metal devices found. Skipping test.");
-        METAL::METALManager::finalize();
+        METAL::Manager::finalize();
         return;
     }
-    auto& device = METAL::METALManager::get_current_device();
+    auto& device = METAL::Manager::get_current_device();
     
     SECTION("DeviceMemory construction and destruction") {
         METAL::DeviceMemory<float> device_mem(device.metal_device(), 10);
@@ -167,7 +167,7 @@ TEST_CASE("Metal Memory Allocation and Transfer", "[metal][memory]") {
 
         REQUIRE(host_data == host_result);
     }
-    METAL::METALManager::finalize();
+    METAL::Manager::finalize();
 }
 
 TEST_CASE("Metal Resource Creation and Properties", "[resource]") {
@@ -198,11 +198,11 @@ TEST_CASE("Metal Resource Creation and Properties", "[resource]") {
 }
 
 TEST_CASE("Metal Device Discovery", "[device]") {
-	METAL::METALManager::init();
+	METAL::Manager::init();
 
-	INFO("Number of available Metal devices: " << METAL::METALManager::all_device_size());
+	INFO("Number of available Metal devices: " << METAL::Manager::all_device_size());
 
-	for (const auto& device : METAL::METALManager::all_devices()) {
+	for (const auto& device : METAL::Manager::all_devices()) {
 		INFO("Device " << device.id() << ": " << device.name()
 					   << " (Low Power: " << device.is_low_power()
 					   << ", Unified Memory: " << device.has_unified_memory() << ")");
@@ -210,13 +210,13 @@ TEST_CASE("Metal Device Discovery", "[device]") {
 
 	// Select all available devices
 	std::vector<unsigned int> device_ids;
-	for (const auto& device : METAL::METALManager::all_devices()) {
+	for (const auto& device : METAL::Manager::all_devices()) {
 		device_ids.push_back(device.id());
 	}
 
-	REQUIRE_NOTHROW(METAL::METALManager::select_devices(device_ids));
+	REQUIRE_NOTHROW(METAL::Manager::select_devices(device_ids));
 
-	CHECK(METAL::METALManager::devices().size() > 0);
+	CHECK(METAL::Manager::devices().size() > 0);
 }
 
 #endif // USE_METAL 

@@ -1,4 +1,12 @@
 #include "SimSystem.h"
+#include "Math/Types.h"
+#include "Backend/Buffer.h"
+#include "Backend/Resource.h"
+#include "Backend/Events.h"
+#include "Backend/Kernels.h"
+
+
+using namespace ARBD;
 
 void CellDecomposer::decompose(SimSystem& sys, ResourceCollection& resources) {
     BoundaryConditions& bcs = sys.boundary_conditions;
@@ -31,7 +39,8 @@ void CellDecomposer::decompose(SimSystem& sys, ResourceCollection& resources) {
 	// size_t cap = 2*num_particles / n_r;
 	// auto p2 = Patch(cap);
 	Patch p2 = Patch();	// don't allocate array locally
-	// TODO: generalize to non-orthogonal basis
+    
+	/** @TODO: generalize to non-orthogonal basis */
 	Vector3 pmin = min + dr.element_mult(ijk);
 	Vector3 pmax = pmin + dr;
 

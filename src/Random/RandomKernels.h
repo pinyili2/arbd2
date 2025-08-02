@@ -3,7 +3,7 @@
 #include "Backend/Events.h"
 #include "Backend/Resource.h"
 #include "Math/Vector3.h"
-#include "openrand/philox.h"
+#include "random/philox.h"
 #ifdef __CUDACC__
 #include <cuda_runtime.h>
 using namespace thrust;
