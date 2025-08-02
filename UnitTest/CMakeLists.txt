@@ -87,8 +87,8 @@ if(USE_METAL AND APPLE)
     target_include_directories(arbd_test_metal PRIVATE ${METAL_TEST_INCLUDES})
     target_link_libraries(arbd_test_metal PRIVATE ${METAL_TEST_LIBS})
 
-    # # Make sure Metal shaders are built before the test executable
-    # add_dependencies(arbd_test_metal metal_shaders)
+    #     # Make sure Metal shaders are built before the test executable
+    add_dependencies(arbd_test_metal metal_shaders)
 
     add_test(NAME Metal_Tests COMMAND arbd_test_metal)
     set_tests_properties(Metal_Tests PROPERTIES

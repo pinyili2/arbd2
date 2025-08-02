@@ -42,36 +42,38 @@ struct kerneldim3 {
 
 /**
  * @brief Configuration for kernel launches.
- * 
+ *
  * This class encapsulates the configuration parameters for kernel launches,
  * including grid and block sizes, shared memory requirements, and event dependencies.
  * It also provides methods for auto-configuring the kernel based on the resource type.
  */
 struct KernelConfig {
-	public:
-	kerneldim3 grid_size = {0,0,0}; // Grid dimensions. A zero value in x signals auto-calculation.
+  public:
+	kerneldim3 grid_size = {0,
+							0,
+							0}; // Grid dimensions. A zero value in x signals auto-calculation.
 	kerneldim3 block_size = {256, 1, 1}; // Block/Work-group dimensions.
 	size_t shared_memory = 0;			 // Shared memory in bytes (primarily for CUDA).
 	bool async = true;					 // If false, the host will wait for completion.
 	EventList dependencies;				 // Events this kernel must wait for.
 	int stream_id = 0;
-	
+
 	inline void validate_block_size(const Resource& resource) {
-	#ifdef USE_SYCL
+#ifdef USE_SYCL
 		if (resource.type == ResourceType::SYCL) {
 			try {
 				auto& device = SYCL::SYCLManager::get_device(resource.id);
 				size_t max_work_group_size =
 					device.get_device().get_info<sycl::info::device::max_work_group_size>();
-	
+
 				auto max_work_item_sizes =
 					device.get_device().get_info<sycl::info::device::max_work_item_sizes<3>>();
-	
+
 				// Clamp each dimension to device limits
 				block_size.x = std::min(block_size.x, static_cast<size_t>(max_work_item_sizes[0]));
 				block_size.y = std::min(block_size.y, static_cast<size_t>(max_work_item_sizes[1]));
 				block_size.z = std::min(block_size.z, static_cast<size_t>(max_work_item_sizes[2]));
-	
+
 				// Ensure total work-group size doesn't exceed device limit
 				size_t total_work_items = block_size.x * block_size.y * block_size.z;
 				if (total_work_items > max_work_group_size) {
@@ -82,33 +84,34 @@ struct KernelConfig {
 					block_size.y = std::max(1UL, static_cast<size_t>(block_size.y * scale_factor));
 					block_size.z = std::max(1UL, static_cast<size_t>(block_size.z * scale_factor));
 				}
-	
-				LOGDEBUG(
-					"SYCL block size clamped to ({}, {}, {}) for device with max work-group size {}",
-					block_size.x,
-					block_size.y,
-					block_size.z,
-					max_work_group_size);
-	
+
+				LOGDEBUG("SYCL block size clamped to ({}, {}, {}) for device with max work-group "
+						 "size {}",
+						 block_size.x,
+						 block_size.y,
+						 block_size.z,
+						 max_work_group_size);
+
 			} catch (const sycl::exception& e) {
-				LOGWARN("Failed to query SYCL device limits, using default block size: {}", e.what());
+				LOGWARN("Failed to query SYCL device limits, using default block size: {}",
+						e.what());
 				block_size = {256, 1, 1};
 			}
 		}
-	#endif
-	
-	#ifdef USE_CUDA
+#endif
+
+#ifdef USE_CUDA
 		if (resource.type == ResourceType::CUDA) {
 			try {
-				auto& device = CUDA::CUDAManager::devices()[resource.id];
+				auto& device = CUDA::Manager::devices()[resource.id];
 				cudaDeviceProp prop;
 				CUDA_CHECK(cudaGetDeviceProperties(&prop, device.id()));
-	
+
 				// Clamp each dimension to CUDA limits
 				block_size.x = std::min(block_size.x, static_cast<size_t>(prop.maxThreadsDim[0]));
 				block_size.y = std::min(block_size.y, static_cast<size_t>(prop.maxThreadsDim[1]));
 				block_size.z = std::min(block_size.z, static_cast<size_t>(prop.maxThreadsDim[2]));
-	
+
 				// Ensure total threads per block doesn't exceed limit
 				size_t total_threads = block_size.x * block_size.y * block_size.z;
 				if (total_threads > static_cast<size_t>(prop.maxThreadsPerBlock)) {
@@ -118,21 +121,21 @@ struct KernelConfig {
 					block_size.y = std::max(1UL, static_cast<size_t>(block_size.y * scale_factor));
 					block_size.z = std::max(1UL, static_cast<size_t>(block_size.z * scale_factor));
 				}
-	
-				LOGDEBUG(
-					"CUDA block size clamped to ({}, {}, {}) for device with max threads per block {}",
-					block_size.x,
-					block_size.y,
-					block_size.z,
-					prop.maxThreadsPerBlock);
-	
+
+				LOGDEBUG("CUDA block size clamped to ({}, {}, {}) for device with max threads per "
+						 "block {}",
+						 block_size.x,
+						 block_size.y,
+						 block_size.z,
+						 prop.maxThreadsPerBlock);
+
 			} catch (...) {
 				LOGWARN("Failed to query CUDA device limits, using default block size");
 				block_size = {256, 1, 1};
 			}
 		}
-	#endif
-	
+#endif
+
 		// For CPU, any block size is technically fine since we use std::thread
 		if (resource.type == ResourceType::CPU) {
 			const size_t max_cpu_threads = std::thread::hardware_concurrency() * 4;
@@ -144,36 +147,33 @@ struct KernelConfig {
 			}
 		}
 	}
-	
 
 	void auto_configure(size_t thread_count, const Resource& resource) {
-        // Backend-specific auto-configuration
-        #ifdef USE_CUDA
-            if (resource.type == ResourceType::CUDA) {
-                // Use CUDA-specific configuration
-                block_size.x = 256;  // Optimal for most CUDA kernels
-                grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
-            }
-        #endif
-        
-        #ifdef USE_SYCL
-            if (resource.type == ResourceType::SYCL) {
-                // SYCL work-group configuration
-                block_size.x = 64;   // Typical SYCL work-group size
-                grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
-            }
-        #endif
-        
-        #ifdef USE_METAL
-            if (resource.type == ResourceType::METAL) {
-                // Metal threadgroup configuration
-                block_size.x = 32;   // Metal SIMD width
-                grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
-            }
-        #endif
+// Backend-specific auto-configuration
+#ifdef USE_CUDA
+		if (resource.type == ResourceType::CUDA) {
+			// Use CUDA-specific configuration
+			block_size.x = 256; // Optimal for most CUDA kernels
+			grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
+		}
+#endif
+
+#ifdef USE_SYCL
+		if (resource.type == ResourceType::SYCL) {
+			// SYCL work-group configuration
+			block_size.x = 64; // Typical SYCL work-group size
+			grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
+		}
+#endif
+
+#ifdef USE_METAL
+		if (resource.type == ResourceType::METAL) {
+			// Metal threadgroup configuration
+			block_size.x = 32; // Metal SIMD width
+			grid_size.x = (thread_count + block_size.x - 1) / block_size.x;
+		}
+#endif
 	}
-
-
 };
 
 template<typename... Args>
@@ -186,8 +186,6 @@ using KernelFunction = std::function<void(size_t, Args...)>;
 /**
  * @brief A convenient alias for the Buffer class using the active backend policy.
  */
-template<typename T>
-using DeviceBuffer = Buffer<T, BackendPolicy>;
 
 template<typename T>
 struct is_device_buffer : std::false_type {};
@@ -270,17 +268,21 @@ launch_kernel(const Resource& resource,
 /**
  * @brief Name-based kernel launcher (for Metal)
  */
-template<typename KernelName, typename... Args>
+template<typename InputTuple, typename OutputTuple, typename KernelName, typename... Args>
 std::enable_if_t<is_string_v<KernelName>, Event> launch_kernel(const Resource& resource,
 															   size_t thread_count,
+															   const InputTuple& inputs,
+															   const OutputTuple& outputs,
 															   const KernelConfig& config,
-															   KernelName&& kernel_name,
+															   const std::string& kernel_name,
 															   Args&&... args) {
 	switch (resource.type) {
 #ifdef USE_METAL
 	case ResourceType::METAL:
 		return launch_metal_kernel(resource,
 								   thread_count,
+								   inputs,
+								   outputs,
 								   config,
 								   std::forward<KernelName>(kernel_name),
 								   std::forward<Args>(args)...);
@@ -532,7 +534,7 @@ Event launch_sycl_kernel(const Resource& resource,
 	sycl::range<1> local_range(local_config.block_size.x);
 	sycl::nd_range<1> execution_range(global_range, local_range);
 
-	auto& queue = SYCL::SYCLManager::get_device(resource.id).get_next_queue();
+	auto& queue = SYCL::Manager::get_device(resource.id).get_next_queue();
 
 	auto sycl_event = queue.get().submit([&](sycl::handler& h) {
 		h.depends_on(config.dependencies.get_sycl_events());
@@ -562,6 +564,151 @@ Event launch_sycl_kernel(const Resource& resource,
 #endif
 
 #ifdef USE_METAL
+// Helper functions for buffer binding
+template<typename Tuple, std::size_t... I>
+void bind_tuple_to_encoder_impl(MTL::ComputeCommandEncoder* encoder,
+								const Tuple& tuple,
+								uint32_t& buffer_index,
+								std::index_sequence<I...>) {
+	((std::get<I>(tuple).bind_to_encoder(encoder, buffer_index++)), ...);
+}
+
+template<typename Tuple>
+void bind_tuple_to_encoder(MTL::ComputeCommandEncoder* encoder,
+						   const Tuple& tuple,
+						   uint32_t& buffer_index) {
+	bind_tuple_to_encoder_impl(encoder,
+							   tuple,
+							   buffer_index,
+							   std::make_index_sequence<std::tuple_size_v<Tuple>>{});
+}
+
+template<typename... Args>
+void bind_args_to_encoder(MTL::ComputeCommandEncoder* encoder,
+						  uint32_t& buffer_index,
+						  Args&&... args) {
+	(void)encoder;
+	(void)buffer_index;
+	((void)args, ...);
+}
+
+template<typename T>
+void bind_buffer_to_encoder(MTL::ComputeCommandEncoder* encoder,
+							const DeviceBuffer<T>& buffer,
+							uint32_t index) {
+	if (auto* metal_buffer = buffer.get_metal_buffer()) {
+		encoder->setBuffer(metal_buffer, 0, index);
+	} else {
+		throw_value_error("Failed to get Metal buffer for kernel argument {}", index);
+	}
+}
+
+// Grid configuration helper
+struct MetalGridConfig {
+	MTL::Size grid_size;
+	MTL::Size threadgroup_size;
+};
+
+inline MetalGridConfig calculate_metal_grid_config(size_t thread_count,
+												   const KernelConfig& config,
+												   MTL::ComputePipelineState* pipeline) {
+	MetalGridConfig result;
+
+	// Calculate optimal threadgroup size
+	NS::UInteger max_threads = pipeline->maxTotalThreadsPerThreadgroup();
+	NS::UInteger desired_threads = config.block_size.x;
+	NS::UInteger final_threads = std::min(desired_threads, max_threads);
+
+	result.threadgroup_size = MTL::Size::Make(final_threads, 1, 1);
+
+	// Calculate grid size
+	NS::UInteger num_threadgroups = (thread_count + final_threads - 1) / final_threads;
+	result.grid_size = MTL::Size::Make(thread_count, 1, 1);
+
+	return result;
+}
+
+template<typename InputTuple, typename OutputTuple, typename... Args>
+Event launch_metal_kernel(const Resource& resource,
+						  size_t thread_count,
+						  const InputTuple& inputs,
+						  const OutputTuple& outputs,
+						  const KernelConfig& config,
+						  const std::string& kernel_name,
+						  Args&&... args) {
+
+	// Wait for dependencies
+	config.dependencies.wait_all();
+
+	// Get Metal components
+	auto* pipeline = METAL::Manager::get_compute_pipeline_state(kernel_name);
+	if (!pipeline) {
+		throw_value_error("Failed to get compute pipeline state for kernel: {}", kernel_name);
+	}
+	LOGINFO("Got compute pipeline state for kernel: {}", kernel_name);
+	auto& device = METAL::Manager::get_current_device();
+	auto& queue = device.get_next_queue();
+
+	// Create command buffer and encoder
+	void* cmd_buffer_ptr = queue.create_command_buffer();
+	auto* cmd_buffer = static_cast<MTL::CommandBuffer*>(cmd_buffer_ptr);
+	auto* encoder = cmd_buffer->computeCommandEncoder();
+
+	encoder->setComputePipelineState(pipeline);
+
+	// Enhanced buffer binding with proper error handling
+	uint32_t buffer_index = 0;
+
+	// Bind input buffers
+	LOGINFO("Binding input buffers to encoder, starting at index {}", buffer_index);
+	bind_tuple_to_encoder(encoder, inputs, buffer_index);
+	LOGINFO("Input buffers bound, buffer_index is now {}", buffer_index);
+
+	// Bind output buffers
+	LOGINFO("Binding output buffers to encoder, starting at index {}", buffer_index);
+	bind_tuple_to_encoder(encoder, outputs, buffer_index);
+	LOGINFO("Output buffers bound, buffer_index is now {}", buffer_index);
+
+	// Bind additional arguments
+	bind_args_to_encoder(encoder, buffer_index, std::forward<Args>(args)...);
+
+	// Configure and dispatch
+	auto grid_config = calculate_metal_grid_config(thread_count, config, pipeline);
+	LOGINFO("Dispatching Metal kernel: {} with grid size ({}, {}, {}) and threadgroup size ({}, {}, {})", 
+		kernel_name, 
+		grid_config.grid_size.width, grid_config.grid_size.height, grid_config.grid_size.depth,
+		grid_config.threadgroup_size.width, grid_config.threadgroup_size.height, grid_config.threadgroup_size.depth);
+	encoder->dispatchThreads(grid_config.grid_size, grid_config.threadgroup_size);
+	encoder->endEncoding();
+	LOGINFO("Metal kernel dispatch completed for: {}", kernel_name);
+	LOGINFO("Config async setting: {}", config.async);
+
+	// Create and return event
+	ARBD::METAL::Event metal_event(cmd_buffer_ptr);
+	if (!config.async) {
+		LOGINFO("Committing Metal command buffer for kernel: {}", kernel_name);
+		metal_event.commit();
+		LOGINFO("Waiting for Metal command buffer completion for kernel: {}", kernel_name);
+		metal_event.wait();
+		LOGINFO("Metal command buffer completed for kernel: {}", kernel_name);
+		
+		// Check for command buffer errors
+		MTL::CommandBuffer* pCmdBuffer = static_cast<MTL::CommandBuffer*>(cmd_buffer_ptr);
+		auto status = pCmdBuffer->status();
+		LOGINFO("Command buffer status: {}", (int)status);
+		if (status == MTL::CommandBufferStatusError) {
+			auto* error = pCmdBuffer->error();
+			if (error) {
+				LOGERROR("Metal command buffer error: {}", error->localizedDescription()->utf8String());
+			}
+		}
+	} else {
+		metal_event.commit();
+	}
+
+	return Event(std::move(metal_event), resource);
+}
+/*
 template<typename... Args>
 Event launch_metal_kernel(const Resource& resource,
 						  size_t thread_count,
@@ -571,9 +718,9 @@ Event launch_metal_kernel(const Resource& resource,
 
 	// --- Step 1: Get Pipeline and Command Encoder ---
 	MTL::ComputePipelineState* pipeline =
-		METAL::METALManager::get_compute_pipeline_state(kernel_name);
+		METAL::Manager::get_compute_pipeline_state(kernel_name);
 
-	auto& device = METAL::METALManager::get_current_device();
+	auto& device = METAL::Manager::get_current_device();
 	auto& queue = device.get_next_queue();
 
 	MTL::CommandBuffer* cmd_buffer =
@@ -583,12 +730,11 @@ Event launch_metal_kernel(const Resource& resource,
 	encoder->setComputePipelineState(pipeline);
 
 
-	/**
 	* @TODO: implement this
 	* for (auto& shared_event_tuple : config.dependencies.get_metal_shared_events()) {
 	*	encoder->waitForEvent(std::get<0>(shared_event_tuple), std::get<1>(shared_event_tuple));
 	* }
-	*/
+
 
 	int buffer_index = 0;
 	auto bind_arg = [&](auto&& arg) {
@@ -631,6 +777,7 @@ Event launch_metal_kernel(const Resource& resource,
 	// Return the generic Event wrapper
 	return Event(std::move(metal_event), resource);
 }
+*/
 #endif
 
 // ============================================================================

@@ -11,26 +11,26 @@
 #include <vector>
 using Catch::Approx;
 
-TEST_CASE("METALManager Basic Initialization", "[METALManager][Backend]") {
+TEST_CASE("Manager Basic Initialization", "[Manager][Backend]") {
 	SECTION("Initialize and discover devices") {
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::init());
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::init());
 
 		// Check that we found some devices
-		const auto& all_devices = ARBD::METAL::METALManager::all_devices();
+		const auto& all_devices = ARBD::METAL::Manager::all_devices();
 		REQUIRE(!all_devices.empty());
 		LOGINFO("Found {} Metal devices", all_devices.size());
 
 		// Check that at least one device is usable
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::load_info());
-		const auto& devices = ARBD::METAL::METALManager::devices();
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::load_info());
+		const auto& devices = ARBD::METAL::Manager::devices();
 		REQUIRE(!devices.empty());
 	}
 
 	SECTION("Device properties validation") {
-		ARBD::METAL::METALManager::init();
-		ARBD::METAL::METALManager::load_info();
+		ARBD::METAL::Manager::init();
+		ARBD::METAL::Manager::load_info();
 
-		const auto& devices = ARBD::METAL::METALManager::devices();
+		const auto& devices = ARBD::METAL::Manager::devices();
 		for (size_t i = 0; i < devices.size(); ++i) {
 			const auto& device = devices[i];
 
@@ -56,32 +56,32 @@ TEST_CASE("METALManager Basic Initialization", "[METALManager][Backend]") {
 	}
 }
 
-TEST_CASE("METALManager Device Selection and Usage", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
+TEST_CASE("Manager Device Selection and Usage", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
 
-	const auto& devices = ARBD::METAL::METALManager::devices();
+	const auto& devices = ARBD::METAL::Manager::devices();
 	REQUIRE(!devices.empty());
 
 	SECTION("Device selection") {
 		// Test using device 0
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::use(0));
-		REQUIRE(ARBD::METAL::METALManager::current() == 0);
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::use(0));
+		REQUIRE(ARBD::METAL::Manager::current() == 0);
 
 		// Test current device access
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::get_current_device());
-		const auto& current_device = ARBD::METAL::METALManager::get_current_device();
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::get_current_device());
+		const auto& current_device = ARBD::METAL::Manager::get_current_device();
 		REQUIRE(current_device.id() == devices[0].id());
 
 		// Test cycling through devices if multiple available
 		if (devices.size() > 1) {
-			REQUIRE_NOTHROW(ARBD::METAL::METALManager::use(1));
-			REQUIRE(ARBD::METAL::METALManager::current() == 1);
+			REQUIRE_NOTHROW(ARBD::METAL::Manager::use(1));
+			REQUIRE(ARBD::METAL::Manager::current() == 1);
 
 			// Test wraparound
 			int wrapped_id = static_cast<int>(devices.size());
-			REQUIRE_NOTHROW(ARBD::METAL::METALManager::use(wrapped_id));
-			REQUIRE(ARBD::METAL::METALManager::current() == 0); // Should wrap to 0
+			REQUIRE_NOTHROW(ARBD::METAL::Manager::use(wrapped_id));
+			REQUIRE(ARBD::METAL::Manager::current() == 0); // Should wrap to 0
 		}
 	}
 
@@ -92,23 +92,23 @@ TEST_CASE("METALManager Device Selection and Usage", "[METALManager][Backend]") 
 			device_ids.push_back(device.id());
 		}
 
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::select_devices(device_ids));
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::select_devices(device_ids));
 
 		// Verify devices are still accessible
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::load_info());
-		const auto& selected_devices = ARBD::METAL::METALManager::devices();
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::load_info());
+		const auto& selected_devices = ARBD::METAL::Manager::devices();
 		REQUIRE(selected_devices.size() == device_ids.size());
 	}
 
 	SECTION("Power preference settings") {
-		const auto& all_devices = ARBD::METAL::METALManager::all_devices();
+		const auto& all_devices = ARBD::METAL::Manager::all_devices();
 
 		// Test low power preference
-		ARBD::METAL::METALManager::prefer_low_power(true);
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::load_info());
+		ARBD::METAL::Manager::prefer_low_power(true);
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::load_info());
 
 		// Check if filtering worked (might not have low power devices)
-		const auto& low_power_devices = ARBD::METAL::METALManager::devices();
+		const auto& low_power_devices = ARBD::METAL::Manager::devices();
 		for (const auto& device : low_power_devices) {
 			// If we have devices, they should be low power when preference is set
 			if (!low_power_devices.empty()) {
@@ -125,19 +125,19 @@ TEST_CASE("METALManager Device Selection and Usage", "[METALManager][Backend]") 
 		}
 
 		// Reset to high performance
-		ARBD::METAL::METALManager::prefer_low_power(false);
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::load_info());
-		const auto& high_perf_devices = ARBD::METAL::METALManager::devices();
+		ARBD::METAL::Manager::prefer_low_power(false);
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::load_info());
+		const auto& high_perf_devices = ARBD::METAL::Manager::devices();
 		REQUIRE(!high_perf_devices.empty());
 	}
 }
 
-TEST_CASE("METALManager Command Queue Management", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
-	ARBD::METAL::METALManager::use(0);
+TEST_CASE("Manager Command Queue Management", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
+	ARBD::METAL::Manager::use(0);
 
-	auto& device = ARBD::METAL::METALManager::get_current_device();
+	auto& device = ARBD::METAL::Manager::get_current_device();
 
 	SECTION("Command queue creation") {
 		// Test creating command queues
@@ -173,16 +173,16 @@ TEST_CASE("METALManager Command Queue Management", "[METALManager][Backend]") {
 	}
 }
 
-TEST_CASE("METALManager Memory Management", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
-	ARBD::METAL::METALManager::use(0);
+TEST_CASE("Manager Memory Management", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
+	ARBD::METAL::Manager::use(0);
 
 	SECTION("Raw memory allocation") {
 		constexpr size_t test_size = 1024 * sizeof(float);
 
 		void* ptr = nullptr;
-		REQUIRE_NOTHROW(ptr = ARBD::METAL::METALManager::allocate_raw(test_size));
+		REQUIRE_NOTHROW(ptr = ARBD::METAL::Manager::allocate_raw(test_size));
 		REQUIRE(ptr != nullptr);
 
 		// Memory should be accessible (Metal uses unified memory)
@@ -201,10 +201,10 @@ TEST_CASE("METALManager Memory Management", "[METALManager][Backend]") {
 		}
 
 		// Test getting Metal buffer from pointer
-		void* metal_buffer = ARBD::METAL::METALManager::get_metal_buffer_from_ptr(ptr);
+		void* metal_buffer = ARBD::METAL::Manager::get_metal_buffer_from_ptr(ptr);
 		REQUIRE(metal_buffer != nullptr);
 
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::deallocate_raw(ptr));
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::deallocate_raw(ptr));
 	}
 
 	SECTION("Multiple allocations") {
@@ -216,7 +216,7 @@ TEST_CASE("METALManager Memory Management", "[METALManager][Backend]") {
 		// Allocate multiple buffers
 		for (size_t i = 0; i < num_allocs; ++i) {
 			void* ptr = nullptr;
-			REQUIRE_NOTHROW(ptr = ARBD::METAL::METALManager::allocate_raw(alloc_size));
+			REQUIRE_NOTHROW(ptr = ARBD::METAL::Manager::allocate_raw(alloc_size));
 			REQUIRE(ptr != nullptr);
 			pointers.push_back(ptr);
 		}
@@ -230,7 +230,7 @@ TEST_CASE("METALManager Memory Management", "[METALManager][Backend]") {
 
 		// Deallocate all
 		for (void* ptr : pointers) {
-			REQUIRE_NOTHROW(ARBD::METAL::METALManager::deallocate_raw(ptr));
+			REQUIRE_NOTHROW(ARBD::METAL::Manager::deallocate_raw(ptr));
 		}
 	}
 
@@ -239,28 +239,28 @@ TEST_CASE("METALManager Memory Management", "[METALManager][Backend]") {
 		size_t large_size = 1024 * 1024; // 1MB
 
 		void* ptr = nullptr;
-		REQUIRE_NOTHROW(ptr = ARBD::METAL::METALManager::allocate_raw(large_size));
+		REQUIRE_NOTHROW(ptr = ARBD::METAL::Manager::allocate_raw(large_size));
 		REQUIRE(ptr != nullptr);
 
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::deallocate_raw(ptr));
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::deallocate_raw(ptr));
 
 		LOGINFO("Successfully allocated and freed {:.1f} MB buffer",
 				static_cast<float>(large_size) / (1024.0f * 1024.0f));
 	}
 }
 
-TEST_CASE("METALManager Library and Function Management", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
+TEST_CASE("Manager Library and Function Management", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
 
 	SECTION("Library access") {
-		auto* library = ARBD::METAL::METALManager::get_library();
+		auto* library = ARBD::METAL::Manager::get_library();
 
 		if (library != nullptr) {
 			LOGINFO("Metal library loaded successfully");
 
 			// Test function preloading
-			REQUIRE_NOTHROW(ARBD::METAL::METALManager::preload_all_functions());
+			REQUIRE_NOTHROW(ARBD::METAL::Manager::preload_all_functions());
 
 			// Try to get function names (this might fail if no functions are available)
 			auto* function_names = library->functionNames();
@@ -276,7 +276,7 @@ TEST_CASE("METALManager Library and Function Management", "[METALManager][Backen
 						LOGINFO("Function {}: {}", i, func_name);
 
 						// Test getting function
-						auto* function = ARBD::METAL::METALManager::get_function(func_name);
+						auto* function = ARBD::METAL::Manager::get_function(func_name);
 						if (function) {
 							LOGINFO("  Successfully retrieved function: {}", func_name);
 						}
@@ -291,7 +291,7 @@ TEST_CASE("METALManager Library and Function Management", "[METALManager][Backen
 	}
 
 	SECTION("Pipeline state management") {
-		auto* library = ARBD::METAL::METALManager::get_library();
+		auto* library = ARBD::METAL::Manager::get_library();
 
 		if (library != nullptr) {
 			auto* function_names = library->functionNames();
@@ -304,7 +304,7 @@ TEST_CASE("METALManager Library and Function Management", "[METALManager][Backen
 					// This might fail if the function isn't a compute kernel
 					try {
 						auto* pipeline_state =
-							ARBD::METAL::METALManager::get_compute_pipeline_state(func_name);
+							ARBD::METAL::Manager::get_compute_pipeline_state(func_name);
 						if (pipeline_state) {
 							LOGINFO("Successfully created pipeline state for: {}", func_name);
 
@@ -324,10 +324,10 @@ TEST_CASE("METALManager Library and Function Management", "[METALManager][Backen
 	}
 }
 
-TEST_CASE("METALManager Device Properties", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
+TEST_CASE("Manager Device Properties", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
 
-	const auto& all_devices = ARBD::METAL::METALManager::all_devices();
+	const auto& all_devices = ARBD::METAL::Manager::all_devices();
 
 	SECTION("Device property access") {
 		for (size_t i = 0; i < all_devices.size(); ++i) {
@@ -352,12 +352,12 @@ TEST_CASE("METALManager Device Properties", "[METALManager][Backend]") {
 	}
 }
 
-TEST_CASE("METALManager Event System", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
-	ARBD::METAL::METALManager::use(0);
+TEST_CASE("Manager Event System", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
+	ARBD::METAL::Manager::use(0);
 
-	auto& device = ARBD::METAL::METALManager::get_current_device();
+	auto& device = ARBD::METAL::Manager::get_current_device();
 
 	SECTION("Basic event operations") {
 		auto& queue = device.get_next_queue();
@@ -400,58 +400,58 @@ TEST_CASE("METALManager Event System", "[METALManager][Backend]") {
 	}
 }
 
-TEST_CASE("METALManager Error Handling", "[METALManager][Backend]") {
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
+TEST_CASE("Manager Error Handling", "[Manager][Backend]") {
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
 
 	SECTION("Invalid device access") {
-		const auto& devices = ARBD::METAL::METALManager::devices();
+		const auto& devices = ARBD::METAL::Manager::devices();
 		int invalid_id = static_cast<int>(devices.size());
 
-		REQUIRE_THROWS_AS(ARBD::METAL::METALManager::use(invalid_id), ARBD::Exception);
+		REQUIRE_THROWS_AS(ARBD::METAL::Manager::use(invalid_id), ARBD::Exception);
 	}
 
 	SECTION("Invalid function access") {
-		auto* library = ARBD::METAL::METALManager::get_library();
+		auto* library = ARBD::METAL::Manager::get_library();
 
 		if (library != nullptr) {
-			REQUIRE_THROWS_AS(ARBD::METAL::METALManager::get_function("nonexistent_function"),
+			REQUIRE_THROWS_AS(ARBD::METAL::Manager::get_function("nonexistent_function"),
 							  ARBD::Exception);
 		}
 	}
 
 	SECTION("Null pointer deallocation") {
 		// Should handle null pointer gracefully
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::deallocate_raw(nullptr));
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::deallocate_raw(nullptr));
 	}
 
 	SECTION("Double deallocation") {
-		void* ptr = ARBD::METAL::METALManager::allocate_raw(1024);
+		void* ptr = ARBD::METAL::Manager::allocate_raw(1024);
 		REQUIRE(ptr != nullptr);
 
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::deallocate_raw(ptr));
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::deallocate_raw(ptr));
 
 		// Second deallocation should be logged as warning but not crash
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::deallocate_raw(ptr));
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::deallocate_raw(ptr));
 	}
 }
 
-TEST_CASE("METALManager Finalization", "[METALManager][Backend]") {
+TEST_CASE("Manager Finalization", "[Manager][Backend]") {
 	// Initialize first
-	ARBD::METAL::METALManager::init();
-	ARBD::METAL::METALManager::load_info();
+	ARBD::METAL::Manager::init();
+	ARBD::METAL::Manager::load_info();
 
 	SECTION("Clean finalization") {
-		REQUIRE_NOTHROW(ARBD::METAL::METALManager::finalize());
+		REQUIRE_NOTHROW(ARBD::METAL::Manager::finalize());
 
 		// After finalization, devices should be empty
-		const auto& devices = ARBD::METAL::METALManager::devices();
+		const auto& devices = ARBD::METAL::Manager::devices();
 		REQUIRE(devices.empty());
 	}
 }
 
 #else
-TEST_CASE("METAL Backend Not Available", "[METALManager][Backend]") {
+TEST_CASE("METAL Backend Not Available", "[Manager][Backend]") {
 	SKIP("METAL backend not compiled in or not on Apple platform");
 }
 #endif // USE_METAL

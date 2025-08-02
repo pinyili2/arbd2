@@ -28,7 +28,7 @@
 #ifndef OPENRAND_Philox_H_
 #define OPENRAND_Philox_H_
 
-#include <openrand/base_state.h>
+#include "base_state.h"
 
 #include <array>
 #include <cstdint>

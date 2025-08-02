@@ -4,8 +4,7 @@
 #include "Backend/Kernels.h"
 #include "Backend/Resource.h"
 #include "RandomKernels.h"
-#include "openrand/philox.h"
-
+#include "random/philox.h"
 namespace ARBD {
 
 template<typename Resource>

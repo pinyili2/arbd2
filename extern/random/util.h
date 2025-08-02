@@ -27,7 +27,7 @@
 
 #ifndef OPENRAND_UTIL_H_
 #define OPENRAND_UTIL_H_
-
+#include "Backend/Header.h"
 #include <cmath>
 #include <cstdint>
 #include <type_traits>

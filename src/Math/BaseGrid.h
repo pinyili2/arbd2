@@ -7,10 +7,7 @@
 
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
-#include <vector>
 
 // ARBD2 includes
 #include "Backend/Buffer.h"

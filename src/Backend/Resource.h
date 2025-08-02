@@ -1,14 +1,6 @@
 #pragma once
 
-// Define HOST and DEVICE macros
-#ifdef __CUDACC__
-#define HOST __host__
-#define DEVICE __device__
-#else
-#define HOST
-#define DEVICE
-#endif
-
+#include "Header.h"
 #ifdef USE_CUDA
 #include "Backend/CUDA/CUDAManager.h"
 #endif
@@ -36,7 +28,7 @@ inline size_t get_device_id() {
 #ifdef USE_SYCL
   try {
     return static_cast<size_t>(
-        ARBD::SYCL::SYCLManager::get_current_device().id());
+        ARBD::SYCL::Manager::get_current_device().id());
   } catch (...) {
     return 0;
   }
@@ -45,7 +37,7 @@ inline size_t get_device_id() {
 #ifdef USE_METAL
   try {
     return static_cast<size_t>(
-        ARBD::METAL::METALManager::get_current_device().id());
+        ARBD::METAL::Manager::get_current_device().id());
   } catch (...) {
     return 0;
   }
@@ -261,7 +253,7 @@ struct Resource {
 #ifdef USE_SYCL
     if (type == ResourceType::SYCL) {
       try {
-        auto &current_device = ARBD::SYCL::SYCLManager::get_current_device();
+        auto &current_device = ARBD::SYCL::Manager::get_current_device();
         ret = (current_device.id() == id);
       } catch (...) {
         ret = false;
@@ -271,7 +263,7 @@ struct Resource {
 #ifdef USE_METAL
     if (type == ResourceType::METAL) {
           try {
-      auto &current_device = ARBD::METAL::METALManager::get_current_device();
+      auto &current_device = ARBD::METAL::Manager::get_current_device();
       ret = (current_device.id() == id);
     } catch (...) {
       ret = false;
@@ -291,14 +283,14 @@ struct Resource {
 #endif
 #ifdef USE_SYCL
     try {
-      auto &current_device = ARBD::SYCL::SYCLManager::get_current_device();
+      auto &current_device = ARBD::SYCL::Manager::get_current_device();
       return Resource{ResourceType::SYCL, static_cast<size_t>(current_device.id())};
     } catch (...) {
     }
 #endif
 #ifdef USE_METAL
     try {
-      auto &current_device = ARBD::METAL::METALManager::get_current_device();
+      auto &current_device = ARBD::METAL::Manager::get_current_device();
       return Resource{ResourceType::METAL,
                       static_cast<size_t>(current_device.id())};
     } catch (...) {

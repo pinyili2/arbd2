@@ -1,6 +1,6 @@
 #ifdef USE_METAL
-#include "ARBDLogger.h"
 #include "METALManager.h"
+#include "ARBDLogger.h"
 #define NS_PRIVATE_IMPLEMENTATION
 #define CA_PRIVATE_IMPLEMENTATION
 #define MTL_PRIVATE_IMPLEMENTATION
@@ -22,6 +22,10 @@ std::mutex Manager::cache_mutex_;
 bool Manager::prefer_low_power_{false};
 std::mutex metal_buffer_map_mutex;
 
+// Define static member variables
+std::unordered_map<void*, MTLBufferPtr> ARBD::METAL::Manager::raw_buffer_map_;
+std::mutex ARBD::METAL::Manager::buffer_map_mutex_;
+
 void MTLLibraryDeleter::operator()(MTL::Library* lib) const noexcept {
 	if (lib)
 		lib->release();
@@ -36,12 +40,18 @@ void MTLPipelineStateDeleter::operator()(MTL::ComputePipelineState* pipeline) co
 	if (pipeline)
 		pipeline->release();
 }
-
+void BufferDeleter::operator()(MTL::Buffer* buffer) const noexcept {
+	if (buffer) {
+		buffer->release();
+		LOGTRACE("Released MTL::Buffer");
+	}
+}
 // Static buffer map to track MTLBuffer objects for raw pointer deallocation
 static std::unordered_map<void*, MTL::Buffer*> metal_buffer_map;
 
 template<typename T>
-DeviceMemory<T>::DeviceMemory(void* device, size_t count) : device_(static_cast<MTL::Device*>(device)), size_(count) {
+DeviceMemory<T>::DeviceMemory(void* device, size_t count)
+	: device_(static_cast<MTL::Device*>(device)), size_(count) {
 	if (count > 0 && device_) {
 		// Use MTLResourceStorageModeShared for unified memory architectures
 		buffer_ = device_->newBuffer(count * sizeof(T), MTL::ResourceStorageModeShared);
@@ -183,11 +193,11 @@ void* Queue::create_command_buffer() {
 	}
 	MTL::CommandQueue* pQueue = static_cast<MTL::CommandQueue*>(queue_);
 	MTL::CommandBuffer* pCmdBuffer = pQueue->commandBuffer();
-	
+
 	if (!pCmdBuffer) {
 		ARBD_Exception(ExceptionType::MetalRuntimeError, "Failed to create command buffer");
 	}
-	
+
 	// The caller of this function is now responsible for releasing the command buffer.
 	// This is typically done by wrapping it in an Event object.
 	return pCmdBuffer;
@@ -339,7 +349,7 @@ void Manager::Device::query_device_properties() {
 	if (!device_)
 		return;
 	MTL::Device* pDevice = metal_device();
-	
+
 	// Basic device properties
 	name_ = pDevice->name()->utf8String();
 	max_threads_per_group_ = pDevice->maxThreadsPerThreadgroup().width;
@@ -347,13 +357,17 @@ void Manager::Device::query_device_properties() {
 	is_low_power_ = pDevice->isLowPower();
 	is_removable_ = pDevice->isRemovable();
 	supports_compute_ = true;
-	
+
 	// Get additional device properties
 	recommended_max_working_set_size_ = pDevice->recommendedMaxWorkingSetSize();
-	
+
 	// Log device information
 	LOGINFO("Metal Device {}: {} (Unified Memory: {}, Low Power: {}, Removable: {})",
-			id_, name_, has_unified_memory_, is_low_power_, is_removable_);
+			id_,
+			name_,
+			has_unified_memory_,
+			is_low_power_,
+			is_removable_);
 }
 
 // ===================================================================
@@ -381,26 +395,45 @@ void Manager::init() {
 	}
 
 	// Inform about Metal's unified memory architecture
-	LOGINFO("Metal initialized with unified memory architecture - host and device memory share the same address space");
+	LOGINFO("Metal initialized with unified memory architecture - host and device memory share the "
+			"same address space");
 
 	MTL::Device* pDefaultDevice = all_devices_[0].metal_device();
 	NS::Error* pError = nullptr;
 
-	// Try default library first
-	if (auto* default_lib = pDefaultDevice->newDefaultLibrary()) {
-		library_ = default_lib;
-		LOGINFO("Loaded default Metal library");
-	} else {
-		// Try loading from file
-		NS::String* path = NS::String::string("default.metallib", NS::UTF8StringEncoding);
+	// Try loading from file first - try multiple possible paths
+	std::vector<std::string> possible_paths = {
+		"default.metallib",
+		"./default.metallib",
+		"UnitTest/default.metallib",
+		"build/macos-metal-debug/default.metallib"
+	};
+	
+	bool library_loaded = false;
+	for (const auto& path_str : possible_paths) {
+		NS::String* path = NS::String::string(path_str.c_str(), NS::UTF8StringEncoding);
 		if (auto* file_lib = pDefaultDevice->newLibrary(path, &pError)) {
 			library_ = file_lib;
-			LOGINFO("Loaded Metal library from file: default.metallib");
+			LOGINFO("Loaded Metal library from file: {}", path_str);
+			library_loaded = true;
+			break;
 		} else {
-			LOGINFO(
-				"No Metal compute library found. Memory management and basic operations are available. "
-				"Compile .metal shaders to enable compute kernels. ({})",
-				pError ? pError->localizedDescription()->utf8String() : "No library found");
+			LOGDEBUG("Failed to load Metal library from: {} (error: {})", 
+				path_str, 
+				pError ? pError->localizedDescription()->utf8String() : "Unknown error");
+		}
+	}
+	
+	// If custom library not found, try default library
+	if (!library_loaded) {
+		if (auto* default_lib = pDefaultDevice->newDefaultLibrary()) {
+			library_ = default_lib;
+			LOGINFO("Loaded default Metal library");
+		} else {
+			LOGINFO("No Metal compute library found. Memory management and basic operations are "
+					"available. "
+					"Compile .metal shaders to enable compute kernels. ({})",
+					pError ? pError->localizedDescription()->utf8String() : "No library found");
 		}
 	}
 
@@ -436,7 +469,7 @@ void Manager::discover_devices() {
 
 	LOGDEBUG("Discovering Metal devices...");
 	all_devices_.clear();
-	
+
 	for (NS::UInteger i = 0; i < mtl_devices->count(); ++i) {
 		// The void* stored in our Device class is the Objective-C id<MTLDevice>
 		void* device_ptr = (void*)mtl_devices->object(i);
@@ -470,12 +503,15 @@ void Manager::discover_devices() {
 	}
 
 	LOGDEBUG("Discovered {} Metal device(s)", all_devices_.size());
-	
+
 	// Inform about Metal's single-device nature
 	if (all_devices_.size() > 1) {
-		LOGWARN("Multiple Metal devices detected ({} devices). This is unusual for Apple Silicon which typically has one unified GPU.", all_devices_.size());
+		LOGWARN("Multiple Metal devices detected ({} devices). This is unusual for Apple Silicon "
+				"which typically has one unified GPU.",
+				all_devices_.size());
 	} else if (all_devices_.size() == 1) {
-		LOGDEBUG("Single Metal device detected - typical for Apple Silicon unified GPU architecture");
+		LOGDEBUG(
+			"Single Metal device detected - typical for Apple Silicon unified GPU architecture");
 	}
 
 	// Release the array now that we are done with it.
@@ -520,6 +556,11 @@ void Manager::finalize() {
 		}
 		delete function_cache_;
 		function_cache_ = nullptr;
+	}
+	std::lock_guard<std::mutex> lock(buffer_map_mutex_);
+	if (!raw_buffer_map_.empty()) {
+		LOGWARN("Cleaning up {} leaked Metal buffers during finalization", raw_buffer_map_.size());
+		raw_buffer_map_.clear();
 	}
 	devices_.clear();
 	all_devices_.clear();
@@ -631,7 +672,9 @@ void Manager::select_devices(std::span<const unsigned int> device_ids) {
 
 	// Warn about multi-device usage on Metal
 	if (devices_.size() > 1) {
-		LOGWARN("Multiple Metal devices selected ({} devices). Metal typically supports only one unified device on Apple Silicon. Multi-device operations may cause issues.", devices_.size());
+		LOGWARN("Multiple Metal devices selected ({} devices). Metal typically supports only one "
+				"unified device on Apple Silicon. Multi-device operations may cause issues.",
+				devices_.size());
 	}
 
 	current_device_ = 0;
@@ -654,15 +697,19 @@ void Manager::use(int device_id) {
 
 	int old_device = current_device_;
 	current_device_ = device_id;
-	
+
 	// Warn about device switching on Metal
 	if (devices_.size() > 1 && old_device != device_id) {
-		LOGWARN("Switching Metal devices from {} to {}. Metal typically uses a unified device architecture.", 
-				old_device, device_id);
+		LOGWARN("Switching Metal devices from {} to {}. Metal typically uses a unified device "
+				"architecture.",
+				old_device,
+				device_id);
 	}
-	
-	LOGINFO("Switched from Metal device {} to {}: {}", 
-			old_device, device_id, devices_[device_id].name());
+
+	LOGINFO("Switched from Metal device {} to {}: {}",
+			old_device,
+			device_id,
+			devices_[device_id].name());
 }
 
 void Manager::sync(int device_id) {
@@ -735,12 +782,7 @@ std::vector<unsigned int> Manager::get_low_power_device_ids() {
 	return low_power_ids;
 }
 
-void* Manager::get_metal_buffer_from_ptr(void* ptr) {
-	std::lock_guard<std::mutex> lock(metal_buffer_map_mutex);
-	auto it = metal_buffer_map.find(ptr);
-	return it != metal_buffer_map.end() ? it->second : nullptr;
-}
-
+/*
 void* Manager::allocate_raw(size_t size) {
 	if (devices_.empty()) {
 		ARBD_Exception(ExceptionType::ValueError, "No Metal devices available for allocation");
@@ -756,7 +798,7 @@ void* Manager::allocate_raw(size_t size) {
 	MTL::Buffer* pBuffer = pDevice->newBuffer(size, MTL::ResourceStorageModeShared);
 
 	if (!pBuffer) {
-		ARBD_Exception(ExceptionType::MetalRuntimeError, 
+		ARBD_Exception(ExceptionType::MetalRuntimeError,
 					   "Metal buffer allocation failed for size {}", size);
 	}
 
@@ -789,6 +831,7 @@ void Manager::deallocate_raw(void* ptr) {
 			ptr);
 	}
 }
+*/
 
 void Manager::preload_all_functions() {
 	if (!library_) {

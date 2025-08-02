@@ -11,12 +11,12 @@
 using Catch::Approx;
 // status: works on Mac M3
 
-TEST_CASE("SYCLManager Basic Initialization", "[SYCLManager][Backend]") {
+TEST_CASE("Manager Basic Initialization", "[Manager][Backend]") {
 	SECTION("Initialize and discover devices") {
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::init());
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::init());
 
 		// Check that we found some devices
-		const auto& all_devices = ARBD::SYCL::SYCLManager::all_devices();
+		const auto& all_devices = ARBD::SYCL::Manager::all_devices();
 		REQUIRE(!all_devices.empty());
 		LOGINFO("Found {} SYCL devices", all_devices.size());
 
@@ -32,16 +32,16 @@ TEST_CASE("SYCLManager Basic Initialization", "[SYCLManager][Backend]") {
 		}
 
 		// Load info should work
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::load_info());
-		const auto& devices = ARBD::SYCL::SYCLManager::devices();
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::load_info());
+		const auto& devices = ARBD::SYCL::Manager::devices();
 		REQUIRE(!devices.empty());
 	}
 
 	SECTION("Device properties validation") {
-		ARBD::SYCL::SYCLManager::init();
-		ARBD::SYCL::SYCLManager::load_info();
+		ARBD::SYCL::Manager::init();
+		ARBD::SYCL::Manager::load_info();
 
-		const auto& devices = ARBD::SYCL::SYCLManager::devices();
+		const auto& devices = ARBD::SYCL::Manager::devices();
 		for (size_t i = 0; i < devices.size(); ++i) {
 			const auto& device = devices[i];
 
@@ -64,32 +64,32 @@ TEST_CASE("SYCLManager Basic Initialization", "[SYCLManager][Backend]") {
 	}
 }
 
-TEST_CASE("SYCLManager Device Selection and Usage", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
+TEST_CASE("Manager Device Selection and Usage", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
 
-	const auto& devices = ARBD::SYCL::SYCLManager::devices();
+	const auto& devices = ARBD::SYCL::Manager::devices();
 	REQUIRE(!devices.empty());
 
 	SECTION("Device selection") {
 		// Test using device 0
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::use(0));
-		REQUIRE(ARBD::SYCL::SYCLManager::current() == 0);
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::use(0));
+		REQUIRE(ARBD::SYCL::Manager::current() == 0);
 
 		// Test current device access
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::get_current_device());
-		const auto& current_device = ARBD::SYCL::SYCLManager::get_current_device();
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::get_current_device());
+		const auto& current_device = ARBD::SYCL::Manager::get_current_device();
 		REQUIRE(current_device.id() == devices[0].id());
 
 		// Test cycling through devices if multiple available
 		if (devices.size() > 1) {
-			REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::use(1));
-			REQUIRE(ARBD::SYCL::SYCLManager::current() == 1);
+			REQUIRE_NOTHROW(ARBD::SYCL::Manager::use(1));
+			REQUIRE(ARBD::SYCL::Manager::current() == 1);
 
 			// Test wraparound
 			int wrapped_id = static_cast<int>(devices.size());
-			REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::use(wrapped_id));
-			REQUIRE(ARBD::SYCL::SYCLManager::current() == 0); // Should wrap to 0
+			REQUIRE_NOTHROW(ARBD::SYCL::Manager::use(wrapped_id));
+			REQUIRE(ARBD::SYCL::Manager::current() == 0); // Should wrap to 0
 		}
 	}
 
@@ -100,25 +100,25 @@ TEST_CASE("SYCLManager Device Selection and Usage", "[SYCLManager][Backend]") {
 			device_ids.push_back(device.id());
 		}
 
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::select_devices(device_ids));
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::select_devices(device_ids));
 
 		// Verify devices are still accessible
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::load_info());
-		const auto& selected_devices = ARBD::SYCL::SYCLManager::devices();
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::load_info());
+		const auto& selected_devices = ARBD::SYCL::Manager::devices();
 		REQUIRE(selected_devices.size() == device_ids.size());
 	}
 }
 
-TEST_CASE("SYCLManager Queue Management", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
-	ARBD::SYCL::SYCLManager::use(0);
+TEST_CASE("Manager Queue Management", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
+	ARBD::SYCL::Manager::use(0);
 
-	auto& device = ARBD::SYCL::SYCLManager::get_current_device();
+	auto& device = ARBD::SYCL::Manager::get_current_device();
 
 	SECTION("Queue access") {
 		// Test getting specific queues
-		for (size_t i = 0; i < ARBD::SYCL::SYCLManager::NUM_QUEUES; ++i) {
+		for (size_t i = 0; i < ARBD::SYCL::Manager::NUM_QUEUES; ++i) {
 			REQUIRE_NOTHROW(device.get_queue(i));
 			auto& queue = device.get_queue(i);
 
@@ -128,16 +128,16 @@ TEST_CASE("SYCLManager Queue Management", "[SYCLManager][Backend]") {
 
 		// Test next queue cycling
 		std::set<const void*> seen_queues;
-		for (size_t i = 0; i < ARBD::SYCL::SYCLManager::NUM_QUEUES * 2; ++i) {
-			auto& queue = const_cast<ARBD::SYCL::SYCLManager::Device&>(device).get_next_queue();
+		for (size_t i = 0; i < ARBD::SYCL::Manager::NUM_QUEUES * 2; ++i) {
+			auto& queue = const_cast<ARBD::SYCL::Manager::Device&>(device).get_next_queue();
 			seen_queues.insert(&queue.get());
 		}
 		// Should have seen all unique queues
-		REQUIRE(seen_queues.size() == ARBD::SYCL::SYCLManager::NUM_QUEUES);
+		REQUIRE(seen_queues.size() == ARBD::SYCL::Manager::NUM_QUEUES);
 	}
 
 	SECTION("Queue functionality") {
-		auto& queue = const_cast<ARBD::SYCL::SYCLManager::Device&>(device).get_next_queue();
+		auto& queue = const_cast<ARBD::SYCL::Manager::Device&>(device).get_next_queue();
 
 		// Test basic queue operations
 		REQUIRE_NOTHROW(queue.get());
@@ -164,15 +164,15 @@ TEST_CASE("SYCLManager Queue Management", "[SYCLManager][Backend]") {
 	}
 }
 
-TEST_CASE("SYCLManager Current Queue Access", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
-	ARBD::SYCL::SYCLManager::use(0);
+TEST_CASE("Manager Current Queue Access", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
+	ARBD::SYCL::Manager::use(0);
 
 	SECTION("Current queue access") {
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::get_current_queue());
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::get_current_queue());
 
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 		REQUIRE_NOTHROW(queue.get());
 
 		// Should be able to submit work to current queue
@@ -188,8 +188,8 @@ TEST_CASE("SYCLManager Current Queue Access", "[SYCLManager][Backend]") {
 	}
 
 	SECTION("Current device queue relationship") {
-		auto& device = ARBD::SYCL::SYCLManager::get_current_device();
-		auto& current_queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		auto& device = ARBD::SYCL::Manager::get_current_device();
+		auto& current_queue = ARBD::SYCL::Manager::get_current_queue();
 		auto& device_queue = device.get_next_queue();
 
 		// Both should be valid queues (might be different instances)
@@ -198,17 +198,17 @@ TEST_CASE("SYCLManager Current Queue Access", "[SYCLManager][Backend]") {
 	}
 }
 
-TEST_CASE("SYCLManager Synchronization", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
+TEST_CASE("Manager Synchronization", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
 
 	SECTION("All devices sync") {
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::sync());
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::sync());
 	}
 
 	SECTION("Sync with active work") {
-		ARBD::SYCL::SYCLManager::use(0);
-		auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+		ARBD::SYCL::Manager::use(0);
+		auto& queue = ARBD::SYCL::Manager::get_current_queue();
 
 		// Submit some work
 		queue.get().submit([](sycl::handler& h) {
@@ -220,16 +220,16 @@ TEST_CASE("SYCLManager Synchronization", "[SYCLManager][Backend]") {
 		});
 
 		// Sync should wait for completion
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::sync());
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::sync());
 	}
 }
 
-TEST_CASE("SYCLManager Memory Operations", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
-	ARBD::SYCL::SYCLManager::use(0);
+TEST_CASE("Manager Memory Operations", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
+	ARBD::SYCL::Manager::use(0);
 
-	auto& queue = ARBD::SYCL::SYCLManager::get_current_queue();
+	auto& queue = ARBD::SYCL::Manager::get_current_queue();
 
 	SECTION("Device memory allocation") {
 		constexpr size_t test_size = 1024;
@@ -302,43 +302,43 @@ TEST_CASE("SYCLManager Memory Operations", "[SYCLManager][Backend]") {
 	}
 }
 
-TEST_CASE("SYCLManager Exception Handling", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
+TEST_CASE("Manager Exception Handling", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
 
 	SECTION("Invalid device access") {
-		const auto& devices = ARBD::SYCL::SYCLManager::devices();
+		const auto& devices = ARBD::SYCL::Manager::devices();
 		int invalid_id = static_cast<int>(devices.size());
 		// This should throw an exception
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::use(invalid_id));
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::use(invalid_id));
 
 		// But sync with invalid device ID should throw
-		REQUIRE_THROWS_AS(ARBD::SYCL::SYCLManager::sync(invalid_id), ARBD::Exception);
+		REQUIRE_THROWS_AS(ARBD::SYCL::Manager::sync(invalid_id), ARBD::Exception);
 
 		// And get_device with invalid ID should throw
-		REQUIRE_THROWS_AS(ARBD::SYCL::SYCLManager::get_device(invalid_id), ARBD::Exception);
+		REQUIRE_THROWS_AS(ARBD::SYCL::Manager::get_device(invalid_id), ARBD::Exception);
 	}
 
 	SECTION("Error recovery") {
 		// After an error, the manager should still be usable
 		try {
-			const auto& devices = ARBD::SYCL::SYCLManager::devices();
+			const auto& devices = ARBD::SYCL::Manager::devices();
 			int invalid_id = static_cast<int>(devices.size());
-			ARBD::SYCL::SYCLManager::use(invalid_id);
+			ARBD::SYCL::Manager::use(invalid_id);
 		} catch (const ARBD::Exception&) {
 			// Expected
 		}
 
 		// Should still be able to use valid device
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::use(0));
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::get_current_queue());
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::use(0));
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::get_current_queue());
 	}
 }
 
-TEST_CASE("SYCLManager Device Discovery Details", "[SYCLManager][Backend]") {
-	ARBD::SYCL::SYCLManager::init();
+TEST_CASE("Manager Device Discovery Details", "[Manager][Backend]") {
+	ARBD::SYCL::Manager::init();
 
-	const auto& all_devices = ARBD::SYCL::SYCLManager::all_devices();
+	const auto& all_devices = ARBD::SYCL::Manager::all_devices();
 
 	SECTION("Platform information") {
 		LOGINFO("=== SYCL Platform and Device Information ===");
@@ -417,22 +417,22 @@ TEST_CASE("SYCLManager Device Discovery Details", "[SYCLManager][Backend]") {
 	}
 }
 
-TEST_CASE("SYCLManager Finalization", "[SYCLManager][Backend]") {
+TEST_CASE("Manager Finalization", "[Manager][Backend]") {
 	// Initialize first
-	ARBD::SYCL::SYCLManager::init();
-	ARBD::SYCL::SYCLManager::load_info();
+	ARBD::SYCL::Manager::init();
+	ARBD::SYCL::Manager::load_info();
 
 	SECTION("Clean finalization") {
-		REQUIRE_NOTHROW(ARBD::SYCL::SYCLManager::finalize());
+		REQUIRE_NOTHROW(ARBD::SYCL::Manager::finalize());
 
 		// After finalization, devices should be empty
-		const auto& devices = ARBD::SYCL::SYCLManager::devices();
+		const auto& devices = ARBD::SYCL::Manager::devices();
 		REQUIRE(devices.empty());
 	}
 }
 
 #else
-TEST_CASE("SYCL Backend Not Available", "[SYCLManager][Backend]") {
+TEST_CASE("SYCL Backend Not Available", "[Manager][Backend]") {
 	SKIP("SYCL backend not compiled in");
 }
 #endif // USE_SYCL

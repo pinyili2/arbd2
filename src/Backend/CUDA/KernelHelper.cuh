@@ -76,7 +76,7 @@ Event launch_cuda_kernel_impl(const Resource& resource,
 
 	// Get device and stream
 	auto& device =
-		const_cast<CUDA::CUDAManager::Device&>(CUDA::CUDAManager::devices()[resource.id]);
+		const_cast<CUDA::Manager::Device&>(CUDA::Manager::devices()[resource.id]);
 	cudaStream_t stream = device.get_next_stream();
 
 	// Extract buffer pointers for kernel invocation

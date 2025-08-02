@@ -29,7 +29,8 @@ inline void check_metal_error(void* object, std::string_view file, int line) {
 	if (object == nullptr) {
 		ARBD_Exception(ExceptionType::MetalRuntimeError,
 					   "Metal error at {}:{}: Object is null",
-					   file, line);
+					   file,
+					   line);
 	}
 }
 
@@ -275,10 +276,17 @@ struct MTLPipelineStateDeleter {
 	void operator()(MTL::ComputePipelineState* pipeline) const noexcept;
 };
 
+struct BufferDeleter {
+	void operator()(MTL::Buffer* buffer) const noexcept;
+};
+
 // Smart pointer aliases
 using MTLLibraryPtr = std::unique_ptr<MTL::Library, MTLLibraryDeleter>;
 using MTLFunctionPtr = std::unique_ptr<MTL::Function, MTLFunctionDeleter>;
 using MTLPipelineStatePtr = std::unique_ptr<MTL::ComputePipelineState, MTLPipelineStateDeleter>;
+using MTLBufferPtr = std::unique_ptr<MTL::Buffer, BufferDeleter>;
+static std::unordered_map<void*, MTLBufferPtr> raw_buffer_map_;
+static std::mutex buffer_map_mutex_;
 
 /**
  * @brief Main Metal manager class
@@ -399,6 +407,71 @@ class Manager {
 	static void finalize();
 	static void preload_all_functions();
 
+	template<typename T>
+	static MTLBufferPtr
+	create_buffer(size_t count, MTL::ResourceOptions options = MTL::ResourceStorageModeShared) {
+		auto* device = get_current_device().metal_device();
+		auto* buffer = device->newBuffer(count * sizeof(T), options);
+
+		if (!buffer) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "Failed to allocate buffer for {} elements of type {}",
+						   count,
+						   typeid(T).name());
+		}
+
+		return MTLBufferPtr(buffer);
+	}
+	static MTLBufferPtr
+	create_raw_buffer(size_t bytes, MTL::ResourceOptions options = MTL::ResourceStorageModeShared) {
+		auto* device = get_current_device().metal_device();
+		auto* buffer = device->newBuffer(bytes, options);
+
+		if (!buffer) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "Failed to allocate raw buffer of {} bytes",
+						   bytes);
+		}
+
+		return MTLBufferPtr(buffer);
+	}
+	static void* allocate_raw(size_t size) {
+		auto buffer = create_raw_buffer(size);
+		void* contents = buffer->contents();
+
+		// Store buffer for later cleanup using simplified tracking
+		std::lock_guard<std::mutex> lock(buffer_map_mutex_);
+		raw_buffer_map_[contents] = std::move(buffer);
+
+		return contents;
+	}
+	static void deallocate_raw(void* ptr) {
+		if (!ptr)
+			return;
+		std::lock_guard<std::mutex> lock(buffer_map_mutex_);
+		auto it = raw_buffer_map_.find(ptr);
+
+		if (it != raw_buffer_map_.end()) {
+			raw_buffer_map_.erase(it);
+		} else {
+			LOGWARN("Attempted to deallocate untracked Metal buffer pointer: {}", ptr);
+		}
+	}
+	static MTL::Buffer* get_metal_buffer_from_ptr(void* ptr) {
+		std::lock_guard<std::mutex> lock(buffer_map_mutex_);
+		LOGINFO("Looking for buffer with ptr: {} in map with {} entries", ptr, raw_buffer_map_.size());
+		for (const auto& entry : raw_buffer_map_) {
+			LOGINFO("Map entry: ptr={}, buffer={}", entry.first, (void*)entry.second.get());
+		}
+		auto it = raw_buffer_map_.find(ptr);
+		if (it != raw_buffer_map_.end()) {
+			LOGINFO("Found Metal buffer: {} for ptr: {}", (void*)it->second.get(), ptr);
+			return it->second.get();
+		}
+		LOGINFO("Metal buffer not found for ptr: {}", ptr);
+		return nullptr;
+	}
+
 	[[nodiscard]] static Device& get_current_device();
 	[[nodiscard]] static MTL::CommandQueue* get_current_queue();
 
@@ -416,9 +489,7 @@ class Manager {
 		return devices_;
 	}
 	// C-style allocation functions for compatibility with UnifiedBuffer
-	static void* allocate_raw(size_t size);
-	static void deallocate_raw(void* ptr);
-	[[nodiscard]] static void* get_metal_buffer_from_ptr(void* ptr);
+
 	static MTL::Function* get_function(const std::string& function_name);
 
 	// Additional utility methods for completeness
@@ -433,7 +504,8 @@ class Manager {
 	[[nodiscard]] static std::vector<unsigned int> get_discrete_gpu_device_ids();
 	[[nodiscard]] static std::vector<unsigned int> get_integrated_gpu_device_ids();
 	[[nodiscard]] static std::vector<unsigned int> get_low_power_device_ids();
-
+	static std::unordered_map<void*, MTLBufferPtr> raw_buffer_map_;
+	static std::mutex buffer_map_mutex_;
 	static void init_devices();
 	static void discover_devices();
 	static std::vector<Device> all_devices_;
@@ -446,37 +518,43 @@ class Manager {
 	static bool prefer_low_power_;
 	static std::unordered_map<std::string, MTL::Function*>* function_cache_;
 };
+
 /**
  * @brief Policy for Metal memory operations.
  */
+// In your METALManager.h - Fixed Policy implementation
 
 struct Policy {
-	// A helper to get the storage mode from a raw buffer pointer
+	// Helper to get the storage mode from a raw buffer pointer
 	static MTL::ResourceOptions get_storage_mode(const void* device_ptr) {
-		const MTL::Buffer* mtl_buffer = static_cast<const MTL::Buffer*>(device_ptr);
+		// device_ptr is the contents pointer, need to get the MTL::Buffer*
+		MTL::Buffer* mtl_buffer = Manager::get_metal_buffer_from_ptr(const_cast<void*>(device_ptr));
+		if (!mtl_buffer) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "Cannot get storage mode: Invalid buffer pointer");
+		}
 		return mtl_buffer->storageMode();
 	}
 
 	// The default storage mode is now Shared
 	static void* allocate(size_t bytes,
 						  MTL::ResourceOptions storage_mode = MTL::ResourceStorageModeShared) {
-		auto& device = Manager::get_current_device();
-		void* buffer = device.metal_device()->newBuffer(bytes, storage_mode);
-		LOGTRACE("METALPolicy: Allocated {} bytes with storage mode {}", bytes, storage_mode);
-		return buffer;
+		return Manager::allocate_raw(bytes);
 	}
 
 	static void deallocate(void* ptr) {
 		if (ptr) {
-			LOGTRACE("METALPolicy: Deallocating pointer.");
-			MTL::Buffer* mtl_buffer = static_cast<MTL::Buffer*>(ptr);
-			mtl_buffer->release();
+			Manager::deallocate_raw(ptr);
 		}
 	}
 
 	static void copy_to_host(void* host_dst, const void* device_src, size_t bytes) {
-		// This part is now correct.
-		MTL::Buffer* mtl_buffer = static_cast<MTL::Buffer*>(const_cast<void*>(device_src));
+		// device_src is the contents pointer, need to get the MTL::Buffer*
+		MTL::Buffer* mtl_buffer = Manager::get_metal_buffer_from_ptr(const_cast<void*>(device_src));
+		if (!mtl_buffer) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "copy_to_host: Invalid buffer pointer");
+		}
 
 		auto& device_manager = Manager::get_current_device();
 		auto& queue = device_manager.get_next_queue();
@@ -484,9 +562,8 @@ struct Policy {
 			static_cast<MTL::CommandBuffer*>(queue.create_command_buffer());
 		MTL::BlitCommandEncoder* blit_encoder = cmd_buffer->blitCommandEncoder();
 
-		if (mtl_buffer->storageMode() ==
-			static_cast<MTL::StorageMode>(MTL::ResourceStorageModeShared)) {
-			LOGTRACE("METALPolicy: Synchronizing shared buffer before host copy.", bytes);
+		if (mtl_buffer->storageMode() == MTL::ResourceStorageModeShared) {
+			LOGTRACE("METALPolicy: Synchronizing shared buffer before host copy.");
 			// This command ensures that all prior GPU writes to the buffer are complete
 			// before any subsequent commands (and the CPU wait) proceed.
 			blit_encoder->synchronizeResource(mtl_buffer);
@@ -520,10 +597,14 @@ struct Policy {
 	}
 
 	static void copy_from_host(void* device_dst, const void* host_src, size_t bytes) {
-		MTL::Buffer* mtl_buffer = static_cast<MTL::Buffer*>(device_dst);
+		// device_dst is the contents pointer, need to get the MTL::Buffer*
+		MTL::Buffer* mtl_buffer = Manager::get_metal_buffer_from_ptr(device_dst);
+		if (!mtl_buffer) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "copy_from_host: Invalid buffer pointer");
+		}
 
-		if (mtl_buffer->storageMode() ==
-			static_cast<MTL::StorageMode>(MTL::ResourceStorageModeShared)) {
+		if (mtl_buffer->storageMode() == MTL::ResourceStorageModeShared) {
 			LOGTRACE("METALPolicy: Copying {} bytes from host to shared buffer.", bytes);
 			std::memcpy(mtl_buffer->contents(), host_src, bytes);
 		} else {
@@ -548,6 +629,16 @@ struct Policy {
 
 	static void copy_device_to_device(void* device_dst, const void* device_src, size_t bytes) {
 		LOGTRACE("METALPolicy: Copying {} bytes from device to device.", bytes);
+
+		// Both device_dst and device_src are contents pointers, need to get MTL::Buffer*
+		MTL::Buffer* src_buffer = Manager::get_metal_buffer_from_ptr(const_cast<void*>(device_src));
+		MTL::Buffer* dst_buffer = Manager::get_metal_buffer_from_ptr(device_dst);
+
+		if (!src_buffer || !dst_buffer) {
+			ARBD_Exception(ExceptionType::MetalRuntimeError,
+						   "copy_device_to_device: Invalid buffer pointer(s)");
+		}
+
 		auto& device_manager = Manager::get_current_device();
 		auto& queue = device_manager.get_next_queue();
 
@@ -555,17 +646,19 @@ struct Policy {
 			static_cast<MTL::CommandBuffer*>(queue.create_command_buffer());
 		MTL::BlitCommandEncoder* blit_encoder = cmd_buffer->blitCommandEncoder();
 
-		blit_encoder->copyFromBuffer(static_cast<const MTL::Buffer*>(device_src),
-									 0,
-									 static_cast<MTL::Buffer*>(device_dst),
-									 0,
-									 bytes);
+		blit_encoder->copyFromBuffer(src_buffer, 0, dst_buffer, 0, bytes);
 		blit_encoder->endEncoding();
 
 		cmd_buffer->commit();
 		cmd_buffer->waitUntilCompleted();
 	}
+
+	// Additional helper for Buffer class to get Metal buffer when needed
+	static MTL::Buffer* get_metal_buffer(const void* contents_ptr) {
+		return Manager::get_metal_buffer_from_ptr(const_cast<void*>(contents_ptr));
+	}
 };
+
 } // namespace METAL
 } // namespace ARBD
 

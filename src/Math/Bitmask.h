@@ -3,14 +3,10 @@
 #include "ARBDLogger.h"
 #include "Backend/Buffer.h"
 #include "Backend/Resource.h"
-#include <algorithm>
 #include <cassert>
 #include <climits>
 #include <cstdio>
-#include <cstdlib>
-#include <initializer_list>
 #include <map>
-#include <memory>
 #include <string>
 
 namespace ARBD {

@@ -5,7 +5,6 @@
 #include <type_traits>
 #include <vector>
 
-// Required Manager Headers for Policies
 #ifdef USE_CUDA
 #include "CUDA/CUDAManager.h"
 #include <thrust/tuple.h>
@@ -17,21 +16,21 @@
 #include "METAL/METALManager.h"
 #endif
 
-#else
-#error "No backend selected. Please define USE_CUDA, USE_SYCL, or USE_METAL."
-#endif
 #include "ARBDLogger.h"
 #include "Events.h"
 #include "Resource.h"
 
 namespace ARBD {
+
 #if defined(USE_CUDA)
 using BackendPolicy = CUDA::Policy;
 #elif defined(USE_SYCL)
 using BackendPolicy = SYCL::Policy;
 #elif defined(USE_METAL)
 using BackendPolicy = METAL::Policy;
-
+#else
+#error "No backend selected. Please define USE_CUDA, USE_SYCL, or USE_METAL."
+#endif
 // ============================================================================
 // Generic Buffer Class
 // ============================================================================
@@ -205,7 +204,16 @@ class Buffer {
 		LOGTRACE("Copied {} bytes device-to-device", num_elements * sizeof(T));
 #endif
 	}
-
+#ifdef USE_METAL
+	void bind_to_encoder(MTL::ComputeCommandEncoder* encoder, uint32_t index) const {
+		auto* metal_buffer = METAL::Manager::get_metal_buffer_from_ptr(device_ptr_);
+		if (!metal_buffer) {
+			throw_value_error("Failed to get Metal buffer for binding at index {}", index);
+		}
+		LOGINFO("Binding Metal buffer {} to encoder at index {}", (void*)metal_buffer, index);
+		encoder->setBuffer(metal_buffer, 0, index);
+	}
+#endif
   private:
 	void allocate(size_t count) {
 		count_ = count;
@@ -231,7 +239,6 @@ class Buffer {
 	size_t count_{0};
 	T* device_ptr_{nullptr};
 };
-
 // ============================================================================
 // Compile-Time Backend Selection
 // ============================================================================
