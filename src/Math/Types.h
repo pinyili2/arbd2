@@ -18,6 +18,7 @@
 #include <string>
 #include <string_view>
 #include <vector> // Added for std::vector
+#include "Backend/Header.h"
 
 namespace ARBD {
 

@@ -24,6 +24,30 @@ option(USE_NVTX "Build with NVTX profiling ranges" OFF)
 option(USE_PYBIND "Build Python bindings" OFF)
 option(USE_METAL "Use Apple Silicon Metal" OFF)
 
+# --- Backend Selection Validation ---
+# Ensure only one backend is selected
+set(BACKEND_COUNT 0)
+if(USE_CUDA)
+    math(EXPR BACKEND_COUNT "${BACKEND_COUNT} + 1")
+endif()
+if(USE_METAL)
+    math(EXPR BACKEND_COUNT "${BACKEND_COUNT} + 1")
+endif()
+if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
+    math(EXPR BACKEND_COUNT "${BACKEND_COUNT} + 1")
+endif()
+
+if(BACKEND_COUNT EQUAL 0)
+    message(FATAL_ERROR "No backend selected. Please enable exactly one of: USE_CUDA, USE_METAL, USE_SYCL_ACPP, or USE_SYCL_ICPX")
+elseif(BACKEND_COUNT GREATER 1)
+    message(FATAL_ERROR "Multiple backends selected. Please enable exactly one of: USE_CUDA, USE_METAL, USE_SYCL_ACPP, or USE_SYCL_ICPX")
+endif()
+
+# Validate SYCL options (only one SYCL variant should be selected)
+if(USE_SYCL_ACPP AND USE_SYCL_ICPX)
+    message(FATAL_ERROR "Both USE_SYCL_ACPP and USE_SYCL_ICPX are ON. Please choose only one SYCL implementation.")
+endif()
+
 # --- Basic CMake Setup ---
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -38,7 +62,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Find threading library for use across the project
 find_package(Threads REQUIRED)
 
-include_directories(${CMAKE_SOURCE_DIR}/extern/OpenRAND/include)
+include_directories(${CMAKE_SOURCE_DIR}/extern)
 
 if(USE_CUDA)
     set(CMAKE_CUDA_STANDARD 20)
@@ -168,9 +192,6 @@ message(STATUS "C++ General flags: ${CMAKE_CXX_FLAGS}")
 if(USE_CUDA)
     message(STATUS "CUDA Release flags: ${CMAKE_CUDA_FLAGS_RELEASE}")
 endif()
-if(USE_METAL)
-    message(STATUS "Objective-C++ Release flags: ${CMAKE_OBJCXX_FLAGS_RELEASE}")
-endif()
 
 # Metal specific setup
 if(USE_METAL AND APPLE)
@@ -184,9 +205,6 @@ if(USE_METAL AND APPLE)
 endif()
 
 # --- SYCL Configuration (Explicit ACPP or ICPX) ---
-if(USE_SYCL_ACPP AND USE_SYCL_ICPX)
-    message(FATAL_ERROR "Both USE_SYCL_ACPP and USE_SYCL_ICPX are ON. Please choose only one SYCL implementation for this build.")
-endif()
 
 if(USE_SYCL_ACPP OR USE_SYCL_ICPX)
     message(STATUS "SYCL support is requested.")
@@ -387,7 +405,7 @@ if(USE_CUDA)
 endif()
 
 add_subdirectory(src)
-add_subdirectory(UnitTest)
+add_subdirectory(test_unit)
 
 add_executable("${PROJECT_NAME}" src/arbd.cpp)
 

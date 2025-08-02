@@ -620,7 +620,7 @@ class Manager {
 /**
  * @brief Policy for SYCL memory operations.
  */
- struct SYCLPolicy {
+ struct Policy {
 	static void* allocate(size_t bytes) {
 		auto& queue = Manager::get_current_queue();
 		void* ptr = sycl::malloc_device(bytes, queue.get());

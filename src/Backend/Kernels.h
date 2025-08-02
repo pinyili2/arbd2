@@ -62,7 +62,7 @@ struct KernelConfig {
 #ifdef USE_SYCL
 		if (resource.type == ResourceType::SYCL) {
 			try {
-				auto& device = SYCL::SYCLManager::get_device(resource.id);
+				auto& device = SYCL::Manager::get_device(resource.id);
 				size_t max_work_group_size =
 					device.get_device().get_info<sycl::info::device::max_work_group_size>();
 

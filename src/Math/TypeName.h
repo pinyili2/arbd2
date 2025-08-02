@@ -13,6 +13,7 @@
 #endif
 #include "ARBDException.h"
 #include "ARBDLogger.h"
+#include "Backend/Header.h"
 #include "Backend/Resource.h"
 
 namespace ARBD {
