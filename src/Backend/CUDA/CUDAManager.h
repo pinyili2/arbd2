@@ -17,6 +17,11 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
+
+// Include NCCL if available
+#ifdef USE_NCCL
+#include "NCCLManager.h"
+#endif
 /**
  * @brief Modern RAII wrapper for CUDA device memory
  */
@@ -675,8 +680,58 @@ class Manager {
 #ifndef __CUDA_ARCH__ // Host-only logging
 		LOGTRACE("CUDAPolicy: Copying {} bytes from device to device.", bytes);
 #endif
+#ifdef USE_NCCL
+		// Use NCCL for device-to-device copy if available and NCCL is initialized
+		// Note: For single device copy, regular CUDA memcpy is typically more efficient
+		// NCCL is primarily designed for multi-GPU collective operations
+		if (NCCLManager::is_initialized() && devices().size() > 1) {
+			// For multi-GPU scenarios, we could potentially use NCCL broadcast
+			// but for simple device-to-device copy, CUDA memcpy is more appropriate
+			CUDA_CHECK(cudaMemcpy(device_dst, device_src, bytes, cudaMemcpyDeviceToDevice));
+		} else {
+			CUDA_CHECK(cudaMemcpy(device_dst, device_src, bytes, cudaMemcpyDeviceToDevice));
+		}
+#else
 		CUDA_CHECK(cudaMemcpy(device_dst, device_src, bytes, cudaMemcpyDeviceToDevice));
+#endif
 	}
+
+#ifdef USE_NCCL
+	/**
+	 * @brief NCCL-based broadcast for multi-GPU scenarios
+	 * 
+	 * This function uses NCCL for efficient broadcasting when multiple GPUs
+	 * are involved. It's particularly useful for:
+	 * - Broadcasting data from one GPU to multiple GPUs
+	 * - Cross-GPU data transfers with optimal bandwidth utilization
+	 * 
+	 * @param device_ptrs Array of device pointers for each GPU (send and receive)
+	 * @param num_gpus Number of GPUs participating in the broadcast
+	 * @param count Number of elements to broadcast
+	 * @param root_gpu Root GPU for broadcast operations (default: 0)
+	 * @param stream_id CUDA stream ID to use (default: -1 for current stream)
+	 */
+	template<typename T>
+	static void broadcast_device_data(T** device_ptrs, size_t num_gpus, size_t count, 
+									int root_gpu = 0, int stream_id = -1) {
+#ifndef __CUDA_ARCH__ // Host-only logging
+		LOGTRACE("CUDAPolicy: NCCL-based broadcasting {} elements across {} GPUs.", count, num_gpus);
+#endif
+		if (!NCCLManager::is_initialized()) {
+			// Fall back to regular CUDA memcpy if NCCL is not initialized
+			for (size_t i = 0; i < num_gpus; ++i) {
+				if (i != static_cast<size_t>(root_gpu)) {
+					CUDA_CHECK(cudaMemcpy(device_ptrs[i], device_ptrs[root_gpu], 
+										 count * sizeof(T), cudaMemcpyDeviceToDevice));
+				}
+			}
+			return;
+		}
+
+		// Use NCCL broadcast for efficient multi-GPU communication
+		NCCLManager::broadcast<T>(root_gpu, device_ptrs, num_gpus, count, stream_id);
+	}
+#endif
 };
 /**
  * @brief Queue alias for Stream to maintain consistency with industry standard terminology
